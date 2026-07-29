@@ -36,7 +36,7 @@
               label="Full Name"
               :rules="[(val: string) => !!val || 'Full Name is required']"
             >
-              <template #prepend><q-icon name="person_outline" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:person_outline" /></template>
             </AuthInput>
 
             <AuthSelect
@@ -46,32 +46,55 @@
               class="q-mt-md"
               :rules="[(val: string) => !!val || 'Please select your sex']"
             >
-              <template #prepend><q-icon name="wc" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:wc" /></template>
             </AuthSelect>
 
             <AuthInput
-              v-model="form.phone"
-              label="Phone Number (e.g. 09123456789)"
+              :model-value="form.phoneDigits"
+              @update:model-value="form.phoneDigits = $event.replace(/\D/g, '')"
+              label="Phone Number"
               class="q-mt-md"
+              maxlength="10"
+              inputmode="numeric"
               :rules="[
                 (val: string) => !!val || 'Phone number is required',
-                (val: string) => /^[0-9]{11}$/.test(val) || 'Must be a valid 11-digit phone number',
+                (val: string) => /^\d{10}$/.test(val) || 'Enter 10 digits after +63 (e.g. 9123456789)',
               ]"
             >
-              <template #prepend><q-icon name="phone" /></template>
+              <template #prepend>
+                <div class="row items-center no-wrap">
+                  <IconifyIcon icon="material-icons:phone" class="q-mr-xs" />
+                  <span class="text-grey-7 text-weight-medium phone-prefix">+63</span>
+                  <span class="q-ml-xs text-grey-4 phone-prefix">|</span>
+                </div>
+              </template>
             </AuthInput>
           </q-step>
 
           <q-step v-if="!isGoogleMode" :name="2" title="Account" icon="settings" :done="step > 2">
             <AuthInput
-              v-model="form.email"
-              label="Email Address"
+              v-model="form.emailUser"
+              label="Email"
               :rules="[
                 (val: string) => !!val || 'Email is required',
-                (val: string) => /.+@.+\..+/.test(val) || 'Must be a valid email address',
+                (val: string) => /^[a-zA-Z0-9._%+-]+$/.test(val) || 'Invalid email username',
               ]"
             >
-              <template #prepend><q-icon name="mail_outline" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:mail_outline" /></template>
+              <template #append>
+                <div class="row items-center no-wrap">
+                  <span class="text-grey-7 text-weight-medium q-mr-xs" style="font-size: 16px">@</span>
+                  <q-select
+                    v-model="form.emailDomain"
+                    :options="emailDomains"
+                    borderless
+                    dense
+                    hide-bottom-space
+                    class="email-domain-select"
+                    style="min-width: 105px"
+                  />
+                </div>
+              </template>
             </AuthInput>
 
             <AuthInput
@@ -81,13 +104,16 @@
               class="q-mt-md"
               :rules="[
                 (val: string) => !!val || 'Password is required',
-                (val: string) => val.length >= 6 || 'Password must be at least 6 characters',
+                (val: string) => val.length >= 8 || 'At least 8 characters',
+                (val: string) => /[a-z]/.test(val) || 'Must include a lowercase letter',
+                (val: string) => /[A-Z]/.test(val) || 'Must include an uppercase letter',
+                (val: string) => /\d/.test(val) || 'Must include a number',
+                (val: string) => /[!@#$%^&*]/.test(val) || 'Must include a special character (!@#$%^&*)',
               ]"
             >
-              <template #prepend><q-icon name="lock_outline" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:lock_outline" /></template>
               <template #append>
-                <q-icon
-                  :name="showPassword ? 'visibility' : 'visibility_off'"
+                <IconifyIcon :icon="'material-icons:' + (showPassword ? 'visibility' : 'visibility_off')"
                   class="cursor-pointer"
                   @click="showPassword = !showPassword"
                 />
@@ -104,10 +130,9 @@
                 (val: string) => val === form.password || 'Passwords do not match',
               ]"
             >
-              <template #prepend><q-icon name="lock_reset" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:lock_reset" /></template>
               <template #append>
-                <q-icon
-                  :name="showConfirmPassword ? 'visibility' : 'visibility_off'"
+                <IconifyIcon :icon="'material-icons:' + (showConfirmPassword ? 'visibility' : 'visibility_off')"
                   class="cursor-pointer"
                   @click="showConfirmPassword = !showConfirmPassword"
                 />
@@ -116,22 +141,26 @@
           </q-step>
 
           <q-step :name="3" title="Academic" icon="school" :done="step > 3">
-            <AuthInput
+            <AuthSelect
               v-model="form.college"
-              label="College (e.g. CCSICT, CEAT)"
-              :rules="[(val: string) => !!val || 'College is required']"
+              :options="collegeOptions"
+              label="College"
+              :rules="[(val: string) => !!val || 'Please select your college']"
+              @update:model-value="onCollegeChange"
             >
-              <template #prepend><q-icon name="account_balance" /></template>
-            </AuthInput>
+              <template #prepend><IconifyIcon icon="material-icons:account_balance" /></template>
+            </AuthSelect>
 
-            <AuthInput
+            <AuthSelect
               v-model="form.program"
-              label="Program (e.g. BSIT)"
+              :options="filteredPrograms"
+              label="Program"
               class="q-mt-md"
-              :rules="[(val: string) => !!val || 'Program is required']"
+              :rules="[(val: string) => !!val || 'Please select your program']"
+              :disable="!form.college"
             >
-              <template #prepend><q-icon name="school" /></template>
-            </AuthInput>
+              <template #prepend><IconifyIcon icon="material-icons:school" /></template>
+            </AuthSelect>
 
             <AuthSelect
               v-model="form.yearLevel"
@@ -140,7 +169,7 @@
               class="q-mt-md"
               :rules="[(val: string) => !!val || 'Please select your year level']"
             >
-              <template #prepend><q-icon name="timeline" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:timeline" /></template>
             </AuthSelect>
           </q-step>
 
@@ -150,7 +179,7 @@
               label="ISU Student ID Number"
               :rules="[(val: string) => !!val || 'Student ID is required']"
             >
-              <template #prepend><q-icon name="badge" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:badge" /></template>
             </AuthInput>
 
             <div class="q-mt-md text-subtitle2 text-grey-7 q-ml-sm">Verify your enrollment</div>
@@ -161,8 +190,8 @@
               accept=".jpg, image/*, .pdf"
               class="q-mt-sm"
             >
-              <template #prepend><q-icon name="portrait" color="teal-9" size="md" /></template>
-              <template #append><q-icon name="cloud_upload" color="grey-6" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:portrait" color="teal-9" /></template>
+              <template #append><IconifyIcon icon="material-icons:cloud_upload" color="grey-6" /></template>
             </AuthFileDropZone>
 
             <AuthFileDropZone
@@ -171,8 +200,8 @@
               accept=".jpg, image/*, .pdf"
               class="q-mt-md"
             >
-              <template #prepend><q-icon name="receipt_long" color="teal-9" size="md" /></template>
-              <template #append><q-icon name="cloud_upload" color="grey-6" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:receipt_long" color="teal-9" /></template>
+              <template #append><IconifyIcon icon="material-icons:cloud_upload" color="grey-6" /></template>
             </AuthFileDropZone>
           </q-step>
         </q-stepper>
@@ -180,12 +209,12 @@
         <div class="q-px-sm q-mt-md">
           <AuthButton v-if="step < 4" @click="nextStep">
             NEXT STEP
-            <q-icon name="arrow_forward" class="q-ml-sm" />
+            <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
           </AuthButton>
 
           <AuthButton v-if="step === 4" type="submit" :loading="loading">
             {{ isGoogleMode ? 'FINISH PROFILE' : 'REGISTER' }}
-            <q-icon name="person_add" class="q-ml-sm" />
+            <IconifyIcon icon="material-icons:person_add" class="q-ml-sm" />
           </AuthButton>
 
           <div class="row justify-center items-center q-mt-md full-width" style="height: 32px">
@@ -242,7 +271,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
@@ -267,13 +296,77 @@ const registerFormRef = ref<QForm | null>(null);
 const isGoogleMode = ref(false);
 const googleUserId = ref('');
 
-const sexOptions = ['Male', 'Female', 'Prefer not to say'];
-const yearOptions = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'];
+const sexOptions = ['Male', 'Female'];
+const yearOptions = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year'];
+const emailDomains = ['gmail.com', 'isu.edu.ph'];
+
+const collegePrograms: Record<string, string[]> = {
+  'College of Agriculture (CA)': [
+    'BS in Agriculture major in Agronomy',
+    'BS in Agriculture major in Horticulture',
+    'BS in Agriculture major in Animal Science',
+    'BS in Agribusiness',
+    'BS in Animal Husbandry',
+    'Diploma in Agricultural Technology (DAT)',
+  ],
+  'College of Arts and Sciences (CAS)': [
+    'BS in Biology',
+    'BS in Mathematics',
+    'BS in Psychology',
+    'BA in Communication',
+    'BA in English Language Studies',
+    'BS in Environmental Science',
+  ],
+  'College of Business, Accountancy and Public Administration (CBAPA)': [
+    'BS in Accountancy',
+    'BS in Management Accounting',
+    'BS in Business Administration',
+    'BS in Entrepreneurship',
+    'BA in Public Administration',
+    'BS in Hospitality Management',
+    'BS in Tourism Management',
+  ],
+  'College of Computing Studies, Information and Communication Technology (CCSICT)': [
+    'BS in Computer Science',
+    'BS in Information Technology',
+    'BS in Information Systems',
+    'BS in Library and Information Science',
+    'BS in Data Science and Analytics',
+  ],
+  'College of Criminal Justice Education (CCJE)': [
+    'BS in Criminology',
+    'BS in Law Enforcement Administration',
+  ],
+  'College of Education (COEd)': [
+    'Bachelor of Elementary Education (BEEd)',
+    'Bachelor of Secondary Education (BSEd)',
+    'Bachelor of Physical Education (BPEd)',
+    'Bachelor of Technology and Livelihood Education (BTLEd)',
+  ],
+  'College of Engineering (COE)': [
+    'BS in Agricultural and Biosystems Engineering',
+    'BS in Civil Engineering',
+  ],
+  'College of Nursing (CON)': [
+    'BS in Nursing (BSN)',
+  ],
+  'Institute of Fisheries (IOF)': [
+    'BS in Fisheries and Aquatic Sciences',
+  ],
+  'School of Veterinary Medicine (SVM)': [
+    'Doctor of Veterinary Medicine (DVM)',
+  ],
+};
+
+const collegeOptions = Object.keys(collegePrograms);
 
 const form = reactive({
   fullName: '',
   sex: '',
+  phoneDigits: '',
   phone: '',
+  emailUser: '',
+  emailDomain: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -281,9 +374,18 @@ const form = reactive({
   program: '',
   yearLevel: '',
   studentId: '',
-  schoolIdFile: null,
-  assessmentFile: null,
+  schoolIdFile: null as File | null,
+  assessmentFile: null as File | null,
 });
+
+const filteredPrograms = computed(() => {
+  if (!form.college) return [];
+  return collegePrograms[form.college] || [];
+});
+
+function onCollegeChange(val: string) {
+  form.program = '';
+}
 
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
@@ -351,6 +453,8 @@ async function cancelGoogle() {
   isGoogleMode.value = false;
   googleUserId.value = '';
   form.email = '';
+  form.emailUser = '';
+  form.emailDomain = '';
   form.fullName = '';
   $q.notify({
     message: 'Google account unlinked.',
@@ -363,24 +467,20 @@ async function cancelGoogle() {
 }
 
 async function handleRegister(skipVerification: boolean = false) {
+  form.phone = '+63' + form.phoneDigits;
+  if (!isGoogleMode.value) {
+    form.email = `${form.emailUser}@${form.emailDomain}`;
+  }
+
   if (!skipVerification && registerFormRef.value) {
     const success = await registerFormRef.value.validate();
-    if (!success) {
-      $q.notify({
-        message: 'Please provide your Student ID to complete registration.',
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'warning',
-        iconColor: 'amber-4',
-        classes: 'custom-notify',
-      });
-      return;
-    }
+    if (!success) return;
+  }
 
-    loading.value = true;
+  loading.value = true;
+
+  if (form.studentId) {
     try {
-      // Validate unique Student ID before attempting to register by casting to the exact client type
       const client = supabase as SupabaseClient;
       const { data } = await client
         .from('student_profiles')
@@ -404,11 +504,9 @@ async function handleRegister(skipVerification: boolean = false) {
     } catch (err) {
       console.error('ID Validation check failed:', err);
     }
-    loading.value = false;
   }
 
   try {
-    loading.value = true;
     if (isGoogleMode.value) {
       await authStore.completeGoogleProfile(googleUserId.value, form);
       $q.notify({
@@ -445,7 +543,6 @@ async function handleRegister(skipVerification: boolean = false) {
       errorMsg = error;
     }
 
-    // Catch and translate unhandled database constraints
     if (errorMsg.includes('student_profiles_student_id_key') || errorMsg.includes('23505')) {
       errorMsg = 'This Student ID is already registered.';
     } else if (errorMsg.includes('PGRST116') || errorMsg.includes('0 rows')) {
@@ -479,10 +576,13 @@ async function handleRegister(skipVerification: boolean = false) {
 
 .auth-stepper :deep(.q-stepper__content) {
   min-height: 360px;
+  overflow: hidden;
 }
 
 .auth-stepper :deep(.q-stepper__step-inner) {
   padding: 0;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .auth-stepper :deep(.q-stepper__header) {
@@ -502,6 +602,31 @@ async function handleRegister(skipVerification: boolean = false) {
 .auth-subtitle {
   color: #8b8b8b;
   margin: 6px 0 16px 12px;
+}
+
+.phone-prefix {
+  font-size: 16px;
+}
+
+.email-domain-select :deep(.q-field__control) {
+  min-height: unset;
+  height: auto;
+  background: transparent;
+  padding: 0;
+}
+
+.email-domain-select :deep(.q-field__native) {
+  padding: 0;
+  min-height: unset;
+}
+
+.email-domain-select :deep(.q-field__append) {
+  padding-left: 2px;
+}
+
+.email-domain-select :deep(.q-field__before),
+.email-domain-select :deep(.q-field__prepend) {
+  display: none;
 }
 
 @keyframes slideDown {

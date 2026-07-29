@@ -21,32 +21,67 @@
 
             <AuthInput v-model="form.fullName" label="Full Name"
               :rules="[(val: string) => !!val || 'Full Name is required']">
-              <template #prepend><q-icon name="person_outline" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:person_outline" /></template>
             </AuthInput>
 
             <AuthSelect v-model="form.sex" :options="sexOptions" label="Sex" class="q-mt-md"
               :rules="[(val: string) => !!val || 'Please select your sex']">
-              <template #prepend><q-icon name="wc" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:wc" /></template>
             </AuthSelect>
 
-            <AuthInput v-model="form.phone" label="Phone Number (e.g. 09123456789)" class="q-mt-md"
-              :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => /^[0-9]{11}$/.test(val) || 'Must be a valid 11-digit phone number']">
-              <template #prepend><q-icon name="phone" /></template>
+            <AuthInput :model-value="form.phoneDigits"
+              @update:model-value="form.phoneDigits = $event.replace(/\D/g, '')" label="Phone Number" class="q-mt-md"
+              maxlength="10" inputmode="numeric"
+              :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => /^\d{10}$/.test(val) || 'Enter 10 digits after +63 (e.g. 9123456789)']">
+              <template #prepend>
+                <div class="row items-center no-wrap">
+                  <IconifyIcon icon="material-icons:phone" class="q-mr-xs" />
+                  <span class="text-grey-7 text-weight-medium phone-prefix">+63</span>
+                  <span class="q-ml-xs text-grey-4 phone-prefix">|</span>
+                </div>
+              </template>
             </AuthInput>
           </q-step>
 
           <q-step v-if="!isGoogleMode" :name="2" title="Account" icon="settings" :done="step > 2">
-            <AuthInput v-model="form.email" label="Email Address"
-              :rules="[(val: string) => !!val || 'Email is required', (val: string) => /.+@.+\..+/.test(val) || 'Must be a valid email address']">
-              <template #prepend><q-icon name="mail_outline" /></template>
+            <AuthInput
+              v-model="form.emailUser"
+              label="Email"
+              :rules="[
+                (val: string) => !!val || 'Email is required',
+                (val: string) => /^[a-zA-Z0-9._%+-]+$/.test(val) || 'Invalid email username',
+              ]"
+            >
+              <template #prepend><IconifyIcon icon="material-icons:mail_outline" /></template>
+              <template #append>
+                <div class="row items-center no-wrap">
+                  <span class="text-grey-7 text-weight-medium q-mr-xs" style="font-size: 16px">@</span>
+                  <q-select
+                    v-model="form.emailDomain"
+                    :options="emailDomains"
+                    borderless
+                    dense
+                    hide-bottom-space
+                    class="email-domain-select"
+                    style="min-width: 105px"
+                  />
+                </div>
+              </template>
             </AuthInput>
 
             <AuthInput v-model="form.password" :type="showPassword ? 'text' : 'password'" label="Password"
               class="q-mt-md"
-              :rules="[(val: string) => !!val || 'Password is required', (val: string) => val.length >= 6 || 'Password must be at least 6 characters']">
-              <template #prepend><q-icon name="lock_outline" /></template>
+              :rules="[
+                (val: string) => !!val || 'Password is required',
+                (val: string) => val.length >= 8 || 'At least 8 characters',
+                (val: string) => /[a-z]/.test(val) || 'Must include a lowercase letter',
+                (val: string) => /[A-Z]/.test(val) || 'Must include an uppercase letter',
+                (val: string) => /\d/.test(val) || 'Must include a number',
+                (val: string) => /[!@#$%^&*]/.test(val) || 'Must include a special character (!@#$%^&*)',
+              ]">
+              <template #prepend><IconifyIcon icon="material-icons:lock_outline" /></template>
               <template #append>
-                <q-icon :name="showPassword ? 'visibility' : 'visibility_off'" class="cursor-pointer"
+                <IconifyIcon :icon="'material-icons:' + (showPassword ? 'visibility' : 'visibility_off')" class="cursor-pointer"
                   @click="showPassword = !showPassword" />
               </template>
             </AuthInput>
@@ -54,9 +89,9 @@
             <AuthInput v-model="form.confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
               label="Confirm Password" class="q-mt-md"
               :rules="[(val: string) => !!val || 'Please confirm your password', (val: string) => val === form.password || 'Passwords do not match']">
-              <template #prepend><q-icon name="lock_reset" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:lock_reset" /></template>
               <template #append>
-                <q-icon :name="showConfirmPassword ? 'visibility' : 'visibility_off'" class="cursor-pointer"
+                <IconifyIcon :icon="'material-icons:' + (showConfirmPassword ? 'visibility' : 'visibility_off')" class="cursor-pointer"
                   @click="showConfirmPassword = !showConfirmPassword" />
               </template>
             </AuthInput>
@@ -67,7 +102,7 @@
 
             <AuthInput v-model="form.businessName" label="Boarding House / Business Name"
               :rules="[(val: string) => !!val || 'Business name is required']">
-              <template #prepend><q-icon name="apartment" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:apartment" /></template>
             </AuthInput>
           </q-step>
 
@@ -79,15 +114,15 @@
             <AuthFileDropZone v-model="form.governmentIdFile" label="Tap to upload Valid Government ID"
               accept=".jpg, image/*, .pdf" :rules="[(val: File | null) => !!val || 'Government ID is required']"
               hide-bottom-space>
-              <template #prepend><q-icon name="badge" color="teal-9" size="md" /></template>
-              <template #append><q-icon name="cloud_upload" color="grey-5" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:badge" color="teal-9" /></template>
+              <template #append><IconifyIcon icon="material-icons:cloud_upload" color="grey-5" /></template>
             </AuthFileDropZone>
 
             <AuthFileDropZone v-model="form.businessPermitFile" label="Tap to upload Business / Mayor's Permit"
               accept=".jpg, image/*, .pdf" class="q-mt-md"
               :rules="[(val: File | null) => !!val || 'Business Permit is required']" hide-bottom-space>
-              <template #prepend><q-icon name="description" color="teal-9" size="md" /></template>
-              <template #append><q-icon name="cloud_upload" color="grey-5" /></template>
+              <template #prepend><IconifyIcon icon="material-icons:description" color="teal-9" /></template>
+              <template #append><IconifyIcon icon="material-icons:cloud_upload" color="grey-5" /></template>
             </AuthFileDropZone>
           </q-step>
         </q-stepper>
@@ -95,12 +130,12 @@
         <div class="q-px-sm q-mt-md">
           <AuthButton v-if="step < 4" @click="nextStep">
             NEXT STEP
-            <q-icon name="arrow_forward" class="q-ml-sm" />
+            <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
           </AuthButton>
 
           <AuthButton v-if="step === 4" type="submit" :loading="loading">
-            {{ isGoogleMode ? 'SUBMIT APPLICATION' : 'APPLY NOW' }}
-            <q-icon name="check_circle" class="q-ml-sm" />
+            {{ isGoogleMode ? 'SUBMIT APPLICATION' : 'REGISTER' }}
+            <IconifyIcon icon="material-icons:check_circle" class="q-ml-sm" />
           </AuthButton>
 
           <div class="row justify-center items-center q-mt-md full-width" style="height: 32px">
@@ -151,12 +186,16 @@ const registerFormRef = ref<QForm | null>(null);
 const isGoogleMode = ref(false);
 const googleUserId = ref('');
 
-const sexOptions = ['Male', 'Female', 'Prefer not to say'];
+const sexOptions = ['Male', 'Female'];
+const emailDomains = ['gmail.com', 'isu.edu.ph'];
 
 const form = reactive({
   fullName: '',
   sex: '',
+  phoneDigits: '',
   phone: '',
+  emailUser: '',
+  emailDomain: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -241,6 +280,11 @@ async function cancelGoogle() {
 }
 
 async function handleRegister() {
+  form.phone = '+63' + form.phoneDigits;
+  if (!isGoogleMode.value) {
+    form.email = `${form.emailUser}@${form.emailDomain}`;
+  }
+
   if (!registerFormRef.value) return;
 
   const success = await registerFormRef.value.validate();
@@ -266,7 +310,7 @@ async function handleRegister() {
     } else {
       await authStore.registerLandlord(form);
       $q.notify({
-        message: 'Application received! Please sign in.',
+        message: 'Application submitted! OSAS will review your application. Check your email for updates.',
         position: 'top',
         color: 'grey-9',
         textColor: 'white',
@@ -304,10 +348,12 @@ async function handleRegister() {
 
 .auth-stepper :deep(.q-stepper__content) {
   min-height: 360px;
+  overflow: hidden;
 }
 
 .auth-stepper :deep(.q-stepper__step-inner) {
   padding: 0;
+  min-width: 0;
 }
 
 .auth-stepper :deep(.q-stepper__header) {
@@ -327,6 +373,31 @@ async function handleRegister() {
 .auth-subtitle {
   color: #8b8b8b;
   margin: 6px 0 16px 12px;
+}
+
+.phone-prefix {
+  font-size: 16px;
+}
+
+.email-domain-select :deep(.q-field__control) {
+  min-height: unset;
+  height: auto;
+  background: transparent;
+  padding: 0;
+}
+
+.email-domain-select :deep(.q-field__native) {
+  padding: 0;
+  min-height: unset;
+}
+
+.email-domain-select :deep(.q-field__append) {
+  padding-left: 2px;
+}
+
+.email-domain-select :deep(.q-field__before),
+.email-domain-select :deep(.q-field__prepend) {
+  display: none;
 }
 
 @keyframes slideDown {

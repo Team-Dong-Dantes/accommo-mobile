@@ -1,0 +1,45 @@
+// app global css
+
+.q-field__prepend svg.iconify,
+.q-field__append svg.iconify {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.q-select.q-field {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.q-select .q-field__inner {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.q-select .q-field__control {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.q-select .q-field__control-container {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.q-select .q-field__native {
+  flex: 1 1 auto !important;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.q-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
