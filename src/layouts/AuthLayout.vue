@@ -70,7 +70,9 @@ watch(
   top: -80px;
   left: 0;
   width: 100%;
-  height: 400px;
+  height: 50vh;
+  min-height: 300px;
+  max-height: 500px;
   background-image: url('https://isu.edu.ph/wp-content/uploads/2024/11/ISU-Aerial.jpg');
   background-size: cover;
   background-position: 46% center;
@@ -80,15 +82,18 @@ watch(
 
 .hero-section.splash-mode {
   height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
 }
 
 .hero-section.register-mode {
-  top: calc(100vh - 220px);
-  height: 400px;
+  top: calc(100vh - 50vh);
+  height: 50vh;
+  min-height: 200px;
 }
 
 .hero-overlay {
-  height: 1000px;
+  height: 100%;
   background: linear-gradient(135deg, rgba(0, 150, 136, 0.95), rgba(0, 121, 107, 0.85));
   position: relative;
 }
@@ -96,9 +101,9 @@ watch(
 .hero-content {
   position: absolute;
   left: 0;
-  top: 120px;
+  top: clamp(60px, 15vh, 140px);
   width: 100%;
-  padding: 0 24px;
+  padding: 0 clamp(16px, 4vw, 48px);
   color: white;
   transition: all 0.7s cubic-bezier(0.25, 1, 0.3, 1);
 }
@@ -110,24 +115,40 @@ watch(
 }
 
 .hero-section.register-mode .hero-content {
-  top: 100px;
+  top: clamp(40px, 8vh, 100px);
 }
 
 .logo-text {
-  font-size: 38px;
+  font-size: clamp(28px, 8vw, 56px);
   font-weight: 700;
   line-height: 1;
   transition: font-size 0.7s cubic-bezier(0.25, 1, 0.3, 1);
 }
 
 .hero-section.splash-mode .logo-text {
-  font-size: 56px;
+  font-size: clamp(36px, 10vw, 72px);
 }
 
 .hero-subtitle {
-  margin-top: 10px;
-  font-size: 14px;
+  margin-top: clamp(6px, 1.5vh, 14px);
+  font-size: clamp(12px, 2.5vw, 16px);
   opacity: 0.95;
+}
+
+@media (max-height: 600px) {
+  .hero-section {
+    height: 40vh;
+    min-height: 200px;
+  }
+  .hero-content {
+    top: 40px;
+  }
+}
+
+@media (min-width: 768px) {
+  .hero-section {
+    height: 45vh;
+  }
 }
 
 .content-wrapper {
