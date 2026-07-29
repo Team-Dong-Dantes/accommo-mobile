@@ -1,0 +1,6 @@
+{
+  "appId": "com.accommo.app",
+  "appName": "Accommo Mobile",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
