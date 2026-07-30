@@ -3,7 +3,12 @@
 node_modules
 
 # .env files
-.env*
+.env
+.env.local
+.env.*.local
+
+# but allow .env.example to be tracked
+!.env.example
 
 # Quasar core related directories
 .quasar

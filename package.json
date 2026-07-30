@@ -12,19 +12,21 @@
     "postinstall": "quasar prepare --silent"
   },
   "dependencies": {
-    "pinia": "^4.0.2",
+    "@iconify/vue": "^5.0.1",
     "@quasar/extras": "^2.0.0",
+    "@supabase/supabase-js": "^2.111.0",
+    "pinia": "^4.0.2",
     "quasar": "^2.23.1",
     "vue": "^3.5.22",
     "vue-router": "^5.0.6"
   },
   "devDependencies": {
-    "vue-tsc": "^3.3.3",
-    "@types/node": "^22.19.11",
     "@quasar/app-vite": "^3.2.0",
+    "@types/node": "^22.19.11",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.0",
+    "vue-tsc": "^3.3.3"
   },
   "keywords": [
     "quasar",

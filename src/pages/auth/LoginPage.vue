@@ -9,25 +9,25 @@
 
       <q-form @submit.prevent="handleLogin" ref="loginFormRef">
         <AuthInput v-model="email" label="Email address" :rules="[(val: string) => !!val || 'Email is required', (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) || 'Enter a valid email address']">
-          <template #prepend><q-icon name="mail_outline" /></template>
+          <template #prepend><IconifyIcon icon="material-icons:mail_outline" /></template>
         </AuthInput>
 
         <AuthInput v-model="password" :type="showPassword ? 'text' : 'password'" label="Password" class="q-mt-md"
           :rules="[(val: string) => !!val || 'Password is required']">
-          <template #prepend><q-icon name="lock_outline" /></template>
+          <template #prepend><IconifyIcon icon="material-icons:lock_outline" /></template>
           <template #append>
-            <q-icon :name="showPassword ? 'visibility' : 'visibility_off'" class="cursor-pointer"
+            <IconifyIcon :icon="'material-icons:' + (showPassword ? 'visibility' : 'visibility_off')" class="cursor-pointer"
               @click="showPassword = !showPassword" />
           </template>
         </AuthInput>
 
         <div class="text-right q-mt-sm">
-          <q-btn flat dense no-caps label="Forgot password?" class="forgot-link" />
+          <q-btn flat dense no-caps label="Forgot password?" class="forgot-link" @click="handleForgotPassword" />
         </div>
 
         <AuthButton type="submit" :loading="loading" class="q-mt-md">
           Sign In
-          <q-icon name="arrow_forward" class="q-ml-sm" />
+          <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
         </AuthButton>
       </q-form>
 
@@ -51,6 +51,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
+import { supabase } from '@/utils/supabase';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
@@ -66,6 +67,7 @@ const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
 const loading = ref(false);
+const forgotPasswordLoading = ref(false);
 const loginFormRef = ref<QForm | null>(null);
 
 onMounted(() => {
@@ -107,6 +109,26 @@ async function handleLogin() {
     $q.notify({ message: error instanceof Error ? error.message : 'An unexpected error occurred', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
   } finally {
     loading.value = false;
+  }
+}
+
+async function handleForgotPassword() {
+  if (!email.value) {
+    $q.notify({ message: 'Please enter your email address first.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
+    return;
+  }
+
+  forgotPasswordLoading.value = true;
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
+      redirectTo: window.location.origin + '/login',
+    });
+    if (error) throw error;
+    $q.notify({ message: 'Password reset link sent to your email.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'check_circle', iconColor: 'teal-4', classes: 'custom-notify' });
+  } catch {
+    $q.notify({ message: 'Failed to send reset email. Please try again.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+  } finally {
+    forgotPasswordLoading.value = false;
   }
 }
 </script>

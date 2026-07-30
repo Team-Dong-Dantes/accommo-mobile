@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">iconify.design</domain>
+        <domain includeSubdomains="true">simplesvg.com</domain>
+        <domain includeSubdomains="true">unisvg.com</domain>
+        <domain includeSubdomains="true">gstatic.com</domain>
+        <domain includeSubdomains="true">isu.edu.ph</domain>
+    </domain-config>
+</network-security-config>

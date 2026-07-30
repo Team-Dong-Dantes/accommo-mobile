@@ -23,4 +23,9 @@ const model = defineModel<string | number | null>();
   border-radius: 16px;
   padding: 0 16px;
 }
+
+.auth-input :deep(svg.iconify) {
+  width: 20px !important;
+  height: 20px !important;
+}
 </style>

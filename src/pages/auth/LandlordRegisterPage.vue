@@ -30,7 +30,7 @@
             </AuthSelect>
 
             <AuthInput :model-value="form.phoneDigits"
-              @update:model-value="form.phoneDigits = $event.replace(/\D/g, '')" label="Phone Number" class="q-mt-md"
+              @update:model-value="form.phoneDigits = String($event ?? '').replace(/\D/g, '')" label="Phone Number" class="q-mt-md"
               maxlength="10" inputmode="numeric"
               :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => /^\d{10}$/.test(val) || 'Enter 10 digits after +63 (e.g. 9123456789)']">
               <template #prepend>

@@ -2,11 +2,15 @@
   <q-layout view="hHh lpR fFf">
     <q-header elevated class="bg-primary text-white">
       <q-toolbar>
-        <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
+        <q-btn dense flat round @click="toggleLeftDrawer">
+          <IconifyIcon width="24" icon="material-icons:menu" />
+        </q-btn>
 
         <q-toolbar-title> Accommo </q-toolbar-title>
 
-        <q-btn flat round dense icon="logout" @click="handleLogout" />
+        <q-btn flat round dense @click="handleLogout">
+          <IconifyIcon width="24" icon="material-icons:logout" />
+        </q-btn>
       </q-toolbar>
     </q-header>
 
@@ -18,14 +22,14 @@
         <template v-if="userRole === 'student'">
           <q-item clickable v-ripple to="/student/dashboard" exact>
             <q-item-section avatar>
-              <q-icon name="dashboard" />
+              <IconifyIcon width="24" icon="material-icons:dashboard" />
             </q-item-section>
             <q-item-section> Dashboard </q-item-section>
           </q-item>
 
           <q-item clickable v-ripple to="/student/stay" exact>
             <q-item-section avatar>
-              <q-icon name="bed" />
+              <IconifyIcon width="24" icon="material-icons:bed" />
             </q-item-section>
             <q-item-section> My Stay </q-item-section>
           </q-item>
@@ -35,14 +39,14 @@
         <template v-else-if="userRole === 'landlord'">
           <q-item clickable v-ripple to="/landlord/dashboard" exact>
             <q-item-section avatar>
-              <q-icon name="dashboard" />
+              <IconifyIcon width="24" icon="material-icons:dashboard" />
             </q-item-section>
             <q-item-section> Overview </q-item-section>
           </q-item>
 
           <q-item clickable v-ripple to="/landlord/properties" exact>
             <q-item-section avatar>
-              <q-icon name="domain" />
+              <IconifyIcon width="24" icon="material-icons:domain" />
             </q-item-section>
             <q-item-section> My Properties </q-item-section>
           </q-item>
@@ -51,7 +55,7 @@
         <!-- COMMON MENU -->
         <q-item clickable v-ripple to="/profile" exact>
           <q-item-section avatar>
-            <q-icon name="person" />
+            <IconifyIcon width="24" icon="material-icons:person" />
           </q-item-section>
           <q-item-section> Profile </q-item-section>
         </q-item>

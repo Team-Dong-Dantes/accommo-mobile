@@ -51,7 +51,7 @@
 
             <AuthInput
               :model-value="form.phoneDigits"
-              @update:model-value="form.phoneDigits = $event.replace(/\D/g, '')"
+              @update:model-value="form.phoneDigits = String($event ?? '').replace(/\D/g, '')"
               label="Phone Number"
               class="q-mt-md"
               maxlength="10"
@@ -276,7 +276,6 @@ import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthSelect from '@/components/auth/AuthSelect.vue';
@@ -383,7 +382,7 @@ const filteredPrograms = computed(() => {
   return collegePrograms[form.college] || [];
 });
 
-function onCollegeChange(val: string) {
+function onCollegeChange(val: string | number | null | undefined) {
   form.program = '';
 }
 
@@ -481,12 +480,9 @@ async function handleRegister(skipVerification: boolean = false) {
 
   if (form.studentId) {
     try {
-      const client = supabase as SupabaseClient;
-      const { data } = await client
-        .from('student_profiles')
-        .select('student_id')
-        .eq('student_id', form.studentId)
-        .maybeSingle();
+      const { data } = await (supabase.rpc as any)('check_student_id_exists', {
+        p_student_id: form.studentId,
+      });
 
       if (data) {
         $q.notify({
@@ -501,8 +497,8 @@ async function handleRegister(skipVerification: boolean = false) {
         loading.value = false;
         return;
       }
-    } catch (err) {
-      console.error('ID Validation check failed:', err);
+    } catch {
+      // Check will be re-validated on server side
     }
   }
 
@@ -533,24 +529,9 @@ async function handleRegister(skipVerification: boolean = false) {
       void router.push('/login');
     }
   } catch (error: unknown) {
-    let errorMsg = 'An unexpected error occurred';
-
-    if (error instanceof Error) {
-      errorMsg = error.message;
-    } else if (error && typeof error === 'object' && 'message' in error) {
-      errorMsg = String(error.message);
-    } else if (typeof error === 'string') {
-      errorMsg = error;
-    }
-
-    if (errorMsg.includes('student_profiles_student_id_key') || errorMsg.includes('23505')) {
-      errorMsg = 'This Student ID is already registered.';
-    } else if (errorMsg.includes('PGRST116') || errorMsg.includes('0 rows')) {
-      errorMsg = 'Registration failed due to a database conflict. Please try again.';
-    }
-
+    const message = error instanceof Error ? error.message : 'An unexpected error occurred';
     $q.notify({
-      message: errorMsg,
+      message,
       position: 'top',
       color: 'grey-9',
       textColor: 'white',

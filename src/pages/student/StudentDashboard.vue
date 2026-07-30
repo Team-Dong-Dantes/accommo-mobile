@@ -47,6 +47,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/utils/supabase';
+import { useAuthStore } from '@/stores/auth';
 
 interface LeaseWithRoom {
   id: string;
@@ -141,6 +142,7 @@ async function loadDashboard() {
 }
 
 async function handleLogout() {
+  useAuthStore().clearCachedRole();
   await supabase.auth.signOut();
   void router.push('/login');
 }

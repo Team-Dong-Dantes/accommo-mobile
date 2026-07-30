@@ -28,4 +28,9 @@ const model = defineModel<File | null>();
   border-color: #009688;
   background: #e0f2f1;
 }
+
+.file-dropzone :deep(svg.iconify) {
+  width: 20px !important;
+  height: 20px !important;
+}
 </style>

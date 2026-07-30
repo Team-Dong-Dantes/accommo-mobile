@@ -55,10 +55,12 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { supabase } from '@/utils/supabase';
+import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();
 
 async function handleLogout() {
+  useAuthStore().clearCachedRole();
   await supabase.auth.signOut();
   void router.push('/login');
 }

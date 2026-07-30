@@ -1,22 +1,15 @@
 import { defineRouter } from '#q-app';
-import { routes, handleHotUpdate } from 'vue-router/auto-routes';
 import {
   createMemoryHistory,
   createRouter,
   createWebHashHistory,
   createWebHistory,
 } from 'vue-router';
+import routes from './routes';
+import { supabase } from '@/utils/supabase';
+import { useAuthStore } from '@/stores/auth';
 
-/*
- * If not building with SSR mode, you can
- * directly export the Router instantiation;
- *
- * The function below can be async too; either use
- * async/await or return a Promise which resolves
- * with the Router instance.
- */
-
-export default defineRouter((/* { store, ssrContext } */) => {
+export default defineRouter(() => {
   const createHistory = import.meta.env.QUASAR_SERVER
     ? createMemoryHistory
     : (import.meta.env.QUASAR_VUE_ROUTER_MODE === 'history' ? createWebHistory : createWebHashHistory);
@@ -24,17 +17,71 @@ export default defineRouter((/* { store, ssrContext } */) => {
   const Router = createRouter({
     scrollBehavior: () => ({ left: 0, top: 0 }),
     routes,
-
-    // Leave this as is and make changes in quasar.conf.js instead!
-    // quasar.conf.js -> build -> vueRouterMode
-    // quasar.conf.js -> build -> publicPath
     history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE)
   });
 
-  // enable HMR for it
-  if (import.meta.hot) {
-    handleHotUpdate(Router);
+  let roleFetchInProgress: Promise<string | null> | null = null;
+
+  async function fetchUserRole(session: { user: { id: string } }): Promise<string | null> {
+    const authStore = useAuthStore();
+    if (authStore.cachedRole) return authStore.cachedRole;
+
+    if (roleFetchInProgress) return roleFetchInProgress;
+
+    roleFetchInProgress = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (error || !data) return null;
+
+        authStore.cachedRole = data.role;
+        return data.role;
+      } catch {
+        return null;
+      } finally {
+        roleFetchInProgress = null;
+      }
+    })();
+
+    return roleFetchInProgress;
   }
+
+  Router.beforeEach(async (to) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const isAuthenticated = !!session;
+
+    const publicRoutes = ['/', '/login', '/register', '/register/landlord'];
+    const isPublicRoute = publicRoutes.includes(to.path);
+
+    if (!isAuthenticated && !isPublicRoute) {
+      return '/login';
+    }
+
+    if (isAuthenticated) {
+      if (to.path === '/register' || to.path === '/register/landlord') {
+        await supabase.auth.signOut();
+        return '/login?accountExists=true';
+      }
+
+      if (isPublicRoute) {
+        const role = await fetchUserRole(session);
+        if (role === 'student') return '/student/dashboard';
+        if (role === 'landlord') return '/landlord/dashboard';
+        if (role === 'admin') return '/admin/dashboard';
+        if (role === null) {
+          await supabase.auth.signOut();
+          return '/register?newUser=true';
+        }
+        return '/';
+      }
+    }
+
+    return true;
+  });
 
   return Router;
 });

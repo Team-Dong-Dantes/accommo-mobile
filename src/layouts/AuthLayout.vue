@@ -5,7 +5,7 @@
         'splash-mode': isSplash,
         'login-mode': isLogin,
         'register-mode': isRegister,
-      }">
+      }" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
         <div class="hero-overlay">
           <div class="hero-content">
             <div class="logo-text">accommo</div>
@@ -28,6 +28,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { EXTERNAL_URLS } from '@/utils/config';
 
 const route = useRoute();
 
@@ -70,10 +71,8 @@ watch(
   top: -80px;
   left: 0;
   width: 100%;
-  height: 50vh;
-  min-height: 300px;
-  max-height: 500px;
-  background-image: url('https://isu.edu.ph/wp-content/uploads/2024/11/ISU-Aerial.jpg');
+  height: 400px;
+  background-image: var(--hero-bg, url('https://isu.edu.ph/wp-content/uploads/2024/11/ISU-Aerial.jpg'));
   background-size: cover;
   background-position: 46% center;
   z-index: 1;
@@ -81,19 +80,20 @@ watch(
 }
 
 .hero-section.splash-mode {
+  top: 0;
   height: 100vh;
   min-height: 100vh;
   max-height: 100vh;
 }
 
 .hero-section.register-mode {
-  top: calc(100vh - 50vh);
-  height: 50vh;
+  top: calc(100vh - 220px);
+  height: 400px;
   min-height: 200px;
 }
 
 .hero-overlay {
-  height: 100%;
+  height: 1000px;
   background: linear-gradient(135deg, rgba(0, 150, 136, 0.95), rgba(0, 121, 107, 0.85));
   position: relative;
 }
@@ -101,9 +101,9 @@ watch(
 .hero-content {
   position: absolute;
   left: 0;
-  top: clamp(60px, 15vh, 140px);
+  top: 120px;
   width: 100%;
-  padding: 0 clamp(16px, 4vw, 48px);
+  padding: 0 24px;
   color: white;
   transition: all 0.7s cubic-bezier(0.25, 1, 0.3, 1);
 }
@@ -115,39 +115,32 @@ watch(
 }
 
 .hero-section.register-mode .hero-content {
-  top: clamp(40px, 8vh, 100px);
+  top: 100px;
 }
 
 .logo-text {
-  font-size: clamp(28px, 8vw, 56px);
+  font-size: 38px;
   font-weight: 700;
   line-height: 1;
   transition: font-size 0.7s cubic-bezier(0.25, 1, 0.3, 1);
 }
 
 .hero-section.splash-mode .logo-text {
-  font-size: clamp(36px, 10vw, 72px);
+  font-size: 56px;
 }
 
 .hero-subtitle {
-  margin-top: clamp(6px, 1.5vh, 14px);
-  font-size: clamp(12px, 2.5vw, 16px);
+  margin-top: 10px;
+  font-size: 14px;
   opacity: 0.95;
 }
 
 @media (max-height: 600px) {
   .hero-section {
-    height: 40vh;
-    min-height: 200px;
+    height: 300px;
   }
   .hero-content {
-    top: 40px;
-  }
-}
-
-@media (min-width: 768px) {
-  .hero-section {
-    height: 45vh;
+    top: 60px;
   }
 }
 
