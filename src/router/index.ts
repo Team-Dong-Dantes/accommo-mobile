@@ -51,6 +51,12 @@ export default defineRouter(() => {
   }
 
   Router.beforeEach(async (to) => {
+    // Local demo mode (VITE_DEMO_MODE=true): skip all auth guards so every
+    // screen can be previewed. Disabled by default in normal builds.
+    if ((import.meta.env.VITE_DEMO_MODE as unknown) === 'true') {
+      return true;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     const isAuthenticated = !!session;
 
