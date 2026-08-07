@@ -30,7 +30,7 @@ interface MockSupabaseClient {
   auth: {
     getSession: () => Promise<{ data: { session: unknown }; error: null }>;
     getUser: () => Promise<{ data: { user: unknown }; error: null }>;
-    signInWithPassword: () => Promise<MockResult>;
+    signInWithPassword: (credentials?: { email?: string }) => Promise<MockResult>;
     signUp: () => Promise<MockResult>;
     signInWithOAuth: () => Promise<MockResult>;
     signOut: () => Promise<{ error: null }>;
@@ -49,6 +49,11 @@ if (supabaseUrl && supabaseAnonKey) {
     'Supabase environment variables are not set. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local',
   );
 
+  // Demo-mode role, guessed from the email used to sign in: emails
+  // containing "student" land on the Student Hub, everything else on the
+  // Landlord Dashboard. Reset on every sign-in.
+  let demoRole: 'student' | 'landlord' = 'landlord';
+
   const auth = {
     getSession: () =>
       Promise.resolve({
@@ -60,12 +65,21 @@ if (supabaseUrl && supabaseAnonKey) {
         data: { user: demoMode ? DEMO_SESSION.user : null },
         error: null,
       }),
-    signInWithPassword: () =>
-      Promise.resolve(
-        demoMode
-          ? { data: { user: DEMO_SESSION.user, session: DEMO_SESSION }, error: null }
-          : { data: null, error: { message: NOT_CONFIGURED } },
-      ),
+    signInWithPassword: (credentials?: { email?: string }) => {
+      if (!demoMode) {
+        return Promise.resolve({ data: null, error: { message: NOT_CONFIGURED } });
+      }
+      demoRole = String(credentials?.email ?? '')
+        .toLowerCase()
+        .includes('student')
+        ? 'student'
+        : 'landlord';
+      const user = { ...DEMO_SESSION.user, role: demoRole };
+      return Promise.resolve({
+        data: { user, session: { ...DEMO_SESSION, user } },
+        error: null,
+      });
+    },
     signUp: () =>
       Promise.resolve(
         demoMode
@@ -91,7 +105,7 @@ if (supabaseUrl && supabaseAnonKey) {
     fn.then = (resolve: (value: unknown) => void) =>
       resolve(
         demoMode
-          ? { data: usersRoleInDemo ? { role: 'landlord' } : null, error: null }
+          ? { data: usersRoleInDemo ? { role: demoRole } : null, error: null }
           : { data: null, error: notConfiguredError },
       );
     return new Proxy(fn, {
