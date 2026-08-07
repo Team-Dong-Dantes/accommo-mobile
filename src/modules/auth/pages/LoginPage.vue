@@ -51,12 +51,12 @@ import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/shared/utils/supabase';
 
-import AuthInput from '@/components/auth/AuthInput.vue';
-import AuthButton from '@/components/auth/AuthButton.vue';
-import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
-import AuthDivider from '@/components/auth/AuthDivider.vue';
+import AuthInput from '@/modules/auth/components/AuthInput.vue';
+import AuthButton from '@/modules/auth/components/AuthButton.vue';
+import AuthGoogleBtn from '@/modules/auth/components/AuthGoogleBtn.vue';
+import AuthDivider from '@/modules/auth/components/AuthDivider.vue';
 
 const router = useRouter();
 const route = useRoute();

@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../shared/utils/supabase';
 
 const router = useRouter();
 const leftDrawerOpen = ref(false);

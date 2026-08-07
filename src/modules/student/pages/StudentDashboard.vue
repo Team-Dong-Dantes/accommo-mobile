@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/shared/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
 
 interface LeaseWithRoom {

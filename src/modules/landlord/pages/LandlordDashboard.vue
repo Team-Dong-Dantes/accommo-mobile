@@ -54,7 +54,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/shared/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();

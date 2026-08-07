@@ -6,7 +6,7 @@ import {
   createWebHistory,
 } from 'vue-router';
 import routes from './routes';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/shared/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
 
 export default defineRouter(() => {

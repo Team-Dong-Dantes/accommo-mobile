@@ -1,26 +1,14 @@
 import type { RouteRecordRaw } from 'vue-router';
+import landlordRoutes from '@/modules/landlord/router/routes';
+import studentRoutes from '@/modules/student/router/routes';
+import authRoutes from '@/modules/auth/router/routes';
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('@/layouts/AuthLayout.vue'),
     children: [
-      {
-        path: '',
-        component: () => import('@/pages/auth/GetStartedPage.vue'),
-      },
-      {
-        path: 'login',
-        component: () => import('@/pages/auth/LoginPage.vue'),
-      },
-      {
-        path: 'register',
-        component: () => import('@/pages/auth/RegisterPage.vue'),
-      },
-      {
-        path: 'register/landlord',
-        component: () => import('@/pages/auth/LandlordRegisterPage.vue'),
-      },
+      ...authRoutes,
     ],
   },
 
@@ -28,20 +16,14 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     children: [
-      {
-        path: 'student/dashboard',
-        component: () => import('@/pages/student/StudentDashboard.vue'),
-      },
-      {
-        path: 'landlord/dashboard',
-        component: () => import('@/pages/landlord/LandlordDashboard.vue'),
-      },
+      ...landlordRoutes,
+      ...studentRoutes,
     ],
   },
 
   {
     path: '/:catchAll(.*)*',
-    component: () => import('@/pages/ErrorNotFound.vue'),
+    component: () => import('@/shared/pages/ErrorNotFound.vue'),
   },
 ];
 

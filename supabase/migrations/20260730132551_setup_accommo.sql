@@ -1,6 +1,19 @@
--- Run this in Supabase SQL Editor to create the documents bucket with RLS
--- Requires the 'storage' schema to be exposed in the API
+-- Function: check if student ID exists (used by registration form)
+CREATE OR REPLACE FUNCTION check_student_id_exists(p_student_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_exists BOOLEAN;
+BEGIN
+  SELECT EXISTS(SELECT 1 FROM student_profiles WHERE student_id = p_student_id) INTO v_exists;
+  RETURN v_exists;
+END;
+$$;
 
+-- Create documents storage bucket (5MB limit, images + PDF)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'documents',
@@ -11,7 +24,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Allow authenticated users to upload their own documents
+-- Allow users to upload their own documents
 CREATE POLICY "Users can upload their own documents"
 ON storage.objects
 FOR INSERT
@@ -31,7 +44,7 @@ USING (
   AND (storage.foldername(name))[1] = auth.uid()::text
 );
 
--- Allow public read access to document URLs (needed for shared/public viewing)
+-- Allow public read (needed for displaying uploaded files)
 CREATE POLICY "Anyone can read documents"
 ON storage.objects
 FOR SELECT

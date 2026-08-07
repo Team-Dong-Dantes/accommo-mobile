@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
-import { supabase } from '@/utils/supabase';
-import { uploadDocument } from '@/utils/upload';
-import type { RegisterForm } from '@/types/database';
+import { supabase } from '@/shared/utils/supabase';
+import { uploadDocument } from '@/shared/utils/upload';
+import type { RegisterForm } from '@/shared/types/database';
 
 function sanitizeError(error: unknown): Error {
   if (error instanceof Error) {
