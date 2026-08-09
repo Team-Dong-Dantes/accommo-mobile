@@ -4,7 +4,10 @@
 import { defineConfig } from '#q-app';
 import { config as loadDotenv } from 'dotenv';
 
-const env = loadDotenv({ path: '.env' }).parsed || {};
+const env = {
+  ...loadDotenv({ path: '.env' }).parsed,
+  ...loadDotenv({ path: '.env.local' }).parsed,
+};
 
 export default defineConfig((/* ctx */) => {
   return {
@@ -61,6 +64,7 @@ export default defineConfig((/* ctx */) => {
       define: {
         'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
         'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
+        'import.meta.env.VITE_DEMO_MODE': JSON.stringify(env.VITE_DEMO_MODE),
       },
       // ignorePublicFolder: true,
       // minify: false,

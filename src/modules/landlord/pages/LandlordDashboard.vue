@@ -2,11 +2,13 @@
   <q-page class="dashboard-page bg-grey-1">
     <div class="header-section text-white">
       <div class="row justify-between items-center q-pa-md">
-        <h4 class="q-my-none text-weight-bold">Property Manager</h4>
+        <div>
+          <h4 class="q-my-none text-weight-bold">{{ businessName }}</h4>
+          <p class="text-subtitle1 text-white-7 q-mb-none">
+            Overview of your properties and tenants
+          </p>
+        </div>
         <q-btn flat round dense icon="logout" @click="handleLogout" />
-      </div>
-      <div class="q-px-md q-pb-xl">
-        <p class="text-subtitle1 text-white-7">Overview of your properties and tenants</p>
       </div>
     </div>
 
@@ -16,7 +18,10 @@
           <q-card flat bordered class="custom-card">
             <q-card-section>
               <div class="text-overline text-teal-9">Active Tenants</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">0</div>
+              <div class="text-h3 q-mt-sm text-weight-bold">{{ activeTenants }}</div>
+              <div class="text-subtitle2 text-grey-7">
+                {{ activeTenantsLabel }}
+              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -25,7 +30,8 @@
           <q-card flat bordered class="custom-card">
             <q-card-section>
               <div class="text-overline text-teal-9">Pending Payments</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">0</div>
+              <div class="text-h3 q-mt-sm text-weight-bold">{{ pendingPayments }}</div>
+              <div class="text-subtitle2 text-grey-7">{{ pendingAmountLabel }}</div>
             </q-card-section>
             <q-card-actions align="right" class="q-pa-md">
               <q-btn flat color="teal-9" class="text-weight-bold" label="View Details" />
@@ -37,10 +43,8 @@
           <q-card flat bordered class="custom-card">
             <q-card-section>
               <div class="text-overline text-teal-9">Properties</div>
-              <div class="text-h6 q-mt-sm text-weight-bold">No properties listed</div>
-              <div class="text-subtitle2 text-grey-7">
-                Add a property to start accepting tenants.
-              </div>
+              <div class="text-h3 q-mt-sm text-weight-bold">{{ properties.length }}</div>
+              <div class="text-subtitle2 text-grey-7">{{ propertiesSubtitle }}</div>
             </q-card-section>
             <q-card-actions align="right" class="q-pa-md">
               <q-btn unelevated color="teal-9" class="action-btn" label="Add Property" />
@@ -48,22 +52,201 @@
           </q-card>
         </div>
       </div>
+
+      <template v-if="verificationRequests.length > 0">
+        <h6 class="q-my-md text-weight-bold">Payment Requests</h6>
+        <q-list bordered separator class="rounded-borders bg-white">
+          <q-item v-for="payment in verificationRequests" :key="payment.id">
+            <q-item-section>
+              <q-item-label class="text-weight-bold">
+                {{ payment.lease?.student?.full_name ?? 'Student' }} ·
+                {{ formatPeso(payment.amount) }}
+              </q-item-label>
+              <q-item-label caption>
+                {{ payment.month ?? 'Unspecified month' }} ·
+                {{ payment.lease?.room?.property?.name ?? 'Property' }}
+                {{ payment.lease?.room?.room_number ?? '' }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-badge color="amber" label="Awaiting review" />
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </template>
+
+      <h6 class="q-my-md text-weight-bold">Your Properties</h6>
+      <q-list v-if="properties.length > 0" bordered separator class="rounded-borders bg-white">
+        <q-item v-for="property in properties" :key="property.id">
+          <q-item-section>
+            <q-item-label class="text-weight-bold">{{ property.name }}</q-item-label>
+            <q-item-label caption>{{ property.address || 'No address set' }}</q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-badge :color="statusColor(property.status)" :label="property.status" />
+          </q-item-section>
+        </q-item>
+      </q-list>
+      <q-card v-else flat bordered class="custom-card q-mt-sm">
+        <q-card-section class="text-center">
+          <div class="text-subtitle2 text-grey-7 q-py-md">
+            No properties yet — tap "Add Property" to get started.
+          </div>
+        </q-card-section>
+      </q-card>
+
+      <div v-if="error" class="text-negative q-mt-md">{{ error }}</div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/shared/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
 
+interface PropertyRow {
+  id: string;
+  name: string;
+  address: string | null;
+  status: string;
+}
+
+interface PaymentWithDetails {
+  id: string;
+  amount: number;
+  status: string;
+  month: string | null;
+  lease: {
+    student: { full_name: string } | null;
+    room: {
+      room_number: string | null;
+      property: { name: string | null } | null;
+    } | null;
+  } | null;
+}
+
 const router = useRouter();
+
+const businessName = ref('Property Manager');
+const activeTenants = ref(0);
+const activeTenantsLabel = ref('No tenants yet');
+const pendingPayments = ref(0);
+const pendingAmountLabel = ref('No pending balances');
+const verificationRequests = ref<PaymentWithDetails[]>([]);
+const properties = ref<PropertyRow[]>([]);
+const propertiesSubtitle = ref('No properties listed');
+const error = ref<string | null>(null);
+
+function formatPeso(amount: number): string {
+  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function statusColor(status: string): string {
+  switch (status) {
+    case 'accredited':
+      return 'teal';
+    case 'reviewing':
+      return 'blue';
+    case 'pending':
+      return 'amber';
+    case 'rejected':
+      return 'negative';
+    case 'delisted':
+      return 'grey';
+    default:
+      return 'grey';
+  }
+}
+
+async function loadDashboard() {
+  error.value = null;
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      void router.push('/login');
+      return;
+    }
+
+    // Business name from accreditation profile
+    const { data: landlordProfile, error: profileError } = await supabase
+      .from('landlord_profiles')
+      .select('business_name')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profileError) throw profileError;
+    if (landlordProfile?.business_name) {
+      businessName.value = landlordProfile.business_name;
+    }
+
+    // Properties owned by this landlord
+    const { data: props, error: propsError } = await supabase
+      .from('properties')
+      .select('id, name, address, status')
+      .eq('landlord_id', user.id)
+      .order('name');
+
+    if (propsError) throw propsError;
+    properties.value = (props ?? []) as unknown as PropertyRow[];
+
+    const accreditedCount = properties.value.filter((property) => property.status === 'accredited').length;
+    propertiesSubtitle.value =
+      properties.value.length === 0
+        ? 'Add a property to start accepting tenants.'
+        : `${accreditedCount} accredited · ${properties.value.length} total`;
+
+    // Active leases = current tenants
+    const { data: leases, error: leasesError } = await supabase
+      .from('leases')
+      .select('id')
+      .eq('landlord_id', user.id)
+      .eq('status', 'active');
+
+    if (leasesError) throw leasesError;
+    activeTenants.value = leases?.length ?? 0;
+    activeTenantsLabel.value =
+      activeTenants.value === 1
+        ? '1 tenant staying right now'
+        : activeTenants.value > 1
+          ? `${activeTenants.value} tenants staying right now`
+          : 'No tenants yet';
+
+    // Payments needing attention across this landlord's leases
+    const { data: payments, error: paymentsError } = await supabase
+      .from('payments')
+      .select(
+        'id, amount, status, month, lease:leases(student:users(full_name), room:rooms(room_number, property:properties(name)))',
+      )
+      .in('status', ['due', 'overdue', 'pending_verification'])
+      .eq('lease.landlord_id', user.id);
+
+    if (paymentsError) throw paymentsError;
+    const typedPayments = (payments ?? []) as unknown as PaymentWithDetails[];
+    pendingPayments.value = typedPayments.length;
+    pendingAmountLabel.value =
+      typedPayments.length > 0
+        ? `${formatPeso(typedPayments.reduce((sum, payment) => sum + payment.amount, 0))} outstanding`
+        : 'No pending balances';
+    verificationRequests.value = typedPayments.filter(
+      (payment) => payment.status === 'pending_verification',
+    );
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load dashboard';
+  }
+}
 
 async function handleLogout() {
   useAuthStore().clearCachedRole();
   await supabase.auth.signOut();
   void router.push('/login');
 }
+
+onMounted(loadDashboard);
 </script>
 
 <style scoped>
