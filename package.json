@@ -6,10 +6,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "quasar dev",
-    "build": "quasar build",
+    "dev": "node node_modules/@quasar/app-vite/bin/quasar dev",
+    "build": "node node_modules/@quasar/app-vite/bin/quasar build",
     "typecheck": "vue-tsc --noEmit",
-    "postinstall": "quasar prepare --silent"
+    "postinstall": "node node_modules/@quasar/app-vite/bin/quasar prepare --silent"
   },
   "dependencies": {
     "@iconify/vue": "^5.0.1",
