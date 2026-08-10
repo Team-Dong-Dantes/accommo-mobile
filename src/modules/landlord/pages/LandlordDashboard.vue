@@ -47,7 +47,7 @@
               <div class="text-subtitle2 text-grey-7">{{ propertiesSubtitle }}</div>
             </q-card-section>
             <q-card-actions align="right" class="q-pa-md">
-              <q-btn unelevated color="teal-9" class="action-btn" label="Add Property" />
+              <q-btn unelevated color="teal-9" class="action-btn" label="Add Property" @click="goToAddProperty" />
             </q-card-actions>
           </q-card>
         </div>
@@ -244,6 +244,10 @@ async function handleLogout() {
   useAuthStore().clearCachedRole();
   await supabase.auth.signOut();
   void router.push('/login');
+}
+
+function goToAddProperty() {
+  void router.push('/landlord/properties/new');
 }
 
 onMounted(loadDashboard);
