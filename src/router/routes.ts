@@ -18,6 +18,10 @@ const routes: RouteRecordRaw[] = [
     children: [
       ...landlordRoutes,
       ...studentRoutes,
+      {
+        path: '/profile',
+        component: () => import('@/shared/pages/ProfilePage.vue'),
+      },
     ],
   },
 
