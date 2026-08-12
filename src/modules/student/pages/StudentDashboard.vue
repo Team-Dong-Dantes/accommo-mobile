@@ -223,10 +223,6 @@
       </q-tabs>
     </q-footer>
 
-    <!-- Floating Action Button -->
-    <q-page-sticky position="bottom-right" :offset="[18, 70]">
-      <q-btn fab icon="add" color="teal-8" class="shadow-4" @click="fabAction" />
-    </q-page-sticky>
   </q-layout>
 </template>
 
@@ -450,10 +446,6 @@ async function loadDashboard() {
 function handleLogout() {
   authStore.clearCachedRole();
   supabase.auth.signOut().finally(() => { void router.push('/login'); });
-}
-
-function fabAction() {
-  if (tab.value === 'home') { void router.push('/student/stay'); }
 }
 
 function goToStay() { void router.push('/student/stay'); }
