@@ -51,6 +51,11 @@ export default defineRouter(() => {
   }
 
   Router.beforeEach(async (to) => {
+    // Local demo mode: skip all auth guards so every screen can be previewed.
+    if ((import.meta.env.VITE_DEMO_MODE as unknown) === 'true') {
+      return true;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     const isAuthenticated = !!session;
 
@@ -69,7 +74,7 @@ export default defineRouter(() => {
 
       if (isPublicRoute) {
         const role = await fetchUserRole(session);
-        if (role === 'student') return '/student/dashboard';
+        if (role === 'student') return '/student/home';
         if (role === 'landlord') return '/landlord/dashboard';
         if (role === 'admin') return '/admin/dashboard';
         if (role === null) {
@@ -77,6 +82,15 @@ export default defineRouter(() => {
           return '/register?newUser=true';
         }
         return '/';
+      }
+
+      // Role-based authorization: protect student vs landlord routes
+      const role = await fetchUserRole(session);
+      if (to.path.startsWith('/student') && role !== 'student') {
+        return role === 'landlord' ? '/landlord/dashboard' : '/login';
+      }
+      if (to.path.startsWith('/landlord') && role !== 'landlord') {
+        return role === 'student' ? '/student/home' : '/login';
       }
     }
 
