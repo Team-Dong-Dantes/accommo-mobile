@@ -50,6 +50,20 @@
             </q-item-section>
             <q-item-section> My Properties </q-item-section>
           </q-item>
+
+          <q-item clickable v-ripple to="/landlord/tenants" exact>
+            <q-item-section avatar>
+              <IconifyIcon width="24" icon="material-icons:people" />
+            </q-item-section>
+            <q-item-section> Tenants </q-item-section>
+          </q-item>
+
+          <q-item clickable v-ripple to="/landlord/payments" exact>
+            <q-item-section avatar>
+              <IconifyIcon width="24" icon="material-icons:payments" />
+            </q-item-section>
+            <q-item-section> Payments </q-item-section>
+          </q-item>
         </template>
 
         <!-- COMMON MENU -->

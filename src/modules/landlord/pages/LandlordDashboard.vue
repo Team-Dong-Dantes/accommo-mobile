@@ -105,6 +105,10 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/shared/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
+import { createNotification, fetchNotifications, showToast } from '@/boot/notify';
+
+// Check if running in demo mode (same pattern as supabase.ts)
+const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
 
 interface PropertyRow {
   id: string;
@@ -127,6 +131,14 @@ interface PaymentWithDetails {
   } | null;
 }
 
+interface NotificationPreview {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  read_at: string | null;
+}
+
 const router = useRouter();
 
 const businessName = ref('Property Manager');
@@ -138,6 +150,8 @@ const verificationRequests = ref<PaymentWithDetails[]>([]);
 const properties = ref<PropertyRow[]>([]);
 const propertiesSubtitle = ref('No properties listed');
 const error = ref<string | null>(null);
+const notifications = ref<NotificationPreview[]>([]);
+const unreadCount = ref(0);
 
 function formatPeso(amount: number): string {
   return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -160,6 +174,61 @@ function statusColor(status: string): string {
   }
 }
 
+// Show a toast notification using Quasar Notify
+function showLandlordToast(title: string, body: string, type: 'positive' | 'negative' | 'warning' | 'info' = 'info') {
+  showToast(title, body, type);
+}
+
+// Fetch notifications for the current landlord
+async function loadNotifications() {
+  try {
+    // In demo mode, skip Supabase queries and show empty state
+    if (isDemoMode) {
+      notifications.value = [];
+      unreadCount.value = 0;
+      showToast('Demo Mode', 'Connect to real Supabase for full notification functionality', 'info');
+      return;
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const fetched = await fetchNotifications(user.id);
+    notifications.value = fetched.map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      body: n.body,
+      type: n.type,
+      read_at: n.read_at,
+    }));
+
+    // Update unread count
+    unreadCount.value = fetched.filter((n: any) => !n.read_at).length;
+  } catch (e) {
+    console.error('Failed to load notifications:', e);
+    if (isDemoMode) {
+      // Already handled above, but just in case
+      notifications.value = [];
+      unreadCount.value = 0;
+    }
+  }
+}
+
+async function handleLogout() {
+  useAuthStore().clearCachedRole();
+  await supabase.auth.signOut();
+  void router.push('/login');
+}
+
+function goToAddProperty() {
+  void router.push('/landlord/properties/new');
+}
+
+// Load dashboard data (tenants, payments, properties)
 async function loadDashboard() {
   error.value = null;
   try {
@@ -240,17 +309,10 @@ async function loadDashboard() {
   }
 }
 
-async function handleLogout() {
-  useAuthStore().clearCachedRole();
-  await supabase.auth.signOut();
-  void router.push('/login');
-}
-
-function goToAddProperty() {
-  void router.push('/landlord/properties/new');
-}
-
-onMounted(loadDashboard);
+onMounted(() => {
+  loadDashboard();
+  loadNotifications();
+});
 </script>
 
 <style scoped>

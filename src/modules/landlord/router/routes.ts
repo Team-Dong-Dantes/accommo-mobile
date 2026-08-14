@@ -6,6 +6,14 @@ const landlordRoutes: RouteRecordRaw[] = [
     component: () => import('@/modules/landlord/pages/LandlordDashboard.vue'),
   },
   {
+    path: '/landlord/tenants',
+    component: () => import('@/modules/landlord/pages/LandlordTenants.vue'),
+  },
+  {
+    path: '/landlord/payments',
+    component: () => import('@/modules/landlord/pages/LandlordPayments.vue'),
+  },
+  {
     path: '/landlord/properties',
     component: () => import('@/modules/landlord/pages/LandlordProperties.vue'),
   },
