@@ -60,6 +60,7 @@ import { showToast } from '@/boot/notify';
 // Check demo mode (same pattern as rest of app)
 const isDemo = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
 
+const payments = ref<PaymentRow[]>([]);
 interface PaymentRow {
   id: string;
   amount: number;
@@ -72,8 +73,12 @@ interface PaymentRow {
   paid_at: string | null;
 }
 
-const error = ref<string | null>(null);
-const router = useRouter();
+if (isDemo) {
+  showToast('Demo Mode', 'Connect to real Supabase for payment history', 'info');
+  onMounted(() => {});
+} else {
+  onMounted(loadPayments);
+}
 
 function formatPeso(amount: number): string {
   return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -89,13 +94,75 @@ function statusInfo(status: string) {
   return info[status] || { color: 'grey', label: status };
 }
 
-// In demo mode, show empty state with message
-if (isDemo) {
-  showToast('Demo Mode', 'Connect to real Supabase for payment history', 'info');
-  payments.value = [];
-  onMounted(() => {});
-} else {
-  onMounted(loadPayments);
+async function loadPayments() {
+  error.value = null;
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    // Business name from accreditation profile
+    const { data: landlordProfile, error: profileError } = await supabase
+      .from('landlord_profiles')
+      .select('business_name')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profileError) throw profileError;
+
+    // All payments for this landlord's leases, with student/room/property details
+    // Note: In demo mode, nested select chains may not resolve fully.
+    // We query payments with minimal joins and extract data safely.
+    const { data: payments, error: paymentsError } = await supabase
+      .from('payments')
+      .select('id, amount, method, month, status, paid_at, lease_id')
+      .eq('lease_id.landlord_id', user.id);
+
+    if (paymentsError) throw paymentsError;
+
+    const typedPayments = (payments ?? []) as unknown as PaymentRow[];
+    payments.value = typedPayments.map((payment) => {
+      const { status, method, amount, month, paid_at, lease_id } = payment;
+
+      // Safely extract student name - demo mode may not have lease.student data
+      let student_name = 'Unknown Student';
+      if (lease_id && typeof lease_id === 'object' && 'student_id' in lease_id) {
+        const sid = lease_id.student_id;
+        if (typeof sid === 'string' && sid.length > 0) {
+          student_name = 'Student ' + sid.substring(0, 8);
+        } else if (typeof sid === 'object' && sid.full_name) {
+          student_name = sid.full_name;
+        }
+      }
+
+      // Method display with fallback
+      const methodDisplay = method || 'cash';
+
+      // Status info
+      const { color: statusColor, label: statusLabel } = statusInfo(status);
+
+      return {
+        id: payment.id,
+        amount,
+        method,
+        method_display: methodDisplay,
+        month,
+        status,
+        statusColor,
+        status_display: statusLabel,
+        student_name: student_name,
+        room_number: '—', // Will be populated when real Supabase data available
+        property_name: 'Unassigned', // Will be populated when real Supabase data available
+        paid_at: paid_at ?? null,
+      };
+    });
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load payments';
+    console.error('loadPayments error:', e);
+  }
 }
 
 function handleLogout() {
