@@ -22,7 +22,12 @@
         </div>
         <!-- Badge -->
         <div class="row justify-center q-mt-sm">
-          <q-badge color="amber" text-color="dark" label="Pending Verification" class="q-px-md q-py-xs rounded-borders text-weight-medium" />
+          <q-badge
+            :color="verified ? 'teal' : 'amber'"
+            text-color="dark"
+            :label="verified ? 'Verified' : 'Pending Verification'"
+            class="q-px-md q-py-xs rounded-borders text-weight-medium"
+          />
         </div>
         <!-- Name + Student ID -->
         <div class="text-center q-mt-sm q-pb-md">
@@ -76,7 +81,7 @@
         <q-card flat bordered class="custom-card">
           <q-card-section class="text-center q-py-md">
             <q-icon name="payments" color="teal-8" size="24px" />
-            <div class="text-h6 text-weight-bold q-mt-xs">2/12</div>
+            <div class="text-h6 text-weight-bold q-mt-xs">{{ stats.monthsPaid }}</div>
             <div class="text-caption text-grey-6">Months Paid</div>
           </q-card-section>
         </q-card>
@@ -85,7 +90,7 @@
         <q-card flat bordered class="custom-card">
           <q-card-section class="text-center q-py-md">
             <q-icon name="bed" color="blue-8" size="24px" />
-            <div class="text-h6 text-weight-bold q-mt-xs">3+mo</div>
+            <div class="text-h6 text-weight-bold q-mt-xs">{{ stats.stay }}</div>
             <div class="text-caption text-grey-6">Stay</div>
           </q-card-section>
         </q-card>
@@ -94,7 +99,7 @@
         <q-card flat bordered class="custom-card">
           <q-card-section class="text-center q-py-md">
             <q-icon name="star" color="amber-7" size="24px" />
-            <div class="text-h6 text-weight-bold q-mt-xs">4.8</div>
+            <div class="text-h6 text-weight-bold q-mt-xs">{{ stats.tenantScore }}</div>
             <div class="text-caption text-grey-6">Tenant Score</div>
           </q-card-section>
         </q-card>
@@ -155,7 +160,10 @@
       <q-card-section>
         <div class="text-subtitle1 text-weight-bold q-mb-md">Boarding History</div>
 
-        <div class="timeline">
+        <div v-if="history.length === 0" class="text-center text-grey-6 q-py-md">
+          No boarding history yet.
+        </div>
+        <div v-else class="timeline">
           <div v-for="entry in history" :key="entry.id" class="timeline-item">
             <div class="timeline-marker">
               <div class="timeline-dot" :style="{ background: entry.dotColor }" />
@@ -211,45 +219,139 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
 
+interface UserRow {
+  full_name: string | null;
+  initials: string | null;
+  email: string | null;
+  phone: string | null;
+  status: string | null;
+  avatar_color: string | null;
+}
+
+interface StudentProfileRow {
+  student_id: string | null;
+  program: string | null;
+  college: string | null;
+  year_level: number | null;
+  emergency_contact_json: unknown;
+}
+
+interface LeaseRow {
+  id: string;
+  status: string;
+  start_date: string | null;
+  monthly_rent: number | null;
+  room: {
+    room_number: string | null;
+    property: { name: string | null; address: string | null; rating_avg: number | null } | null;
+  } | null;
+}
+
 const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
 
-// Profile data (static for now, wired to Supabase later)
-const initials = ref('JD');
-const fullName = ref('Juan Dela Cruz');
-const studentId = ref('2024-00456');
-const course = ref('BS in Information Technology');
+const loading = ref(true);
+const error = ref<string | null>(null);
+
+// Profile data (from Supabase, empty until loaded)
+const initials = ref('U');
+const fullName = ref('Student');
+const studentId = ref('—');
+const course = ref('—');
 const campus = ref('ISU Echague');
-const email = ref('juan@accommo.test');
-const contact = ref('+639123456789');
+const email = ref('—');
+const contact = ref('—');
+const verified = ref(false);
 
-const accommodation = {
-  name: 'Santos Boarding House',
-  address: '123 Rizal St., Barangay 4, Echague',
-  rating: 4.5,
-  monthlyRent: '₱2,500',
-  checkIn: 'Aug 2026',
-  roomUnit: 'Room 2B',
-};
+// Accommodation (from active lease)
+const accommodation = ref({
+  name: 'No active lease',
+  address: '—',
+  rating: 0,
+  monthlyRent: '₱0.00',
+  checkIn: '—',
+  roomUnit: '—',
+});
 
-const history = [
-  { id: 1, name: 'Pinzon Student Hub', address: 'Blk 5, Pinzon Subdivision, Echague', dateRange: 'Aug 2024 – May 2025', status: 'Moved Out', badgeColor: 'grey', dotColor: '#bdbdbd', last: false },
-  { id: 2, name: 'Dong\'s Dormitory', address: '456 Rizal St., Barangay 3, Echague', dateRange: 'Jun 2025 – Jul 2025', status: 'Evicted', badgeColor: 'negative', dotColor: '#e53935', last: false },
-  { id: 3, name: 'Santos Boarding House', address: '123 Rizal St., Barangay 4, Echague', dateRange: 'Aug 2026 – Present', status: 'Current', badgeColor: 'teal', dotColor: '#00897b', last: true },
-];
+const stats = ref({ monthsPaid: '0/12', stay: '—', tenantScore: '—' });
 
-const emergency = {
-  name: 'Maria Dela Cruz',
-  relation: 'Mother',
-  phone: '+639987654321',
-};
+// Emergency contact remains static-safe: parse from JSON if present
+const emergency = ref({ name: 'Emergency Contact', relation: '—', phone: '—' });
+
+const history = ref<{ id: number; name: string; address: string; dateRange: string; status: string; badgeColor: string; dotColor: string; last: boolean }[]>([]);
+
+function formatPeso(amount: number): string {
+  return '\u20B1' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadProfile() {
+  loading.value = true;
+  error.value = null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { void router.push('/login'); return; }
+
+    // Fetch user + student profile in parallel
+    const [userResult, profileResult, leaseResult] = await Promise.all([
+      supabase.from('users').select('full_name, initials, email, phone, status, avatar_color').eq('id', user.id).maybeSingle(),
+      supabase.from('student_profiles').select('student_id, program, college, year_level, emergency_contact_json').eq('user_id', user.id).maybeSingle(),
+      supabase.from('leases')
+        .select('id, status, start_date, monthly_rent, room:rooms(room_number, property:properties(name, address, rating_avg))')
+        .eq('student_id', user.id).eq('status', 'active').maybeSingle(),
+    ]);
+
+    if (userResult.data) {
+      const u = userResult.data as unknown as UserRow;
+      fullName.value = u.full_name ?? 'Student';
+      initials.value = u.initials ?? 'U';
+      email.value = u.email ?? '—';
+      contact.value = u.phone ?? '—';
+      verified.value = u.status === 'verified';
+    }
+
+    if (profileResult.data) {
+      const p = profileResult.data as unknown as StudentProfileRow;
+      studentId.value = p.student_id ?? '—';
+      course.value = p.program ?? '—';
+      campus.value = p.college ? p.college.replace(/^.*\((.*)\)$/, '$1') : 'ISU Echague';
+
+      if (p.emergency_contact_json) {
+        try {
+          const ec = p.emergency_contact_json as { name?: string; relation?: string; phone?: string };
+          emergency.value = {
+            name: ec.name ?? 'Emergency Contact',
+            relation: ec.relation ?? '—',
+            phone: ec.phone ?? '—',
+          };
+        } catch { /* ignore malformed JSON */ }
+      }
+    }
+
+    // Accommodation from active lease
+    if (leaseResult.data) {
+      const l = leaseResult.data as unknown as LeaseRow;
+      accommodation.value = {
+        name: l.room?.property?.name ?? 'Active lease',
+        address: l.room?.property?.address ?? '—',
+        rating: l.room?.property?.rating_avg ?? 0,
+        monthlyRent: formatPeso(l.monthly_rent ?? 0),
+        checkIn: l.start_date ? new Date(l.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : '—',
+        roomUnit: l.room?.room_number ? `Room ${l.room.room_number}` : '—',
+      };
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load profile';
+  } finally {
+    loading.value = false;
+  }
+}
 
 function verifyNow() {
   $q.notify({
@@ -262,7 +364,7 @@ function verifyNow() {
 
 function callEmergency() {
   $q.notify({
-    message: 'Calling ' + emergency.name + '...',
+    message: 'Calling ' + emergency.value.name + '...',
     color: 'orange-9',
     position: 'top',
     classes: 'custom-notify',
@@ -275,6 +377,8 @@ async function handleLogout() {
   await supabase.auth.signOut();
   void router.push('/login');
 }
+
+onMounted(loadProfile);
 </script>
 
 <style scoped>

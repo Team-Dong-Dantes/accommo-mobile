@@ -54,7 +54,7 @@
         <q-route-tab name="home" icon="cottage" label="Home" to="/student/home" />
         <q-route-tab name="discover" icon="travel_explore" label="Discover" to="/student/discover" />
         <q-route-tab name="messages" icon="forum" label="Messages" to="/student/messages" />
-        <q-route-tab name="notif" icon="notifications" label="Alerts" to="/student/notifications" />
+        <q-route-tab name="notif" icon="notifications" label="Notif" to="/student/notifications" />
       </q-tabs>
     </q-footer>
 
@@ -104,7 +104,6 @@ const fabOpen = ref(false);
 
 interface SupabaseAuthOverride {
   getUser: () => Promise<{ data: { user: { id: string } | null }; error: Error | null }>;
-  signOut: () => Promise<{ error: Error | null }>;
 }
 
 interface SupabaseDatabaseOverride {
@@ -135,13 +134,6 @@ onMounted(async () => {
     }
   }
 });
-
-const handleLogout = async () => {
-  const auth = supabase.auth as unknown as SupabaseAuthOverride;
-  const { error } = await auth.signOut();
-  if (error) console.error('Error logging out:', error.message);
-  else await router.push('/login');
-};
 
 function navigateTo(path: string) {
   fabOpen.value = false;

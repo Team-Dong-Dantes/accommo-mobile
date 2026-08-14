@@ -34,17 +34,29 @@
         <div class="text-subtitle1 text-weight-bold">My Tickets</div>
         <q-btn flat dense color="teal-8" label="View All" no-caps class="text-weight-bold" @click="goToConcerns" />
       </div>
-      <q-card v-for="ticket in tickets" :key="ticket.id" flat bordered class="custom-card q-mb-sm">
-        <q-item>
-          <q-item-section>
-            <q-item-label class="text-weight-bold">{{ ticket.title }}</q-item-label>
-            <q-item-label caption>{{ ticket.date }} · {{ ticket.category }}</q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-badge :color="ticketStatusColor(ticket.status)" :label="ticket.status" class="q-px-sm" />
-          </q-item-section>
-        </q-item>
-      </q-card>
+      <template v-if="loading">
+        <q-skeleton type="rect" height="64px" v-for="i in 2" :key="i" class="q-mb-sm" style="border-radius:14px" />
+      </template>
+      <template v-else-if="tickets.length === 0">
+        <q-card flat bordered class="custom-card q-mb-sm">
+          <q-card-section class="text-center text-grey-6 q-py-md">
+            No tickets yet. Reach out to OSAS for support.
+          </q-card-section>
+        </q-card>
+      </template>
+      <template v-else>
+        <q-card v-for="ticket in tickets" :key="ticket.id" flat bordered class="custom-card q-mb-sm">
+          <q-item>
+            <q-item-section>
+              <q-item-label class="text-weight-bold">{{ ticket.title }}</q-item-label>
+              <q-item-label caption>{{ ticket.date }} · {{ ticket.category }}</q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-badge :color="ticketStatusColor(ticket.status)" :label="ticket.status" class="q-px-sm" />
+            </q-item-section>
+          </q-item>
+        </q-card>
+      </template>
     </div>
 
     <div class="q-px-md q-pb-xl">
@@ -64,11 +76,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { supabase } from '@/shared/utils/supabase';
+
+interface TicketRow {
+  id: string;
+  title: string;
+  date: string;
+  category: string;
+  status: string;
+}
 
 const router = useRouter();
 const search = ref('');
+const loading = ref(true);
+const tickets = ref<TicketRow[]>([]);
 
 const categories = [
   { label: 'Housing', icon: 'home_work', color: 'green-8', count: '12 articles' },
@@ -76,12 +99,6 @@ const categories = [
   { label: 'Repair', icon: 'build', color: 'orange-8', count: '15 articles' },
   { label: 'Payment', icon: 'payments', color: 'purple-8', count: '10 articles' },
   { label: 'General', icon: 'help_outline', color: 'teal-8', count: '20 articles' },
-];
-
-const tickets = [
-  { id: 1, title: 'Faucet leaking in Room 2B', date: 'Aug 8', category: 'Repair', status: 'In Progress' },
-  { id: 2, title: 'Request for rental contract copy', date: 'Aug 5', category: 'Document', status: 'Resolved' },
-  { id: 3, title: 'Noise complaint – neighbor unit', date: 'Aug 1', category: 'Housing', status: 'Pending' },
 ];
 
 const faqs = [
@@ -92,11 +109,53 @@ const faqs = [
 ];
 
 function ticketStatusColor(status: string): string {
-  switch (status) { case 'Resolved': return 'green'; case 'In Progress': return 'teal'; case 'Pending': return 'amber'; default: return 'grey'; }
+  switch (status.toLowerCase()) {
+    case 'resolved': return 'green';
+    case 'in_progress':
+    case 'in review':
+    case 'reviewing': return 'teal';
+    case 'pending':
+    case 'open': return 'amber';
+    default: return 'grey';
+  }
+}
+
+async function loadTickets() {
+  loading.value = true;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('id, subject, category, status, filed_at')
+      .eq('student_id', user.id)
+      .order('filed_at', { ascending: false });
+
+    if (error) throw error;
+
+    const rows = (data ?? []) as unknown as Array<{
+      id: string; subject: string; category: string; status: string; filed_at: string;
+    }>;
+
+    tickets.value = rows.map((c) => ({
+      id: c.id,
+      title: c.subject,
+      date: new Date(c.filed_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
+      category: c.category,
+      status: c.status,
+    }));
+  } catch {
+    tickets.value = [];
+  } finally {
+    loading.value = false;
+  }
 }
 
 function goToCategory(label: string) { void router.push('/student/concerns'); }
 function goToConcerns() { void router.push('/student/concerns'); }
+
+onMounted(loadTickets);
 </script>
 
 <style scoped>

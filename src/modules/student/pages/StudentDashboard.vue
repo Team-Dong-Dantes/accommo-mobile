@@ -97,7 +97,6 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/shared/utils/supabase';
-import { useAuthStore } from '@/stores/auth';
 
 interface LeaseRow {
   id: string;
@@ -119,14 +118,11 @@ interface PaymentRow {
 }
 
 const router = useRouter();
-const authStore = useAuthStore();
 
 const loading = ref(true);
 const error = ref<string | null>(null);
-
 const lease = ref<LeaseRow | null>(null);
 const nextPayment = ref<PaymentRow | null>(null);
-const userInitials = ref('UN');
 const landlordName = ref('Mario Santos');
 
 const stayTitle = ref('No Active Lease');
@@ -135,10 +131,10 @@ const paymentTitle = ref('\u20B10.00');
 const paymentSubtitle = ref('No pending balances');
 
 const quickActions = [
-  { label: 'Report Issue', icon: 'report_problem', color: 'amber-8', handler: goToStay },
-  { label: 'File Complaint', icon: 'gavel', color: 'negative', handler: goToStay },
-  { label: 'View History', icon: 'history', color: 'teal-7', handler: goToStay },
-  { label: 'Review Stay', icon: 'star', color: 'yellow-8', handler: goToStay },
+  { label: 'Report Issue', icon: 'report_problem', color: 'amber-8', handler: goToConcerns },
+  { label: 'File Complaint', icon: 'gavel', color: 'negative', handler: goToConcerns },
+  { label: 'View History', icon: 'history', color: 'teal-7', handler: goToPayments },
+  { label: 'Review Stay', icon: 'star', color: 'yellow-8', handler: goToSupport },
 ];
 
 const leaseProgress = computed(() => {
@@ -177,13 +173,6 @@ async function loadDashboard() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { void router.push('/login'); return; }
-
-    const { data: userData } = await supabase
-      .from('users').select('full_name, initials').eq('id', user.id).maybeSingle();
-    if (userData) {
-      const u = userData as unknown as { full_name: string | null; initials: string | null };
-      userInitials.value = u.initials ?? 'UN';
-    }
 
     const { data: leaseData, error: leaseError } = await supabase
       .from('leases')
@@ -234,13 +223,10 @@ async function loadDashboard() {
   }
 }
 
-function handleLogout() {
-  authStore.clearCachedRole();
-  supabase.auth.signOut().finally(() => { void router.push('/login'); });
-}
-
 function goToStay() { void router.push('/student/stay'); }
 function goToPayments() { void router.push('/student/payments'); }
+function goToConcerns() { void router.push('/student/concerns'); }
+function goToSupport() { void router.push('/student/support'); }
 function goToMessages() { void router.push('/student/messages'); }
 
 onMounted(loadDashboard);

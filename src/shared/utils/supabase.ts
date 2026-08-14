@@ -24,22 +24,6 @@ const DEMO_SESSION = {
   user: { id: 'demo-user', email: 'demo@accommo.local', role: 'landlord' },
 };
 
-type MockResult = { data: unknown; error: null } | { data: null; error: { message: string } };
-
-interface MockSupabaseClient {
-  auth: {
-    getSession: () => Promise<{ data: { session: unknown }; error: null }>;
-    getUser: () => Promise<{ data: { user: unknown }; error: null }>;
-    signInWithPassword: (credentials?: { email?: string }) => Promise<MockResult>;
-    signUp: () => Promise<MockResult>;
-    signInWithOAuth: () => Promise<MockResult>;
-    signOut: () => Promise<{ error: null }>;
-    resetPasswordForEmail: () => Promise<{ error: null }>;
-  };
-  from: (table: string) => unknown;
-  rpc: () => Promise<{ data: boolean; error: null }>;
-}
-
 let _supabaseInstance: SupabaseClient<Database>;
 
 if (supabaseUrl && supabaseAnonKey) {
@@ -125,4 +109,3 @@ if (supabaseUrl && supabaseAnonKey) {
 }
 
 export const supabase = _supabaseInstance;
-export type { MockSupabaseClient };
