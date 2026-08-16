@@ -477,7 +477,7 @@ export const useTenantBillingStore = defineStore('tenant-billing', {
 
       const newRecord: PaymentRecord = {
         month,
-        dueDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date().toISOString().split('T')[0] ?? '',
         amount,
         status: 'Pending',
         paymentMethod: 'Cash',

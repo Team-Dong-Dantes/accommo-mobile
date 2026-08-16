@@ -238,7 +238,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLandlordStore } from '@/stores/landlord'
 
@@ -247,6 +247,10 @@ const landlordStore = useLandlordStore()
 
 const activeTab = ref<'home' | 'payments' | 'tenants' | 'notifications'>('home')
 const tenantsTab = ref('All')
+
+onMounted(() => {
+  void landlordStore.loadDashboard()
+})
 
 const totalProperties = computed(() => landlordStore.totalProperties)
 const occupancyRateValue = computed(() => landlordStore.occupancyRate)

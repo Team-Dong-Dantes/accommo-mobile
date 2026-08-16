@@ -29,7 +29,7 @@ export async function createNotification(
     body,
     type,
     user_id: userId,
-    link_url,
+    link_url: link_url ?? null,
     read_at: null,
   });
 

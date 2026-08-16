@@ -206,8 +206,18 @@ const qrStore = useQrStore()
 const userRole = ref<'landlord' | 'student' | ''>('landlord')
 const leftDrawerOpen = ref(false)
 
+function toggleLeftDrawer() {
+  leftDrawerOpen.value = !leftDrawerOpen.value
+}
+
+function handleLogout() {
+  authStore.clearCachedRole()
+  void supabase.auth.signOut()
+  void router.push('/login')
+}
+
 const qrBottomSheetOpen = ref(false)
-const scannedStudent = ref< any | null>(null)
+const scannedStudent = ref<any | null>(null)
 
 // Watch for QR scan changes
 watch(

@@ -185,7 +185,6 @@
                 <q-input
                   v-model="paymentAmount"
                   type="number"
-                  :counter="1000000"
                   labeled
                   label="Amount (₱)"
                   @keyup.enter="closeLogPaymentDialogAndLog"
@@ -242,6 +241,16 @@ const tenantBillingStore = useTenantBillingStore()
 const userRole = ref<'landlord' | 'student' | ''>('landlord')
 const leftDrawerOpen = ref(false)
 
+function toggleLeftDrawer() {
+  leftDrawerOpen.value = !leftDrawerOpen.value
+}
+
+function handleLogout() {
+  authStore.clearCachedRole()
+  void supabase.auth.signOut()
+  void router.push('/login')
+}
+
 // --- Mock Tenant Data ---
 const tenantName = computed(() => 'Maria Santos')
 const tenantNameInitials = computed(() => {
@@ -253,71 +262,64 @@ const tenantMonthlyRate = computed(() => 5500)
 const tenantProperty = computed(() => 'Rose Dormitory, Unit 3A')
 
 // Payment streak data - 30 days
-const streakDays = ref<
-  Array<{
-    number: number
-    status: 'current' | 'missed' | 'upcoming'
-    label: string
-  }>
->(
-  (() => {
-    const days: Array<{ number: number; status: 'current' | 'missed' | 'upcoming'; label: string }> = []
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      const dayNum = d.getDate()
-      const status: 'current' | 'missed' | 'upcoming' = i < 20 ? 'current' : 'missed'
-      days.push({
-        number: dayNum,
-        status,
-        label: status === 'current' ? 'Paid' : 'Missed',
-      })
-    }
-    return days
-  })()
-)
+const streakDays: Array<{
+  number: number
+  status: 'current' | 'missed' | 'upcoming'
+  label: string
+}> = (() => {
+  const days: Array<{ number: number; status: 'current' | 'missed' | 'upcoming'; label: string }> = []
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const dayNum = d.getDate()
+    const status: 'current' | 'missed' | 'upcoming' = i < 20 ? 'current' : 'missed'
+    days.push({
+      number: dayNum,
+      status,
+      label: status === 'current' ? 'Paid' : 'Missed',
+    })
+  }
+  return days
+})()
 
 // Payment history - mock data
-const paymentHistory = ref<
-  Array<{
+const paymentHistory: Array<{
+  month: string
+  dueDate: string
+  amount: number
+  status: 'Pending' | 'Paid'
+  paymentMethod: string
+}> = (() => {
+  const history: Array<{
     month: string
     dueDate: string
     amount: number
     status: 'Pending' | 'Paid'
     paymentMethod: string
-  }
->(
-  (() => {
-    const history: Array<{
-      month: string
-      dueDate: string
-      amount: number
-      status: 'Pending' | 'Paid'
-      paymentMethod: string
-    }> = []
-    const months = [
-      'January 2024',
-      'February 2024',
-      'March 2024',
-      'April 2024',
-      'May 2024',
-    ]
-    const baseAmount = 5500
+  }> = []
+  const months = [
+    'January 2024',
+    'February 2024',
+    'March 2024',
+    'April 2024',
+    'May 2024',
+  ]
+  const baseAmount = 5500
 
-    months.forEach((month, index) => {
-      const isLast = index === months.length - 1
-      history.push({
-        month,
-        dueDate: new Date().toISOString().split('T')[0],
-        amount: baseAmount,
-        status: isLast ? 'Pending' : 'Paid',
-        paymentMethod: 'Cash',
-      })
+  months.forEach((month, index) => {
+    const isLast = index === months.length - 1
+    const dueDate = new Date().toISOString().split('T')[0] ?? ''
+    history.push({
+      month,
+      dueDate,
+      amount: baseAmount,
+      status: isLast ? 'Pending' : 'Paid',
+      paymentMethod: 'Cash',
     })
+  })
 
-    return history
-  })()
-)
+  return history
+})()
 
 // --- Dialog State ---
 const logPaymentDialogOpen = ref(false)
@@ -434,3 +436,4 @@ function closeLogPaymentDialogAndLog() {
   color: #fdd835 !important;
 }
 </style>
+

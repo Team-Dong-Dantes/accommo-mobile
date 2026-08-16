@@ -134,6 +134,7 @@
             color="teal-9"
             class="q-mb-md q-mr-sm"
             label="Student QR Scanner"
+            @click="goToQRScanner"
           />
           <q-btn
             unelevated
@@ -299,6 +300,10 @@ function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value
 }
 
+function goToQRScanner() {
+  void router.push('/landlord/profile/qr-scanner')
+}
+
 function handleLogout() {
   authStore.clearCachedRole()
   void supabase.auth.signOut()
@@ -306,7 +311,6 @@ function handleLogout() {
 }
 
 const landlordName = ref('Landlord')
-const memberSince = ref('Member since 2024')
 
 const memberSince = computed(() => {
   const date = new Date()
@@ -500,3 +504,4 @@ function statusColor(status: 'Valid' | 'Expiring' | 'Missing'): string {
   padding: 0 24px 24px;
 }
 </style>
+

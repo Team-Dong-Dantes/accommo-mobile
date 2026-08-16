@@ -68,6 +68,7 @@ interface PaymentRow {
   status: string
   statusColor: string
   status_display: string
+  statusDisplay: string
   student_name: string
   room_number: string | null
   property_name: string | null
@@ -123,6 +124,7 @@ async function loadPayments() {
         status: payment.status ?? 'due',
         statusColor: info.color,
         status_display: info.label,
+        statusDisplay: info.label,
         student_name: 'Unknown Student',
         room_number: '—',
         property_name: 'Unassigned',
@@ -161,3 +163,4 @@ function handleLogout() {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 </style>
+
