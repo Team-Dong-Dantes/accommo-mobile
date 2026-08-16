@@ -10,9 +10,17 @@
           accommo
         </q-toolbar-title>
 
-        <q-avatar color="teal-8" text-color="white" size="36px" class="avatar-badge">
-          JD
-        </q-avatar>
+        <q-btn
+          flat
+          round
+          dense
+          class="avatar-button"
+          @click="goToProfile"
+        >
+          <div class="profile-icon-shell">
+            <IconifyIcon class="profile-action-icon" width="22" icon="material-icons:person" />
+          </div>
+        </q-btn>
       </q-toolbar>
     </q-header>
 
@@ -153,6 +161,10 @@ const goToTab = (tabName: string | number) => {
   }
 }
 
+const goToProfile = () => {
+  void router.push(profileRoute.value)
+}
+
 const goToAddProperty = () => {
   void router.push('/landlord/properties/new')
 }
@@ -199,49 +211,66 @@ onMounted(async () => {
 }
 
 .app-title {
-  font-size: 28px
-  letter-spacing: -0.04em
+  font-size: 28px;
+  letter-spacing: -0.04em;
 }
 
 .menu-button {
-  color: #111827
+  color: #111827;
 }
 
-.avatar-badge {
-  font-size: 12px
-  font-weight: 700
+.avatar-button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  color: #111827;
+}
+
+.profile-icon-shell {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #E6F5F3;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.profile-action-icon {
+  color: #0F766E;
 }
 
 .bottom-footer {
-  height: 78px
-  position: fixed
-  bottom: 0
-  left: 0
-  right: 0
-  z-index: 30
-  box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08)
+  height: 78px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .bottom-tabs {
-  height: 78px
+  height: 78px;
 }
 
 .bottom-tabs :deep(.q-tab) {
-  min-width: 0
-  padding: 0 8px
-  font-size: 11px
-  font-weight: 600
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .bottom-tabs :deep(.q-tab__icon) {
-  font-size: 22px
-  margin-bottom: 4px
+  font-size: 22px;
+  margin-bottom: 4px;
 }
 
 .fab-button {
-  position: absolute
-  right: 22px
-  bottom: 52px
-  box-shadow: 0 10px 22px rgba(0, 137, 123, 0.32)
+  position: absolute;
+  right: 22px;
+  bottom: 52px;
+  box-shadow: 0 10px 22px rgba(0, 137, 123, 0.32);
 }
 </style>

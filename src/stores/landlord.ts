@@ -81,7 +81,7 @@ export const useLandlordStore = defineStore('landlord', {
         // Active leases
         const { data: leases, error: leasesError } = await supabase
           .from('leases')
-          .select('id, status, room:rooms(room_number, property:properties(name)), student_id:student_id:users(full_name)')
+          .select('id, status, rooms!room_id(room_number, properties(name)), users!student_id(full_name)')
           .eq('landlord_id', user.id)
           .eq('status', 'active')
 
@@ -92,10 +92,10 @@ export const useLandlordStore = defineStore('landlord', {
         const { data: payments, error: paymentsError } = await supabase
           .from('payments')
           .select(
-            'id, amount, status, month, lease:leases(student:users(full_name), room:rooms(room_number, property:properties(name)))',
+            'id, amount, status, month, leases!lease_id(users!student_id(full_name), rooms!room_id(room_number, properties(name)))',
           )
           .in('status', ['due', 'overdue', 'pending_verification'])
-          .eq('lease.landlord_id', user.id)
+          .eq('leases.landlord_id', user.id)
 
         if (paymentsError) throw paymentsError
         const typedPayments = (payments ?? []) as any[]

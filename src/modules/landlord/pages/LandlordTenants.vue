@@ -97,7 +97,7 @@ async function loadTenants() {
     const { data: leases, error: leasesError } = await supabase
       .from('leases')
       .select(
-        'id, start_date, status, room:rooms(room_number, property:properties(name)), student_id:student_id:users(full_name)',
+        'id, start_date, status, room_id, student_id, rooms!room_id(room_number, properties(name)), users!student_id(full_name)',
       )
       .eq('landlord_id', user.id)
       .eq('status', 'active');
@@ -110,15 +110,15 @@ async function loadTenants() {
         id: string;
         start_date: string;
         status: string;
-        room: { room_number: string | null; property: { name: string | null } } | null;
-        student_id: { full_name: string } | null;
+        rooms: { room_number: string | null; properties: { name: string | null } | null } | null;
+        users: { full_name: string } | null;
       };
 
       return {
         lease_id: typedLease.id,
-        student_full_name: typedLease.student_id?.full_name ?? 'Unknown Student',
-        room_number: typedLease.room?.room_number ?? '—',
-        property_name: typedLease.room?.property?.name ?? 'Unassigned',
+        student_full_name: typedLease.users?.full_name ?? 'Unknown Student',
+        room_number: typedLease.rooms?.room_number ?? '—',
+        property_name: typedLease.rooms?.properties?.name ?? 'Unassigned',
         start_date: typedLease.start_date,
       } as TenantRow;
     });

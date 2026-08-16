@@ -443,7 +443,7 @@ async function loadProfileData() {
 
     const { data: reviewRows, error: reviewError } = await supabase
       .from('landlord_reviews')
-      .select('id, rating, comment, created_at, student_id:student_id:users(full_name)')
+      .select('id, rating, comment, created_at, users!student_id(full_name)')
       .eq('landlord_id', user.id)
       .order('created_at', { ascending: false })
       .limit(5)
@@ -451,7 +451,7 @@ async function loadProfileData() {
     if (reviewError) throw reviewError
 
     reviews.value = (reviewRows ?? []).map((review: any) => {
-      const author = review.student_id?.full_name ?? 'Anonymous Student'
+      const author = review.users?.full_name ?? 'Anonymous Student'
       const initialsValue = author
         .split(' ')
         .filter(Boolean)
