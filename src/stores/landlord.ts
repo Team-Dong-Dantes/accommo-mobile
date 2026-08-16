@@ -37,15 +37,18 @@ export const useLandlordStore = defineStore('landlord', {
     occupancyRate: (state) => {
       if (state.properties.length === 0) return 0
       const totalRooms = state.properties.reduce(
-        (sum: number, p: any) => sum + (p.totalRooms || 0),
+        (sum: number, p: any) => sum + (p.totalRooms ?? p.total_rooms ?? 0),
         0,
       )
       const occupiedRooms = state.properties.reduce(
-        (sum: number, p: any) =>
-          sum + (p.totalRooms || 0) - (p.vacantRooms || 0),
+        (sum: number, p: any) => {
+          const roomCount = p.totalRooms ?? p.total_rooms ?? 0
+          const vacantCount = p.vacantRooms ?? 0
+          return sum + Math.max(roomCount - vacantCount, 0)
+        },
         0,
       )
-      return Number(((occupiedRooms / totalRooms) * 100).toFixed(1))
+      return totalRooms > 0 ? Number(((occupiedRooms / totalRooms) * 100).toFixed(1)) : 0
     },
   },
 
@@ -64,12 +67,16 @@ export const useLandlordStore = defineStore('landlord', {
         // Properties
         const { data: props, error: propsError } = await supabase
           .from('properties')
-          .select('id, name, address, status, total_rooms, vacant_rooms')
+          .select('id, name, address, status, total_rooms, capacity')
           .eq('landlord_id', user.id)
           .order('name')
 
         if (propsError) throw propsError
-        this.properties = (props ?? []) as any[]
+        this.properties = (props ?? []).map((property: any) => ({
+          ...property,
+          totalRooms: property.total_rooms ?? 0,
+          vacantRooms: property.capacity ?? 0,
+        }))
 
         // Active leases
         const { data: leases, error: leasesError } = await supabase
@@ -196,12 +203,16 @@ export const useLandlordStore = defineStore('landlord', {
 
       const { data: props, error: propsError } = await supabase
         .from('properties')
-        .select('id, name, address, status, total_rooms, vacant_rooms')
+        .select('id, name, address, status, total_rooms, capacity')
         .eq('landlord_id', user.id)
         .order('name')
 
       if (propsError) throw propsError
-      this.properties = (props ?? []) as any[]
+      this.properties = (props ?? []).map((property: any) => ({
+        ...property,
+        totalRooms: property.total_rooms ?? 0,
+        vacantRooms: property.capacity ?? 0,
+      }))
     },
 
     async addProperty(propertyData: any) {

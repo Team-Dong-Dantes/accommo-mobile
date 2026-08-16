@@ -343,12 +343,17 @@ onMounted(async () => {
 
   const { data: props, error: propsError } = await supabase
     .from('properties')
-    .select('id, total_rooms, vacant_rooms')
+    .select('id, total_rooms, capacity')
     .eq('landlord_id', user.id)
 
   if (propsError) return
 
-  const propertyRows = props ?? []
+  const propertyRows = (props ?? []).map((property: any) => ({
+    ...property,
+    total_rooms: property.total_rooms ?? 0,
+    vacant_rooms: property.capacity ?? 0,
+  }))
+
   propertiesActive.value = propertyRows.length
 
   if (propertyRows.length === 0) {
@@ -358,7 +363,7 @@ onMounted(async () => {
 
   const total = propertyRows.reduce((sum: number, p: any) => sum + (p.total_rooms || 0), 0)
   const occupied = propertyRows.reduce(
-    (sum: number, p: any) => sum + ((p.total_rooms || 0) - (p.vacant_rooms || 0)),
+    (sum: number, p: any) => sum + Math.max((p.total_rooms || 0) - (p.vacant_rooms || 0), 0),
     0,
   )
   occupancyRate.value = total > 0 ? Number(((occupied / total) * 100).toFixed(1)) : 0

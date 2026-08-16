@@ -9,16 +9,21 @@
         ink-bar-color="teal-9"
         class="tab-style"
       >
-        <q-tab label="Home" icon="home" />
-        <q-tab label="Payments" icon="payments" />
-        <q-tab label="Tenants" icon="people" />
-        <q-tab label="Notifications" icon="notifications" />
+        <q-tab name="home" label="Home" icon="home" />
+        <q-tab name="payments" label="Payments" icon="account_balance_wallet" />
+        <q-tab name="tenants" label="Tenants" icon="group" />
+        <q-tab name="notifications" label="Notifications" icon="notifications" />
       </q-tabs>
     </div>
 
     <div class="dashboard-content">
+      <div v-if="landlordStore.isLoading" class="loading-state q-pa-lg text-center">
+        <q-spinner color="teal-9" size="42px" />
+        <div class="q-mt-md text-subtitle2 text-grey-7">Loading dashboard...</div>
+      </div>
+
       <!-- HOME TAB -->
-      <div v-if="activeTab === 'home'" class="home-tab">
+      <div v-else-if="activeTab === 'home'" class="home-tab">
         <div class="row q-col-gutter-md q-mb-md">
           <!-- Metric Cards -->
           <div class="col-12 col-sm-6 col-md-4">
@@ -104,7 +109,7 @@
       </div>
 
       <!-- PAYMENTS TAB -->
-      <div v-if="activeTab === 'payments'" class="payments-tab">
+      <div v-else-if="activeTab === 'payments'" class="payments-tab">
         <div class="q-pa-md">
           <q-list
             v-if="recentPayments.length > 0"
@@ -130,10 +135,10 @@
             </q-item>
           </q-list>
 
-          <q-card v-if="recentPayments.length === 0" flat bordered class="custom-card q-mt-sm">
+          <q-card v-else flat bordered class="custom-card q-mt-sm">
             <q-card-section class="text-center">
               <div class="text-subtitle2 text-grey-7 q-py-md">
-                No payments recorded yet. Add tenants and collect payments to see history here.
+                No payments yet.
               </div>
             </q-card-section>
           </q-card>
@@ -141,7 +146,7 @@
       </div>
 
       <!-- TENANTS TAB -->
-      <div v-if="activeTab === 'tenants'" class="tenants-tab">
+      <div v-else-if="activeTab === 'tenants'" class="tenants-tab">
         <div class="q-pa-md">
           <div class="section-title">Students by Property</div>
 
@@ -157,6 +162,7 @@
           </q-tabs>
 
           <q-scroll-area
+            v-if="tenantsByGroup.length > 0"
             class="tenants-area"
             :content-style="{ maxHeight: '500px' }"
           >
@@ -171,10 +177,10 @@
             </q-item>
           </q-scroll-area>
 
-          <q-card v-if="tenantsByGroup.length === 0" flat bordered class="custom-card q-mt-sm">
+          <q-card v-else flat bordered class="custom-card q-mt-sm">
             <q-card-section class="text-center">
               <div class="text-subtitle2 text-grey-7 q-py-md">
-                No active tenants yet — add a property and assign a room to get started.
+                No tenants yet.
               </div>
             </q-card-section>
           </q-card>
@@ -182,7 +188,7 @@
       </div>
 
       <!-- NOTIFICATIONS TAB -->
-      <div v-if="activeTab === 'notifications'" class="notifications-tab">
+      <div v-else-if="activeTab === 'notifications'" class="notifications-tab">
         <div class="q-pa-md">
           <div class="row q-col-gutter-md q-mb-md">
             <div class="col-12">
@@ -222,10 +228,10 @@
                 </q-item>
               </q-list>
 
-              <q-card v-if="notifications.length === 0" flat bordered class="custom-card q-mt-sm">
+              <q-card v-else flat bordered class="custom-card q-mt-sm">
                 <q-card-section class="text-center">
                   <div class="text-subtitle2 text-grey-7 q-py-md">
-                    No notifications yet.
+                    No new notifications.
                   </div>
                 </q-card-section>
               </q-card>
@@ -248,8 +254,12 @@ const landlordStore = useLandlordStore()
 const activeTab = ref<'home' | 'payments' | 'tenants' | 'notifications'>('home')
 const tenantsTab = ref('All')
 
-onMounted(() => {
+const refreshDashboard = () => {
   void landlordStore.loadDashboard()
+}
+
+onMounted(() => {
+  refreshDashboard()
 })
 
 const totalProperties = computed(() => landlordStore.totalProperties)
@@ -320,6 +330,20 @@ function goToAddProperty() {
 
 .tab-style .ink-bar {
   background: #00897B !important;
+}
+
+.loading-state {
+  padding: 48px 24px;
+}
+
+.empty-state {
+  padding: 24px;
+}
+
+.empty-card {
+  max-width: 560px;
+  margin: 0 auto;
+  border-radius: 18px;
 }
 
 .home-tab {
