@@ -22,16 +22,8 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/shared/pages/ProfilePage.vue'),
       },
       {
-        path: '/landlord/profile',
-        component: () => import('@/modules/landlord/pages/LandlordProfile.vue'),
-      },
-      {
         path: '/landlord/dashboard',
         component: () => import('@/modules/landlord/pages/LandlordDashboard.vue'),
-      },
-      {
-        path: '/landlord/profile/qr-scanner',
-        component: () => import('@/modules/landlord/pages/QRScannerPage.vue'),
       },
       {
         path: '/landlord/chat',

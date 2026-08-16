@@ -1,369 +1,413 @@
 <template>
   <q-page class="dashboard-page bg-grey-1">
-    <div class="page-header">
-      <q-tabs
-        v-model="activeTab"
-        type="tabs"
-        background-color="transparent"
-        text-color="teal-9"
-        ink-bar-color="teal-9"
-        class="tab-style"
-      >
-        <q-tab name="home" label="Home" icon="home" />
-        <q-tab name="payments" label="Payments" icon="account_balance_wallet" />
-        <q-tab name="tenants" label="Tenants" icon="group" />
-        <q-tab name="notifications" label="Notifications" icon="notifications" />
-      </q-tabs>
-    </div>
+    <div class="page-shell q-pb-xl">
+      <div class="top-summary q-mx-md q-mt-md">
+        <div class="row q-col-gutter-sm">
+          <div v-for="metric in metrics" :key="metric.id" class="col-6">
+            <q-card flat bordered class="metric-card">
+              <q-card-section class="q-pb-xs">
+                <div class="metric-icon" :class="metric.tone">
+                  <q-icon :name="metric.icon" size="20px" />
+                </div>
+              </q-card-section>
 
-    <div class="dashboard-content">
-      <div v-if="landlordStore.isLoading" class="loading-state q-pa-lg text-center">
-        <q-spinner color="teal-9" size="42px" />
-        <div class="q-mt-md text-subtitle2 text-grey-7">Loading dashboard...</div>
-      </div>
-
-      <!-- HOME TAB -->
-      <div v-else-if="activeTab === 'home'" class="home-tab">
-        <div class="row q-col-gutter-md q-mb-md">
-          <!-- Metric Cards -->
-          <div class="col-12 col-sm-6 col-md-4">
-            <q-card flat bordered class="custom-card">
-              <q-card-section>
-                <div class="text-overline text-teal-9">Active Tenants</div>
-                <div class="text-h3 q-mt-sm text-weight-bold">{{ activeTenants }}</div>
-                <div class="text-subtitle2 text-grey-7">
-                  {{ activeTenantsLabel }}
+              <q-card-section class="q-pt-none">
+                <div class="metric-value text-weight-bold">{{ metric.value }}</div>
+                <div class="metric-label">{{ metric.label }}</div>
+                <div class="metric-subtext" :class="metric.subtone">
+                  {{ metric.subtext }}
                 </div>
               </q-card-section>
             </q-card>
           </div>
-
-          <div class="col-12 col-sm-6 col-md-4">
-            <q-card flat bordered class="custom-card">
-              <q-card-section>
-                <div class="text-overline text-teal-9">Pending Payments</div>
-                <div class="text-h3 q-mt-sm text-weight-bold">{{ pendingPayments }}</div>
-                <div class="text-subtitle2 text-grey-7">
-                  {{ pendingAmountLabel }}
-                </div>
-              </q-card-section>
-              <q-card-actions align="right" class="q-pa-md">
-                <q-btn flat color="teal-9" class="text-weight-bold" label="View Details" @click="viewPayments" />
-              </q-card-actions>
-            </q-card>
-          </div>
-
-          <div class="col-12 col-md-4">
-            <q-card flat bordered class="custom-card">
-              <q-card-section>
-                <div class="text-overline text-teal-9">Properties</div>
-                <div class="text-h3 q-mt-sm text-weight-bold">{{ totalProperties }}</div>
-                <div class="text-subtitle2 text-grey-7">{{ propertiesSubtitle }}</div>
-              </q-card-section>
-              <q-card-actions align="right" class="q-pa-md">
-                <q-btn unelevated color="teal-9" class="action-btn" label="Add Property" @click="goToAddProperty" />
-              </q-card-actions>
-            </q-card>
-          </div>
-
-          <div class="col-12 col-sm-6 col-md-4">
-            <q-card flat bordered class="custom-card">
-              <q-card-section>
-                <div class="text-overline text-teal-9">Occupancy Rate</div>
-                <div class="text-h3 q-mt-sm text-weight-bold">{{ occupancyRateValue }}%</div>
-                <div class="text-subtitle2 text-grey-7">Overall occupancy</div>
-              </q-card-section>
-            </q-card>
-          </div>
-
-          <div class="col-12 col-sm-6 col-md-4">
-            <q-card flat bordered class="custom-card">
-              <q-card-section>
-                <div class="text-overline text-teal-9">Revenue This Month</div>
-                <div class="text-h3 q-mt-sm text-weight-bold">{{ formatPeso(monthlyRevenue) }}</div>
-                <div class="text-subtitle2 text-grey-7">Current month collection</div>
-              </q-card-section>
-            </q-card>
-          </div>
-
-          <div class="col-12 col-sm-6 col-md-4">
-            <q-card flat bordered class="custom-card">
-              <q-card-section>
-                <div class="text-overline text-teal-9">OSAS Compliance</div>
-                <div class="text-h3 q-mt-sm text-weight-bold">{{ compliantCount }}/{{ properties.length }} valid</div>
-                <div class="text-subtitle2 text-grey-7">Valid permits</div>
-              </q-card-section>
-            </q-card>
-          </div>
-        </div>
-
-        <!-- Twelve Month Revenue Chart -->
-        <div class="q-pa-md" style="max-height: 400px;">
-          <q-chart
-            type="Line"
- :options="chartOptions"
- :data="revenueChartData"
- class="q-max-width-full"
-          />
         </div>
       </div>
 
-      <!-- PAYMENTS TAB -->
-      <div v-else-if="activeTab === 'payments'" class="payments-tab">
-        <div class="q-pa-md">
-          <q-list
-            v-if="recentPayments.length > 0"
-            bordered
-            separator
-            class="rounded-borders bg-white"
-          >
-            <q-item v-for="payment in recentPayments" :key="payment.id">
-              <q-item-section>
-                <q-item-label class="text-weight-bold">
-                  {{ payment.student_name }} ·
-                  {{ formatPeso(payment.amount) }}
-                </q-item-label>
-                <q-item-label caption>
-                  {{ payment.month }} ·
-                  {{ payment.property_name }} ·
-                  {{ payment.room_number }}
-                </q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-badge :color="payment.statusColor" :label="payment.statusDisplay" />
-              </q-item-section>
-            </q-item>
-          </q-list>
-
-          <q-card v-else flat bordered class="custom-card q-mt-sm">
-            <q-card-section class="text-center">
-              <div class="text-subtitle2 text-grey-7 q-py-md">
-                No payments yet.
-              </div>
-            </q-card-section>
-          </q-card>
+      <div class="chart-card q-mx-md q-mt-md">
+        <div class="section-header">
+          <div class="section-title">12-Month Revenue</div>
+          <div class="section-subtitle">Apr 2025 - Mar 2026</div>
         </div>
-      </div>
 
-      <!-- TENANTS TAB -->
-      <div v-else-if="activeTab === 'tenants'" class="tenants-tab">
-        <div class="q-pa-md">
-          <div class="section-title">Students by Property</div>
+        <div class="chart-area">
+          <div class="y-axis">
+            <span v-for="label in yLabels" :key="label">{{ label }}</span>
+          </div>
 
-          <q-tabs
-            v-model="tenantsTab"
-            type="segment"
-            background-color="transparent"
-            text-color="teal-9"
-            ink-bar-color="teal-9"
-          >
-            <q-tab v-for="prop in managedProperties" :key="prop.id" label="prop.name" />
-            <q-tab label="All" />
-          </q-tabs>
-
-          <q-scroll-area
-            v-if="tenantsByGroup.length > 0"
-            class="tenants-area"
-            :content-style="{ maxHeight: '500px' }"
-          >
-            <q-item v-for="tenant in tenantsByGroup" :key="tenant.id">
-              <q-item-section>
-                <q-item-label class="text-weight-bold">{{ tenant.propertyName }}</q-item-label>
-                <q-item-label caption>{{ tenant.roomType }} rooms</q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-badge color="teal" label="Active" />
-              </q-item-section>
-            </q-item>
-          </q-scroll-area>
-
-          <q-card v-else flat bordered class="custom-card q-mt-sm">
-            <q-card-section class="text-center">
-              <div class="text-subtitle2 text-grey-7 q-py-md">
-                No tenants yet.
+          <div class="bar-panel">
+            <div v-for="bar in revenueBars" :key="bar.label" class="bar-column">
+              <div class="bar-track">
+                <div class="bar-fill" :style="{ height: `${bar.height}%` }" />
               </div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- NOTIFICATIONS TAB -->
-      <div v-else-if="activeTab === 'notifications'" class="notifications-tab">
-        <div class="q-pa-md">
-          <div class="row q-col-gutter-md q-mb-md">
-            <div class="col-12">
-              <div class="text-subtitle2 text-grey-7 q-mb-2">
-                Unread: {{ unreadCount }} {{ unreadCount === 1 ? 'alert' : 'alerts' }}
-              </div>
-
-              <q-list
-                v-if="notifications.length > 0"
-                bordered
-                separator
-                class="rounded-borders bg-white"
-              >
-                <q-item v-for="notification in notifications" :key="notification.id">
-                  <q-item-section>
-                    <q-item-label>
-                      {{ notification.title }}
-                    </q-item-label>
-                    <q-item-label caption>
-                      {{ notification.body }}
-                      <q-badge
-                        v-if="!notification.read_at"
-                        color="red"
-                        small
-                        class="q-ml-sm"
-                      />
-                    </q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <q-badge
-                      v-if="!notification.read_at"
-                      color="amber"
-                      small
-                      label="Unread"
-                    />
-                  </q-item-section>
-                </q-item>
-              </q-list>
-
-              <q-card v-else flat bordered class="custom-card q-mt-sm">
-                <q-card-section class="text-center">
-                  <div class="text-subtitle2 text-grey-7 q-py-md">
-                    No new notifications.
-                  </div>
-                </q-card-section>
-              </q-card>
+              <div class="bar-label">{{ bar.label }}</div>
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="payments-card q-mx-md q-mt-md">
+        <div class="payments-header">
+          <div class="section-title small-title">Recent Payments</div>
+          <div class="view-all">View All</div>
+        </div>
+
+        <q-list separator class="payment-list">
+          <q-item v-for="payment in paymentRows" :key="payment.id" class="payment-item">
+            <q-item-section avatar>
+              <q-avatar size="36px" color="teal-8" text-color="white" class="avatar-mini">
+                {{ payment.initials }}
+              </q-avatar>
+            </q-item-section>
+
+            <q-item-section>
+              <q-item-label class="payment-name">{{ payment.name }}</q-item-label>
+              <q-item-label caption class="payment-meta">
+                {{ payment.meta }}
+              </q-item-label>
+            </q-item-section>
+
+            <q-item-section side class="text-right">
+              <div class="payment-amount">{{ payment.amount }}</div>
+              <q-badge color="green-6" class="paid-badge">
+                {{ payment.status }}
+              </q-badge>
+            </q-item-section>
+          </q-item>
+        </q-list>
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useLandlordStore } from '@/stores/landlord'
+import { computed, ref } from 'vue'
 
-const router = useRouter()
-const landlordStore = useLandlordStore()
-
-const activeTab = ref<'home' | 'payments' | 'tenants' | 'notifications'>('home')
-const tenantsTab = ref('All')
-
-const refreshDashboard = () => {
-  void landlordStore.loadDashboard()
+interface MetricCard {
+  id: string
+  value: string
+  label: string
+  subtext: string
+  icon: string
+  tone: string
+  subtone: string
 }
 
-onMounted(() => {
-  refreshDashboard()
-})
+interface RevenueBar {
+  label: string
+  value: number
+  height: number
+}
 
-const totalProperties = computed(() => landlordStore.totalProperties)
-const occupancyRateValue = computed(() => landlordStore.occupancyRate)
-const activeTenants = computed(() => landlordStore.activeTenants)
-const activeTenantsLabel = computed(() => `${landlordStore.activeTenants} tenants active`)
-const pendingPayments = computed(() => landlordStore.pendingPayments)
-const pendingAmountLabel = computed(() => landlordStore.pendingAmount)
-const properties = computed(() => landlordStore.properties)
-const propertiesSubtitle = computed(() => `${landlordStore.properties.length} properties managed`)
-const recentPayments = computed(() => landlordStore.recentPayments)
-const notifications = computed(() => landlordStore.notifications)
-const unreadCount = computed(() => landlordStore.unreadCount)
-const monthlyRevenue = computed(() => landlordStore.revenueChartData?.datasets?.[0]?.data?.reduce((total: number, value: number) => total + (value || 0), 0) ?? 0)
-const compliantCount = computed(() => 0)
-const managedProperties = computed(() => landlordStore.tenantsByGroup ?? [])
-const tenantsByGroup = computed(() => landlordStore.tenantsByGroup ?? [])
-const revenueChartData = computed(() => landlordStore.revenueChartData)
+interface PaymentRow {
+  id: string
+  initials: string
+  name: string
+  meta: string
+  amount: string
+  status: string
+}
 
-const chartOptions = {
-  showPoints: false,
-  lineWidth: 2,
-  area: true,
-  colors: ['#00897B'],
-  xAxis: { color: '#8b8b8b' },
-  yAxis: {
-    color: '#8b8b8b',
-    label: {
-      formatter: (value: number) => '₱' + value.toLocaleString(),
-    },
+const metrics = ref<MetricCard[]>([
+  {
+    id: 'revenue',
+    value: 'P46,200',
+    label: 'Monthly Revenue',
+    subtext: '+3.1%',
+    icon: 'attach_money',
+    tone: 'icon-green',
+    subtone: 'sub-green',
   },
-  tooltip: {
-    formatter: (value: number) => '₱' + value.toLocaleString(),
+  {
+    id: 'overdue',
+    value: 'P7,000',
+    label: 'Overdue Rent',
+    subtext: 'Due Mar 31',
+    icon: 'warning_amber',
+    tone: 'icon-red',
+    subtone: 'sub-red',
   },
-}
+  {
+    id: 'occupancy',
+    value: '91.4%',
+    label: 'Room Occupancy',
+    subtext: '+2.3%',
+    icon: 'home',
+    tone: 'icon-purple',
+    subtone: 'sub-purple',
+  },
+  {
+    id: 'tenancies',
+    value: '32',
+    label: 'Active Tenancies',
+    subtext: '+2 new',
+    icon: 'people',
+    tone: 'icon-orange',
+    subtone: 'sub-orange',
+  },
+])
 
-function formatPeso(amount: number): string {
-  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+const revenueBars = computed<RevenueBar[]>(() => [
+  { label: 'Apr', value: 18, height: 30 },
+  { label: 'May', value: 25, height: 42 },
+  { label: 'Jun', value: 34, height: 57 },
+  { label: 'Jul', value: 29, height: 48 },
+  { label: 'Aug', value: 38, height: 63 },
+  { label: 'Sep', value: 42, height: 70 },
+  { label: 'Oct', value: 37, height: 62 },
+  { label: 'Nov', value: 47, height: 78 },
+  { label: 'Dec', value: 44, height: 73 },
+  { label: 'Jan', value: 52, height: 87 },
+  { label: 'Feb', value: 46, height: 77 },
+  { label: 'Mar', value: 56, height: 93 },
+])
 
-function viewPayments() {
-  activeTab.value = 'payments'
-}
+const yLabels = ['P0k', 'P15k', 'P30k', 'P45k', 'P60k']
 
-function goToAddProperty() {
-  router.push('/landlord/properties/new')
-}
+const paymentRows = ref<PaymentRow[]>([
+  {
+    id: 'ms',
+    initials: 'MS',
+    name: 'Maria Santos',
+    meta: 'HSE-001 - Rm 101-A - GCash',
+    amount: 'P3,500',
+    status: 'Paid',
+  },
+  {
+    id: 'ar',
+    initials: 'AR',
+    name: 'Ana Rivera',
+    meta: 'HSE-001 - Rm 202-B - Bank Transfer',
+    amount: 'P3,500',
+    status: 'Paid',
+  },
+])
 </script>
 
 <style scoped>
 .dashboard-page {
-  background: #F7F9FA;
+  background: #F7F9FA
 }
 
-.page-header {
-  padding: 24px;
-  background: white;
-  border-radius: 24px 24px 0 0;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+.page-shell {
+  padding-bottom: 120px
 }
 
-.tab-style .q-tab {
-  padding: 12px 24px;
-  font-weight: 500;
-  font-size: 14px;
+.metric-card {
+  background: #FFFFFF
+  border: 1px solid rgba(15, 23, 42, 0.06)
+  border-radius: 18px
+  min-height: 168px
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03)
 }
 
-.tab-style .ink-bar {
-  background: #00897B !important;
+.metric-icon {
+  width: 40px
+  height: 40px
+  display: flex
+  align-items: center
+  justify-content: center
+  border-radius: 12px
 }
 
-.loading-state {
-  padding: 48px 24px;
+.icon-green {
+  background: rgba(0, 137, 123, 0.12)
+  color: #00897B
 }
 
-.empty-state {
-  padding: 24px;
+.icon-red {
+  background: rgba(239, 68, 68, 0.1)
+  color: #DC2626
 }
 
-.empty-card {
-  max-width: 560px;
-  margin: 0 auto;
-  border-radius: 18px;
+.icon-purple {
+  background: rgba(124, 58, 237, 0.12)
+  color: #7C3AED
 }
 
-.home-tab {
-  padding: 0 24px 24px;
+.icon-orange {
+  background: rgba(245, 158, 11, 0.12)
+  color: #F59E0B
+}
+
+.metric-value {
+  font-size: 28px
+  color: #111827
+  line-height: 1.1
+}
+
+.metric-label {
+  margin-top: 8px
+  font-size: 13px
+  font-weight: 600
+  color: #4B5563
+}
+
+.metric-subtext {
+  margin-top: 8px
+  font-size: 11px
+  font-weight: 700
+}
+
+.sub-green {
+  color: #00897B
+}
+
+.sub-red {
+  color: #DC2626
+}
+
+.sub-purple {
+  color: #7C3AED
+}
+
+.sub-orange {
+  color: #F59E0B
+}
+
+.chart-card,
+.payments-card {
+  background: #FFFFFF
+  border: 1px solid rgba(15, 23, 42, 0.06)
+  border-radius: 22px
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.02)
+}
+
+.chart-card {
+  padding: 18px 16px 12px
+}
+
+.section-header {
+  display: flex
+  align-items: center
+  justify-content: space-between
 }
 
 .section-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #00897B;
-  margin-bottom: 16px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: #111827
+  font-size: 18px
+  font-weight: 800
 }
 
-.tenants-area {
-  padding: 0 24px 24px;
+.small-title {
+  font-size: 16px
 }
 
-.notifications-tab {
-  padding: 0 24px 24px;
+.section-subtitle {
+  color: #6B7280
+  font-size: 12px
+}
+
+.chart-area {
+  display: flex
+  align-items: flex-end
+  gap: 10px
+  margin-top: 20px
+  min-height: 230px
+}
+
+.y-axis {
+  display: flex
+  flex-direction: column
+  justify-content: space-between
+  height: 180px
+  padding-bottom: 28px
+  color: #6B7280
+  font-size: 11px
+  font-weight: 600
+}
+
+.bar-panel {
+  display: flex
+  align-items: flex-end
+  gap: 8px
+  flex: 1
+  height: 200px
+  padding-left: 4px
+}
+
+.bar-column {
+  display: flex
+  flex: 1
+  flex-direction: column
+  align-items: center
+  gap: 8px
+}
+
+.bar-track {
+  width: 100%
+  height: 160px
+  display: flex
+  align-items: flex-end
+  justify-content: center
+  background: linear-gradient(180deg, rgba(0, 137, 123, 0.06), rgba(0, 137, 123, 0.02))
+  border-radius: 12px 12px 8px 8px
+  overflow: hidden
+}
+
+.bar-fill {
+  width: 100%
+  background: #00897B
+  border-radius: 12px 12px 0 0
+  min-height: 12px
+}
+
+.bar-label {
+  color: #6B7280
+  font-size: 10px
+  font-weight: 700
+}
+
+.payments-card {
+  padding: 18px 0 0
+}
+
+.payments-header {
+  display: flex
+  align-items: center
+  justify-content: space-between
+  padding: 0 16px 8px
+}
+
+.view-all {
+  color: #00897B
+  font-size: 12px
+  font-weight: 700
+}
+
+.payment-list {
+  border-top: 1px solid rgba(15, 23, 42, 0.06)
+}
+
+.payment-item {
+  padding: 12px 16px
+}
+
+.avatar-mini {
+  font-size: 11px
+  font-weight: 700
+}
+
+.payment-name {
+  color: #111827
+  font-size: 14px
+  font-weight: 700
+}
+
+.payment-meta {
+  color: #6B7280
+  font-size: 11px
+  line-height: 1.4
+}
+
+.payment-amount {
+  color: #111827
+  font-size: 14px
+  font-weight: 800
+}
+
+.paid-badge {
+  margin-top: 6px
+  font-size: 9px
+  font-weight: 700
 }
 </style>
