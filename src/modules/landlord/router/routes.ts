@@ -21,6 +21,26 @@ const landlordRoutes: RouteRecordRaw[] = [
     path: '/landlord/properties/new',
     component: () => import('@/modules/landlord/pages/LandlordAddProperty.vue'),
   },
+  {
+    path: '/landlord/profile',
+    component: () => import('@/modules/landlord/pages/LandlordProfile.vue'),
+  },
+  {
+    path: '/landlord/profile/qr-scanner',
+    component: () => import('@/modules/landlord/pages/QRScannerPage.vue'),
+  },
+  {
+    path: '/landlord/chat',
+    component: () => import('@/modules/landlord/pages/ChatPage.vue'),
+  },
+  {
+    path: '/landlord/tenant/:tenantId',
+    component: () => import('@/modules/landlord/pages/TenantProfileBilling.vue'),
+  },
+  {
+    path: '/landlord/notifications',
+    component: () => import('@/modules/landlord/pages/LandlordNotifications.vue'),
+  },
 ];
 
 export default landlordRoutes;

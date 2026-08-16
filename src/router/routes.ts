@@ -11,7 +11,6 @@ const routes: RouteRecordRaw[] = [
       ...authRoutes,
     ],
   },
-
   {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
@@ -21,6 +20,30 @@ const routes: RouteRecordRaw[] = [
       {
         path: '/profile',
         component: () => import('@/shared/pages/ProfilePage.vue'),
+      },
+      {
+        path: '/landlord/profile',
+        component: () => import('@/modules/landlord/pages/LandlordProfile.vue'),
+      },
+      {
+        path: '/landlord/dashboard',
+        component: () => import('@/modules/landlord/pages/LandlordDashboard.vue'),
+      },
+      {
+        path: '/landlord/profile/qr-scanner',
+        component: () => import('@/modules/landlord/pages/QRScannerPage.vue'),
+      },
+      {
+        path: '/landlord/chat',
+        component: () => import('@/modules/landlord/pages/ChatPage.vue'),
+      },
+      {
+        path: '/landlord/tenant/:tenantId',
+        component: () => import('@/modules/landlord/pages/TenantProfileBilling.vue'),
+      },
+      {
+        path: '/landlord/notifications',
+        component: () => import('@/modules/landlord/pages/LandlordNotifications.vue'),
       },
     ],
   },

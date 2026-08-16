@@ -1,341 +1,348 @@
 <template>
   <q-page class="dashboard-page bg-grey-1">
-    <div class="header-section text-white">
-      <div class="row justify-between items-center q-pa-md">
-        <div>
-          <h4 class="q-my-none text-weight-bold">{{ businessName }}</h4>
-          <p class="text-subtitle1 text-white-7 q-mb-none">
-            Overview of your properties and tenants
-          </p>
-        </div>
-        <q-btn flat round dense icon="logout" @click="handleLogout" />
-      </div>
+    <div class="page-header">
+      <q-tabs
+        v-model="activeTab"
+        type="tabs"
+        background-color="transparent"
+        text-color="teal-9"
+        ink-bar-color="teal-9"
+        class="tab-style"
+      >
+        <q-tab label="Home" icon="home" />
+        <q-tab label="Payments" icon="payments" />
+        <q-tab label="Tenants" icon="people" />
+        <q-tab label="Notifications" icon="notifications" />
+      </q-tabs>
     </div>
 
-    <div class="content-section q-pa-md">
-      <div class="row q-col-gutter-md">
-        <div class="col-12 col-sm-6 col-md-4">
-          <q-card flat bordered class="custom-card">
-            <q-card-section>
-              <div class="text-overline text-teal-9">Active Tenants</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">{{ activeTenants }}</div>
-              <div class="text-subtitle2 text-grey-7">
-                {{ activeTenantsLabel }}
+    <div class="dashboard-content">
+      <!-- HOME TAB -->
+      <div v-if="activeTab === 'home'" class="home-tab">
+        <div class="row q-col-gutter-md q-mb-md">
+          <!-- Metric Cards -->
+          <div class="col-12 col-sm-6 col-md-4">
+            <q-card flat bordered class="custom-card">
+              <q-card-section>
+                <div class="text-overline text-teal-9">Active Tenants</div>
+                <div class="text-h3 q-mt-sm text-weight-bold">{{ activeTenants }}</div>
+                <div class="text-subtitle2 text-grey-7">
+                  {{ activeTenantsLabel }}
+                </div>
+              </q-card-section>
+            </q-card>
+          </div>
+
+          <div class="col-12 col-sm-6 col-md-4">
+            <q-card flat bordered class="custom-card">
+              <q-card-section>
+                <div class="text-overline text-teal-9">Pending Payments</div>
+                <div class="text-h3 q-mt-sm text-weight-bold">{{ pendingPayments }}</div>
+                <div class="text-subtitle2 text-grey-7">
+                  {{ pendingAmountLabel }}
+                </div>
+              </q-card-section>
+              <q-card-actions align="right" class="q-pa-md">
+                <q-btn flat color="teal-9" class="text-weight-bold" label="View Details" @click="viewPayments" />
+              </q-card-actions>
+            </q-card>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <q-card flat bordered class="custom-card">
+              <q-card-section>
+                <div class="text-overline text-teal-9">Properties</div>
+                <div class="text-h3 q-mt-sm text-weight-bold">{{ totalProperties }}</div>
+                <div class="text-subtitle2 text-grey-7">{{ propertiesSubtitle }}</div>
+              </q-card-section>
+              <q-card-actions align="right" class="q-pa-md">
+                <q-btn unelevated color="teal-9" class="action-btn" label="Add Property" @click="goToAddProperty" />
+              </q-card-actions>
+            </q-card>
+          </div>
+
+          <div class="col-12 col-sm-6 col-md-4">
+            <q-card flat bordered class="custom-card">
+              <q-card-section>
+                <div class="text-overline text-teal-9">Occupancy Rate</div>
+                <div class="text-h3 q-mt-sm text-weight-bold">{{ occupancyRateValue }}%</div>
+                <div class="text-subtitle2 text-grey-7">Overall occupancy</div>
+              </q-card-section>
+            </q-card>
+          </div>
+
+          <div class="col-12 col-sm-6 col-md-4">
+            <q-card flat bordered class="custom-card">
+              <q-card-section>
+                <div class="text-overline text-teal-9">Revenue This Month</div>
+                <div class="text-h3 q-mt-sm text-weight-bold">{{ formatPeso(monthlyRevenue) }}</div>
+                <div class="text-subtitle2 text-grey-7">Current month collection</div>
+              </q-card-section>
+            </q-card>
+          </div>
+
+          <div class="col-12 col-sm-6 col-md-4">
+            <q-card flat bordered class="custom-card">
+              <q-card-section>
+                <div class="text-overline text-teal-9">OSAS Compliance</div>
+                <div class="text-h3 q-mt-sm text-weight-bold">{{ compliantCount }}/{{ properties.length }} valid</div>
+                <div class="text-subtitle2 text-grey-7">Valid permits</div>
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
+
+        <!-- Twelve Month Revenue Chart -->
+        <div class="q-pa-md" style="max-height: 400px;">
+          <q-chart
+            type="Line"
+ :options="chartOptions"
+ :data="revenueChartData"
+ class="q-max-width-full"
+          />
+        </div>
+      </div>
+
+      <!-- PAYMENTS TAB -->
+      <div v-if="activeTab === 'payments'" class="payments-tab">
+        <div class="q-pa-md">
+          <q-list
+            v-if="recentPayments.length > 0"
+            bordered
+            separator
+            class="rounded-borders bg-white"
+          >
+            <q-item v-for="payment in recentPayments" :key="payment.id">
+              <q-item-section>
+                <q-item-label class="text-weight-bold">
+                  {{ payment.student_name }} ·
+                  {{ formatPeso(payment.amount) }}
+                </q-item-label>
+                <q-item-label caption>
+                  {{ payment.month }} ·
+                  {{ payment.property_name }} ·
+                  {{ payment.room_number }}
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-badge :color="payment.statusColor" :label="payment.statusDisplay" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+
+          <q-card v-if="recentPayments.length === 0" flat bordered class="custom-card q-mt-sm">
+            <q-card-section class="text-center">
+              <div class="text-subtitle2 text-grey-7 q-py-md">
+                No payments recorded yet. Add tenants and collect payments to see history here.
               </div>
             </q-card-section>
           </q-card>
         </div>
+      </div>
 
-        <div class="col-12 col-sm-6 col-md-4">
-          <q-card flat bordered class="custom-card">
-            <q-card-section>
-              <div class="text-overline text-teal-9">Pending Payments</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">{{ pendingPayments }}</div>
-              <div class="text-subtitle2 text-grey-7">{{ pendingAmountLabel }}</div>
-            </q-card-section>
-            <q-card-actions align="right" class="q-pa-md">
-              <q-btn flat color="teal-9" class="text-weight-bold" label="View Details" />
-            </q-card-actions>
-          </q-card>
-        </div>
+      <!-- TENANTS TAB -->
+      <div v-if="activeTab === 'tenants'" class="tenants-tab">
+        <div class="q-pa-md">
+          <div class="section-title">Students by Property</div>
 
-        <div class="col-12 col-md-4">
-          <q-card flat bordered class="custom-card">
-            <q-card-section>
-              <div class="text-overline text-teal-9">Properties</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">{{ properties.length }}</div>
-              <div class="text-subtitle2 text-grey-7">{{ propertiesSubtitle }}</div>
+          <q-tabs
+            v-model="tenantsTab"
+            type="segment"
+            background-color="transparent"
+            text-color="teal-9"
+            ink-bar-color="teal-9"
+          >
+            <q-tab v-for="prop in managedProperties" :key="prop.id" label="prop.name" />
+            <q-tab label="All" />
+          </q-tabs>
+
+          <q-scroll-area
+            class="tenants-area"
+            :content-style="{ maxHeight: '500px' }"
+          >
+            <q-item v-for="tenant in tenantsByGroup" :key="tenant.id">
+              <q-item-section>
+                <q-item-label class="text-weight-bold">{{ tenant.propertyName }}</q-item-label>
+                <q-item-label caption>{{ tenant.roomType }} rooms</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-badge color="teal" label="Active" />
+              </q-item-section>
+            </q-item>
+          </q-scroll-area>
+
+          <q-card v-if="tenantsByGroup.length === 0" flat bordered class="custom-card q-mt-sm">
+            <q-card-section class="text-center">
+              <div class="text-subtitle2 text-grey-7 q-py-md">
+                No active tenants yet — add a property and assign a room to get started.
+              </div>
             </q-card-section>
-            <q-card-actions align="right" class="q-pa-md">
-              <q-btn unelevated color="teal-9" class="action-btn" label="Add Property" @click="goToAddProperty" />
-            </q-card-actions>
           </q-card>
         </div>
       </div>
 
-      <template v-if="verificationRequests.length > 0">
-        <h6 class="q-my-md text-weight-bold">Payment Requests</h6>
-        <q-list bordered separator class="rounded-borders bg-white">
-          <q-item v-for="payment in verificationRequests" :key="payment.id">
-            <q-item-section>
-              <q-item-label class="text-weight-bold">
-                {{ payment.lease?.student?.full_name ?? 'Student' }} ·
-                {{ formatPeso(payment.amount) }}
-              </q-item-label>
-              <q-item-label caption>
-                {{ payment.month ?? 'Unspecified month' }} ·
-                {{ payment.lease?.room?.property?.name ?? 'Property' }}
-                {{ payment.lease?.room?.room_number ?? '' }}
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-badge color="amber" label="Awaiting review" />
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </template>
+      <!-- NOTIFICATIONS TAB -->
+      <div v-if="activeTab === 'notifications'" class="notifications-tab">
+        <div class="q-pa-md">
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-12">
+              <div class="text-subtitle2 text-grey-7 q-mb-2">
+                Unread: {{ unreadCount }} {{ unreadCount === 1 ? 'alert' : 'alerts' }}
+              </div>
 
-      <h6 class="q-my-md text-weight-bold">Your Properties</h6>
-      <q-list v-if="properties.length > 0" bordered separator class="rounded-borders bg-white">
-        <q-item v-for="property in properties" :key="property.id">
-          <q-item-section>
-            <q-item-label class="text-weight-bold">{{ property.name }}</q-item-label>
-            <q-item-label caption>{{ property.address || 'No address set' }}</q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-badge :color="statusColor(property.status)" :label="property.status" />
-          </q-item-section>
-        </q-item>
-      </q-list>
-      <q-card v-else flat bordered class="custom-card q-mt-sm">
-        <q-card-section class="text-center">
-          <div class="text-subtitle2 text-grey-7 q-py-md">
-            No properties yet — tap "Add Property" to get started.
+              <q-list
+                v-if="notifications.length > 0"
+                bordered
+                separator
+                class="rounded-borders bg-white"
+              >
+                <q-item v-for="notification in notifications" :key="notification.id">
+                  <q-item-section>
+                    <q-item-label>
+                      {{ notification.title }}
+                    </q-item-label>
+                    <q-item-label caption>
+                      {{ notification.body }}
+                      <q-badge
+                        v-if="!notification.read_at"
+                        color="red"
+                        small
+                        class="q-ml-sm"
+                      />
+                    </q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-badge
+                      v-if="!notification.read_at"
+                      color="amber"
+                      small
+                      label="Unread"
+                    />
+                  </q-item-section>
+                </q-item>
+              </q-list>
+
+              <q-card v-if="notifications.length === 0" flat bordered class="custom-card q-mt-sm">
+                <q-card-section class="text-center">
+                  <div class="text-subtitle2 text-grey-7 q-py-md">
+                    No notifications yet.
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
           </div>
-        </q-card-section>
-      </q-card>
-
-      <div v-if="error" class="text-negative q-mt-md">{{ error }}</div>
+        </div>
+      </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { supabase } from '@/shared/utils/supabase';
-import { useAuthStore } from '@/stores/auth';
-import { createNotification, fetchNotifications, showToast } from '@/boot/notify';
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { useAuthStore } from '@/stores/auth'
+import { useLandlordStore } from '@/stores/landlord'
 
-// Check if running in demo mode (same pattern as supabase.ts)
-const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
+import { supabase } from '@/shared/utils/supabase'
 
-interface PropertyRow {
-  id: string;
-  name: string;
-  address: string | null;
-  status: string;
+const router = useRouter()
+const route = useRoute()
+const $q = useQuasar()
+const authStore = useAuthStore()
+const landlordStore = useLandlordStore()
+
+// --- Tab State ---
+const activeTab = ref<'home' | 'payments' | 'tenants' | 'notifications' = 'home'
+const tenantsTab = ref('All')
+
+// --- Dashboard Data ---
+// From landlord store getters
+const totalProperties = computed(() => landlordStore.totalProperties)
+const accreditedProperties = computed(() => landlordStore.accreditedProperties)
+const occupancyRateValue = computed(() => landlordStore.occupancyRate)
+const activeTenants = computed(() => landlordStore.activeTenants)
+const activeTenantsLabel = computed(() => landlordStore.activeTenantsLabel)
+const pendingPayments = computed(() => landlordStore.pendingPayments)
+const pendingAmountLabel = computed(() => landlordStore.pendingAmount)
+const properties = computed(() => landlordStore.properties)
+const propertiesSubtitle = computed(() => landlordStore.propertiesSubtitle)
+
+// Revenue chart data - 12 months
+const revenueChartData = computed(() => landlordStore.revenueChartData)
+
+// Chart options
+const chartOptions = {
+  showPoints: false,
+  lineWidth: 2,
+  area: true,
+  colors: ['#00897B'],
+  xAxis: {
+    color: '#8b8b8b',
+  },
+  yAxis: {
+    color: '#8b8b8b',
+    label: {
+      formatter: (value: number) => '₱' + value.toLocaleString(),
+    },
+  },
+  tooltip: {
+    formatter: (value: any) => '₱' + value.toLocaleString(),
+  },
 }
 
-interface PaymentWithDetails {
-  id: string;
-  amount: number;
-  status: string;
-  month: string | null;
-  lease: {
-    student: { full_name: string } | null;
-    room: {
-      room_number: string | null;
-      property: { name: string | null } | null;
-    } | null;
-  } | null;
-}
+// --- Methods ---
 
-interface NotificationPreview {
-  id: string;
-  title: string;
-  body: string;
-  type: string;
-  read_at: string | null;
-}
-
-const router = useRouter();
-
-const businessName = ref('Property Manager');
-const activeTenants = ref(0);
-const activeTenantsLabel = ref('No tenants yet');
-const pendingPayments = ref(0);
-const pendingAmountLabel = ref('No pending balances');
-const verificationRequests = ref<PaymentWithDetails[]>([]);
-const properties = ref<PropertyRow[]>([]);
-const propertiesSubtitle = ref('No properties listed');
-const error = ref<string | null>(null);
-const notifications = ref<NotificationPreview[]>([]);
-const unreadCount = ref(0);
-
-function formatPeso(amount: number): string {
-  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case 'accredited':
-      return 'teal';
-    case 'reviewing':
-      return 'blue';
-    case 'pending':
-      return 'amber';
-    case 'rejected':
-      return 'negative';
-    case 'delisted':
-      return 'grey';
-    default:
-      return 'grey';
-  }
-}
-
-// Show a toast notification using Quasar Notify
-function showLandlordToast(title: string, body: string, type: 'positive' | 'negative' | 'warning' | 'info' = 'info') {
-  showToast(title, body, type);
-}
-
-// Fetch notifications for the current landlord
-async function loadNotifications() {
-  try {
-    // In demo mode, skip Supabase queries and show empty state
-    if (isDemoMode) {
-      notifications.value = [];
-      unreadCount.value = 0;
-      showToast('Demo Mode', 'Connect to real Supabase for full notification functionality', 'info');
-      return;
-    }
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const fetched = await fetchNotifications(user.id);
-    notifications.value = fetched.map((n: any) => ({
-      id: n.id,
-      title: n.title,
-      body: n.body,
-      type: n.type,
-      read_at: n.read_at,
-    }));
-
-    // Update unread count
-    unreadCount.value = fetched.filter((n: any) => !n.read_at).length;
-  } catch (e) {
-    console.error('Failed to load notifications:', e);
-    if (isDemoMode) {
-      // Already handled above, but just in case
-      notifications.value = [];
-      unreadCount.value = 0;
-    }
-  }
-}
-
-async function handleLogout() {
-  useAuthStore().clearCachedRole();
-  await supabase.auth.signOut();
-  void router.push('/login');
+function viewPayments() {
+  activeTab.value = 'payments'
 }
 
 function goToAddProperty() {
-  void router.push('/landlord/properties/new');
+  router.push('/landlord/properties/new')
 }
-
-// Load dashboard data (tenants, payments, properties)
-async function loadDashboard() {
-  error.value = null;
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      void router.push('/login');
-      return;
-    }
-
-    // Business name from accreditation profile
-    const { data: landlordProfile, error: profileError } = await supabase
-      .from('landlord_profiles')
-      .select('business_name')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-    if (landlordProfile?.business_name) {
-      businessName.value = landlordProfile.business_name;
-    }
-
-    // Properties owned by this landlord
-    const { data: props, error: propsError } = await supabase
-      .from('properties')
-      .select('id, name, address, status')
-      .eq('landlord_id', user.id)
-      .order('name');
-
-    if (propsError) throw propsError;
-    properties.value = (props ?? []) as unknown as PropertyRow[];
-
-    const accreditedCount = properties.value.filter((property) => property.status === 'accredited').length;
-    propertiesSubtitle.value =
-      properties.value.length === 0
-        ? 'Add a property to start accepting tenants.'
-        : `${accreditedCount} accredited · ${properties.value.length} total`;
-
-    // Active leases = current tenants
-    const { data: leases, error: leasesError } = await supabase
-      .from('leases')
-      .select('id')
-      .eq('landlord_id', user.id)
-      .eq('status', 'active');
-
-    if (leasesError) throw leasesError;
-    activeTenants.value = leases?.length ?? 0;
-    activeTenantsLabel.value =
-      activeTenants.value === 1
-        ? '1 tenant staying right now'
-        : activeTenants.value > 1
-          ? `${activeTenants.value} tenants staying right now`
-          : 'No tenants yet';
-
-    // Payments needing attention across this landlord's leases
-    const { data: payments, error: paymentsError } = await supabase
-      .from('payments')
-      .select(
-        'id, amount, status, month, lease:leases(student:users(full_name), room:rooms(room_number, property:properties(name)))',
-      )
-      .in('status', ['due', 'overdue', 'pending_verification'])
-      .eq('lease.landlord_id', user.id);
-
-    if (paymentsError) throw paymentsError;
-    const typedPayments = (payments ?? []) as unknown as PaymentWithDetails[];
-    pendingPayments.value = typedPayments.length;
-    pendingAmountLabel.value =
-      typedPayments.length > 0
-        ? `${formatPeso(typedPayments.reduce((sum, payment) => sum + payment.amount, 0))} outstanding`
-        : 'No pending balances';
-    verificationRequests.value = typedPayments.filter(
-      (payment) => payment.status === 'pending_verification',
-    );
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load dashboard';
-  }
-}
-
-onMounted(() => {
-  loadDashboard();
-  loadNotifications();
-});
 </script>
 
 <style scoped>
-.header-section {
-  background: #004d40;
-  border-radius: 0 0 28px 28px;
-  margin-bottom: -40px;
+.dashboard-page {
+  background: #F7F9FA;
 }
-.text-white-7 {
-  color: rgba(255, 255, 255, 0.7);
-}
-.content-section {
-  position: relative;
-  z-index: 1;
-}
-.custom-card {
-  border-radius: 16px;
+
+.page-header {
+  padding: 24px;
   background: white;
+  border-radius: 24px 24px 0 0;
+  margin-bottom: 24px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
-.action-btn {
-  border-radius: 12px;
+
+.tab-style .q-tab {
+  padding: 12px 24px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.tab-style .ink-bar {
+  background: #00897B !important;
+}
+
+.home-tab {
+  padding: 0 24px 24px;
+}
+
+.section-title {
+  font-size: 18px;
   font-weight: 600;
-  padding: 8px 24px;
+  color: #00897B;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tenants-area {
+  padding: 0 24px 24px;
+}
+
+.notifications-tab {
+  padding: 0 24px 24px;
 }
 </style>
