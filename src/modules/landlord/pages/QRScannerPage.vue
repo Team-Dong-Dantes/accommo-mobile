@@ -203,7 +203,7 @@ const $q = useQuasar()
 const authStore = useAuthStore()
 const qrStore = useQrStore()
 
-const userRole = ref<'landlord' | 'student' | '' = 'landlord'
+const userRole = ref<'landlord' | 'student' | ''>('landlord')
 const leftDrawerOpen = ref(false)
 
 const qrBottomSheetOpen = ref(false)

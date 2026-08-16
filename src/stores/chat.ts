@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { ChatMessage } from '@/shared/types/app-types'
 
 export const useChatStore = defineStore('chat', {
   state: () => ({

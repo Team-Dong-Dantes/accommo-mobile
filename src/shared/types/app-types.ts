@@ -12,6 +12,7 @@ export interface LandlordProfile {
 }
 
 export interface ComplianceItem {
+  id?: string
   documentName: string
   expiryDate: string
   status: 'Valid' | 'Expiring' | 'Missing'
@@ -58,7 +59,7 @@ export interface PaymentRecord {
   month: string
   dueDate: string
   amount: number
-  status: 'Pending' | 'Paid'
+  status: 'Pending' | 'Paid' | 'Overdue'
   paymentMethod: string
 }
 

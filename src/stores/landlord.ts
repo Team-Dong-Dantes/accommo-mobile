@@ -245,7 +245,12 @@ export const useLandlordStore = defineStore('landlord', {
         .eq('user_id', user.id)
 
       if (error) throw error
-      return (data ?? []) as ComplianceItem[]
+      return (data ?? []).map((item: any): ComplianceItem => ({
+        id: item.id,
+        documentName: item.filename || item.doc_type || 'Document',
+        expiryDate: item.expiry_date || 'N/A',
+        status: item.status === 'approved' ? 'Valid' : item.status === 'rejected' ? 'Missing' : 'Expiring',
+      }))
     },
 
     async createVerificationDocument(docData: any) {

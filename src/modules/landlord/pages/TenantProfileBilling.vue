@@ -164,11 +164,11 @@
                   </q-item-section>
                 </q-item>
 
-                <q-v-if="paymentHistory.length === 0">
+                <template v-if="paymentHistory.length === 0">
                   <q-item class="text-center text-grey-7 q-py-8">
                     No payments recorded yet.
                   </q-item>
-                </q-v-if>
+                </template>
               </q-list>
             </div>
           </div>
@@ -239,7 +239,7 @@ const $q = useQuasar()
 const authStore = useAuthStore()
 const tenantBillingStore = useTenantBillingStore()
 
-const userRole = ref<'landlord' | 'student' | '' = 'landlord'
+const userRole = ref<'landlord' | 'student' | ''>('landlord')
 const leftDrawerOpen = ref(false)
 
 // --- Mock Tenant Data ---
@@ -257,18 +257,20 @@ const streakDays = ref<
   Array<{
     number: number
     status: 'current' | 'missed' | 'upcoming'
-  }
+    label: string
+  }>
 >(
   (() => {
-    const days = []
+    const days: Array<{ number: number; status: 'current' | 'missed' | 'upcoming'; label: string }> = []
     for (let i = 29; i >= 0; i--) {
       const d = new Date()
       d.setDate(d.getDate() - i)
       const dayNum = d.getDate()
-      // Mock: first 20 days current, rest missed
+      const status: 'current' | 'missed' | 'upcoming' = i < 20 ? 'current' : 'missed'
       days.push({
         number: dayNum,
-        status: i < 20 ? 'current' : 'missed',
+        status,
+        label: status === 'current' ? 'Paid' : 'Missed',
       })
     }
     return days
@@ -286,7 +288,13 @@ const paymentHistory = ref<
   }
 >(
   (() => {
-    const history = []
+    const history: Array<{
+      month: string
+      dueDate: string
+      amount: number
+      status: 'Pending' | 'Paid'
+      paymentMethod: string
+    }> = []
     const months = [
       'January 2024',
       'February 2024',

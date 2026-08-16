@@ -213,9 +213,9 @@
             <q-list bordered separator class="rounded-borders bg-white">
               <q-item v-for="item in osasCompliance" :key="item.id">
                 <q-item-section>
-                  <q-item-label>{{ documentName }}</q-item-label>
+                  <q-item-label>{{ item.documentName }}</q-item-label>
                   <q-item-label caption>
-                    {{ expiryDate }} ·
+                    {{ item.expiryDate }} ·
                     <q-badge
                       :color="statusColor(item.status)"
                       :label="item.status"
@@ -233,11 +233,11 @@
               </q-item>
             </q-list>
 
-            <q-v-if="osasCompliance.length === 0">
+            <template v-if="osasCompliance.length === 0">
               <div class="text-subtitle2 text-grey-7 q-py-4 text-center">
                 No compliance documents uploaded yet.
               </div>
-            </q-v-if>
+            </template>
           </q-card-section>
         </q-card>
 
@@ -263,11 +263,11 @@
               </q-item>
             </q-list>
 
-            <q-v-if="recentReviews.length === 0">
+            <template v-if="recentReviews.length === 0">
               <div class="text-subtitle2 text-grey-7 q-py-4 text-center">
                 No reviews yet.
               </div>
-            </q-v-if>
+            </template>
           </q-card-section>
         </q-card>
       </div>
@@ -277,48 +277,36 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLandlordStore } from '@/stores/landlord'
 import { useQrStore } from '@/stores/qr'
 import { useChatStore } from '@/stores/chat'
-
 import { supabase } from '@/shared/utils/supabase'
 
-// Check demo mode
 const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true'
 
 const router = useRouter()
-const route = useRoute()
-const $q = useQuasar()
 const authStore = useAuthStore()
 const landlordStore = useLandlordStore()
 const qrStore = useQrStore()
 const chatStore = useChatStore()
 
-// --- Profile Data ---
-const userRole = ref<'landlord' | 'student' | '' = 'landlord'
+const userRole = ref<'landlord' | 'student' | ''>('landlord')
 const leftDrawerOpen = ref(false)
 
-const landlordName = computed(() => {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+function toggleLeftDrawer() {
+  leftDrawerOpen.value = !leftDrawerOpen.value
+}
 
-  if (userError || !user) return 'Landlord'
+function handleLogout() {
+  authStore.clearCachedRole()
+  void supabase.auth.signOut()
+  void router.push('/login')
+}
 
-  // Get landlord profile
-  const { data: profile, error: profileError } = await supabase
-    .from('landlord_profiles')
-    .select('business_name')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (profileError) return 'Landlord'
-  return profile?.business_name || 'Landlord'
-})
+const landlordName = ref('Landlord')
+const memberSince = ref('Member since 2024')
 
 const memberSince = computed(() => {
   const date = new Date()
@@ -338,46 +326,38 @@ const isOSASVerified = computed(() => {
   return false
 })
 
-const propertiesActive = computed(() => {
+const propertiesActive = ref(0)
+const occupancyRate = ref(0)
+
+onMounted(async () => {
   const {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser()
 
-  if (userError || !user) return 0
+  if (userError || !user) return
 
   const { data: props, error: propsError } = await supabase
     .from('properties')
-    .select('id')
+    .select('id, total_rooms, vacant_rooms')
     .eq('landlord_id', user.id)
 
-  if (propsError) return 0
-  return (props ?? []).length
-})
+  if (propsError) return
 
-const occupancyRate = computed(() => {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+  const propertyRows = props ?? []
+  propertiesActive.value = propertyRows.length
 
-  if (userError || !user) return 0
+  if (propertyRows.length === 0) {
+    occupancyRate.value = 0
+    return
+  }
 
-  const { data: props, error: propsError } = await supabase
-    .from('properties')
-    .select('total_rooms, vacant_rooms')
-    .eq('landlord_id', user.id)
-
-  if (propsError) return 0
-  const props = props ?? []
-  if (props.length === 0) return 0
-
-  const total = props.reduce((sum: number, p: any) => sum + (p.total_rooms || 0), 0)
-  const occupied = props.reduce(
+  const total = propertyRows.reduce((sum: number, p: any) => sum + (p.total_rooms || 0), 0)
+  const occupied = propertyRows.reduce(
     (sum: number, p: any) => sum + ((p.total_rooms || 0) - (p.vacant_rooms || 0)),
     0,
   )
-  return total > 0 ? Number(((occupied / total) * 100).toFixed(1)) : 0
+  occupancyRate.value = total > 0 ? Number(((occupied / total) * 100).toFixed(1)) : 0
 })
 
 const totalReviews = ref(5)

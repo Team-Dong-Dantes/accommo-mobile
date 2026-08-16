@@ -238,48 +238,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { useAuthStore } from '@/stores/auth'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useLandlordStore } from '@/stores/landlord'
 
-import { supabase } from '@/shared/utils/supabase'
-
 const router = useRouter()
-const route = useRoute()
-const $q = useQuasar()
-const authStore = useAuthStore()
 const landlordStore = useLandlordStore()
 
-// --- Tab State ---
-const activeTab = ref<'home' | 'payments' | 'tenants' | 'notifications' = 'home'
+const activeTab = ref<'home' | 'payments' | 'tenants' | 'notifications'>('home')
 const tenantsTab = ref('All')
 
-// --- Dashboard Data ---
-// From landlord store getters
 const totalProperties = computed(() => landlordStore.totalProperties)
-const accreditedProperties = computed(() => landlordStore.accreditedProperties)
 const occupancyRateValue = computed(() => landlordStore.occupancyRate)
 const activeTenants = computed(() => landlordStore.activeTenants)
-const activeTenantsLabel = computed(() => landlordStore.activeTenantsLabel)
+const activeTenantsLabel = computed(() => `${landlordStore.activeTenants} tenants active`)
 const pendingPayments = computed(() => landlordStore.pendingPayments)
 const pendingAmountLabel = computed(() => landlordStore.pendingAmount)
 const properties = computed(() => landlordStore.properties)
-const propertiesSubtitle = computed(() => landlordStore.propertiesSubtitle)
-
-// Revenue chart data - 12 months
+const propertiesSubtitle = computed(() => `${landlordStore.properties.length} properties managed`)
+const recentPayments = computed(() => landlordStore.recentPayments)
+const notifications = computed(() => landlordStore.notifications)
+const unreadCount = computed(() => landlordStore.unreadCount)
+const monthlyRevenue = computed(() => landlordStore.revenueChartData?.datasets?.[0]?.data?.reduce((total: number, value: number) => total + (value || 0), 0) ?? 0)
+const compliantCount = computed(() => 0)
+const managedProperties = computed(() => landlordStore.tenantsByGroup ?? [])
+const tenantsByGroup = computed(() => landlordStore.tenantsByGroup ?? [])
 const revenueChartData = computed(() => landlordStore.revenueChartData)
 
-// Chart options
 const chartOptions = {
   showPoints: false,
   lineWidth: 2,
   area: true,
   colors: ['#00897B'],
-  xAxis: {
-    color: '#8b8b8b',
-  },
+  xAxis: { color: '#8b8b8b' },
   yAxis: {
     color: '#8b8b8b',
     label: {
@@ -287,11 +278,13 @@ const chartOptions = {
     },
   },
   tooltip: {
-    formatter: (value: any) => '₱' + value.toLocaleString(),
+    formatter: (value: number) => '₱' + value.toLocaleString(),
   },
 }
 
-// --- Methods ---
+function formatPeso(amount: number): string {
+  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 function viewPayments() {
   activeTab.value = 'payments'

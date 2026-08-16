@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import type { PaymentRecord } from '@/shared/types/app-types'
+import type { PaymentRecord, TenantBillingState } from '@/shared/types/app-types'
 
 export const useTenantBillingStore = defineStore('tenant-billing', {
   state: () => ({

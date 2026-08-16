@@ -68,22 +68,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useQuasar } from 'quasar'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-
 import { supabase } from '@/shared/utils/supabase'
 
 const router = useRouter()
-const route = useRoute()
-const $q = useQuasar()
 const authStore = useAuthStore()
 
-const userRole = ref<'landlord' | 'student' | '' = 'landlord'
+const userRole = ref<'landlord' | 'student' | ''>('landlord')
 const leftDrawerOpen = ref(false)
 
 const notificationsTab = ref('All')
+
+function handleLogout() {
+  authStore.clearCachedRole()
+  void supabase.auth.signOut()
+  void router.push('/login')
+}
 
 // Demo notifications data
 const notifications = ref([

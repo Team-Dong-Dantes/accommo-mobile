@@ -48,10 +48,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, useRouter } from 'vue';
-import { supabase } from '@/shared/utils/supabase';
-import { useAuthStore } from '@/stores/auth';
-import { showToast } from '@/boot/notify';
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { supabase } from '@/shared/utils/supabase'
+import { useAuthStore } from '@/stores/auth'
+import { showToast } from '@/boot/notify'
 
 // Check demo mode
 const isDemo = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
@@ -137,8 +138,9 @@ if (isDemo) {
 }
 
 function handleLogout() {
-  useAuthStore().clearCachedRole();
-  supabase.auth.signOut();
+  useAuthStore().clearCachedRole()
+  void supabase.auth.signOut()
+  void useRouter().push('/login')
 }
 </script>
 

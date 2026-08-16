@@ -108,7 +108,7 @@
             <q-input
               v-model="newMessage"
               @keyup.enter="sendMessage"
-              :counter="160"
+              :counter="true"
               bordered
               :placeholder=" 'Type a message...' "
               class="chat-input"
@@ -219,21 +219,29 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
-
 import { supabase } from '@/shared/utils/supabase'
 
 const router = useRouter()
-const route = useRoute()
 const $q = useQuasar()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 
-const userRole = ref<'landlord' | 'student' | '' = 'landlord'
+const userRole = ref<'landlord' | 'student' | ''>('landlord')
 const leftDrawerOpen = ref(false)
+
+function toggleLeftDrawer() {
+  leftDrawerOpen.value = !leftDrawerOpen.value
+}
+
+function handleLogout() {
+  authStore.clearCachedRole()
+  void supabase.auth.signOut()
+  void router.push('/login')
+}
 
 const newMessage = ref('')
 const showInquiryCard = ref(false)
