@@ -37,7 +37,7 @@
             <q-item-section> My Properties </q-item-section>
           </q-item>
         </template>
-        <q-item clickable v-ripple to="/profile" exact>
+        <q-item clickable v-ripple @click="goToProfile">
           <q-item-section avatar><IconifyIcon width="24" icon="material-icons:person" /></q-item-section>
           <q-item-section> Profile </q-item-section>
         </q-item>

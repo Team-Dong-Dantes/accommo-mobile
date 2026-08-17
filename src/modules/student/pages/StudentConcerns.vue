@@ -123,7 +123,7 @@ interface ConcernItem {
 const $q = useQuasar();
 const activeFilter = ref('All');
 const expandedId = ref<string | null>(null);
-const filters = ['All', 'Open', 'In Progress', 'Resolved'];
+const filters = ['All', 'Open', 'In Progress', 'Resolved', 'Rejected'];
 const loading = ref(true);
 const error = ref<string | null>(null);
 const concerns = ref<ConcernItem[]>([]);
@@ -135,24 +135,25 @@ const filteredConcerns = computed(() => {
 
 const statusSteps: Record<string, number> = {
   open: 0,
-  acknowledged: 1,
   in_progress: 2,
   resolved: 3,
+  rejected: 1,
 };
 
 const STATUS_LABELS: Record<string, { text: string; color: string }> = {
   open: { text: 'Open', color: 'amber' },
-  acknowledged: { text: 'Acknowledged', color: 'blue' },
   in_progress: { text: 'In Progress', color: 'teal' },
   resolved: { text: 'Resolved', color: 'green' },
+  rejected: { text: 'Rejected', color: 'red' },
 };
 
 const CATEGORY_ICONS: Record<string, { icon: string; color: string }> = {
-  repair: { icon: 'build', color: 'orange-8' },
   maintenance: { icon: 'home_repair_service', color: 'blue-8' },
-  payment: { icon: 'payments', color: 'purple-8' },
-  safety: { icon: 'security', color: 'red-8' },
-  general: { icon: 'help_outline', color: 'teal-8' },
+  noise: { icon: 'graphic_eq', color: 'purple-8' },
+  cleanliness: { icon: 'cleaning_services', color: 'teal-8' },
+  amenities: { icon: 'weekend', color: 'orange-8' },
+  security: { icon: 'security', color: 'red-8' },
+  others: { icon: 'help_outline', color: 'grey-8' },
 };
 
 async function loadConcerns() {

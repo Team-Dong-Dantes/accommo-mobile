@@ -52,7 +52,7 @@
               <q-item-label caption>{{ ticket.date }} · {{ ticket.category }}</q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-badge :color="ticketStatusColor(ticket.status)" :label="ticket.status" class="q-px-sm" />
+              <q-badge :color="statusColor(COMPLAINT_STATUS, ticket.status)" :label="statusText(COMPLAINT_STATUS, ticket.status)" class="q-px-sm" />
             </q-item-section>
           </q-item>
         </q-card>
@@ -79,6 +79,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/shared/utils/supabase';
+import { COMPLAINT_STATUS, statusText, statusColor } from '@/shared/utils/format';
 
 interface TicketRow {
   id: string;
@@ -107,18 +108,6 @@ const faqs = [
   { q: 'How do I get a copy of my lease?', a: 'You can request it through the Document category in OSAS Support, or ask your landlord directly through Messages.' },
   { q: 'Can I transfer to a different room?', a: 'Yes — file a Housing request through OSAS Support. Room transfers are subject to availability and landlord approval.' },
 ];
-
-function ticketStatusColor(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'resolved': return 'green';
-    case 'in_progress':
-    case 'in review':
-    case 'reviewing': return 'teal';
-    case 'pending':
-    case 'open': return 'amber';
-    default: return 'grey';
-  }
-}
 
 async function loadTickets() {
   loading.value = true;

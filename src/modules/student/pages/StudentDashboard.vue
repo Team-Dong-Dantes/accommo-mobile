@@ -36,10 +36,10 @@
             <q-card-section class="q-py-sm">
               <div class="text-caption text-grey-7">Landlord</div>
               <div class="row items-center q-mt-xs">
-                <q-avatar size="32px" color="teal-8" text-color="white" class="text-weight-bold">MS</q-avatar>
+                <q-avatar size="32px" color="teal-8" text-color="white" class="text-weight-bold">{{ landlordInitials }}</q-avatar>
                 <div class="q-ml-sm">
-                  <div class="text-subtitle2 text-weight-bold">{{ landlordName }}</div>
-                  <div class="text-caption text-grey-6">Santos BH</div>
+                  <div class="text-subtitle2 text-weight-bold">{{ landlordName || 'Landlord' }}</div>
+                  <div class="text-caption text-grey-6">{{ propertyName || '—' }}</div>
                 </div>
               </div>
             </q-card-section>
@@ -49,11 +49,18 @@
           <q-card flat bordered class="custom-card">
             <q-card-section class="q-py-sm">
               <div class="text-caption text-grey-7">Roommate</div>
-              <div class="row items-center q-mt-xs">
-                <q-avatar size="32px" color="orange-7" text-color="white" class="text-weight-bold">AB</q-avatar>
+              <div v-if="roommateName" class="row items-center q-mt-xs">
+                <q-avatar size="32px" color="orange-7" text-color="white" class="text-weight-bold">{{ roommateInitials }}</q-avatar>
                 <div class="q-ml-sm">
-                  <div class="text-subtitle2 text-weight-bold">Ana Banawa</div>
-                  <div class="text-caption text-grey-6">Room 2B</div>
+                  <div class="text-subtitle2 text-weight-bold">{{ roommateName }}</div>
+                  <div class="text-caption text-grey-6">{{ roommateRoom }}</div>
+                </div>
+              </div>
+              <div v-else class="row items-center q-mt-xs">
+                <q-avatar size="32px" color="grey-4" text-color="grey-7" icon="person_off" />
+                <div class="q-ml-sm">
+                  <div class="text-subtitle2 text-weight-bold text-grey-6">No roommate</div>
+                  <div class="text-caption text-grey-5">{{ roommateRoom }}</div>
                 </div>
               </div>
             </q-card-section>
@@ -123,7 +130,11 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const lease = ref<LeaseRow | null>(null);
 const nextPayment = ref<PaymentRow | null>(null);
-const landlordName = ref('Mario Santos');
+const landlordName = ref('');
+const landlordId = ref<string | null>(null);
+const propertyName = ref('');
+const roommateName = ref<string | null>(null);
+const roommateRoom = ref('');
 
 const stayTitle = ref('No Active Lease');
 const staySubtitle = ref('You are not checked in yet.');
@@ -136,6 +147,21 @@ const quickActions = [
   { label: 'View History', icon: 'history', color: 'teal-7', handler: goToPayments },
   { label: 'Review Stay', icon: 'star', color: 'yellow-8', handler: goToSupport },
 ];
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return (parts[0] ?? '').slice(0, 2).toUpperCase();
+  return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
+}
+
+const landlordInitials = computed(() =>
+  landlordName.value ? initialsOf(landlordName.value) : 'LL',
+);
+
+const roommateInitials = computed(() =>
+  roommateName.value ? initialsOf(roommateName.value) : '',
+);
 
 const leaseProgress = computed(() => {
   if (!lease.value?.start_date || !lease.value?.end_date) return 0;
@@ -176,7 +202,7 @@ async function loadDashboard() {
 
     const { data: leaseData, error: leaseError } = await supabase
       .from('leases')
-      .select('id, status, start_date, end_date, monthly_rent, room:rooms(room_number, property:properties(name))')
+      .select('id, status, start_date, end_date, monthly_rent, landlord_id, room:rooms(room_number, property:properties(name))')
       .eq('student_id', user.id).eq('status', 'active').maybeSingle();
 
     if (leaseError) throw leaseError;
@@ -186,15 +212,44 @@ async function loadDashboard() {
       const prop = lease.value.room?.property;
       const roomNum = lease.value.room?.room_number;
       stayTitle.value = prop?.name ? `${prop.name}${roomNum ? ' \u00B7 Room ' + roomNum : ''}` : 'Active Lease';
+      propertyName.value = prop?.name ?? '';
+      roommateRoom.value = roomNum ? `Room ${roomNum}` : '';
       const rent = lease.value.monthly_rent ?? 0;
       staySubtitle.value = rent > 0 ? `Monthly rent ${formatPeso(rent)}` : 'Active lease \u2014 no rent set';
 
-      const landlordId = (leaseData as unknown as Record<string, string>).landlord_id;
-      if (landlordId) {
+      const lid = (leaseData as unknown as Record<string, string>).landlord_id;
+      landlordId.value = lid ?? null;
+      if (lid) {
         const { data: landlord } = await supabase
           .from('users').select('full_name')
-          .eq('id', landlordId).maybeSingle();
+          .eq('id', lid).maybeSingle();
         if (landlord) landlordName.value = (landlord as unknown as { full_name: string }).full_name;
+      }
+
+      // Find a roommate sharing the same room (another active lease, excluding me)
+      const roomId = (leaseData as unknown as Record<string, string>).room_id;
+      if (roomId) {
+        const { data: roomLeases } = await supabase
+          .from('leases')
+          .select('student_id')
+          .eq('room_id', roomId)
+          .eq('status', 'active')
+          .neq('student_id', user.id);
+
+        const otherStudentIds = (roomLeases ?? [])
+          .map((l) => (l as { student_id: string }).student_id)
+          .filter((id) => id !== user.id);
+
+        if (otherStudentIds.length > 0 && otherStudentIds[0]) {
+          const { data: roommate } = await supabase
+            .from('users')
+            .select('full_name')
+            .eq('id', otherStudentIds[0])
+            .maybeSingle();
+          roommateName.value = (roommate as unknown as { full_name: string } | null)?.full_name ?? null;
+        } else {
+          roommateName.value = null;
+        }
       }
     }
 
@@ -227,7 +282,11 @@ function goToStay() { void router.push('/student/stay'); }
 function goToPayments() { void router.push('/student/payments'); }
 function goToConcerns() { void router.push('/student/concerns'); }
 function goToSupport() { void router.push('/student/support'); }
-function goToMessages() { void router.push('/student/messages'); }
+function goToMessages() {
+  // Pass the landlord id so the messages page can open (or create) the conversation
+  const query = landlordId.value ? { landlord: landlordId.value } : {};
+  void router.push({ path: '/student/messages', query });
+}
 
 onMounted(loadDashboard);
 </script>

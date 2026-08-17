@@ -1,7 +1,7 @@
 <template>
   <q-page class="bg-grey-1 q-pb-lg">
     <!-- Unverified Banner -->
-    <q-banner inline-actions rounded class="q-ma-md" style="background:#FFF3E0;">
+    <q-banner v-if="!osasVerified" inline-actions rounded class="q-ma-md" style="background:#FFF3E0;">
       <template #avatar>
         <q-icon name="error" color="orange-9" size="28px" />
       </template>
@@ -23,9 +23,9 @@
         <!-- Badge -->
         <div class="row justify-center q-mt-sm">
           <q-badge
-            :color="verified ? 'teal' : 'amber'"
-            text-color="dark"
-            :label="verified ? 'Verified' : 'Pending Verification'"
+        :color="(verified || osasVerified) ? 'teal' : 'amber'"
+        text-color="dark"
+        :label="(verified || osasVerified) ? 'Verified' : 'Pending Verification'"
             class="q-px-md q-py-xs rounded-borders text-weight-medium"
           />
         </div>
@@ -240,12 +240,14 @@ interface StudentProfileRow {
   college: string | null;
   year_level: number | null;
   emergency_contact_json: unknown;
+  osas_verified_at: string | null;
 }
 
 interface LeaseRow {
   id: string;
   status: string;
   start_date: string | null;
+  end_date: string | null;
   monthly_rent: number | null;
   room: {
     room_number: string | null;
@@ -269,6 +271,8 @@ const campus = ref('ISU Echague');
 const email = ref('—');
 const contact = ref('—');
 const verified = ref(false);
+const osasVerified = ref(false);
+const stayLabel = ref('—');
 
 // Accommodation (from active lease)
 const accommodation = ref({
@@ -298,12 +302,12 @@ async function loadProfile() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { void router.push('/login'); return; }
 
-    // Fetch user + student profile in parallel
+    // Fetch user + student profile + active lease in parallel
     const [userResult, profileResult, leaseResult] = await Promise.all([
       supabase.from('users').select('full_name, initials, email, phone, status, avatar_color').eq('id', user.id).maybeSingle(),
-      supabase.from('student_profiles').select('student_id, program, college, year_level, emergency_contact_json').eq('user_id', user.id).maybeSingle(),
+      supabase.from('student_profiles').select('student_id, program, college, year_level, emergency_contact_json, osas_verified_at').eq('user_id', user.id).maybeSingle(),
       supabase.from('leases')
-        .select('id, status, start_date, monthly_rent, room:rooms(room_number, property:properties(name, address, rating_avg))')
+        .select('id, status, start_date, end_date, monthly_rent, room:rooms(room_number, property:properties(name, address, rating_avg))')
         .eq('student_id', user.id).eq('status', 'active').maybeSingle(),
     ]);
 
@@ -316,11 +320,13 @@ async function loadProfile() {
       verified.value = u.status === 'verified';
     }
 
+    let totalMonths = 12;
     if (profileResult.data) {
       const p = profileResult.data as unknown as StudentProfileRow;
       studentId.value = p.student_id ?? '—';
       course.value = p.program ?? '—';
       campus.value = p.college ? p.college.replace(/^.*\((.*)\)$/, '$1') : 'ISU Echague';
+      osasVerified.value = !!p.osas_verified_at;
 
       if (p.emergency_contact_json) {
         try {
@@ -345,7 +351,73 @@ async function loadProfile() {
         checkIn: l.start_date ? new Date(l.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : '—',
         roomUnit: l.room?.room_number ? `Room ${l.room.room_number}` : '—',
       };
+      if (l.start_date && l.end_date) {
+        const s = new Date(l.start_date);
+        const e = new Date(l.end_date);
+        totalMonths = Math.max(1, (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()) + 1);
+      }
+      stayLabel.value = l.start_date
+        ? new Date(l.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })
+        : '—';
     }
+
+    // Derive profile stats from real data
+    let paidCount = 0;
+    let tenantScore = '—';
+    if (leaseResult.data) {
+      const leaseId = (leaseResult.data as unknown as LeaseRow).id;
+
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('lease_id', leaseId)
+        .eq('status', 'paid');
+      paidCount = payments?.length ?? 0;
+
+      const { data: trev } = await supabase
+        .from('tenant_reviews')
+        .select('rating')
+        .eq('lease_id', leaseId);
+      const ratings = (trev ?? []).map((r) => (r as { rating: number }).rating);
+      if (ratings.length > 0) {
+        tenantScore = (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1);
+      }
+    }
+
+    stats.value = {
+      monthsPaid: `${paidCount}/${totalMonths}`,
+      stay: stayLabel.value,
+      tenantScore,
+    };
+
+    // Boarding history (real)
+    const { data: bh } = await supabase
+      .from('boarding_history')
+      .select('id, property_name, period_start, period_end, room_type, end_reason')
+      .eq('student_id', user.id)
+      .order('period_start', { ascending: false });
+
+    const rows = (bh ?? []) as unknown as Array<{
+      id: string; property_name: string | null; period_start: string; period_end: string; room_type: string | null; end_reason: string | null;
+    }>;
+
+    history.value = rows.map((h, i) => {
+      const start = new Date(h.period_start).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+      const end = new Date(h.period_end).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+      const active = !h.end_reason;
+      return {
+        id: i + 1,
+        name: h.property_name ?? 'Boarding House',
+        address: h.room_type ? `${h.room_type} room` : '—',
+        dateRange: `${start} – ${end}`,
+        status: active ? 'Current' : 'Completed',
+        badgeColor: active ? 'teal' : 'grey',
+        dotColor: active ? '#00897b' : '#9e9e9e',
+        last: false,
+      };
+    });
+    const lastRow = history.value.at(-1);
+    if (lastRow) lastRow.last = true;
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load profile';
   } finally {

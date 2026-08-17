@@ -69,7 +69,7 @@
             <q-item><q-item-section>Advance Paid</q-item-section><q-item-section side class="text-weight-bold">{{ formatPeso(lease?.advance_paid ?? 0) }}</q-item-section></q-item>
             <q-item><q-item-section>Deposit Paid</q-item-section><q-item-section side class="text-weight-bold">{{ formatPeso(lease?.deposit_paid ?? 0) }}</q-item-section></q-item>
             <q-item><q-item-section>Lease Period</q-item-section><q-item-section side class="text-weight-medium">{{ formatDate(lease?.start_date ?? null) }} – {{ formatDate(lease?.end_date ?? null) }}</q-item-section></q-item>
-            <q-item><q-item-section>Status</q-item-section><q-item-section side><q-badge :color="leaseStatusColor" :label="lease?.status ?? 'None'" class="q-px-sm" /></q-item-section></q-item>
+            <q-item><q-item-section>Status</q-item-section>          <q-item-section side><q-badge :color="statusColor(LEASE_STATUS, lease?.status)" :label="statusText(LEASE_STATUS, lease?.status, 'None')" class="q-px-sm" /></q-item-section></q-item>
           </q-list>
         </q-card>
       </div>
@@ -166,18 +166,22 @@
         </q-card-section>
         <q-separator />
         <q-card-section class="text-center">
-          <q-btn
-            outline color="teal-8" icon="attach_file" label="Attach Screenshot"
-            class="rounded-borders text-weight-bold full-width q-mb-sm" no-caps
-            @click="attachScreenshot"
+          <AuthFileDropZone
+            v-model="proofFile"
+            label="Tap to attach proof of payment"
+            accept=".jpg, image/*, .pdf"
+            class="q-mb-sm"
           />
+          <div v-if="proofFile" class="text-caption text-teal-8 text-weight-medium q-mb-xs">
+            {{ proofFile.name }}
+          </div>
           <div class="text-caption text-grey-5">JPG, PNG, or PDF · Max 5MB</div>
         </q-card-section>
         <q-card-section>
           <q-btn
             unelevated color="teal-8" label="Submit Payment"
             class="rounded-borders text-weight-bold full-width"
-            no-caps :loading="loading" @click="submitPayment"
+            no-caps :loading="submitting" :disable="!proofFile" @click="submitPayment"
           />
         </q-card-section>
       </q-card>
@@ -215,6 +219,12 @@ import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/shared/utils/supabase';
+import { LEASE_STATUS, statusText, statusColor, formatPeso } from '@/shared/utils/format';
+import AuthFileDropZone from '@/modules/auth/components/AuthFileDropZone.vue';
+import { uploadDocument } from '@/shared/utils/upload';
+import type { Database } from '@/shared/types/database.gen';
+
+type PaymentMethodEnum = Database['public']['Enums']['payment_method'];
 
 interface LeaseRow {
   id: string;
@@ -237,7 +247,7 @@ interface PaymentRow {
 }
 
 interface PaymentMethod {
-  value: string;
+  value: PaymentMethodEnum;
   label: string;
   hint: string;
   icon: string;
@@ -260,12 +270,14 @@ const successDialog = ref(false);
 const selectedMethod = ref<string | null>(null);
 const amountDue = ref(2500);
 const referenceNumber = ref('');
+const proofFile = ref<File | null>(null);
+const submitting = ref(false);
 
 const paymentMethods: PaymentMethod[] = [
   { value: 'gcash', label: 'GCash', hint: 'Pay via GCash app or QR', icon: 'account_balance_wallet', color: 'blue-8' },
   { value: 'maya', label: 'Maya', hint: 'Pay via Maya app', icon: 'smartphone', color: 'green-8' },
   { value: 'bank', label: 'Bank Transfer', hint: 'Direct bank deposit / InstaPay', icon: 'account_balance', color: 'purple-8' },
-  { value: 'otc', label: 'Over-the-Counter', hint: 'Pay at partner outlets', icon: 'storefront', color: 'orange-8' },
+  { value: 'cash', label: 'Over-the-Counter', hint: 'Pay at partner outlets (cash)', icon: 'storefront', color: 'orange-8' },
 ];
 
 // Derived
@@ -297,18 +309,6 @@ const months = computed(() => {
   return arr;
 });
 
-const leaseStatusColor = computed(() => {
-  switch (lease.value?.status) {
-    case 'active': return 'teal';
-    case 'pending': return 'amber';
-    case 'ended': return 'grey';
-    default: return 'grey';
-  }
-});
-
-function formatPeso(amount: number): string {
-  return '\u20B1' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—';
@@ -318,6 +318,14 @@ function formatDate(dateStr: string | null): string {
 function formatMonth(dateStr: string | null): string {
   if (!dateStr) return 'Unspecified';
   return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+}
+
+function nextDueMonthValue(): string {
+  const base = lease.value?.start_date ? new Date(lease.value.start_date) : new Date();
+  const d = new Date(base.getFullYear(), base.getMonth() + paidCount.value, 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
 }
 
 async function loadPayments() {
@@ -360,6 +368,7 @@ function openPaymentMethod(amount: number = 2500) {
   amountDue.value = amount;
   selectedMethod.value = null;
   referenceNumber.value = '';
+  proofFile.value = null;
   methodDialog.value = true;
 }
 
@@ -369,32 +378,82 @@ function continuePayment() {
   proofDialog.value = true;
 }
 
-function attachScreenshot() {
-  $q.notify({
-    message: 'Screenshot attached (simulated).',
-    color: 'teal-8',
-    position: 'top',
-    classes: 'custom-notify',
-    icon: 'check_circle',
-  });
-}
+async function submitPayment() {
+  const file = proofFile.value;
+  if (!file) {
+    $q.notify({
+      message: 'Please attach your proof of payment first.',
+      color: 'negative',
+      position: 'top',
+      classes: 'custom-notify',
+      icon: 'error',
+    });
+    return;
+  }
+  if (!selectedMethod.value) {
+    $q.notify({
+      message: 'Please choose a payment method.',
+      color: 'negative',
+      position: 'top',
+      classes: 'custom-notify',
+      icon: 'error',
+    });
+    return;
+  }
+  if (!lease.value?.id) {
+    error.value = 'No active lease found for this payment.';
+    return;
+  }
 
-function submitPayment() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    void router.push('/login');
+    return;
+  }
+
   proofDialog.value = false;
-
-  $q.loading.show({ message: 'Processing payment...' });
-
-  setTimeout(() => {
-    $q.loading.hide();
-    referenceNumber.value = `TXN-${Math.floor(10000000 + Math.random() * 90000000)}`;
+  submitting.value = true;
+  $q.loading.show({ message: 'Uploading proof & recording payment...' });
+  try {
+    const proofUrl = await uploadDocument(file, user.id, 'payment_proof');
+    const txn = `TXN-${Date.now().toString().slice(-8)}`;
+    const { error: insertError } = await supabase
+      .from('payments')
+      .insert({
+        lease_id: lease.value.id,
+        amount: amountDue.value,
+        method: selectedMethod.value as PaymentMethodEnum,
+        month: nextDueMonthValue(),
+        status: 'pending_verification',
+        proof_url: proofUrl,
+        txn_reference: txn,
+        description: `Rent payment via ${selectedMethod.value}`,
+      });
+    if (insertError) throw insertError;
+    referenceNumber.value = txn;
     successDialog.value = true;
-  }, 1200);
+    await loadPayments();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to submit payment';
+    $q.notify({
+      message: error.value,
+      color: 'negative',
+      position: 'top',
+      classes: 'custom-notify',
+      icon: 'error',
+    });
+  } finally {
+    $q.loading.hide();
+    submitting.value = false;
+    proofFile.value = null;
+  }
 }
 
 function finishPayment() {
   successDialog.value = false;
   selectedMethod.value = null;
   referenceNumber.value = '';
+  proofFile.value = null;
   $q.notify({
     message: 'Payment sent to your landlord for verification.',
     color: 'teal-8',
