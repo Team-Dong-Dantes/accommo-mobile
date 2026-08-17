@@ -15,7 +15,7 @@ const landlordRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/landlord/properties',
-    component: () => import('@/modules/landlord/pages/LandlordPropertiesPage.vue'),
+    component: () => import('@/modules/landlord/pages/PropertiesListPage.vue'),
   },
   {
     path: '/landlord/support',
@@ -27,7 +27,7 @@ const landlordRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/landlord/properties/new',
-    component: () => import('@/modules/landlord/pages/LandlordAddProperty.vue'),
+    component: () => import('@/modules/landlord/pages/AddPropertyWizard.vue'),
   },
   {
     path: '/landlord/profile',

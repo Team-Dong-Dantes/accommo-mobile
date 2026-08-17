@@ -2,8 +2,13 @@
   <q-page class="properties-page bg-grey-1">
     <div class="page-shell q-pb-xl">
       <div class="header-block q-px-md q-pt-lg q-pb-sm">
-        <div class="page-title">Properties</div>
-        <div class="page-subtitle">3 properties - 7 rooms available</div>
+        <div class="row justify-between items-center">
+          <div>
+            <div class="page-title">Properties</div>
+            <div class="page-subtitle">3 properties - 7 rooms available</div>
+          </div>
+          <q-btn unelevated rounded color="teal-8" text-color="white" label="Add" icon-right="add" @click="goToAddProperty" class="add-property-btn" />
+        </div>
       </div>
 
       <div class="q-px-md q-mt-md">
@@ -104,6 +109,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 interface Amenity {
   name: string
@@ -134,7 +140,12 @@ interface PropertyItem {
   reviews: number
 }
 
+const router = useRouter()
 const searchText = ref('')
+
+function goToAddProperty() {
+  void router.push('/landlord/properties/new')
+}
 
 const properties = ref<PropertyItem[]>([
   {
@@ -414,5 +425,11 @@ const filteredProperties = computed(() => {
 .review-text {
   color: #6b7280;
   font-size: 12px;
+}
+
+.add-property-btn {
+  border-radius: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
 }
 </style>
