@@ -37,6 +37,18 @@ const routes: RouteRecordRaw[] = [
         path: '/landlord/notifications',
         component: () => import('@/modules/landlord/pages/LandlordNotifications.vue'),
       },
+      {
+        path: '/landlord/support',
+        component: () => import('@/modules/landlord/pages/LandlordSupportPage.vue'),
+      },
+      {
+        path: '/landlord/osas-compliance',
+        component: () => import('@/modules/landlord/pages/LandlordOSASCompliancePage.vue'),
+      },
+      {
+        path: '/landlord/properties',
+        component: () => import('@/modules/landlord/pages/LandlordPropertiesPage.vue'),
+      },
     ],
   },
 
@@ -47,3 +59,4 @@ const routes: RouteRecordRaw[] = [
 ];
 
 export default routes;
+

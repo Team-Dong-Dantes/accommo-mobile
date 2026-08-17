@@ -185,229 +185,229 @@ const paymentRows = ref<PaymentRow[]>([
 
 <style scoped>
 .dashboard-page {
-  background: #F7F9FA
+  background: #F7F9FA;
 }
 
 .page-shell {
-  padding-bottom: 120px
+  padding-bottom: 120px;
 }
 
 .metric-card {
-  background: #FFFFFF
-  border: 1px solid rgba(15, 23, 42, 0.06)
-  border-radius: 18px
-  min-height: 168px
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03)
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 18px;
+  min-height: 168px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03);
 }
 
 .metric-icon {
-  width: 40px
-  height: 40px
-  display: flex
-  align-items: center
-  justify-content: center
-  border-radius: 12px
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
 }
 
 .icon-green {
-  background: rgba(0, 137, 123, 0.12)
-  color: #00897B
+  background: rgba(0, 137, 123, 0.12);
+  color: #00897B;
 }
 
 .icon-red {
-  background: rgba(239, 68, 68, 0.1)
-  color: #DC2626
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
 }
 
 .icon-purple {
-  background: rgba(124, 58, 237, 0.12)
-  color: #7C3AED
+  background: rgba(124, 58, 237, 0.12);
+  color: #7C3AED;
 }
 
 .icon-orange {
-  background: rgba(245, 158, 11, 0.12)
-  color: #F59E0B
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
 }
 
 .metric-value {
-  font-size: 28px
-  color: #111827
-  line-height: 1.1
+  font-size: 28px;
+  color: #111827;
+  line-height: 1.1;
 }
 
 .metric-label {
-  margin-top: 8px
-  font-size: 13px
-  font-weight: 600
-  color: #4B5563
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4B5563;
 }
 
 .metric-subtext {
-  margin-top: 8px
-  font-size: 11px
-  font-weight: 700
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .sub-green {
-  color: #00897B
+  color: #00897B;
 }
 
 .sub-red {
-  color: #DC2626
+  color: #DC2626;
 }
 
 .sub-purple {
-  color: #7C3AED
+  color: #7C3AED;
 }
 
 .sub-orange {
-  color: #F59E0B
+  color: #F59E0B;
 }
 
 .chart-card,
 .payments-card {
-  background: #FFFFFF
-  border: 1px solid rgba(15, 23, 42, 0.06)
-  border-radius: 22px
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.02)
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 22px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.02);
 }
 
 .chart-card {
-  padding: 18px 16px 12px
+  padding: 18px 16px 12px;
 }
 
 .section-header {
-  display: flex
-  align-items: center
-  justify-content: space-between
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .section-title {
-  color: #111827
-  font-size: 18px
-  font-weight: 800
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
 }
 
 .small-title {
-  font-size: 16px
+  font-size: 16px;
 }
 
 .section-subtitle {
-  color: #6B7280
-  font-size: 12px
+  color: #6B7280;
+  font-size: 12px;
 }
 
 .chart-area {
-  display: flex
-  align-items: flex-end
-  gap: 10px
-  margin-top: 20px
-  min-height: 230px
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  min-height: 230px;
 }
 
 .y-axis {
-  display: flex
-  flex-direction: column
-  justify-content: space-between
-  height: 180px
-  padding-bottom: 28px
-  color: #6B7280
-  font-size: 11px
-  font-weight: 600
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 180px;
+  padding-bottom: 28px;
+  color: #6B7280;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .bar-panel {
-  display: flex
-  align-items: flex-end
-  gap: 8px
-  flex: 1
-  height: 200px
-  padding-left: 4px
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 1;
+  height: 200px;
+  padding-left: 4px;
 }
 
 .bar-column {
-  display: flex
-  flex: 1
-  flex-direction: column
-  align-items: center
-  gap: 8px
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .bar-track {
-  width: 100%
-  height: 160px
-  display: flex
-  align-items: flex-end
-  justify-content: center
-  background: linear-gradient(180deg, rgba(0, 137, 123, 0.06), rgba(0, 137, 123, 0.02))
-  border-radius: 12px 12px 8px 8px
-  overflow: hidden
+  width: 100%;
+  height: 160px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0, 137, 123, 0.06), rgba(0, 137, 123, 0.02));
+  border-radius: 12px 12px 8px 8px;
+  overflow: hidden;
 }
 
 .bar-fill {
-  width: 100%
-  background: #00897B
-  border-radius: 12px 12px 0 0
-  min-height: 12px
+  width: 100%;
+  background: #00897B;
+  border-radius: 12px 12px 0 0;
+  min-height: 12px;
 }
 
 .bar-label {
-  color: #6B7280
-  font-size: 10px
-  font-weight: 700
+  color: #6B7280;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .payments-card {
-  padding: 18px 0 0
+  padding: 18px 0 0;
 }
 
 .payments-header {
-  display: flex
-  align-items: center
-  justify-content: space-between
-  padding: 0 16px 8px
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 8px;
 }
 
 .view-all {
-  color: #00897B
-  font-size: 12px
-  font-weight: 700
+  color: #00897B;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .payment-list {
-  border-top: 1px solid rgba(15, 23, 42, 0.06)
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .payment-item {
-  padding: 12px 16px
+  padding: 12px 16px;
 }
 
 .avatar-mini {
-  font-size: 11px
-  font-weight: 700
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .payment-name {
-  color: #111827
-  font-size: 14px
-  font-weight: 700
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .payment-meta {
-  color: #6B7280
-  font-size: 11px
-  line-height: 1.4
+  color: #6B7280;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .payment-amount {
-  color: #111827
-  font-size: 14px
-  font-weight: 800
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .paid-badge {
-  margin-top: 6px
-  font-size: 9px
-  font-weight: 700
+  margin-top: 6px;
+  font-size: 9px;
+  font-weight: 700;
 }
 </style>

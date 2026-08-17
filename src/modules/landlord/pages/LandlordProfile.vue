@@ -206,7 +206,7 @@
 
       <div class="section-wrap q-px-md q-mt-lg q-mb-xl">
         <q-list bordered class="settings-list">
-          <q-item clickable v-ripple>
+          <q-item clickable v-ripple @click="goToSettings">
             <q-item-section avatar>
               <q-icon name="settings" color="grey-7" />
             </q-item-section>
@@ -525,6 +525,10 @@ async function loadProfileData() {
 
 const openScanner = () => {
   void router.push('/landlord/profile/qr-scanner')
+}
+
+const goToSettings = () => {
+  void router.push('/landlord/settings')
 }
 
 const handleLogout = async () => {

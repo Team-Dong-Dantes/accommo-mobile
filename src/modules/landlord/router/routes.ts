@@ -15,7 +15,15 @@ const landlordRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/landlord/properties',
-    component: () => import('@/modules/landlord/pages/LandlordProperties.vue'),
+    component: () => import('@/modules/landlord/pages/LandlordPropertiesPage.vue'),
+  },
+  {
+    path: '/landlord/support',
+    component: () => import('@/modules/landlord/pages/LandlordSupportPage.vue'),
+  },
+  {
+    path: '/landlord/osas-compliance',
+    component: () => import('@/modules/landlord/pages/LandlordOSASCompliancePage.vue'),
   },
   {
     path: '/landlord/properties/new',
@@ -24,6 +32,10 @@ const landlordRoutes: RouteRecordRaw[] = [
   {
     path: '/landlord/profile',
     component: () => import('@/modules/landlord/pages/LandlordProfile.vue'),
+  },
+  {
+    path: '/landlord/settings',
+    component: () => import('@/modules/landlord/pages/LandlordSettingsPage.vue'),
   },
   {
     path: '/landlord/profile/qr-scanner',
