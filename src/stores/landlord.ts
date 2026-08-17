@@ -223,12 +223,14 @@ export const useLandlordStore = defineStore('landlord', {
 
       if (!user) return false
 
-      const { error: insertError } = await supabase
+      // 1) Base property row — uses ONLY existing columns (no invented ones).
+      const { data: inserted, error: insertError } = await supabase
         .from('properties')
         .insert({
           landlord_id: user.id,
           name: propertyData.name,
-          room_type: propertyData.roomType,
+          property_type: propertyData.propertyType || null, // free-text category
+          room_type: propertyData.roomType, // enum: solo|duo|triple|bedspace|studio
           status: 'pending',
           address: propertyData.address || null,
           city: propertyData.city || null,
@@ -238,9 +240,44 @@ export const useLandlordStore = defineStore('landlord', {
           total_floors: propertyData.totalFloors ? Number(propertyData.totalFloors) : null,
           lat: propertyData.latitude ?? null,
           lng: propertyData.longitude ?? null,
-        })
+        } as any)
+        .select('id')
+        .single()
 
       if (insertError) throw insertError
+      const propertyId = inserted?.id
+      if (!propertyId) throw new Error('Failed to create property')
+
+      // 2) Amenities -> property_amenities (one row per amenity, enum column).
+      const amenities = (propertyData.amenities || []).filter(Boolean)
+      if (amenities.length) {
+        const { error: amenError } = await supabase
+          .from('property_amenities')
+          .insert(
+            amenities.map((a: string) => ({ property_id: propertyId, amenity: a })) as any,
+          )
+        if (amenError) throw amenError
+      }
+
+      // 3) House rules -> property_policies.house_rules_json (jsonb).
+      const rules = (propertyData.rules || []).filter(Boolean)
+      const { error: polError } = await supabase
+        .from('property_policies')
+        .insert({ property_id: propertyId, house_rules_json: rules } as any)
+      if (polError) throw polError
+
+      // 4) Contact details -> the landlord's own users row (users.phone / users.email).
+      const patch: Record<string, unknown> = {}
+      if (propertyData.contactNo) patch.phone = propertyData.contactNo
+      if (propertyData.email) patch.email = propertyData.email
+      if (Object.keys(patch).length) {
+        const { error: userErr } = await supabase
+          .from('users')
+          .update(patch as any)
+          .eq('id', user.id)
+        if (userErr) throw userErr
+      }
+
       return true
     },
 

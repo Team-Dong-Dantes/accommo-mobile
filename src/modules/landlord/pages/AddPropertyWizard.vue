@@ -47,7 +47,7 @@
 
         <!-- Property Type Toggle -->
         <div class="form-field">
-          <label class="field-label">Property Type</label>
+          <label class="field-label">Room Type</label>
           <div class="toggle-group">
             <button
               v-for="type in propertyTypes"
@@ -118,6 +118,9 @@
               dense
               placeholder="+63 9XX XXX XXXX"
               class="custom-input"
+              :error="!!contactError"
+              :error-message="contactError"
+              @update:model-value="clearContactError"
             >
               <template #prepend>
                 <q-icon name="phone" color="grey-7" />
@@ -132,6 +135,9 @@
               dense
               placeholder="your@email.com"
               class="custom-input"
+              :error="!!emailError"
+              :error-message="emailError"
+              @update:model-value="clearEmailError"
             >
               <template #prepend>
                 <q-icon name="mail" color="grey-7" />
@@ -168,7 +174,7 @@
               @click="toggleAmenity(amenity)"
             >
               <q-icon :name="getAmenityIcon(amenity)" size="24px" />
-              <div class="amenity-label">{{ amenity }}</div>
+              <div class="amenity-label">{{ amenity.charAt(0).toUpperCase() + amenity.slice(1) }}</div>
             </button>
           </div>
         </div>
@@ -220,6 +226,7 @@
     <!-- Footer Section -->
     <div class="wizard-footer">
       <q-btn
+        v-if="currentStep === 1"
         flat
         color="grey-8"
         label="Cancel"
@@ -233,8 +240,17 @@
         text-color="white"
         label="Next"
         icon-right="arrow_forward"
-        @click="currentStep = 2"
+        @click="goNext"
         class="footer-btn action-btn"
+      />
+      <q-btn
+        v-if="currentStep === 2"
+        flat
+        color="grey-8"
+        label="Back"
+        icon="arrow_back"
+        @click="currentStep = 1"
+        class="footer-btn"
       />
       <q-btn
         v-if="currentStep === 2"
@@ -255,6 +271,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useLandlordStore } from '@/stores/landlord'
 
 interface PropertyFormData {
@@ -272,12 +289,13 @@ interface PropertyFormData {
 
 const router = useRouter()
 const landlordStore = useLandlordStore()
+const $q = useQuasar()
 
 const currentStep = ref(1)
 
 const form = ref<PropertyFormData>({
   propertyName: '',
-  propertyType: 'Boarding House',
+  propertyType: 'solo',
   address: '',
   contactNo: '',
   email: '',
@@ -290,9 +308,46 @@ const form = ref<PropertyFormData>({
 
 const newRule = ref('')
 
-const propertyTypes = ['Boarding House', 'Apartment', 'Dormitory']
+// --- Validation for contact number and email ---
+const contactError = ref('')
+const emailError = ref('')
 
-const amenitiesOptions = ['WiFi', 'Water', 'Electric', 'Aircon']
+function validateContactNo(value: string): boolean {
+  const digits = value.replace(/\D/g, '')
+  if (digits.startsWith('63')) return digits.length === 12 && digits[2] === '9'
+  if (digits.startsWith('0')) return digits.length === 11 && digits[1] === '9'
+  return false
+}
+
+function validateEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+function validateStep1(): boolean {
+  contactError.value = form.value.contactNo.trim()
+    ? validateContactNo(form.value.contactNo)
+      ? ''
+      : 'Enter a valid PH number, e.g. +63 9XX XXX XXXX or 09XX XXX XXXX'
+    : 'Contact number is required'
+  emailError.value = form.value.email.trim()
+    ? validateEmail(form.value.email)
+      ? ''
+      : 'Enter a valid email address'
+    : 'Email is required'
+  return !contactError.value && !emailError.value
+}
+
+function clearContactError() {
+  if (contactError.value) contactError.value = ''
+}
+
+function clearEmailError() {
+  if (emailError.value) emailError.value = ''
+}
+
+const propertyTypes = ['solo', 'duo', 'triple', 'bedspace', 'studio']
+
+const amenitiesOptions = ['wifi', 'water', 'electric', 'aircon']
 
 // --- Mapbox GL JS map picker ---
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
@@ -383,12 +438,12 @@ onMounted(() => {
 })
 
 function getAmenityIcon(amenity: string): string {
-  const icons: Record<string, string> = {
-    'WiFi': 'wifi',
-    'Water': 'water_drop',
-    'Electric': 'electric_bolt',
-    'Aircon': 'ac_unit',
-  }
+const icons: Record<string, string> = {
+  wifi: 'wifi',
+  water: 'water_drop',
+  electric: 'electric_bolt',
+  aircon: 'ac_unit',
+}
   return icons[amenity] || 'help'
 }
 
@@ -416,24 +471,49 @@ function handleClose() {
   void router.push('/landlord/properties')
 }
 
+function goNext() {
+  if (validateStep1()) {
+    currentStep.value = 2
+  }
+}
+
 async function handleSave() {
   mapError.value = null
+  if (!validateStep1()) {
+    currentStep.value = 1
+    return
+  }
   try {
     const ok = await landlordStore.addProperty({
       name: form.value.propertyName,
       roomType: form.value.propertyType,
+      propertyType: form.value.propertyType,
       address: form.value.address,
       description: form.value.description,
+      contactNo: form.value.contactNo,
+      email: form.value.email,
+      amenities: form.value.amenities,
+      rules: form.value.rules,
       latitude: form.value.latitude,
       longitude: form.value.longitude,
     })
     if (ok) {
+      $q.notify({
+        type: 'positive',
+        message: 'Property added successfully',
+        icon: 'check_circle',
+        timeout: 2500,
+      })
       void router.push('/landlord/properties')
     } else {
-      mapError.value = 'Failed to save property. Please sign in and try again.'
+      const msg = 'Failed to save property. Please sign in and try again.'
+      mapError.value = msg
+      $q.notify({ type: 'negative', message: msg, icon: 'error' })
     }
   } catch (e: any) {
-    mapError.value = e?.message ?? 'Failed to save property'
+    const msg = e?.message ?? 'Failed to save property'
+    mapError.value = msg
+    $q.notify({ type: 'negative', message: msg, icon: 'error' })
   }
 }
 </script>

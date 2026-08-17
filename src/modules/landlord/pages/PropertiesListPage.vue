@@ -64,7 +64,8 @@
           :key="property.id"
           flat
           bordered
-          class="property-card"
+          class="property-card cursor-pointer"
+          @click="openProperty(property.id)"
         >
           <!-- Hero Section with Gradient -->
           <div class="property-hero" :style="getHeroStyle(property)">
@@ -266,7 +267,7 @@ async function fetchProperties() {
 
     const { data, error } = await supabase
       .from('properties')
-      .select('*')
+      .select('*, property_amenities(amenity)')
       .eq('landlord_id', user.id)
       .order('id', { ascending: false })
 
@@ -280,9 +281,9 @@ async function fetchProperties() {
       room_type: p.room_type || 'solo',
       total_rooms: p.total_rooms || 0,
       occupied_rooms: p.occupied_rooms || 0,
-      rating: p.rating || 0,
-      reviews: p.reviews || 0,
-      amenities: p.amenities || [],
+      rating: p.rating_avg || 0,
+      reviews: p.reviews_count || 0,
+      amenities: (p.property_amenities || []).map((a: any) => a.amenity),
       latitude: p.latitude,
       longitude: p.longitude,
     }))
@@ -296,6 +297,10 @@ async function fetchProperties() {
 
 function goToAddProperty() {
   void router.push('/landlord/properties/new')
+}
+
+function openProperty(id: string) {
+  void router.push('/landlord/properties/' + id)
 }
 
 onMounted(() => {

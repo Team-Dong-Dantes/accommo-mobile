@@ -30,6 +30,10 @@ const landlordRoutes: RouteRecordRaw[] = [
     component: () => import('@/modules/landlord/pages/AddPropertyWizard.vue'),
   },
   {
+    path: '/landlord/properties/:id',
+    component: () => import('@/modules/landlord/pages/PropertyDetailPage.vue'),
+  },
+  {
     path: '/landlord/profile',
     component: () => import('@/modules/landlord/pages/LandlordProfile.vue'),
   },
