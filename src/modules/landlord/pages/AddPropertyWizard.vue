@@ -235,6 +235,44 @@
             />
           </div>
         </div>
+
+        <!-- Photos Section -->
+        <div class="form-section q-mt-lg">
+          <div class="section-title">Photos <span class="required-hint">(optional but recommended)</span></div>
+
+          <div class="photo-dropzone" :class="{ 'has-error': !!imageError }" @click="triggerPhotoInput">
+            <q-icon name="cloud_upload" size="32px" color="teal-8" />
+            <div class="photo-drop-text">Tap to add photos of your property</div>
+            <div class="photo-drop-sub">JPG, PNG or WebP · up to 3MB each · max {{ maxPhotos }}</div>
+          </div>
+          <input
+            ref="photoInput"
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            @change="onPhotosSelected"
+          />
+
+          <div v-if="imageError" class="photo-error">{{ imageError }}</div>
+
+          <div v-if="form.images.length" class="photo-grid">
+            <div v-for="(img, idx) in form.images" :key="idx" class="photo-thumb">
+              <img :src="img.dataUrl" class="photo-img" alt="property photo" />
+              <q-btn
+                round
+                dense
+                flat
+                icon="close"
+                size="xs"
+                color="white"
+                class="photo-remove"
+                @click.stop="removeImage(idx)"
+              />
+            </div>
+          </div>
+          <div v-else class="muted-text q-mt-sm">No photos added yet.</div>
+        </div>
       </div>
     </div>
 
@@ -298,6 +336,7 @@ interface PropertyFormData {
   description: string
   amenities: string[]
   rules: string[]
+  images: { file: File; dataUrl: string }[]
   latitude: number | null
   longitude: number | null
 }
@@ -317,6 +356,7 @@ const form = ref<PropertyFormData>({
   description: '',
   amenities: [],
   rules: ['No overnight visitors', 'No smoking inside'],
+  images: [],
   latitude: null,
   longitude: null,
 })
@@ -513,6 +553,60 @@ function deleteRule(index: number) {
   form.value.rules.splice(index, 1)
 }
 
+// --- Photo upload (stored as data URLs; no storage bucket change) ---
+const maxPhotos = 6
+const imageError = ref('')
+const photoInput = ref<HTMLInputElement | null>(null)
+
+function triggerPhotoInput() {
+  photoInput.value?.click()
+}
+
+function validatePhotoFile(file: File): string | null {
+  const allowed = ['image/jpeg', 'image/png', 'image/webp']
+  if (!allowed.includes(file.type)) return 'Only JPG, PNG or WebP images are allowed.'
+  if (file.size > 3 * 1024 * 1024) return 'Each photo must be under 3MB.'
+  return null
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+async function onPhotosSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+  imageError.value = ''
+  for (const file of files) {
+    if (form.value.images.length >= maxPhotos) {
+      imageError.value = `You can upload up to ${maxPhotos} photos.`
+      break
+    }
+    const err = validatePhotoFile(file)
+    if (err) {
+      imageError.value = err
+      continue
+    }
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      form.value.images.push({ file, dataUrl })
+    } catch {
+      imageError.value = 'Failed to read one of the images.'
+    }
+  }
+  input.value = ''
+}
+
+function removeImage(idx: number) {
+  form.value.images.splice(idx, 1)
+  imageError.value = ''
+}
+
 function handleClose() {
   void router.push('/landlord/properties')
 }
@@ -540,6 +634,7 @@ async function handleSave() {
       email: form.value.email,
       amenities: form.value.amenities,
       rules: form.value.rules,
+      images: form.value.images,
       latitude: form.value.latitude,
       longitude: form.value.longitude,
     })
@@ -891,6 +986,86 @@ async function handleSave() {
   border-radius: 10px;
   padding: 0 16px;
   font-weight: 600;
+}
+
+.required-hint {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.muted-text {
+  color: #9ca3af;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Photo upload */
+.photo-dropzone {
+  border: 2px dashed #d1d5db;
+  border-radius: 14px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  background: #f9fafb;
+  transition: all 0.2s ease;
+}
+
+.photo-dropzone:hover {
+  border-color: #00897b;
+  background: rgba(0, 137, 123, 0.04);
+}
+
+.photo-dropzone.has-error {
+  border-color: #e53935;
+}
+
+.photo-drop-text {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.photo-drop-sub {
+  color: #6b7280;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.photo-error {
+  color: #e53935;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.photo-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.55);
 }
 
 /* Footer */

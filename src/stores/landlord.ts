@@ -278,6 +278,19 @@ export const useLandlordStore = defineStore('landlord', {
         if (userErr) throw userErr
       }
 
+      // 5) Photos -> property_images. Images are kept as data URLs in `url`,
+      //    so this needs no storage bucket or schema change. Inserted one-by-one
+      //    to keep each request small. The owner-scoped RLS policy allows it.
+      const photos = ((propertyData.images as any[]) || []).filter(
+        (img) => img && img.dataUrl,
+      )
+      for (let i = 0; i < photos.length; i++) {
+        const { error: imgErr } = await supabase
+          .from('property_images')
+          .insert({ property_id: propertyId, url: photos[i].dataUrl, sort_order: i } as any)
+        if (imgErr) throw imgErr
+      }
+
       return true
     },
 

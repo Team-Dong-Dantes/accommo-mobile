@@ -34,6 +34,22 @@
         </div>
 
         <div v-else-if="property" class="detail-content">
+          <!-- Photo Gallery -->
+          <div v-if="images.length" class="gallery-section">
+            <img :src="images[activeImageIndex]" class="gallery-main" alt="Property photo" />
+            <div v-if="images.length > 1" class="gallery-thumbs">
+              <img
+                v-for="(src, i) in images"
+                :key="i"
+                :src="src"
+                class="gallery-thumb"
+                :class="{ active: i === activeImageIndex }"
+                @click="activeImageIndex = i"
+                alt="Property thumbnail"
+              />
+            </div>
+          </div>
+
           <!-- Location Map -->
           <div id="detail-map" ref="detailMapContainer" class="detail-map" />
 
@@ -111,6 +127,7 @@ interface PropertyDetail {
   landlord_email: string | null
   amenities: string[]
   rules: string[]
+  images: string[]
   lat: number | null
   lng: number | null
 }
@@ -140,6 +157,9 @@ const rulesList = computed<string[]>(() => {
   return []
 })
 
+const images = computed<string[]>(() => property.value?.images || [])
+const activeImageIndex = ref(0)
+
 async function fetchProperty() {
   isLoading.value = true
   loadError.value = null
@@ -153,11 +173,19 @@ async function fetchProperty() {
       .single()
     if (error) throw error
 
-    const [amenRes, polRes, usrRes] = await Promise.all([
+    const [amenRes, polRes, usrRes, imgRes] = await Promise.all([
       supabase.from('property_amenities').select('amenity').eq('property_id', id),
       supabase.from('property_policies').select('house_rules_json').eq('property_id', id).maybeSingle(),
       supabase.from('users').select('phone, email').eq('id', p.landlord_id).maybeSingle(),
+      supabase
+        .from('property_images')
+        .select('url, sort_order')
+        .eq('property_id', id)
+        .order('sort_order', { ascending: true }),
     ])
+
+    const imageList = (imgRes.data || []).map((row: any) => row.url as string)
+    activeImageIndex.value = 0
 
     property.value = {
       ...p,
@@ -165,6 +193,7 @@ async function fetchProperty() {
       landlord_email: usrRes.data?.email ?? null,
       amenities: (amenRes.data || []).map((a: any) => a.amenity),
       rules: (polRes.data?.house_rules_json as string[]) || [],
+      images: imageList,
     } as PropertyDetail
   } catch (e: any) {
     loadError.value = e?.message || 'Failed to load property'
@@ -273,6 +302,39 @@ onMounted(() => {
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   position: relative;
   z-index: 1;
+}
+
+.gallery-section {
+  background: #000;
+}
+
+.gallery-main {
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-thumbs {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  overflow-x: auto;
+  background: #f4f5f7;
+}
+
+.gallery-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+}
+
+.gallery-thumb.active {
+  border-color: #00897b;
 }
 
 .detail-content {
