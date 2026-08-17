@@ -35,19 +35,22 @@
       <div v-if="currentStep === 1" class="step-1-content">
         <!-- Property Name -->
         <div class="form-field">
-          <label class="field-label">Property Name</label>
+          <label class="field-label">Property Name <span class="required">*</span></label>
           <q-input
             v-model="form.propertyName"
             outlined
             dense
             placeholder="e.g. Pinzon Student Hub"
             class="custom-input"
+            :error="!!nameError"
+            :error-message="nameError"
+            @update:model-value="clearNameError"
           />
         </div>
 
         <!-- Property Type Toggle -->
         <div class="form-field">
-          <label class="field-label">Room Type</label>
+          <label class="field-label">Room Type <span class="required">*</span></label>
           <div class="toggle-group">
             <button
               v-for="type in propertyTypes"
@@ -63,13 +66,16 @@
 
         <!-- Full Address -->
         <div class="form-field">
-          <label class="field-label">Full Address</label>
+          <label class="field-label">Full Address <span class="required">*</span></label>
           <q-input
             v-model="form.address"
             outlined
             dense
             placeholder="Blk, Purok, Brgy, Municipality, Province"
             class="custom-input"
+            :error="!!addressError"
+            :error-message="addressError"
+            @update:model-value="clearAddressError"
           >
             <template #prepend>
               <q-icon name="location_on" color="grey-7" />
@@ -79,7 +85,7 @@
 
         <!-- Property Location (Map) -->
         <div class="form-field">
-          <label class="field-label">Property Location</label>
+          <label class="field-label">Property Location <span class="required">*</span></label>
           <div
             id="property-map"
             ref="mapContainer"
@@ -100,6 +106,12 @@
             </span>
             <span v-else class="coords-hint">Tap the map to drop a pin</span>
           </div>
+          <q-banner v-if="locationError" class="bg-red-1 text-red-8 rounded-borders q-mt-sm">
+            <template #avatar>
+              <q-icon name="error_outline" />
+            </template>
+            {{ locationError }}
+          </q-banner>
           <q-banner v-if="mapError" class="bg-red-1 text-red-8 rounded-borders q-mt-sm">
             <template #avatar>
               <q-icon name="error_outline" />
@@ -111,7 +123,7 @@
         <!-- Contact No and Email Row -->
         <div class="two-column-row">
           <div class="form-field">
-            <label class="field-label">Contact No</label>
+            <label class="field-label">Contact No <span class="required">*</span></label>
             <q-input
               v-model="form.contactNo"
               outlined
@@ -128,7 +140,7 @@
             </q-input>
           </div>
           <div class="form-field">
-            <label class="field-label">Email</label>
+            <label class="field-label">Email <span class="required">*</span></label>
             <q-input
               v-model="form.email"
               outlined
@@ -148,7 +160,7 @@
 
         <!-- Description -->
         <div class="form-field">
-          <label class="field-label">Description</label>
+          <label class="field-label">Description <span class="required">*</span></label>
           <q-input
             v-model="form.description"
             outlined
@@ -156,6 +168,9 @@
             rows="4"
             placeholder="Tell us about your property..."
             class="custom-input"
+            :error="!!descriptionError"
+            :error-message="descriptionError"
+            @update:model-value="clearDescriptionError"
           />
         </div>
       </div>
@@ -308,7 +323,11 @@ const form = ref<PropertyFormData>({
 
 const newRule = ref('')
 
-// --- Validation for contact number and email ---
+// --- Validation for required fields ---
+const nameError = ref('')
+const addressError = ref('')
+const locationError = ref('')
+const descriptionError = ref('')
 const contactError = ref('')
 const emailError = ref('')
 
@@ -324,23 +343,49 @@ function validateEmail(value: string): boolean {
 }
 
 function validateStep1(): boolean {
-  contactError.value = form.value.contactNo.trim()
-    ? validateContactNo(form.value.contactNo)
+  const f = form.value
+  nameError.value = f.propertyName.trim() ? '' : 'Property name is required'
+  addressError.value = f.address.trim() ? '' : 'Full address is required'
+  locationError.value =
+    f.latitude != null && f.longitude != null
+      ? ''
+      : 'Drop a pin on the map to set the property location'
+  descriptionError.value = f.description.trim() ? '' : 'Description is required'
+  contactError.value = f.contactNo.trim()
+    ? validateContactNo(f.contactNo)
       ? ''
       : 'Enter a valid PH number, e.g. +63 9XX XXX XXXX or 09XX XXX XXXX'
     : 'Contact number is required'
-  emailError.value = form.value.email.trim()
-    ? validateEmail(form.value.email)
+  emailError.value = f.email.trim()
+    ? validateEmail(f.email)
       ? ''
       : 'Enter a valid email address'
     : 'Email is required'
-  return !contactError.value && !emailError.value
+  return (
+    !nameError.value &&
+    !addressError.value &&
+    !locationError.value &&
+    !descriptionError.value &&
+    !contactError.value &&
+    !emailError.value
+  )
 }
 
+function clearNameError() {
+  if (nameError.value) nameError.value = ''
+}
+function clearAddressError() {
+  if (addressError.value) addressError.value = ''
+}
+function clearLocationError() {
+  if (locationError.value) locationError.value = ''
+}
+function clearDescriptionError() {
+  if (descriptionError.value) descriptionError.value = ''
+}
 function clearContactError() {
   if (contactError.value) contactError.value = ''
 }
-
 function clearEmailError() {
   if (emailError.value) emailError.value = ''
 }
@@ -361,6 +406,7 @@ const DEFAULT_CENTER: [number, number] = [123.8854, 10.3157] // [lng, lat] Cebu 
 function setMarker(lng: number, lat: number) {
   form.value.longitude = lng
   form.value.latitude = lat
+  clearLocationError()
   const mapboxgl = (window as any).mapboxgl
   if (!mapboxgl || !map) return
   if (marker) {
@@ -674,6 +720,10 @@ async function handleSave() {
   font-size: 13px;
   font-weight: 700;
   margin-bottom: 6px;
+}
+
+.required {
+  color: #e53935;
 }
 
 .custom-input {
