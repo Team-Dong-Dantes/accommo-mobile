@@ -190,7 +190,6 @@ async function handleSubmit() {
         address: form.value.address.trim() || null,
         city: form.value.city.trim() || null,
         description: form.value.description.trim() || null,
-        monthly_rent: form.value.monthlyRent ? Number(form.value.monthlyRent) : null,
         total_rooms: form.value.totalRooms ? Number(form.value.totalRooms) : null,
         total_floors: form.value.totalFloors ? Number(form.value.totalFloors) : null,
       })
