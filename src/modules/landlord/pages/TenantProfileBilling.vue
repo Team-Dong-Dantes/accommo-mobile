@@ -7,230 +7,526 @@
         </div>
 
         <div class="col text-center">
-          <div class="tenant-name">Maria Santos</div>
-          <div class="tenant-course">BS Computer Engineering</div>
+          <div class="tenant-name">{{ tenantName }}</div>
+          <div class="tenant-course">{{ courseLine }}</div>
         </div>
 
         <div class="col-auto row items-center no-wrap q-gutter-sm">
-          <q-btn flat round dense icon="chat_bubble_outline" class="chat-btn" />
+          <q-btn flat round dense icon="chat_bubble_outline" class="chat-btn" @click="openChat" />
           <q-btn flat round dense icon="close" class="close-btn" @click="goBack" />
         </div>
       </div>
 
-      <div class="profile-header q-px-md q-py-md row items-center">
-        <q-avatar size="64px" color="teal-8" text-color="white" class="profile-avatar">
-          MS
-        </q-avatar>
-
-        <div class="profile-meta q-ml-md">
-          <div class="profile-name row items-center no-wrap">
-            <span>Maria Santos</span>
-            <q-icon name="verified" size="18px" color="teal-7" class="q-ml-xs" />
-          </div>
-          <div class="student-id">Student ID ISU-2021-00342</div>
-        </div>
+      <div v-if="isLoading" class="center-state">
+        <q-spinner size="42px" color="teal-8" />
       </div>
 
-      <div class="assignment-card q-mx-md q-my-md">
-        <div class="row items-center no-wrap">
-          <div class="assignment-icon">
-            <q-icon name="person_outline" size="22px" color="teal-8" />
-          </div>
-
-          <div class="assignment-copy q-ml-md">
-            <div class="assignment-title">Solo - Room 2-B</div>
-            <div class="assignment-subtitle">Pinzon Student Hub - Floor 2</div>
-          </div>
-
-          <div class="assignment-status q-ml-auto">Current</div>
-        </div>
+      <div v-else-if="loadError" class="q-px-md q-pb-xl">
+        <q-banner class="bg-red-1 text-red-8 rounded-borders">
+          <template #avatar><q-icon name="error_outline" /></template>
+          {{ loadError }}
+        </q-banner>
       </div>
 
-      <div class="metrics-grid q-px-md row q-col-gutter-sm">
-        <div class="col-4">
-          <div class="metric-card teal">
-            <q-icon name="credit_card" size="20px" color="teal-8" />
-            <div class="metric-value">P3,500</div>
-            <div class="metric-label">MONTHLY</div>
-          </div>
-        </div>
-
-        <div class="col-4">
-          <div class="metric-card purple">
-            <q-icon name="check_circle" size="20px" color="purple-7" />
-            <div class="metric-value">3 mo</div>
-            <div class="metric-label">PAY STREAK</div>
-          </div>
-        </div>
-
-        <div class="col-4">
-          <div class="metric-card orange">
-            <q-icon name="star" size="20px" color="orange-7" />
-            <div class="metric-value">0</div>
-            <div class="metric-label">REVIEWS</div>
-          </div>
-        </div>
+      <div v-else-if="!lease" class="center-state text-grey-7">
+        No lease found for this tenant under your account.
       </div>
 
-      <div class="tab-wrap q-mt-lg">
-        <q-tabs
-          v-model="activeTab"
-          dense
-          align="left"
-          active-color="black"
-          indicator-color="black"
-          class="billing-tabs"
-        >
-          <q-tab name="billing" label="Billing" />
-          <q-tab name="info" label="Info" />
-          <q-tab name="history" label="History" />
-          <q-tab name="reviews" label="Reviews (0)" />
-        </q-tabs>
-      </div>
+      <template v-else>
+        <div class="profile-header q-px-md q-py-md row items-center">
+          <q-avatar size="64px" :color="avatarColor" text-color="white" class="profile-avatar">
+            {{ initials }}
+          </q-avatar>
 
-      <div v-if="activeTab === 'billing'" class="billing-tab q-px-md q-pb-xl">
-        <div class="status-banner q-mt-md row items-center no-wrap">
-          <div class="banner-icon">
-            <q-icon name="check" size="18px" color="green-7" />
-          </div>
-
-          <div class="banner-copy q-ml-md">
-            <div class="banner-title">All payments current</div>
-            <div class="banner-subtitle">P3,500/mo - Deposit: Paid</div>
+          <div class="profile-meta q-ml-md">
+            <div class="profile-name row items-center no-wrap">
+              <span>{{ tenantName }}</span>
+              <q-icon name="verified" size="18px" color="teal-7" class="q-ml-xs" />
+            </div>
+            <div class="student-id">Student ID {{ maskedId }}</div>
           </div>
         </div>
 
-        <q-btn
-          unelevated
-          color="black"
-          class="full-width q-mt-md log-payment-btn"
-          icon="add"
-          label="Log Cash Payment"
-        />
-
-        <div class="section-label q-mt-lg">PAYMENT STREAK</div>
-
-        <div class="streak-row q-mt-sm row items-center no-wrap">
-          <div class="streak-label left">Jan</div>
-
-          <div class="streak-track row items-center justify-between col">
-            <div v-for="month in streakMonths" :key="month.name" class="streak-dot" :class="month.filled ? 'filled' : ''" />
-          </div>
-
-          <div class="streak-label center text-teal-8">3/12 on time</div>
-          <div class="streak-label right">Dec</div>
-        </div>
-
-        <div class="section-label q-mt-lg">PAYMENT HISTORY</div>
-
-        <div class="history-list q-mt-sm">
-          <div v-for="payment in paymentHistory" :key="payment.month" class="history-item row items-center no-wrap">
-            <div class="history-check">
-              <q-icon name="check" size="14px" color="white" />
+        <div class="assignment-card q-mx-md q-my-md">
+          <div class="row items-center no-wrap">
+            <div class="assignment-icon">
+              <q-icon name="person_outline" size="22px" color="teal-8" />
             </div>
 
-            <div class="history-copy q-ml-sm col">
-              <div class="history-month">{{ payment.month }}</div>
-              <div class="history-meta">Paid {{ payment.date }} - {{ payment.method }}</div>
+            <div class="assignment-copy q-ml-md col">
+              <div class="assignment-title">{{ roomTitle }}</div>
+              <div class="assignment-subtitle">{{ propertyName }}<template v-if="floor !== null && floor !== undefined"> · Floor {{ floor }}</template></div>
             </div>
 
-            <div class="history-side text-right">
-              <div class="history-amount">{{ payment.amount }}</div>
-              <div class="history-status">{{ payment.status }}</div>
+            <div class="assignment-status q-ml-auto" :class="`status-${statusInfo.label.toLowerCase().replace(/[^a-z]/g, '')}`">
+              {{ statusInfo.label }}
             </div>
           </div>
         </div>
 
-        <div class="section-label q-mt-lg">BILLING SUMMARY</div>
-
-        <div class="summary-list q-mt-sm">
-          <div class="summary-row">
-            <span>Monthly Rent</span>
-            <strong>P3,500</strong>
+        <div class="metrics-grid q-px-md row q-col-gutter-sm">
+          <div class="col-4">
+            <div class="metric-card teal">
+              <q-icon name="credit_card" size="20px" color="teal-8" />
+              <div class="metric-value">{{ rent }}</div>
+              <div class="metric-label">MONTHLY</div>
+            </div>
           </div>
 
-          <div class="summary-row">
-            <span>Security Deposit</span>
-            <strong>P3,500 Paid</strong>
+          <div class="col-4">
+            <div class="metric-card purple">
+              <q-icon name="check_circle" size="20px" color="purple-7" />
+              <div class="metric-value">{{ paidCount }} mo</div>
+              <div class="metric-label">PAY STREAK</div>
+            </div>
           </div>
 
-          <div class="summary-row">
-            <span>Total Paid est.</span>
-            <strong>P10,500</strong>
-          </div>
-
-          <div class="summary-row">
-            <span>Active Repairs</span>
-            <strong>1</strong>
+          <div class="col-4">
+            <div class="metric-card orange">
+              <q-icon name="star" size="20px" color="orange-7" />
+              <div class="metric-value">0</div>
+              <div class="metric-label">REVIEWS</div>
+            </div>
           </div>
         </div>
-      </div>
+
+        <div class="tab-wrap q-mt-lg">
+          <q-tabs
+            v-model="activeTab"
+            dense
+            align="left"
+            active-color="black"
+            indicator-color="black"
+            class="billing-tabs"
+          >
+            <q-tab name="billing" label="Billing" />
+            <q-tab name="info" label="Info" />
+            <q-tab name="history" label="History" />
+            <q-tab name="reviews" label="Reviews (0)" />
+          </q-tabs>
+        </div>
+
+        <div v-if="activeTab === 'billing'" class="billing-tab q-px-md q-pb-xl">
+          <div
+            class="status-banner q-mt-md row items-center no-wrap"
+            :class="pendingPayment ? 'banner-pending' : 'banner-current'"
+          >
+            <div class="banner-icon">
+              <q-icon :name="pendingPayment ? 'warning' : 'check'" size="18px" :color="pendingPayment ? 'orange-7' : 'green-7'" />
+            </div>
+
+            <div class="banner-copy q-ml-md">
+              <div class="banner-title">{{ pendingPayment ? 'Payment due' : 'All payments current' }}</div>
+              <div class="banner-subtitle">{{ rent }}/mo - Deposit: {{ depositPaid ? 'Paid' : 'Unpaid' }}</div>
+            </div>
+          </div>
+
+          <q-btn
+            unelevated
+            color="black"
+            class="full-width q-mt-md log-payment-btn"
+            icon="add"
+            label="Log Cash Payment"
+            @click="openLog"
+          />
+
+          <div class="section-label q-mt-lg">PAYMENT STREAK</div>
+
+          <div class="streak-row q-mt-sm row items-center no-wrap">
+            <div class="streak-label left">{{ streakDots[0]?.label }}</div>
+
+            <div class="streak-track row items-center justify-between col">
+              <div v-for="(dot, i) in streakDots" :key="i" class="streak-dot" :class="dot.filled ? 'filled' : ''" />
+            </div>
+
+            <div class="streak-label center text-teal-8">{{ paidCount }}/12 on time</div>
+            <div class="streak-label right">{{ streakDots[streakDots.length - 1]?.label }}</div>
+          </div>
+
+          <div class="section-label q-mt-lg">PAYMENT HISTORY</div>
+
+          <div v-if="!historyItems.length" class="empty-hint">No payments recorded yet.</div>
+
+          <div v-else class="history-list q-mt-sm">
+            <div v-for="payment in historyItems" :key="payment.month + payment.date" class="history-item row items-center no-wrap">
+              <div class="history-check" :class="payment.status === 'paid' ? '' : 'history-check-pending'">
+                <q-icon :name="payment.status === 'paid' ? 'check' : 'schedule'" size="14px" color="white" />
+              </div>
+
+              <div class="history-copy q-ml-sm col">
+                <div class="history-month">{{ payment.month }}</div>
+                <div class="history-meta">{{ payment.date }} - {{ payment.method }}</div>
+              </div>
+
+              <div class="history-side text-right">
+                <div class="history-amount">{{ payment.amount }}</div>
+                <div class="history-status" :class="statusClass(payment.status)">{{ payment.status }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-label q-mt-lg">BILLING SUMMARY</div>
+
+          <div class="summary-list q-mt-sm">
+            <div class="summary-row">
+              <span>Monthly Rent</span>
+              <strong>{{ rent }}</strong>
+            </div>
+
+            <div class="summary-row">
+              <span>Security Deposit</span>
+              <strong>{{ depositPaid ? 'Paid' : 'Unpaid' }}</strong>
+            </div>
+
+            <div class="summary-row">
+              <span>Total Paid est.</span>
+              <strong>{{ totalPaidLabel }}</strong>
+            </div>
+
+            <div class="summary-row">
+              <span>Active Repairs</span>
+              <strong>0</strong>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="activeTab === 'info'" class="info-tab q-px-md q-pb-xl">
+          <div class="section-label q-mt-lg">LEASE DETAILS</div>
+          <div class="summary-list q-mt-sm">
+            <div v-for="row in infoRows" :key="row.label" class="summary-row">
+              <span>{{ row.label }}</span>
+              <strong>{{ row.value }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="activeTab === 'history'" class="history-tab q-px-md q-pb-xl">
+          <div class="section-label q-mt-lg">PAYMENT HISTORY</div>
+          <div v-if="!historyItems.length" class="empty-hint">No payments recorded yet.</div>
+          <div v-else class="history-list q-mt-sm">
+            <div v-for="payment in historyItems" :key="payment.month + payment.date" class="history-item row items-center no-wrap">
+              <div class="history-check" :class="payment.status === 'paid' ? '' : 'history-check-pending'">
+                <q-icon :name="payment.status === 'paid' ? 'check' : 'schedule'" size="14px" color="white" />
+              </div>
+
+              <div class="history-copy q-ml-sm col">
+                <div class="history-month">{{ payment.month }}</div>
+                <div class="history-meta">{{ payment.date }} - {{ payment.method }}</div>
+              </div>
+
+              <div class="history-side text-right">
+                <div class="history-amount">{{ payment.amount }}</div>
+                <div class="history-status" :class="statusClass(payment.status)">{{ payment.status }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="reviews-tab q-px-md q-pb-xl">
+          <div class="empty-state q-mt-xl column items-center text-grey-7">
+            <q-icon name="star_border" size="48px" color="grey-5" />
+            <div class="q-mt-sm">No reviews yet for this tenant.</div>
+          </div>
+        </div>
+      </template>
     </div>
+
+    <q-dialog v-model="logDialog">
+      <q-card class="log-dialog">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Log Cash Payment</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section class="q-gutter-md">
+          <q-input
+            v-model="payForm.amount"
+            type="number"
+            outlined
+            dense
+            label="Amount (PHP)"
+            prefix="P"
+          />
+          <q-input v-model="payForm.month" type="month" outlined dense label="Month" />
+          <q-select
+            v-model="payForm.method"
+            :options="['cash', 'bank_transfer', 'gcash']"
+            outlined
+            dense
+            label="Method"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-px-md q-pb-md">
+          <q-btn flat label="Cancel" color="grey-8" v-close-popup />
+          <q-btn unelevated label="Save" color="teal-8" @click="savePayment" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { supabase } from '@/shared/utils/supabase'
+import { useChatStore } from '@/stores/chat'
 
-interface PaymentRecord {
-  month: string
-  date: string
-  method: string
-  amount: string
-  status: string
-}
-
-interface StreakMonth {
-  name: string
-  filled: boolean
-}
+// RLS note: `users`/`student_profiles` only return the caller's own row, so a
+// landlord cannot read a tenant's real name. We show a stable fallback derived
+// from the student id and surface it consistently in the UI.
 
 const router = useRouter()
+const route = useRoute()
+const $q = useQuasar()
+const chat = useChatStore()
+
+const AVATAR_PALETTE = ['teal-8', 'purple-6', 'pink-5', 'orange-5', 'blue-6', 'green-6']
+
+function hashIndex(id: string, mod: number): number {
+  let sum = 0
+  for (const ch of id) sum += ch.charCodeAt(0)
+  return sum % mod
+}
+
+function initialsOf(name: string): string {
+  return (name || '?')
+    .trim()
+    .split(/\s+/)
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
+
+function formatCurrency(n: number | string | null | undefined): string {
+  const v = Number(n || 0)
+  return 'P' + v.toLocaleString('en-US')
+}
+
+function formatMonth(dateStr: string): string {
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+}
+
+function firstOfMonth(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+const isLoading = ref(false)
+const loadError = ref<string | null>(null)
+const lease = ref<any>(null)
+const payments = ref<any[]>([])
+
+const studentId = computed(() => String(route.params.tenantId || ''))
+
+function leaseStatusInfo(status: string | undefined, leaveRequested: boolean) {
+  if (leaveRequested) return { label: 'Leaving', color: 'amber-1', textColor: 'amber-8' }
+  switch (status) {
+    case 'active':
+      return { label: 'Current', color: 'teal-1', textColor: 'teal-8' }
+    case 'pending':
+      return { label: 'Pending', color: 'blue-1', textColor: 'blue-8' }
+    case 'terminated':
+    case 'ended':
+    case 'expired':
+      return { label: 'Ended', color: 'grey-3', textColor: 'grey-8' }
+    default:
+      return { label: (status || 'Unknown').replace('_', ' '), color: 'grey-3', textColor: 'grey-8' }
+  }
+}
+
+async function loadData() {
+  isLoading.value = true
+  loadError.value = null
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      loadError.value = 'Not signed in'
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('leases')
+      .select(
+        `id, student_id, status, start_date, end_date, monthly_rent, deposit_paid, leave_requested_at,
+         room:rooms!room_id(id, room_number, label, floor, capacity, current_pax, status,
+           property:properties(name, address))`,
+      )
+      .eq('student_id', studentId.value)
+      .eq('landlord_id', user.id)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) throw error
+    lease.value = data as any
+    if (!data) return
+
+    const { data: pays, error: payErr } = await supabase
+      .from('payments')
+      .select('id, month, description, amount, status, method, paid_at')
+      .eq('lease_id', data.id)
+      .order('month', { ascending: false })
+
+    if (payErr) throw payErr
+    payments.value = (pays || []) as any[]
+  } catch (e: any) {
+    loadError.value = e?.message || 'Failed to load tenant'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const room = computed(() => (lease.value?.room as any) || {})
+const property = computed(() => (room.value.property as any) || {})
+
+const tenantName = computed(() => `Tenant ${studentId.value.slice(0, 4)}`)
+const initials = computed(() => initialsOf(tenantName.value))
+const avatarColor = computed(() => AVATAR_PALETTE[hashIndex(studentId.value, AVATAR_PALETTE.length)])
+const maskedId = computed(() => studentId.value)
+const courseLine = computed(() => {
+  const r = room.value
+  const parts: string[] = []
+  if (r.label) parts.push(r.label)
+  else if (r.room_number) parts.push(`Room ${r.room_number}`)
+  if (r.floor) parts.push(`Floor ${r.floor}`)
+  return parts.join(' · ') || '—'
+})
+const roomTitle = computed(() => room.value.label || (room.value.room_number ? `Room ${room.value.room_number}` : 'Room'))
+const propertyName = computed(() => property.value.name || 'Property')
+const floor = computed(() => room.value.floor)
+const statusInfo = computed(() =>
+  lease.value ? leaseStatusInfo(lease.value.status, !!lease.value.leave_requested_at) : { label: '—', color: 'grey-3', textColor: 'grey-8' },
+)
+const rent = computed(() => formatCurrency(lease.value?.monthly_rent))
+const depositPaid = computed(() => !!lease.value?.deposit_paid)
+
+const paidPayments = computed(() => payments.value.filter((p) => p.status === 'paid'))
+const paidCount = computed(() => paidPayments.value.length)
+const pendingPayment = computed(() =>
+  payments.value.some((p) => ['due', 'overdue', 'pending_verification'].includes(p.status)),
+)
+const totalPaid = computed(() =>
+  payments.value.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0),
+)
+const totalPaidLabel = computed(() => formatCurrency(totalPaid.value))
+
+const streakDots = computed(() => {
+  const now = new Date()
+  const arr: { label: string; filled: boolean }[] = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const y = d.getFullYear()
+    const m = d.getMonth()
+    const filled = payments.value.some((p) => {
+      if (p.status !== 'paid') return false
+      const pd = new Date(p.month)
+      return !isNaN(pd.getTime()) && pd.getFullYear() === y && pd.getMonth() === m
+    })
+    arr.push({ label: d.toLocaleString('en-US', { month: 'short' }), filled })
+  }
+  return arr
+})
+
+const historyItems = computed(() =>
+  payments.value.map((p) => ({
+    month: formatMonth(p.month),
+    date: p.paid_at ? formatMonth(p.paid_at) : formatMonth(p.month),
+    method: (p.method || '—').replace('_', ' '),
+    amount: formatCurrency(p.amount),
+    status: p.status,
+  })),
+)
+
+const infoRows = computed(() => {
+  if (!lease.value) return [] as { label: string; value: string }[]
+  const l = lease.value
+  const r = room.value
+  const p = property.value
+  return [
+    { label: 'Property', value: p.name || '—' },
+    { label: 'Address', value: p.address || '—' },
+    { label: 'Room', value: r.label || (r.room_number ? `Room ${r.room_number}` : '—') },
+    { label: 'Floor', value: r.floor !== null && r.floor !== undefined ? String(r.floor) : '—' },
+    { label: 'Occupancy', value: `${r.current_pax ?? 0}/${r.capacity ?? 0}` },
+    { label: 'Lease start', value: l.start_date ? formatMonth(l.start_date) : '—' },
+    { label: 'Lease end', value: l.end_date ? formatMonth(l.end_date) : '—' },
+    { label: 'Monthly rent', value: formatCurrency(l.monthly_rent) },
+    { label: 'Deposit', value: l.deposit_paid ? 'Paid' : 'Unpaid' },
+  ]
+})
+
+function statusClass(status: string): string {
+  if (status === 'paid') return 'text-green-7'
+  if (status === 'due' || status === 'overdue') return 'text-red-7'
+  if (status === 'pending_verification') return 'text-amber-7'
+  return 'text-grey-7'
+}
+
 const activeTab = ref<'billing' | 'info' | 'history' | 'reviews'>('billing')
 
-const paymentHistory = computed<PaymentRecord[]>(() => [
-  {
-    month: 'April 2026',
-    date: 'Apr 3, 2026',
-    method: 'Cash',
-    amount: 'P3,500',
-    status: 'Paid',
-  },
-  {
-    month: 'March 2026',
-    date: 'Mar 3, 2026',
-    method: 'Bank Transfer',
-    amount: 'P3,500',
-    status: 'Paid',
-  },
-  {
-    month: 'February 2026',
-    date: 'Feb 3, 2026',
-    method: 'GCash',
-    amount: 'P3,500',
-    status: 'Paid',
-  },
-])
+async function openChat() {
+  if (!studentId.value) return
+  try {
+    const id = await chat.ensureConversation(studentId.value)
+    if (id) {
+      await chat.loadMessages(id)
+      void router.push('/landlord/chat')
+    }
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.message || 'Failed to open chat' })
+  }
+}
 
-const streakMonths = computed<StreakMonth[]>(() => [
-  { name: 'Jan', filled: true },
-  { name: 'Feb', filled: true },
-  { name: 'Mar', filled: true },
-  { name: 'Apr', filled: false },
-  { name: 'May', filled: false },
-  { name: 'Jun', filled: false },
-  { name: 'Jul', filled: false },
-  { name: 'Aug', filled: false },
-  { name: 'Sep', filled: false },
-  { name: 'Oct', filled: false },
-  { name: 'Nov', filled: false },
-  { name: 'Dec', filled: false },
-])
+const logDialog = ref(false)
+const payForm = ref({ amount: '', month: firstOfMonth(), method: 'cash' })
 
-const goBack = () => {
+function openLog() {
+  payForm.value = { amount: '', month: firstOfMonth(), method: 'cash' }
+  logDialog.value = true
+}
+
+async function savePayment() {
+  if (!lease.value) return
+  const amount = Number(payForm.value.amount)
+  if (!amount || amount <= 0) {
+    $q.notify({ type: 'warning', message: 'Enter a valid amount' })
+    return
+  }
+  try {
+    const { error } = await supabase.from('payments').insert({
+      lease_id: lease.value.id,
+      month: payForm.value.month,
+      description: 'Cash payment',
+      amount,
+      status: 'pending_verification',
+      method: payForm.value.method,
+      paid_at: new Date().toISOString(),
+    } as any)
+    if (error) throw error
+    logDialog.value = false
+    $q.notify({ type: 'positive', message: 'Payment logged for verification' })
+    await loadData()
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.message || 'Failed to log payment' })
+  }
+}
+
+function goBack() {
   void router.back()
 }
+
+onMounted(() => {
+  void loadData()
+})
 </script>
 
 <style scoped>
@@ -253,7 +549,7 @@ const goBack = () => {
 }
 
 .tenant-course {
-  color: #6B7280;
+  color: #6b7280;
   font-size: 12px;
   margin-top: 2px;
 }
@@ -261,11 +557,32 @@ const goBack = () => {
 .back-btn,
 .chat-btn,
 .close-btn {
-  color: #00897B;
+  color: #00897b;
 }
 
 .close-btn {
-  color: #DC2626;
+  color: #dc2626;
+}
+
+.center-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.empty-hint {
+  color: #6b7280;
+  font-size: 13px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.empty-state {
+  color: #6b7280;
+  font-size: 13px;
 }
 
 .profile-header {
@@ -284,13 +601,13 @@ const goBack = () => {
 }
 
 .student-id {
-  color: #6B7280;
+  color: #6b7280;
   font-size: 13px;
   margin-top: 4px;
 }
 
 .assignment-card {
-  background: #FFFFFF;
+  background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 18px;
   padding: 16px;
@@ -314,19 +631,32 @@ const goBack = () => {
 }
 
 .assignment-subtitle {
-  color: #6B7280;
+  color: #6b7280;
   font-size: 12px;
   margin-top: 3px;
 }
 
 .assignment-status {
   border: 1px solid rgba(0, 137, 123, 0.35);
-  color: #00897B;
+  color: #00897b;
   background: rgba(0, 137, 123, 0.05);
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-ended {
+  border-color: rgba(107, 114, 128, 0.35);
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.05);
+}
+
+.status-leaving {
+  border-color: rgba(217, 119, 6, 0.4);
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.06);
 }
 
 .metrics-grid {
@@ -365,7 +695,7 @@ const goBack = () => {
 }
 
 .metric-label {
-  color: #6B7280;
+  color: #6b7280;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -381,7 +711,7 @@ const goBack = () => {
 }
 
 .billing-tabs :deep(.q-tab) {
-  color: #6B7280;
+  color: #6b7280;
   font-weight: 600;
   font-size: 13px;
 }
@@ -390,25 +720,43 @@ const goBack = () => {
   color: #111827;
 }
 
-.billing-tab {
+.billing-tab,
+.info-tab,
+.history-tab,
+.reviews-tab {
   padding-top: 16px;
 }
 
 .status-banner {
-  background: rgba(0, 137, 123, 0.08);
   border: 1px solid rgba(0, 137, 123, 0.15);
   border-radius: 18px;
   padding: 16px;
+}
+
+.banner-current {
+  background: rgba(0, 137, 123, 0.08);
+}
+
+.banner-pending {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
 }
 
 .banner-icon {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(34, 197, 94, 0.14);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.banner-current .banner-icon {
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.banner-pending .banner-icon {
+  background: rgba(245, 158, 11, 0.16);
 }
 
 .banner-title {
@@ -429,7 +777,7 @@ const goBack = () => {
 }
 
 .section-label {
-  color: #6B7280;
+  color: #6b7280;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -441,7 +789,7 @@ const goBack = () => {
 }
 
 .streak-label {
-  color: #6B7280;
+  color: #6b7280;
   font-size: 10px;
   font-weight: 700;
 }
@@ -460,12 +808,12 @@ const goBack = () => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #E5E7EB;
+  background: #e5e7eb;
   border: 1px solid rgba(15, 23, 42, 0.04);
 }
 
 .streak-dot.filled {
-  background: #00897B;
+  background: #00897b;
 }
 
 .history-list {
@@ -473,7 +821,7 @@ const goBack = () => {
 }
 
 .history-item {
-  background: #FFFFFF;
+  background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 16px;
   padding: 12px 14px;
@@ -484,10 +832,14 @@ const goBack = () => {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #22C55E;
+  background: #22c55e;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.history-check-pending {
+  background: #f59e0b;
 }
 
 .history-month {
@@ -497,7 +849,7 @@ const goBack = () => {
 }
 
 .history-meta {
-  color: #6B7280;
+  color: #6b7280;
   font-size: 11px;
   margin-top: 2px;
 }
@@ -509,14 +861,13 @@ const goBack = () => {
 }
 
 .history-status {
-  color: #22C55E;
   font-size: 11px;
   font-weight: 700;
   margin-top: 4px;
 }
 
 .summary-list {
-  background: #FFFFFF;
+  background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 16px;
   overflow: hidden;
@@ -542,27 +893,8 @@ const goBack = () => {
   color: #111827;
 }
 
-</style>
-
-<style>
-
-
-
-.streak-card .text-h6 {
-  margin: 0;
-  font-size: 14px;
-}
-
-.text-teal-7 {
-  color: rgba(0, 137, 123, 0.7) !important;
-}
-
-.text-red-7 {
-  color: #ff5252 !important;
-}
-
-.text-amber-7 {
-  color: #fdd835 !important;
+.log-dialog {
+  width: 360px;
+  max-width: 92vw;
 }
 </style>
-
