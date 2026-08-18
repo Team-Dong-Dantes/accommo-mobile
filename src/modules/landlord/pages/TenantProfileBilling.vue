@@ -33,6 +33,10 @@
       </div>
 
       <template v-else>
+        <q-banner v-if="isSample" class="bg-amber-1 text-amber-9 rounded-borders q-mx-md q-mt-md">
+          SAMPLE tenant preview — not from your database. Real tenant details appear once leases exist and are shared with landlords.
+        </q-banner>
+
         <div class="profile-header q-px-md q-py-md row items-center">
           <q-avatar size="64px" :color="avatarColor" text-color="white" class="profile-avatar">
             {{ initials }}
@@ -198,6 +202,18 @@
               <strong>{{ row.value }}</strong>
             </div>
           </div>
+
+          <div class="section-label q-mt-lg">STUDENT BACKGROUND</div>
+          <q-banner v-if="showRlsNote" class="bg-amber-1 text-amber-9 rounded-borders q-mt-sm">
+            <template #avatar><q-icon name="lock" /></template>
+            Tenant name and school details aren't visible to landlords (privacy rules). A database change is needed to share them.
+          </q-banner>
+          <div class="summary-list q-mt-sm">
+            <div v-for="row in studentBackgroundRows" :key="row.label" class="summary-row">
+              <span>{{ row.label }}</span>
+              <strong>{{ row.value }}</strong>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="activeTab === 'history'" class="history-tab q-px-md q-pb-xl">
@@ -326,6 +342,75 @@ const studentProfile = ref<any>(null)
 const studentUser = ref<any>(null)
 const isSample = ref(false)
 
+// In-memory SAMPLE tenant profiles so the click-through can be previewed end to
+// end without a database. Mirrors the real shape used by the loaders below.
+function buildSamplePayments(rent: number, paidCount: number, includeDue: boolean): any[] {
+  const out: any[] = []
+  const now = new Date()
+  for (let i = paidCount - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const month = `${y}-${m}-01`
+    out.push({ id: `sp-${y}-${m}`, month, description: 'Rent', amount: rent, status: 'paid', method: 'gcash', paid_at: month })
+  }
+  if (includeDue) {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1)
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    out.push({ id: 'sp-due', month, description: 'Rent', amount: rent, status: 'due', method: 'cash', paid_at: null })
+  }
+  return out
+}
+
+const SAMPLE_TENANTS: Record<string, any> = {
+  'sample-1': {
+    user: { full_name: 'Maria Santos', initials: 'MS', sex: 'Female', phone: '+63 912 345 6789', email: 'maria.santos@example.edu.ph', avatar_color: 'teal-8' },
+    profile: { student_id: '2023-001234', college: 'College of Engineering', program: 'BS Computer Science', year_level: 2, sex: 'Female' },
+    lease: {
+      id: 'sample-lease-1', student_id: 'sample-1', status: 'active',
+      start_date: '2025-06-01', end_date: '2026-05-31', monthly_rent: 3500, deposit_paid: true, leave_requested_at: null,
+      room: { id: 'sample-room-101', room_number: '101', label: 'Room 101', floor: 1, capacity: 4, current_pax: 2, status: 'occupied',
+        property: { name: 'Sample Boarding House', address: 'Sample St., Sample City' } },
+    },
+    payments: buildSamplePayments(3500, 6, false),
+  },
+  'sample-2': {
+    user: { full_name: 'John Dela Cruz', initials: 'JD', sex: 'Male', phone: '+63 998 111 2233', email: 'john.delacruz@example.edu.ph', avatar_color: 'purple-6' },
+    profile: { student_id: '2023-005678', college: 'College of Arts and Sciences', program: 'AB Psychology', year_level: 1, sex: 'Male' },
+    lease: {
+      id: 'sample-lease-2', student_id: 'sample-2', status: 'active',
+      start_date: '2025-07-01', end_date: '2026-06-30', monthly_rent: 3500, deposit_paid: true, leave_requested_at: null,
+      room: { id: 'sample-room-101', room_number: '101', label: 'Room 101', floor: 1, capacity: 4, current_pax: 2, status: 'occupied',
+        property: { name: 'Sample Boarding House', address: 'Sample St., Sample City' } },
+    },
+    payments: buildSamplePayments(3500, 3, false),
+  },
+  'sample-3': {
+    user: { full_name: 'Ana Reyes', initials: 'AR', sex: 'Female', phone: '+63 917 444 5566', email: 'ana.reyes@example.edu.ph', avatar_color: 'orange-5' },
+    profile: { student_id: '2022-009876', college: 'College of Business', program: 'BS Accountancy', year_level: 3, sex: 'Female' },
+    lease: {
+      id: 'sample-lease-3', student_id: 'sample-3', status: 'active',
+      start_date: '2025-01-01', end_date: '2025-12-31', monthly_rent: 4000, deposit_paid: false, leave_requested_at: null,
+      room: { id: 'sample-room-102', room_number: '102', label: 'Room 102', floor: 1, capacity: 2, current_pax: 1, status: 'occupied',
+        property: { name: 'Sample Boarding House', address: 'Sample St., Sample City' } },
+    },
+    payments: buildSamplePayments(4000, 2, true),
+  },
+}
+
+function loadSample() {
+  isSample.value = true
+  const sample = SAMPLE_TENANTS[studentId.value]
+  if (!sample) {
+    loadError.value = 'Sample tenant not found'
+    return
+  }
+  studentUser.value = sample.user
+  studentProfile.value = sample.profile
+  lease.value = sample.lease
+  payments.value = sample.payments
+}
+
 const studentId = computed(() => String(route.params.tenantId || ''))
 
 function leaseStatusInfo(status: string | undefined, leaveRequested: boolean) {
@@ -345,6 +430,19 @@ function leaseStatusInfo(status: string | undefined, leaveRequested: boolean) {
 }
 
 async function loadData() {
+  if (studentId.value.startsWith('sample-')) {
+    isLoading.value = true
+    loadError.value = null
+    try {
+      loadSample()
+    } catch (e: any) {
+      loadError.value = e?.message || 'Failed to load sample'
+    } finally {
+      isLoading.value = false
+    }
+    return
+  }
+
   isLoading.value = true
   loadError.value = null
   try {
@@ -373,14 +471,35 @@ async function loadData() {
     lease.value = data as any
     if (!data) return
 
-    const { data: pays, error: payErr } = await supabase
-      .from('payments')
-      .select('id, month, description, amount, status, method, paid_at')
-      .eq('lease_id', data.id)
-      .order('month', { ascending: false })
+    // RLS note: `users` and `student_profiles` only return the caller's own
+    // row, so a landlord cannot read a tenant's name/background. These queries
+    // succeed but return null for real tenants — the UI surfaces that honestly.
+    const [
+      { data: pays, error: payErr },
+      { data: u },
+      { data: p },
+    ] = await Promise.all([
+      supabase
+        .from('payments')
+        .select('id, month, description, amount, status, method, paid_at')
+        .eq('lease_id', data.id)
+        .order('month', { ascending: false }),
+      supabase
+        .from('users')
+        .select('id, full_name, initials, sex, phone, email, avatar_color')
+        .eq('id', data.student_id)
+        .maybeSingle(),
+      supabase
+        .from('student_profiles')
+        .select('student_id, college, program, year_level, sex')
+        .eq('user_id', data.student_id)
+        .maybeSingle(),
+    ])
 
     if (payErr) throw payErr
     payments.value = (pays || []) as any[]
+    studentUser.value = (u as any) || null
+    studentProfile.value = (p as any) || null
   } catch (e: any) {
     loadError.value = e?.message || 'Failed to load tenant'
   } finally {
@@ -391,11 +510,18 @@ async function loadData() {
 const room = computed(() => (lease.value?.room as any) || {})
 const property = computed(() => (room.value.property as any) || {})
 
-const tenantName = computed(() => `Tenant ${studentId.value.slice(0, 4)}`)
-const initials = computed(() => initialsOf(tenantName.value))
-const avatarColor = computed(() => AVATAR_PALETTE[hashIndex(studentId.value, AVATAR_PALETTE.length)])
-const maskedId = computed(() => studentId.value)
+const tenantName = computed(() => studentUser.value?.full_name || `Tenant ${studentId.value.slice(0, 4)}`)
+const initials = computed(() => studentUser.value?.initials || initialsOf(tenantName.value))
+const avatarColor = computed(() => studentUser.value?.avatar_color || AVATAR_PALETTE[hashIndex(studentId.value, AVATAR_PALETTE.length)])
+const maskedId = computed(() => studentProfile.value?.student_id || '—')
 const courseLine = computed(() => {
+  const p = studentProfile.value
+  if (p?.program) {
+    const parts: string[] = [p.program]
+    if (p.year_level != null) parts.push(`Year ${p.year_level}`)
+    if (p.college) parts.push(p.college)
+    return parts.join(' · ')
+  }
   const r = room.value
   const parts: string[] = []
   if (r.label) parts.push(r.label)
@@ -467,6 +593,25 @@ const infoRows = computed(() => {
   ]
 })
 
+// When a real (non-sample) tenant's profile is empty, it means RLS blocked the
+// landlord read. We surface that honestly instead of faking data.
+const showRlsNote = computed(() => !isSample.value && !!lease.value && !studentUser.value?.full_name)
+
+const studentBackgroundRows = computed(() => {
+  const u = studentUser.value
+  const p = studentProfile.value
+  return [
+    { label: 'Full name', value: u?.full_name || '—' },
+    { label: 'Sex', value: u?.sex || '—' },
+    { label: 'Contact', value: u?.phone || '—' },
+    { label: 'Email', value: u?.email || '—' },
+    { label: 'Student ID', value: p?.student_id || '—' },
+    { label: 'College', value: p?.college || '—' },
+    { label: 'Program', value: p?.program || '—' },
+    { label: 'Year level', value: p?.year_level != null ? `Year ${p.year_level}` : '—' },
+  ]
+})
+
 function statusClass(status: string): string {
   if (status === 'paid') return 'text-green-7'
   if (status === 'due' || status === 'overdue') return 'text-red-7'
@@ -478,6 +623,10 @@ const activeTab = ref<'billing' | 'info' | 'history' | 'reviews'>('billing')
 
 async function openChat() {
   if (!studentId.value) return
+  if (isSample.value) {
+    $q.notify({ type: 'info', message: 'Sample tenant — chat is disabled in preview mode.' })
+    return
+  }
   try {
     const id = await chat.ensureConversation(studentId.value)
     if (id) {
@@ -499,6 +648,10 @@ function openLog() {
 
 async function savePayment() {
   if (!lease.value) return
+  if (isSample.value) {
+    $q.notify({ type: 'info', message: 'Sample tenant — payment logging is disabled in preview mode.' })
+    return
+  }
   const amount = Number(payForm.value.amount)
   if (!amount || amount <= 0) {
     $q.notify({ type: 'warning', message: 'Enter a valid amount' })

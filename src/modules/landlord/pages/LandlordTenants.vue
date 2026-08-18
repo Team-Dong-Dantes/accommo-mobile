@@ -389,10 +389,6 @@ const filteredGroups = computed(() => {
 })
 
 function openTenant(studentId: string) {
-  if (isSample.value) {
-    $q.notify({ type: 'info', message: 'This is sample data — not from your database. Real tenants appear once leases exist.' })
-    return
-  }
   void router.push(`/landlord/tenant/${studentId}`)
 }
 
