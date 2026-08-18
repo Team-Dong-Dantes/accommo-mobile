@@ -220,25 +220,19 @@ export const useAuthStore = defineStore('auth', {
 
       if (!userId) throw new Error('Failed to retrieve user ID after registration.');
 
+      // Upload both documents in parallel (they're independent) while we ensure
+      // the user row — this significantly cuts registration latency vs doing the
+      // uploads one-after-another on a mobile connection.
+      const [govIdUrl, permitUrl] = await Promise.all([
+        form.governmentIdFile
+          ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null)
+          : Promise.resolve(null),
+        form.businessPermitFile
+          ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
       await this.ensureUserRow(userId, form.email, profileData);
-
-      let govIdUrl: string | null = null;
-      let permitUrl: string | null = null;
-
-      if (form.governmentIdFile) {
-        try {
-          govIdUrl = await uploadDocument(form.governmentIdFile, userId, 'government_id');
-        } catch {
-          govIdUrl = null;
-        }
-      }
-      if (form.businessPermitFile) {
-        try {
-          permitUrl = await uploadDocument(form.businessPermitFile, userId, 'business_permit');
-        } catch {
-          permitUrl = null;
-        }
-      }
 
       const { error: profileError } = await supabase
         .from('landlord_profiles')
@@ -276,23 +270,15 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
-      let govIdUrl: string | null = null;
-      let permitUrl: string | null = null;
-
-      if (form.governmentIdFile) {
-        try {
-          govIdUrl = await uploadDocument(form.governmentIdFile, userId, 'government_id');
-        } catch {
-          govIdUrl = null;
-        }
-      }
-      if (form.businessPermitFile) {
-        try {
-          permitUrl = await uploadDocument(form.businessPermitFile, userId, 'business_permit');
-        } catch {
-          permitUrl = null;
-        }
-      }
+      // Upload both documents in parallel (independent of each other).
+      const [govIdUrl, permitUrl] = await Promise.all([
+        form.governmentIdFile
+          ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null)
+          : Promise.resolve(null),
+        form.businessPermitFile
+          ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null)
+          : Promise.resolve(null),
+      ]);
 
       const { error: profileError } = await supabase
         .from('landlord_profiles')
