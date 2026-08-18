@@ -242,8 +242,6 @@ export const useAuthStore = defineStore('auth', {
         .from('landlord_profiles')
         .insert({
           user_id: userId,
-          business_name: form.businessName,
-          accreditation_status: 'pending',
           government_id_url: govIdUrl,
         });
 
@@ -298,8 +296,6 @@ export const useAuthStore = defineStore('auth', {
         .from('landlord_profiles')
         .insert({
           user_id: userId,
-          business_name: form.businessName,
-          accreditation_status: 'pending',
           government_id_url: govIdUrl,
         });
 
