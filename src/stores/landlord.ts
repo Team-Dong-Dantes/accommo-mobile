@@ -235,7 +235,6 @@ export const useLandlordStore = defineStore('landlord', {
           address: propertyData.address || null,
           city: propertyData.city || null,
           description: propertyData.description || null,
-          monthly_rent: propertyData.monthlyRent ? Number(propertyData.monthlyRent) : null,
           total_rooms: propertyData.totalRooms ? Number(propertyData.totalRooms) : null,
           total_floors: propertyData.totalFloors ? Number(propertyData.totalFloors) : null,
           capacity: propertyData.capacity ? Number(propertyData.capacity) : null,
@@ -277,7 +276,9 @@ export const useLandlordStore = defineStore('landlord', {
           .from('users')
           .update(patch as any)
           .eq('id', user.id)
-        if (userErr) throw userErr
+        // Best-effort: contact details live on users, not properties. Don't fail
+        // the whole property creation if this RLS-restricted update is blocked.
+        if (userErr) console.warn('[landlord] could not save contact details:', userErr.message)
       }
 
       // 5) Photos -> property_images. Images are kept as data URLs in `url`,
