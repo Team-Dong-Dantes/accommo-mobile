@@ -173,9 +173,81 @@
             @update:model-value="clearDescriptionError"
           />
         </div>
+
+        <!-- Pricing & Capacity -->
+        <div class="form-field">
+          <label class="field-label">Monthly Rent (₱) <span class="required">*</span></label>
+          <q-input
+            v-model="form.monthlyRent"
+            outlined
+            dense
+            type="number"
+            prefix="₱"
+            placeholder="e.g. 3500"
+            class="custom-input"
+            :error="!!monthlyRentError"
+            :error-message="monthlyRentError"
+            @update:model-value="clearMonthlyRentError"
+          />
+        </div>
+
+        <div class="two-column-row">
+          <div class="form-field">
+            <label class="field-label">Total Rooms <span class="required">*</span></label>
+            <q-input
+              v-model="form.totalRooms"
+              outlined
+              dense
+              type="number"
+              placeholder="e.g. 6"
+              class="custom-input"
+              :error="!!totalRoomsError"
+              :error-message="totalRoomsError"
+              @update:model-value="clearTotalRoomsError"
+            />
+          </div>
+          <div class="form-field">
+            <label class="field-label">Capacity <span class="required">*</span></label>
+            <q-input
+              v-model="form.capacity"
+              outlined
+              dense
+              type="number"
+              placeholder="e.g. 12"
+              class="custom-input"
+              :error="!!capacityError"
+              :error-message="capacityError"
+              @update:model-value="clearCapacityError"
+            />
+          </div>
+        </div>
+
+        <div class="two-column-row">
+          <div class="form-field">
+            <label class="field-label">Barangay</label>
+            <q-input
+              v-model="form.barangay"
+              outlined
+              dense
+              placeholder="e.g. San Nicolas"
+              class="custom-input"
+            />
+          </div>
+          <div class="form-field">
+            <label class="field-label">City / Municipality</label>
+            <q-input
+              v-model="form.city"
+              outlined
+              dense
+              placeholder="e.g. Cebu City"
+              class="custom-input"
+            />
+          </div>
+        </div>
+
       </div>
 
-      <!-- Step 2: Amenities & Rules -->
+        <!-- Step 2: Amenities & Rules -->
       <div v-if="currentStep === 2" class="step-2-content">
         <!-- Amenities Section -->
         <div class="form-section">
@@ -334,6 +406,11 @@ interface PropertyFormData {
   contactNo: string
   email: string
   description: string
+  monthlyRent: string
+  totalRooms: string
+  capacity: string
+  barangay: string
+  city: string
   amenities: string[]
   rules: string[]
   images: { file: File; dataUrl: string }[]
@@ -354,6 +431,11 @@ const form = ref<PropertyFormData>({
   contactNo: '',
   email: '',
   description: '',
+  monthlyRent: '',
+  totalRooms: '',
+  capacity: '',
+  barangay: '',
+  city: '',
   amenities: [],
   rules: ['No overnight visitors', 'No smoking inside'],
   images: [],
@@ -370,6 +452,9 @@ const locationError = ref('')
 const descriptionError = ref('')
 const contactError = ref('')
 const emailError = ref('')
+const monthlyRentError = ref('')
+const totalRoomsError = ref('')
+const capacityError = ref('')
 
 function validateContactNo(value: string): boolean {
   const digits = value.replace(/\D/g, '')
@@ -401,13 +486,19 @@ function validateStep1(): boolean {
       ? ''
       : 'Enter a valid email address'
     : 'Email is required'
+  monthlyRentError.value = f.monthlyRent.trim() ? '' : 'Monthly rent is required'
+  totalRoomsError.value = f.totalRooms.trim() ? '' : 'Total rooms is required'
+  capacityError.value = f.capacity.trim() ? '' : 'Capacity is required'
   return (
     !nameError.value &&
     !addressError.value &&
     !locationError.value &&
     !descriptionError.value &&
     !contactError.value &&
-    !emailError.value
+    !emailError.value &&
+    !monthlyRentError.value &&
+    !totalRoomsError.value &&
+    !capacityError.value
   )
 }
 
@@ -428,6 +519,15 @@ function clearContactError() {
 }
 function clearEmailError() {
   if (emailError.value) emailError.value = ''
+}
+function clearMonthlyRentError() {
+  if (monthlyRentError.value) monthlyRentError.value = ''
+}
+function clearTotalRoomsError() {
+  if (totalRoomsError.value) totalRoomsError.value = ''
+}
+function clearCapacityError() {
+  if (capacityError.value) capacityError.value = ''
 }
 
 const propertyTypes = ['solo', 'duo', 'triple', 'bedspace', 'studio']
@@ -628,9 +728,14 @@ async function handleSave() {
       name: form.value.propertyName,
       roomType: form.value.propertyType,
       propertyType: form.value.propertyType,
-      address: form.value.address,
-      description: form.value.description,
-      contactNo: form.value.contactNo,
+        address: form.value.address,
+        description: form.value.description,
+        monthlyRent: form.value.monthlyRent,
+        totalRooms: form.value.totalRooms,
+        capacity: form.value.capacity,
+        barangay: form.value.barangay,
+        city: form.value.city,
+        contactNo: form.value.contactNo,
       email: form.value.email,
       amenities: form.value.amenities,
       rules: form.value.rules,

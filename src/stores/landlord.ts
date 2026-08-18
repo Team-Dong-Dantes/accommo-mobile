@@ -238,6 +238,8 @@ export const useLandlordStore = defineStore('landlord', {
           monthly_rent: propertyData.monthlyRent ? Number(propertyData.monthlyRent) : null,
           total_rooms: propertyData.totalRooms ? Number(propertyData.totalRooms) : null,
           total_floors: propertyData.totalFloors ? Number(propertyData.totalFloors) : null,
+          capacity: propertyData.capacity ? Number(propertyData.capacity) : null,
+          barangay: propertyData.barangay || null,
           lat: propertyData.latitude ?? null,
           lng: propertyData.longitude ?? null,
         } as any)

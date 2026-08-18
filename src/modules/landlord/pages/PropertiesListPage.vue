@@ -248,14 +248,10 @@ function getAmenities(property: Property) {
   return (property.amenities || []).map((a) => amenityMap[a.toLowerCase()] || { name: a, color: 'grey-2' })
 }
 
-function getTenantAvatars(property: Property): Tenant[] {
-  const colors: Array<string> = ['teal-8', 'pink-6', 'purple-6', 'orange-6', 'blue-6']
-  const mockTenants: Tenant[] = [
-    { id: 't1', initials: 'JD', color: colors[0] as string },
-    { id: 't2', initials: 'MR', color: colors[1] as string },
-    { id: 't3', initials: 'AC', color: colors[2] as string },
-  ]
-  return mockTenants.slice(0, Math.ceil((property.occupied_rooms || 0) / 2))
+function getTenantAvatars(_property: Property): Tenant[] {
+  // Tenant names are not readable by a landlord under RLS, so we don't render
+  // fabricated avatars. Occupancy is shown via the dots above.
+  return []
 }
 
 async function fetchProperties() {
@@ -281,6 +277,22 @@ async function fetchProperties() {
 
     if (error) throw error
 
+    // Occupancy is derived from active leases — the properties table has no
+    // occupied_rooms column. Group active leases by their property.
+    const { data: leases } = await supabase
+      .from('leases')
+      .select('room:rooms!room_id(property:properties(id))')
+      .eq('landlord_id', user.id)
+      .eq('status', 'active')
+
+    const occupiedByProperty = new Map<string, number>()
+    ;(leases || []).forEach((l: any) => {
+      const propertyId = l.room?.property?.id
+      if (propertyId) {
+        occupiedByProperty.set(propertyId, (occupiedByProperty.get(propertyId) || 0) + 1)
+      }
+    })
+
     properties.value = (data || []).map((p: any) => {
       const imgs = (p.property_images || [])
         .slice()
@@ -292,7 +304,7 @@ async function fetchProperties() {
         status: p.status === 'pending' ? 'pending' : 'active',
         room_type: p.room_type || 'solo',
         total_rooms: p.total_rooms || 0,
-        occupied_rooms: p.occupied_rooms || 0,
+        occupied_rooms: occupiedByProperty.get(p.id) || 0,
         rating: p.rating_avg || 0,
         reviews: p.reviews_count || 0,
         amenities: (p.property_amenities || []).map((a: any) => a.amenity),
