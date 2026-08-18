@@ -593,6 +593,12 @@ function initMap() {
       }
     })
 
+    // Surface real Mapbox errors (token/style/network) instead of a silent blank map.
+    map.on('error', (e: any) => {
+      const msg = e?.error?.message || e?.message || 'Unknown map error'
+      if (!mapError.value) mapError.value = 'Map error: ' + msg
+    })
+
     setTimeout(() => map && map.resize(), 200)
   } catch (e: any) {
     mapError.value = 'Failed to initialize map: ' + (e?.message ?? e)
@@ -601,22 +607,48 @@ function initMap() {
 
 function useMyLocation() {
   if (!navigator.geolocation) {
-    mapError.value = 'Geolocation is not supported on this device'
+    mapError.value =
+      'Geolocation is not supported on this device/browser. Tap the map to drop a pin instead.'
     return
   }
   mapError.value = null
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const lng = pos.coords.longitude
-      const lat = pos.coords.latitude
-      if (map) map.flyTo({ center: [lng, lat], zoom: 16 })
-      setMarker(lng, lat)
-    },
-    (err) => {
-      mapError.value = 'Could not get your location: ' + err.message
-    },
-    { enableHighAccuracy: true, timeout: 10000 },
-  )
+
+  const onSuccess = (pos: any) => {
+    const lng = pos.coords.longitude
+    const lat = pos.coords.latitude
+    if (map) map.flyTo({ center: [lng, lat], zoom: 16 })
+    setMarker(lng, lat)
+  }
+
+  const onError = (err: any) => {
+    let msg = 'Could not get your location. '
+    if (err?.code === 1) {
+      msg +=
+        'Permission was denied. On iPhone, open Settings → Safari → Location and set this site to "Allow", then try again. ' +
+        'You can also just tap the map to drop a pin.'
+    } else if (err?.code === 2) {
+      msg +=
+        'Your location is currently unavailable. Make sure Location Services is on, or tap the map to drop a pin.'
+    } else if (err?.code === 3) {
+      msg += 'The request timed out. Try again, or tap the map to drop a pin manually.'
+    } else {
+      msg += err?.message || 'Unknown error.'
+    }
+    mapError.value = msg
+  }
+
+  // Try high-accuracy first; if it times out / is unavailable, retry with coarse accuracy.
+  navigator.geolocation.getCurrentPosition(onSuccess, (err) => {
+    if (err?.code === 3 || err?.code === 2) {
+      navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 60000,
+      })
+    } else {
+      onError(err)
+    }
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
 }
 
 onMounted(() => {

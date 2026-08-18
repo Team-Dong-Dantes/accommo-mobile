@@ -80,7 +80,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import { supabase } from '@/shared/utils/supabase'
 
 interface MetricCard {
   id: string
@@ -128,9 +129,9 @@ const metrics = ref<MetricCard[]>([
   },
   {
     id: 'occupancy',
-    value: '91.4%',
-    label: 'Room Occupancy',
-    subtext: '+2.3%',
+    value: '—',
+    label: 'Rooms Available',
+    subtext: 'Loading…',
     icon: 'home',
     tone: 'icon-purple',
     subtone: 'sub-purple',
@@ -181,6 +182,54 @@ const paymentRows = ref<PaymentRow[]>([
     status: 'Paid',
   },
 ])
+
+// Override the demo occupancy card with real available-room counts.
+async function loadOccupancy() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: props } = await supabase
+      .from('properties')
+      .select('id, total_rooms, capacity')
+      .eq('landlord_id', user.id)
+
+    const { data: leases } = await supabase
+      .from('leases')
+      .select('status, room:rooms(property_id)')
+      .eq('landlord_id', user.id)
+
+    const totalRooms = (props ?? []).reduce(
+      (sum: number, p: any) => sum + (Number(p.total_rooms) || 0),
+      0,
+    )
+    const occupiedByProp = new Map<string, number>()
+    ;(leases ?? []).forEach((l: any) => {
+      if (l.status === 'active') {
+        const pid = l.room?.property_id
+        if (pid) occupiedByProp.set(pid, (occupiedByProp.get(pid) || 0) + 1)
+      }
+    })
+    const occupied = Array.from(occupiedByProp.values()).reduce((s, n) => s + n, 0)
+    const available = Math.max(totalRooms - occupied, 0)
+
+    const card = metrics.value.find((m) => m.id === 'occupancy')
+    if (card) {
+      card.value = `${available}`
+      card.label = 'Rooms Available'
+      card.subtext = totalRooms > 0 ? `${occupied}/${totalRooms} occupied` : 'No rooms yet'
+    }
+  } catch {
+    // keep the placeholder if the query fails
+  }
+}
+
+onMounted(() => {
+  void loadOccupancy()
+})
+
 </script>
 
 <style scoped>

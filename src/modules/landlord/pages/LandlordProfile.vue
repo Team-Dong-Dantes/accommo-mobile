@@ -117,8 +117,7 @@
                   <q-icon name="star" size="14px" color="amber-6" class="q-mr-xs" />
                   <span>{{ property.rating }}</span>
                 </div>
-                <div class="property-occupancy q-mt-sm">{{ property.occupancyLabel }}</div>
-                <q-linear-progress :value="property.occupancy / 100" color="teal-7" track-color="grey-3" class="q-mt-sm property-progress" />
+                <div class="property-occupancy q-mt-sm">{{ property.occupancyLabel }} · <span class="available-text">{{ property.availableLabel }}</span></div>
               </q-item-section>
 
               <q-item-section side>
@@ -417,15 +416,16 @@ async function loadProfileData() {
     const mappedProperties = (propertyRows ?? []).map((property: any, index: number) => {
       const totalRooms = Number(property.total_rooms ?? 0)
       const occupied = Math.max(totalRooms - Number(property.capacity ?? 0), 0)
-      const occupancy = totalRooms > 0 ? Math.min(100, Math.round((occupied / totalRooms) * 100)) : 0
+      const available = Math.max(totalRooms - occupied, 0)
 
       return {
         id: String(property.id),
         name: property.name ?? `Property ${index + 1}`,
         address: property.address ?? 'No address provided',
         rating: 4.8,
-        occupancy,
-        occupancyLabel: totalRooms > 0 ? `${occupied}/${totalRooms} occ.` : '0/0 occ.',
+        occupancy: totalRooms > 0 ? Math.min(100, Math.round((occupied / totalRooms) * 100)) : 0,
+        occupancyLabel: totalRooms > 0 ? `${occupied}/${totalRooms} occupied` : '0/0 occupied',
+        availableLabel: `${available} available`,
         icon: index % 3 === 0 ? 'apartment' : index % 3 === 1 ? 'home' : 'business',
       }
     })
@@ -785,9 +785,9 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.property-progress {
-  height: 8px;
-  border-radius: 999px;
+.available-text {
+  color: #0f766e;
+  font-weight: 800;
 }
 
 .compliance-item {

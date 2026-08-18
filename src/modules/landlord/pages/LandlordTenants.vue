@@ -20,6 +20,10 @@
       </q-input>
     </div>
 
+    <q-banner v-if="isSample" class="bg-amber-1 text-amber-9 rounded-borders q-mx-md q-mt-md">
+      Showing SAMPLE data (not from your database) to preview the layout. Real tenants appear automatically once leases exist.
+    </q-banner>
+
     <div v-if="isLoading" class="center-state">
       <q-spinner size="42px" color="teal-8" />
     </div>
@@ -105,7 +109,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { supabase } from '@/shared/utils/supabase'
+
+const $q = useQuasar()
 
 const router = useRouter()
 const searchText = ref('')
@@ -113,6 +120,7 @@ const searchText = ref('')
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 const propertyGroups = ref<any[]>([])
+const isSample = ref(false)
 
 const AVATAR_PALETTE = ['teal-8', 'purple-6', 'pink-5', 'orange-5', 'blue-6', 'green-6']
 
@@ -274,11 +282,62 @@ async function loadTenants() {
       tenantCount: pg.tenantCount,
       rooms: Array.from(pg.rooms.values()),
     }))
+
+    if (propertyGroups.value.length === 0) loadSampleData()
   } catch (e: any) {
     loadError.value = e?.message || 'Failed to load tenants'
   } finally {
     isLoading.value = false
   }
+}
+
+function loadSampleData() {
+  isSample.value = true
+  propertyGroups.value = [
+    {
+      id: 'sample-prop-1',
+      name: 'Sample Boarding House',
+      address: 'Sample St., Sample City',
+      tenantCount: 3,
+      rooms: [
+        {
+          id: 'sample-room-1',
+          title: 'Room 101',
+          icon: 'person_outline',
+          iconColor: 'icon-teal',
+          subtitle: '2/4 occupied',
+          subtextColor: 'text-teal',
+          dotColor: 'dot-teal',
+          dotList: [
+            { id: '0', filled: true },
+            { id: '1', filled: true },
+            { id: '2', filled: false },
+            { id: '3', filled: false },
+          ],
+          tenants: [
+            { id: 's1', studentId: 'sample-1', name: 'Sample Tenant A', initials: 'ST', course: 'Room 101 · Floor 1', status: 'Current', avatarColor: 'teal-8', statusColor: 'teal-1', statusTextColor: 'teal-8' },
+            { id: 's2', studentId: 'sample-2', name: 'Sample Tenant B', initials: 'SB', course: 'Room 101 · Floor 1', status: 'Current', avatarColor: 'purple-6', statusColor: 'teal-1', statusTextColor: 'teal-8' },
+          ],
+        },
+        {
+          id: 'sample-room-2',
+          title: 'Room 102',
+          icon: 'schedule',
+          iconColor: 'icon-teal',
+          subtitle: '1/2 occupied',
+          subtextColor: 'text-teal',
+          dotColor: 'dot-teal',
+          dotList: [
+            { id: '0', filled: true },
+            { id: '1', filled: false },
+          ],
+          tenants: [
+            { id: 's3', studentId: 'sample-3', name: 'Sample Tenant C', initials: 'SC', course: 'Room 102 · Floor 1', status: 'Payment due', avatarColor: 'orange-5', statusColor: 'red-1', statusTextColor: 'red-7' },
+          ],
+        },
+      ],
+    },
+  ]
 }
 
 const activeCount = computed(() => {
@@ -330,6 +389,10 @@ const filteredGroups = computed(() => {
 })
 
 function openTenant(studentId: string) {
+  if (isSample.value) {
+    $q.notify({ type: 'info', message: 'This is sample data — not from your database. Real tenants appear once leases exist.' })
+    return
+  }
   void router.push(`/landlord/tenant/${studentId}`)
 }
 
