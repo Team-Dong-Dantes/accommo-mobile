@@ -14,6 +14,8 @@ function sanitizeError(error: unknown): Error {
       m.includes('student_profiles_student_id_key')
     ) {
       friendly = 'This Student ID is already registered.';
+    } else if (m.includes('already registered') || m.includes('email_exists') || m.includes('User already')) {
+      friendly = 'This email is already registered. Try signing in instead.';
     } else if (m.includes('PGRST116') || m.includes('0 rows')) {
       friendly = 'Registration failed due to a database conflict. Please try again.';
     } else if (m.includes('Invalid login credentials')) {

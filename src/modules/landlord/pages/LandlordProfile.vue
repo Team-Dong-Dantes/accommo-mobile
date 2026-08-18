@@ -375,14 +375,6 @@ async function loadProfileData() {
 
     if (userRowError) throw userRowError
 
-    const { data: landlordRow, error: landlordRowError } = await supabase
-      .from('landlord_profiles')
-      .select('business_name')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (landlordRowError) throw landlordRowError
-
     if (userRow?.full_name) {
       profile.value.fullName = userRow.full_name
     }
@@ -393,10 +385,6 @@ async function loadProfileData() {
 
     if (userRow?.phone) {
       profile.value.phone = userRow.phone
-    }
-
-    if (landlordRow?.business_name) {
-      profile.value.fullName = landlordRow.business_name
     }
 
     if (userRow?.created_at) {

@@ -87,17 +87,9 @@ async function loadProperties() {
 
     if (!user) return;
 
-    // Business name from accreditation profile
-    const { data: landlordProfile, error: profileError } = await supabase
-      .from('landlord_profiles')
-      .select('business_name')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-    if (landlordProfile?.business_name) {
-      businessName.value = landlordProfile.business_name;
-    }
+    // Business name isn't stored on landlord_profiles in the current schema;
+    // fall back to the landlord's display name from auth metadata.
+    businessName.value = (user.user_metadata?.full_name as string) || 'Property Manager';
 
     // Properties owned by this landlord
     const { data: props, error: propsError } = await supabase
