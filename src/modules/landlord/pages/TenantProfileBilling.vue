@@ -322,6 +322,9 @@ const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 const lease = ref<any>(null)
 const payments = ref<any[]>([])
+const studentProfile = ref<any>(null)
+const studentUser = ref<any>(null)
+const isSample = ref(false)
 
 const studentId = computed(() => String(route.params.tenantId || ''))
 
