@@ -24,7 +24,7 @@ export async function uploadDocument(
   const ext = file.name.split('.').pop() ?? 'jpg';
   const filePath = `${userId}/${docType}_${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
+  const uploadPromise = supabase.storage
     .from('documents')
     .upload(filePath, file, {
       cacheControl: '3600',
@@ -32,6 +32,24 @@ export async function uploadDocument(
       contentType: file.type,
     });
 
+  // Cap the upload time so a stalled connection can't hang the caller
+  // (e.g. registration) indefinitely. On timeout the pending request is
+  // abandoned and the caller's catch treats it as a failed upload.
+  const withTimeout = new Promise<{ data: unknown; error: unknown }>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Upload timed out')), 60000);
+    uploadPromise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value as { data: unknown; error: unknown });
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+
+  const { error: uploadError } = await withTimeout;
   if (uploadError) throw uploadError;
 
   const { data: urlData } = supabase.storage

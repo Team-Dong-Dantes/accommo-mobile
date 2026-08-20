@@ -39,6 +39,12 @@ if (supabaseUrl && supabaseAnonKey) {
   // Landlord Dashboard. Reset on every sign-in.
   let demoRole: 'student' | 'landlord' = 'landlord';
 
+  // In-memory demo database: rows written via insert() are kept and returned
+  // by later queries, so records added while previewing (e.g. properties)
+  // actually show up on the list screens.
+  const demoDb: Record<string, unknown[]> = {};
+  let demoNextId = 1;
+
   const auth = {
     getSession: () =>
       Promise.resolve({
@@ -81,7 +87,8 @@ if (supabaseUrl && supabaseAnonKey) {
 
   // Permissive query chain: any method/column access returns another chain;
   // awaiting the chain resolves to a mock result so pages render their
-  // empty/error UI instead of crashing.
+  // empty/error UI instead of crashing. insert() writes to the in-memory
+  // demoDb so added rows are returned by later queries.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function chain(table: string): any {
     const usersRoleInDemo = demoMode && table === 'users';
@@ -90,12 +97,29 @@ if (supabaseUrl && supabaseAnonKey) {
     fn.then = (resolve: (value: unknown) => void) =>
       resolve(
         demoMode
-          ? { data: usersRoleInDemo ? { role: demoRole } : null, error: null }
+          ? {
+              data: usersRoleInDemo ? { role: demoRole } : (demoDb[table] ?? null),
+              error: null,
+            }
           : { data: null, error: notConfiguredError },
       );
     return new Proxy(fn, {
       get: (target, prop, receiver) => {
         if (prop === 'then') return Reflect.get(target, prop, receiver);
+        if (prop === 'insert') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (values: any) => {
+            const rows = Array.isArray(values) ? values : [values];
+            const rowsWithIds = rows.map((row) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const next: any = { ...(row as any) };
+              if (next.id == null) next.id = `demo-${demoNextId++}`;
+              return next;
+            });
+            demoDb[table] = [...(demoDb[table] ?? []), ...rowsWithIds];
+            return chain(table);
+          };
+        }
         return chain(table);
       },
     });

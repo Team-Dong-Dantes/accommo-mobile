@@ -1,279 +1,462 @@
 <template>
   <q-page class="dashboard-page bg-grey-1">
-    <div class="header-section text-white">
-      <div class="row justify-between items-center q-pa-md">
-        <div>
-          <h4 class="q-my-none text-weight-bold">{{ businessName }}</h4>
-          <p class="text-subtitle1 text-white-7 q-mb-none">
-            Overview of your properties and tenants
-          </p>
-        </div>
-        <q-btn flat round dense icon="logout" @click="handleLogout" />
-      </div>
-    </div>
+    <div class="page-shell q-pb-xl">
+      <div class="top-summary q-mx-md q-mt-md">
+        <div class="row q-col-gutter-sm">
+          <div v-for="metric in metrics" :key="metric.id" class="col-6">
+            <q-card flat bordered class="metric-card">
+              <q-card-section class="q-pb-xs">
+                <div class="metric-icon" :class="metric.tone">
+                  <q-icon :name="metric.icon" size="20px" />
+                </div>
+              </q-card-section>
 
-    <div class="content-section q-pa-md">
-      <div class="row q-col-gutter-md">
-        <div class="col-12 col-sm-6 col-md-4">
-          <q-card flat bordered class="custom-card">
-            <q-card-section>
-              <div class="text-overline text-teal-9">Active Tenants</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">{{ activeTenants }}</div>
-              <div class="text-subtitle2 text-grey-7">
-                {{ activeTenantsLabel }}
+              <q-card-section class="q-pt-none">
+                <div class="metric-value text-weight-bold">{{ metric.value }}</div>
+                <div class="metric-label">{{ metric.label }}</div>
+                <div class="metric-subtext" :class="metric.subtone">
+                  {{ metric.subtext }}
+                </div>
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card q-mx-md q-mt-md">
+        <div class="section-header">
+          <div class="section-title">12-Month Revenue</div>
+          <div class="section-subtitle">Apr 2025 - Mar 2026</div>
+        </div>
+
+        <div class="chart-area">
+          <div class="y-axis">
+            <span v-for="label in yLabels" :key="label">{{ label }}</span>
+          </div>
+
+          <div class="bar-panel">
+            <div v-for="bar in revenueBars" :key="bar.label" class="bar-column">
+              <div class="bar-track">
+                <div class="bar-fill" :style="{ height: `${bar.height}%` }" />
               </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-sm-6 col-md-4">
-          <q-card flat bordered class="custom-card">
-            <q-card-section>
-              <div class="text-overline text-teal-9">Pending Payments</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">{{ pendingPayments }}</div>
-              <div class="text-subtitle2 text-grey-7">{{ pendingAmountLabel }}</div>
-            </q-card-section>
-            <q-card-actions align="right" class="q-pa-md">
-              <q-btn flat color="teal-9" class="text-weight-bold" label="View Details" />
-            </q-card-actions>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-md-4">
-          <q-card flat bordered class="custom-card">
-            <q-card-section>
-              <div class="text-overline text-teal-9">Properties</div>
-              <div class="text-h3 q-mt-sm text-weight-bold">{{ properties.length }}</div>
-              <div class="text-subtitle2 text-grey-7">{{ propertiesSubtitle }}</div>
-            </q-card-section>
-            <q-card-actions align="right" class="q-pa-md">
-              <q-btn unelevated color="teal-9" class="action-btn" label="Add Property" @click="goToAddProperty" />
-            </q-card-actions>
-          </q-card>
+              <div class="bar-label">{{ bar.label }}</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <template v-if="verificationRequests.length > 0">
-        <h6 class="q-my-md text-weight-bold">Payment Requests</h6>
-        <q-list bordered separator class="rounded-borders bg-white">
-          <q-item v-for="payment in verificationRequests" :key="payment.id">
+      <div class="payments-card q-mx-md q-mt-md">
+        <div class="payments-header">
+          <div class="section-title small-title">Recent Payments</div>
+          <div class="view-all">View All</div>
+        </div>
+
+        <q-list separator class="payment-list">
+          <q-item v-for="payment in paymentRows" :key="payment.id" class="payment-item">
+            <q-item-section avatar>
+              <q-avatar size="36px" color="teal-8" text-color="white" class="avatar-mini">
+                {{ payment.initials }}
+              </q-avatar>
+            </q-item-section>
+
             <q-item-section>
-              <q-item-label class="text-weight-bold">
-                {{ payment.lease?.student?.full_name ?? 'Student' }} ·
-                {{ formatPeso(payment.amount) }}
-              </q-item-label>
-              <q-item-label caption>
-                {{ payment.month ?? 'Unspecified month' }} ·
-                {{ payment.lease?.room?.property?.name ?? 'Property' }}
-                {{ payment.lease?.room?.room_number ?? '' }}
+              <q-item-label class="payment-name">{{ payment.name }}</q-item-label>
+              <q-item-label caption class="payment-meta">
+                {{ payment.meta }}
               </q-item-label>
             </q-item-section>
-            <q-item-section side>
-              <q-badge color="amber" label="Awaiting review" />
+
+            <q-item-section side class="text-right">
+              <div class="payment-amount">{{ payment.amount }}</div>
+              <q-badge color="green-6" class="paid-badge">
+                {{ payment.status }}
+              </q-badge>
             </q-item-section>
           </q-item>
         </q-list>
-      </template>
-
-      <h6 class="q-my-md text-weight-bold">Your Properties</h6>
-      <q-list v-if="properties.length > 0" bordered separator class="rounded-borders bg-white">
-        <q-item v-for="property in properties" :key="property.id">
-          <q-item-section>
-            <q-item-label class="text-weight-bold">{{ property.name }}</q-item-label>
-            <q-item-label caption>{{ property.address || 'No address set' }}</q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-badge :color="statusColor(property.status)" :label="property.status" />
-          </q-item-section>
-        </q-item>
-      </q-list>
-      <q-card v-else flat bordered class="custom-card q-mt-sm">
-        <q-card-section class="text-center">
-          <div class="text-subtitle2 text-grey-7 q-py-md">
-            No properties yet — tap "Add Property" to get started.
-          </div>
-        </q-card-section>
-      </q-card>
-
-      <div v-if="error" class="text-negative q-mt-md">{{ error }}</div>
+      </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { supabase } from '@/shared/utils/supabase';
-import { useAuthStore } from '@/stores/auth';
+import { computed, ref, onMounted } from 'vue'
+import { supabase } from '@/shared/utils/supabase'
 
-interface PropertyRow {
-  id: string;
-  name: string;
-  address: string | null;
-  status: string;
+interface MetricCard {
+  id: string
+  value: string
+  label: string
+  subtext: string
+  icon: string
+  tone: string
+  subtone: string
 }
 
-interface PaymentWithDetails {
-  id: string;
-  amount: number;
-  status: string;
-  month: string | null;
-  lease: {
-    student: { full_name: string } | null;
-    room: {
-      room_number: string | null;
-      property: { name: string | null } | null;
-    } | null;
-  } | null;
+interface RevenueBar {
+  label: string
+  value: number
+  height: number
 }
 
-const router = useRouter();
-
-const businessName = ref('Property Manager');
-const activeTenants = ref(0);
-const activeTenantsLabel = ref('No tenants yet');
-const pendingPayments = ref(0);
-const pendingAmountLabel = ref('No pending balances');
-const verificationRequests = ref<PaymentWithDetails[]>([]);
-const properties = ref<PropertyRow[]>([]);
-const propertiesSubtitle = ref('No properties listed');
-const error = ref<string | null>(null);
-
-function formatPeso(amount: number): string {
-  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+interface PaymentRow {
+  id: string
+  initials: string
+  name: string
+  meta: string
+  amount: string
+  status: string
 }
 
-function statusColor(status: string): string {
-  switch (status) {
-    case 'accredited':
-      return 'teal';
-    case 'reviewing':
-      return 'blue';
-    case 'pending':
-      return 'amber';
-    case 'rejected':
-      return 'negative';
-    case 'delisted':
-      return 'grey';
-    default:
-      return 'grey';
-  }
-}
+const metrics = ref<MetricCard[]>([
+  {
+    id: 'revenue',
+    value: 'P46,200',
+    label: 'Monthly Revenue',
+    subtext: '+3.1%',
+    icon: 'attach_money',
+    tone: 'icon-green',
+    subtone: 'sub-green',
+  },
+  {
+    id: 'overdue',
+    value: 'P7,000',
+    label: 'Overdue Rent',
+    subtext: 'Due Mar 31',
+    icon: 'warning_amber',
+    tone: 'icon-red',
+    subtone: 'sub-red',
+  },
+  {
+    id: 'occupancy',
+    value: '—',
+    label: 'Rooms Available',
+    subtext: 'Loading…',
+    icon: 'home',
+    tone: 'icon-purple',
+    subtone: 'sub-purple',
+  },
+  {
+    id: 'tenancies',
+    value: '32',
+    label: 'Active Tenancies',
+    subtext: '+2 new',
+    icon: 'people',
+    tone: 'icon-orange',
+    subtone: 'sub-orange',
+  },
+])
 
-async function loadDashboard() {
-  error.value = null;
+const revenueBars = computed<RevenueBar[]>(() => [
+  { label: 'Apr', value: 18, height: 30 },
+  { label: 'May', value: 25, height: 42 },
+  { label: 'Jun', value: 34, height: 57 },
+  { label: 'Jul', value: 29, height: 48 },
+  { label: 'Aug', value: 38, height: 63 },
+  { label: 'Sep', value: 42, height: 70 },
+  { label: 'Oct', value: 37, height: 62 },
+  { label: 'Nov', value: 47, height: 78 },
+  { label: 'Dec', value: 44, height: 73 },
+  { label: 'Jan', value: 52, height: 87 },
+  { label: 'Feb', value: 46, height: 77 },
+  { label: 'Mar', value: 56, height: 93 },
+])
+
+const yLabels = ['P0k', 'P15k', 'P30k', 'P45k', 'P60k']
+
+const paymentRows = ref<PaymentRow[]>([
+  {
+    id: 'ms',
+    initials: 'MS',
+    name: 'Maria Santos',
+    meta: 'HSE-001 - Rm 101-A - GCash',
+    amount: 'P3,500',
+    status: 'Paid',
+  },
+  {
+    id: 'ar',
+    initials: 'AR',
+    name: 'Ana Rivera',
+    meta: 'HSE-001 - Rm 202-B - Bank Transfer',
+    amount: 'P3,500',
+    status: 'Paid',
+  },
+])
+
+// Override the demo occupancy card with real available-room counts.
+async function loadOccupancy() {
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser()
+    if (!user) return
 
-    if (!user) {
-      void router.push('/login');
-      return;
-    }
-
-    // Business name from accreditation profile
-    const { data: landlordProfile, error: profileError } = await supabase
-      .from('landlord_profiles')
-      .select('business_name')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-    if (landlordProfile?.business_name) {
-      businessName.value = landlordProfile.business_name;
-    }
-
-    // Properties owned by this landlord
-    const { data: props, error: propsError } = await supabase
+    const { data: props } = await supabase
       .from('properties')
-      .select('id, name, address, status')
+      .select('id, total_rooms, capacity')
       .eq('landlord_id', user.id)
-      .order('name');
 
-    if (propsError) throw propsError;
-    properties.value = (props ?? []) as unknown as PropertyRow[];
-
-    const accreditedCount = properties.value.filter((property) => property.status === 'accredited').length;
-    propertiesSubtitle.value =
-      properties.value.length === 0
-        ? 'Add a property to start accepting tenants.'
-        : `${accreditedCount} accredited · ${properties.value.length} total`;
-
-    // Active leases = current tenants
-    const { data: leases, error: leasesError } = await supabase
+    const { data: leases } = await supabase
       .from('leases')
-      .select('id')
+      .select('status, room:rooms(property_id)')
       .eq('landlord_id', user.id)
-      .eq('status', 'active');
 
-    if (leasesError) throw leasesError;
-    activeTenants.value = leases?.length ?? 0;
-    activeTenantsLabel.value =
-      activeTenants.value === 1
-        ? '1 tenant staying right now'
-        : activeTenants.value > 1
-          ? `${activeTenants.value} tenants staying right now`
-          : 'No tenants yet';
+    const totalRooms = (props ?? []).reduce(
+      (sum: number, p: any) => sum + (Number(p.total_rooms) || 0),
+      0,
+    )
+    const occupiedByProp = new Map<string, number>()
+    ;(leases ?? []).forEach((l: any) => {
+      if (l.status === 'active') {
+        const pid = l.room?.property_id
+        if (pid) occupiedByProp.set(pid, (occupiedByProp.get(pid) || 0) + 1)
+      }
+    })
+    const occupied = Array.from(occupiedByProp.values()).reduce((s, n) => s + n, 0)
+    const available = Math.max(totalRooms - occupied, 0)
 
-    // Payments needing attention across this landlord's leases
-    const { data: payments, error: paymentsError } = await supabase
-      .from('payments')
-      .select(
-        'id, amount, status, month, lease:leases(student:users(full_name), room:rooms(room_number, property:properties(name)))',
-      )
-      .in('status', ['due', 'overdue', 'pending_verification'])
-      .eq('lease.landlord_id', user.id);
-
-    if (paymentsError) throw paymentsError;
-    const typedPayments = (payments ?? []) as unknown as PaymentWithDetails[];
-    pendingPayments.value = typedPayments.length;
-    pendingAmountLabel.value =
-      typedPayments.length > 0
-        ? `${formatPeso(typedPayments.reduce((sum, payment) => sum + payment.amount, 0))} outstanding`
-        : 'No pending balances';
-    verificationRequests.value = typedPayments.filter(
-      (payment) => payment.status === 'pending_verification',
-    );
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load dashboard';
+    const card = metrics.value.find((m) => m.id === 'occupancy')
+    if (card) {
+      card.value = `${available}`
+      card.label = 'Rooms Available'
+      card.subtext = totalRooms > 0 ? `${occupied}/${totalRooms} occupied` : 'No rooms yet'
+    }
+  } catch {
+    // keep the placeholder if the query fails
   }
 }
 
-async function handleLogout() {
-  useAuthStore().clearCachedRole();
-  await supabase.auth.signOut();
-  void router.push('/login');
-}
+onMounted(() => {
+  void loadOccupancy()
+})
 
-function goToAddProperty() {
-  void router.push('/landlord/properties/new');
-}
-
-onMounted(loadDashboard);
 </script>
 
 <style scoped>
-.header-section {
-  background: #004d40;
-  border-radius: 0 0 28px 28px;
-  margin-bottom: -40px;
+.dashboard-page {
+  background: #F7F9FA;
 }
-.text-white-7 {
-  color: rgba(255, 255, 255, 0.7);
+
+.page-shell {
+  padding-bottom: 120px;
 }
-.content-section {
-  position: relative;
-  z-index: 1;
+
+.metric-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 18px;
+  min-height: 168px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03);
 }
-.custom-card {
-  border-radius: 16px;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-.action-btn {
+
+.metric-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 12px;
+}
+
+.icon-green {
+  background: rgba(0, 137, 123, 0.12);
+  color: #00897B;
+}
+
+.icon-red {
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
+}
+
+.icon-purple {
+  background: rgba(124, 58, 237, 0.12);
+  color: #7C3AED;
+}
+
+.icon-orange {
+  background: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+
+.metric-value {
+  font-size: 28px;
+  color: #111827;
+  line-height: 1.1;
+}
+
+.metric-label {
+  margin-top: 8px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 8px 24px;
+  color: #4B5563;
+}
+
+.metric-subtext {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sub-green {
+  color: #00897B;
+}
+
+.sub-red {
+  color: #DC2626;
+}
+
+.sub-purple {
+  color: #7C3AED;
+}
+
+.sub-orange {
+  color: #F59E0B;
+}
+
+.chart-card,
+.payments-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 22px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.02);
+}
+
+.chart-card {
+  padding: 18px 16px 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-title {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.small-title {
+  font-size: 16px;
+}
+
+.section-subtitle {
+  color: #6B7280;
+  font-size: 12px;
+}
+
+.chart-area {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  min-height: 230px;
+}
+
+.y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 180px;
+  padding-bottom: 28px;
+  color: #6B7280;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bar-panel {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 1;
+  height: 200px;
+  padding-left: 4px;
+}
+
+.bar-column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-track {
+  width: 100%;
+  height: 160px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0, 137, 123, 0.06), rgba(0, 137, 123, 0.02));
+  border-radius: 12px 12px 8px 8px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  background: #00897B;
+  border-radius: 12px 12px 0 0;
+  min-height: 12px;
+}
+
+.bar-label {
+  color: #6B7280;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.payments-card {
+  padding: 18px 0 0;
+}
+
+.payments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 8px;
+}
+
+.view-all {
+  color: #00897B;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.payment-list {
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.payment-item {
+  padding: 12px 16px;
+}
+
+.avatar-mini {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.payment-name {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.payment-meta {
+  color: #6B7280;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.payment-amount {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.paid-badge {
+  margin-top: 6px;
+  font-size: 9px;
+  font-weight: 700;
 }
 </style>

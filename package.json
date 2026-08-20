@@ -15,6 +15,10 @@
     "@iconify/vue": "^5.0.1",
     "@quasar/extras": "^2.0.0",
     "@supabase/supabase-js": "^2.111.0",
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
     "pinia": "^4.0.2",
     "quasar": "^2.23.1",
     "vue": "^3.5.22",
@@ -22,6 +26,7 @@
   },
   "devDependencies": {
     "@quasar/app-vite": "^3.2.0",
+    "@capacitor/cli": "^8.4.2",
     "@types/node": "^22.19.11",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",

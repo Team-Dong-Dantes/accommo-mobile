@@ -20,7 +20,7 @@
               <q-input
                 v-model="form.name"
                 outlined
-                label="Property name *"
+                label="Property name"
                 placeholder="e.g. Dong's Dormitory"
                 :rules="[(val: string) => !!val?.trim() || 'Property name is required']"
               />
@@ -53,7 +53,7 @@
               <q-select
                 v-model="form.roomType"
                 outlined
-                label="Room type *"
+                label="Room type"
                 :options="roomTypeOptions"
                 :rules="[(val: string | null) => !!val || 'Room type is required']"
               />
@@ -110,10 +110,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useQuasar, type QForm } from 'quasar';
-import { supabase } from '@/shared/utils/supabase';
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useQuasar, type QForm } from 'quasar'
+import { supabase } from '@/shared/utils/supabase'
 
 interface PropertyForm {
   name: string;
@@ -126,14 +126,14 @@ interface PropertyForm {
   description: string;
 }
 
-const router = useRouter();
-const $q = useQuasar();
+const router = useRouter()
+const $q = useQuasar()
 
-const roomTypeOptions = ['solo', 'duo', 'triple', 'bedspace', 'studio'];
+const roomTypeOptions = ['solo', 'duo', 'triple', 'bedspace', 'studio']
 
-const propertyFormRef = ref<QForm | null>(null);
-const submitting = ref(false);
-const error = ref<string | null>(null);
+const propertyFormRef = ref<QForm | null>(null)
+const submitting = ref(false)
+const error = ref<string | null>(null)
 
 const form = ref<PropertyForm>({
   name: '',
@@ -144,40 +144,40 @@ const form = ref<PropertyForm>({
   totalRooms: '',
   totalFloors: '',
   description: '',
-});
+})
 
 function notify(kind: 'success' | 'error', message: string) {
   $q.notify({
     message,
     position: 'top',
-    color: 'grey-9',
+    color: kind === 'success' ? 'teal-8' : 'red-6',
     textColor: 'white',
     icon: kind === 'success' ? 'check_circle' : 'error_outline',
-    iconColor: kind === 'success' ? 'teal-4' : 'red-4',
+    iconColor: 'white',
     classes: 'custom-notify',
-  });
+  })
 }
 
 function handleCancel() {
-  void router.push('/landlord/properties');
+  void router.push('/landlord/properties')
 }
 
 async function handleSubmit() {
-  error.value = null;
+  error.value = null
 
-  const isValid = await propertyFormRef.value?.validate();
-  if (!isValid) return;
+  const isValid = await propertyFormRef.value?.validate()
+  if (!isValid) return
 
-  submitting.value = true;
+  submitting.value = true
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser()
 
     if (!user) {
-      notify('error', 'Please sign in to add a property.');
-      void router.push('/login');
-      return;
+      notify('error', 'Please sign in to add a property.')
+      void router.push('/login')
+      return
     }
 
     const { error: insertError } = await supabase
@@ -190,20 +190,19 @@ async function handleSubmit() {
         address: form.value.address.trim() || null,
         city: form.value.city.trim() || null,
         description: form.value.description.trim() || null,
-        monthly_rent: form.value.monthlyRent ? Number(form.value.monthlyRent) : null,
         total_rooms: form.value.totalRooms ? Number(form.value.totalRooms) : null,
         total_floors: form.value.totalFloors ? Number(form.value.totalFloors) : null,
-      });
+      })
 
-    if (insertError) throw insertError;
+    if (insertError) throw insertError
 
-    notify('success', `"${form.value.name.trim()}" added for review.`);
-    void router.push('/landlord/properties');
+    notify('success', `"${form.value.name.trim()}" added for review.`)
+    void router.push('/landlord/properties')
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to add property';
-    notify('error', error.value);
+    error.value = e instanceof Error ? e.message : 'Failed to add property'
+    notify('error', error.value)
   } finally {
-    submitting.value = false;
+    submitting.value = false
   }
 }
 </script>

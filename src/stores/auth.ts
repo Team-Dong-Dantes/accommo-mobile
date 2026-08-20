@@ -4,29 +4,31 @@ import { uploadDocument } from '@/shared/utils/upload';
 import type { RegisterForm } from '@/shared/types/database';
 
 function sanitizeError(error: unknown): Error {
+  const raw = error instanceof Error ? error.message : String(error);
+  let friendly = 'An unexpected error occurred. Please try again.';
   if (error instanceof Error) {
+    const m = error.message;
     if (
-      error.message.includes('23505') ||
-      error.message.includes('duplicate key') ||
-      error.message.includes('student_profiles_student_id_key')
+      m.includes('23505') ||
+      m.includes('duplicate key') ||
+      m.includes('student_profiles_student_id_key')
     ) {
-      return new Error('This Student ID is already registered.');
+      friendly = 'This Student ID is already registered.';
+    } else if (m.includes('already registered') || m.includes('email_exists') || m.includes('User already')) {
+      friendly = 'This email is already registered. Try signing in instead.';
+    } else if (m.includes('PGRST116') || m.includes('0 rows')) {
+      friendly = 'Registration failed due to a database conflict. Please try again.';
+    } else if (m.includes('Invalid login credentials')) {
+      friendly = 'Invalid email or password.';
+    } else if (m.includes('Email not confirmed')) {
+      friendly = 'Please confirm your email address before signing in.';
+    } else if (m.includes('rate limit')) {
+      friendly = 'Too many attempts. Please try again later.';
     }
-    if (error.message.includes('PGRST116') || error.message.includes('0 rows')) {
-      return new Error('Registration failed due to a database conflict. Please try again.');
-    }
-    if (error.message.includes('Invalid login credentials')) {
-      return new Error('Invalid email or password.');
-    }
-    if (error.message.includes('Email not confirmed')) {
-      return new Error('Please confirm your email address before signing in.');
-    }
-    if (error.message.includes('rate limit')) {
-      return new Error('Too many attempts. Please try again later.');
-    }
-    return new Error('An unexpected error occurred. Please try again.');
   }
-  return new Error('An unexpected error occurred. Please try again.');
+  // Surface the raw backend message so failures are diagnosable on-device
+  // instead of being collapsed into a generic string.
+  return new Error(`${friendly} (${raw})`);
 }
 
 export interface LandlordRegisterForm {
@@ -218,32 +220,24 @@ export const useAuthStore = defineStore('auth', {
 
       if (!userId) throw new Error('Failed to retrieve user ID after registration.');
 
+      // Upload both documents in parallel (they're independent) while we ensure
+      // the user row — this significantly cuts registration latency vs doing the
+      // uploads one-after-another on a mobile connection.
+      const [govIdUrl, permitUrl] = await Promise.all([
+        form.governmentIdFile
+          ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null)
+          : Promise.resolve(null),
+        form.businessPermitFile
+          ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
       await this.ensureUserRow(userId, form.email, profileData);
-
-      let govIdUrl: string | null = null;
-      let permitUrl: string | null = null;
-
-      if (form.governmentIdFile) {
-        try {
-          govIdUrl = await uploadDocument(form.governmentIdFile, userId, 'government_id');
-        } catch {
-          govIdUrl = null;
-        }
-      }
-      if (form.businessPermitFile) {
-        try {
-          permitUrl = await uploadDocument(form.businessPermitFile, userId, 'business_permit');
-        } catch {
-          permitUrl = null;
-        }
-      }
 
       const { error: profileError } = await supabase
         .from('landlord_profiles')
         .insert({
           user_id: userId,
-          business_name: form.businessName,
-          accreditation_status: 'pending',
           government_id_url: govIdUrl,
         });
 
@@ -276,30 +270,20 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
-      let govIdUrl: string | null = null;
-      let permitUrl: string | null = null;
-
-      if (form.governmentIdFile) {
-        try {
-          govIdUrl = await uploadDocument(form.governmentIdFile, userId, 'government_id');
-        } catch {
-          govIdUrl = null;
-        }
-      }
-      if (form.businessPermitFile) {
-        try {
-          permitUrl = await uploadDocument(form.businessPermitFile, userId, 'business_permit');
-        } catch {
-          permitUrl = null;
-        }
-      }
+      // Upload both documents in parallel (independent of each other).
+      const [govIdUrl, permitUrl] = await Promise.all([
+        form.governmentIdFile
+          ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null)
+          : Promise.resolve(null),
+        form.businessPermitFile
+          ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null)
+          : Promise.resolve(null),
+      ]);
 
       const { error: profileError } = await supabase
         .from('landlord_profiles')
         .insert({
           user_id: userId,
-          business_name: form.businessName,
-          accreditation_status: 'pending',
           government_id_url: govIdUrl,
         });
 

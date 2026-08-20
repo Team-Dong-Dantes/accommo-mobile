@@ -6,5 +6,8 @@
     "dist/": true,
     ".quasar/": true,
     "/quasar.config.js.temporary.*": true
+  },
+  "terminal.integrated.env.windows": {
+    "Path": "C:\\Users\\kylev\\BloxBot\\.tools\\node-v24.19.0-win-x64;${env:Path}"
   }
 }

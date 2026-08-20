@@ -72,6 +72,12 @@ export default defineRouter(() => {
         return '/login?accountExists=true';
       }
 
+      if (to.path === '/profile') {
+        const role = await fetchUserRole(session);
+        if (role === 'landlord') return '/landlord/profile';
+        if (role === 'student') return '/student/dashboard';
+      }
+
       if (isPublicRoute) {
         const role = await fetchUserRole(session);
         if (role === 'student') return '/student/home';
