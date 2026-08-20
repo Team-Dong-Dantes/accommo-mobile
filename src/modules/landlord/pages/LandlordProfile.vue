@@ -269,6 +269,7 @@ interface PropertyItem {
   rating: number
   occupancy: number
   occupancyLabel: string
+  availableLabel: string
   icon: string
 }
 

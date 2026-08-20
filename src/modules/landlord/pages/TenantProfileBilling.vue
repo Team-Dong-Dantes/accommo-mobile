@@ -264,7 +264,7 @@
             label="Amount (PHP)"
             prefix="P"
           />
-          <q-input v-model="payForm.month" type="month" outlined dense label="Month" />
+          <q-input v-model="payForm.month" type="date" outlined dense label="Month" />
           <q-select
             v-model="payForm.method"
             :options="['cash', 'bank_transfer', 'gcash']"

@@ -24,9 +24,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/modules/landlord/layouts/MainLayout.vue'),
     children: [
       ...landlordRoutes,
-<<<<<<< HEAD
-=======
-      ...studentRoutes,
       {
         path: '/profile',
         component: () => import('@/shared/pages/ProfilePage.vue'),
@@ -59,7 +56,6 @@ const routes: RouteRecordRaw[] = [
         path: '/landlord/properties',
         component: () => import('@/modules/landlord/pages/LandlordPropertiesPage.vue'),
       },
->>>>>>> origin/development
     ],
   },
 
