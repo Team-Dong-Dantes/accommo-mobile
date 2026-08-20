@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/shared/types/database.gen';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 // Local demo mode: lets you preview every screen without a real Supabase
 // project. Enable by adding VITE_DEMO_MODE=true to your (gitignored)
@@ -14,6 +14,7 @@ if (demoMode) {
     '[accommo] DEMO MODE is ON — auth is faked and data queries return "not configured". ' +
       'Set VITE_DEMO_MODE=false (or delete .env.local) to use real Supabase.',
   );
+
 }
 
 const NOT_CONFIGURED = 'Supabase not configured';
@@ -23,22 +24,6 @@ const DEMO_SESSION = {
   access_token: 'demo-token',
   user: { id: 'demo-user', email: 'demo@accommo.local', role: 'landlord' },
 };
-
-type MockResult = { data: unknown; error: null } | { data: null; error: { message: string } };
-
-interface MockSupabaseClient {
-  auth: {
-    getSession: () => Promise<{ data: { session: unknown }; error: null }>;
-    getUser: () => Promise<{ data: { user: unknown }; error: null }>;
-    signInWithPassword: (credentials?: { email?: string }) => Promise<MockResult>;
-    signUp: () => Promise<MockResult>;
-    signInWithOAuth: () => Promise<MockResult>;
-    signOut: () => Promise<{ error: null }>;
-    resetPasswordForEmail: () => Promise<{ error: null }>;
-  };
-  from: (table: string) => unknown;
-  rpc: () => Promise<{ data: boolean; error: null }>;
-}
 
 let _supabaseInstance: SupabaseClient<Database>;
 
@@ -125,4 +110,3 @@ if (supabaseUrl && supabaseAnonKey) {
 }
 
 export const supabase = _supabaseInstance;
-export type { MockSupabaseClient };

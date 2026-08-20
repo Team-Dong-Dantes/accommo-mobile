@@ -514,7 +514,7 @@ async function handleRegister(skipVerification: boolean = false) {
         iconColor: 'teal-4',
         classes: 'custom-notify',
       });
-      void router.push('/student/dashboard');
+      void router.push('/student/home');
     } else {
       await authStore.register(form);
       $q.notify({

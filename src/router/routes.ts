@@ -14,10 +14,17 @@ const routes: RouteRecordRaw[] = [
 
   {
     path: '/',
-    component: () => import('@/layouts/MainLayout.vue'),
+    component: () => import('@/modules/student/layouts/MainLayout.vue'),
+    children: [
+      ...studentRoutes,
+    ],
+  },
+
+  {
+    path: '/',
+    component: () => import('@/modules/landlord/layouts/MainLayout.vue'),
     children: [
       ...landlordRoutes,
-      ...studentRoutes,
     ],
   },
 

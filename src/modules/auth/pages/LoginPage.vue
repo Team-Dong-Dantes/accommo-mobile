@@ -101,7 +101,7 @@ async function handleLogin() {
     const { role } = await authStore.login(email.value, password.value);
     $q.notify({ message: 'Welcome back!', position: 'top', color: 'grey-9', textColor: 'white', icon: 'check_circle', iconColor: 'teal-4', classes: 'custom-notify' });
 
-    if (role === 'student') void router.push('/student/dashboard');
+    if (role === 'student') void router.push('/student/home');
     else if (role === 'landlord') void router.push('/landlord/dashboard');
     else if (role === 'admin') void router.push('/admin/dashboard');
     else void router.push('/');
