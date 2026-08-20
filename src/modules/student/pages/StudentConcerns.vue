@@ -97,6 +97,47 @@
         </q-card>
       </div>
     </template>
+
+    <!-- New Concern Dialog -->
+    <q-dialog v-model="newConcernDialog" position="bottom">
+      <q-card class="dialog-card full-width">
+        <q-card-section class="row items-center justify-between">
+          <div class="text-subtitle1 text-weight-bold">New Concern</div>
+          <q-btn flat round dense icon="close" @click="newConcernDialog = false" />
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <div class="text-caption text-grey-6 q-mb-xs">Category</div>
+          <q-select
+            v-model="concernCategory"
+            :options="concernCategories"
+            map-options
+            emit-value
+            outlined
+            dense
+            class="q-mb-md"
+          />
+          <div class="text-caption text-grey-6 q-mb-xs">Description</div>
+          <q-input
+            v-model="concernDescription"
+            type="textarea"
+            outlined
+            autogrow
+            placeholder="Describe the issue..."
+            class="q-mb-md"
+          />
+          <q-btn
+            unelevated
+            color="teal-8"
+            label="Submit"
+            class="full-width text-weight-bold"
+            :disable="!concernDescription.trim() || submitting"
+            :loading="submitting"
+            @click="submitConcern"
+          />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -127,6 +168,21 @@ const filters = ['All', 'Open', 'In Progress', 'Resolved', 'Rejected'];
 const loading = ref(true);
 const error = ref<string | null>(null);
 const concerns = ref<ConcernItem[]>([]);
+
+type ConcernCategory = 'maintenance' | 'noise' | 'cleanliness' | 'amenities' | 'security' | 'others'
+const concernCategories: { label: string; value: ConcernCategory }[] = [
+  { label: 'Maintenance', value: 'maintenance' },
+  { label: 'Noise', value: 'noise' },
+  { label: 'Cleanliness', value: 'cleanliness' },
+  { label: 'Amenities', value: 'amenities' },
+  { label: 'Security', value: 'security' },
+  { label: 'Others', value: 'others' },
+]
+const newConcernDialog = ref(false)
+const submitting = ref(false)
+const concernCategory = ref<ConcernCategory>('maintenance')
+const concernDescription = ref('')
+const activeLeaseId = ref<string | null>(null)
 
 const filteredConcerns = computed(() => {
   if (activeFilter.value === 'All') return concerns.value;
@@ -170,6 +226,15 @@ async function loadConcerns() {
       .eq('student_id', user.id);
 
     const leaseIds = (leases ?? []).map((l) => (l as { id: string }).id);
+
+    // Track the active lease so new concerns can be attached to it.
+    const { data: activeLease } = await supabase
+      .from('leases')
+      .select('id')
+      .eq('student_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
+    activeLeaseId.value = (activeLease as { id: string } | null)?.id ?? null;
 
     if (leaseIds.length === 0) {
       concerns.value = [];
@@ -233,7 +298,41 @@ function toggleExpanded(id: string) {
 }
 
 function newConcern() {
-  $q.notify({ message: 'New concern form will open here.', color: 'teal-8', position: 'top', classes: 'custom-notify' });
+  if (!activeLeaseId.value) {
+    $q.notify({ message: 'No active lease found. A concern must be linked to your lease.', color: 'warning', position: 'top', classes: 'custom-notify' });
+    return;
+  }
+  concernCategory.value = 'maintenance';
+  concernDescription.value = '';
+  newConcernDialog.value = true;
+}
+
+async function submitConcern() {
+  if (!activeLeaseId.value) return;
+  const leaseId = activeLeaseId.value;
+  const description = concernDescription.value.trim();
+  if (!description) {
+    $q.notify({ message: 'Please describe the issue.', color: 'warning', position: 'top', classes: 'custom-notify' });
+    return;
+  }
+  submitting.value = true;
+  try {
+    const { error: insertError } = await supabase.from('concerns').insert({
+      lease_id: leaseId,
+      category: concernCategory.value,
+      description,
+      status: 'open',
+      reported_at: new Date().toISOString(),
+    });
+    if (insertError) throw insertError;
+    newConcernDialog.value = false;
+    $q.notify({ message: 'Concern submitted. Your landlord will be notified.', color: 'teal-8', position: 'top', classes: 'custom-notify' });
+    await loadConcerns();
+  } catch (e) {
+    $q.notify({ message: e instanceof Error ? e.message : 'Failed to submit concern', color: 'negative', position: 'top', classes: 'custom-notify' });
+  } finally {
+    submitting.value = false;
+  }
 }
 
 onMounted(loadConcerns);
@@ -244,5 +343,8 @@ onMounted(loadConcerns);
   border-radius: 14px;
   background: white;
   box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+.dialog-card {
+  border-radius: 20px 20px 0 0;
 }
 </style>

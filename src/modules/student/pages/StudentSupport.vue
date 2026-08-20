@@ -30,10 +30,13 @@
     </div>
 
     <div class="q-px-md q-mb-md">
-      <div class="row justify-between items-center q-mb-sm">
-        <div class="text-subtitle1 text-weight-bold">My Tickets</div>
-        <q-btn flat dense color="teal-8" label="View All" no-caps class="text-weight-bold" @click="goToConcerns" />
-      </div>
+        <div class="row justify-between items-center q-mb-sm">
+          <div class="text-subtitle1 text-weight-bold">My Tickets</div>
+          <div class="row q-gutter-sm">
+            <q-btn flat dense color="teal-8" icon="add" label="New" no-caps class="text-weight-bold" @click="newTicket" />
+            <q-btn flat dense color="teal-8" label="View All" no-caps class="text-weight-bold" @click="goToConcerns" />
+          </div>
+        </div>
       <template v-if="loading">
         <q-skeleton type="rect" height="64px" v-for="i in 2" :key="i" class="q-mb-sm" style="border-radius:14px" />
       </template>
@@ -72,12 +75,35 @@
         </q-expansion-item>
       </q-list>
     </div>
+
+    <!-- New Ticket Dialog -->
+    <q-dialog v-model="newTicketDialog" position="bottom">
+      <q-card class="dialog-card full-width">
+        <q-card-section class="row items-center justify-between">
+          <div class="text-subtitle1 text-weight-bold">New Support Ticket</div>
+          <q-btn flat round dense icon="close" @click="newTicketDialog = false" />
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <div class="text-caption text-grey-6 q-mb-xs">Subject</div>
+          <q-input v-model="ticketSubject" outlined dense class="q-mb-md" placeholder="Short summary" />
+          <div class="text-caption text-grey-6 q-mb-xs">Category</div>
+          <q-select v-model="ticketCategory" :options="complaintCategoryOptions" map-options emit-value outlined dense class="q-mb-md" />
+          <div class="text-caption text-grey-6 q-mb-xs">Priority</div>
+          <q-select v-model="ticketPriority" :options="priorityOptions" map-options emit-value outlined dense class="q-mb-md" />
+          <div class="text-caption text-grey-6 q-mb-xs">Details</div>
+          <q-input v-model="ticketDescription" type="textarea" outlined autogrow placeholder="Describe your issue..." class="q-mb-md" />
+          <q-btn unelevated color="teal-8" label="Submit Ticket" class="full-width text-weight-bold" :disable="!ticketSubject.trim() || submitting" :loading="submitting" @click="submitTicket" />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { COMPLAINT_STATUS, statusText, statusColor } from '@/shared/utils/format';
 
@@ -90,9 +116,35 @@ interface TicketRow {
 }
 
 const router = useRouter();
+const $q = useQuasar();
 const search = ref('');
 const loading = ref(true);
 const tickets = ref<TicketRow[]>([]);
+
+type ComplaintCategory = 'financial' | 'privacy' | 'maintenance' | 'safety' | 'harassment' | 'contract'
+type ComplaintPriority = 'urgent' | 'high' | 'medium' | 'low'
+const complaintCategoryOptions: { label: string; value: ComplaintCategory }[] = [
+  { label: 'Financial', value: 'financial' },
+  { label: 'Privacy', value: 'privacy' },
+  { label: 'Maintenance', value: 'maintenance' },
+  { label: 'Safety', value: 'safety' },
+  { label: 'Harassment', value: 'harassment' },
+  { label: 'Contract', value: 'contract' },
+]
+const priorityOptions: { label: string; value: ComplaintPriority }[] = [
+  { label: 'Urgent', value: 'urgent' },
+  { label: 'High', value: 'high' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'Low', value: 'low' },
+]
+const newTicketDialog = ref(false)
+const submitting = ref(false)
+const ticketSubject = ref('')
+const ticketCategory = ref<ComplaintCategory>('maintenance')
+const ticketPriority = ref<ComplaintPriority>('medium')
+const ticketDescription = ref('')
+const ticketPropertyId = ref<string | null>(null)
+const ticketLandlordId = ref<string | null>(null)
 
 const categories = [
   { label: 'Housing', icon: 'home_work', color: 'green-8', count: '12 articles' },
@@ -114,6 +166,19 @@ async function loadTickets() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Capture the active lease so a new ticket can be linked to it.
+    const { data: activeLease } = await supabase
+      .from('leases')
+      .select('property_id, landlord_id')
+      .eq('student_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (activeLease) {
+      const al = activeLease as unknown as { property_id: string | null; landlord_id: string | null };
+      ticketPropertyId.value = al.property_id;
+      ticketLandlordId.value = al.landlord_id;
+    }
 
     const { data, error } = await supabase
       .from('complaints')
@@ -144,6 +209,54 @@ async function loadTickets() {
 function goToCategory(label: string) { void router.push('/student/concerns'); }
 function goToConcerns() { void router.push('/student/concerns'); }
 
+function newTicket() {
+  if (!ticketPropertyId.value || !ticketLandlordId.value) {
+    $q.notify({ message: 'A support ticket needs your active lease. None found.', color: 'warning', position: 'top' });
+    return;
+  }
+  ticketSubject.value = '';
+  ticketCategory.value = 'maintenance';
+  ticketPriority.value = 'medium';
+  ticketDescription.value = '';
+  newTicketDialog.value = true;
+}
+
+async function submitTicket() {
+  const subject = ticketSubject.value.trim();
+  if (!subject) {
+    $q.notify({ message: 'Please enter a subject.', color: 'warning', position: 'top' });
+    return;
+  }
+  if (!ticketPropertyId.value || !ticketLandlordId.value) return;
+  const propertyId = ticketPropertyId.value;
+  const landlordId = ticketLandlordId.value;
+  submitting.value = true;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error: insertError } = await supabase.from('complaints').insert({
+      id: crypto.randomUUID(),
+      student_id: user.id,
+      landlord_id: landlordId,
+      property_id: propertyId,
+      category: ticketCategory.value,
+      subject,
+      description: ticketDescription.value.trim() || null,
+      priority: ticketPriority.value,
+      status: 'pending',
+      filed_at: new Date().toISOString(),
+    });
+    if (insertError) throw insertError;
+    newTicketDialog.value = false;
+    $q.notify({ message: 'Ticket submitted to OSAS.', color: 'teal-8', position: 'top' });
+    await loadTickets();
+  } catch (e) {
+    $q.notify({ message: e instanceof Error ? e.message : 'Failed to submit ticket', color: 'negative', position: 'top' });
+  } finally {
+    submitting.value = false;
+  }
+}
+
 onMounted(loadTickets);
 </script>
 
@@ -161,5 +274,8 @@ onMounted(loadTickets);
   border-radius: 14px;
   background: white;
   box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+.dialog-card {
+  border-radius: 20px 20px 0 0;
 }
 </style>

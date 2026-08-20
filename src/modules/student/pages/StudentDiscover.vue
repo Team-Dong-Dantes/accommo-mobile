@@ -1,19 +1,23 @@
 <template>
-  <q-page class="bg-grey-1 q-pb-md">
+  <q-page class="bg-grey-1 q-pb-xl">
     <!-- PROPERTY LIST VIEW -->
     <div v-if="!selectedProperty && !selectedLandlord" class="q-pa-md">
       <div class="row q-col-gutter-sm q-mb-md">
         <div class="col">
-          <q-input v-model="searchQuery" outlined dense placeholder="Search properties, barangay, type..." bg-color="white" class="rounded-input" />
+          <q-input v-model="searchQuery" outlined rounded dense placeholder="Search rooms, barangay, type..." bg-color="white" color="dark" class="search-input">
+            <template v-slot:prepend>
+              <q-icon name="search" size="20px" class="q-ml-sm text-grey-5" />
+            </template>
+          </q-input>
         </div>
         <div class="col-auto">
-          <q-btn outline icon="tune" color="grey-8" class="bg-white rounded-borders" no-caps @click="filterDialog = true" />
+          <q-btn outline rounded color="grey-4" text-color="dark" icon="tune" label="Filter" no-caps class="bg-white q-px-sm" @click="filterDialog = true" />
         </div>
       </div>
 
       <template v-if="loading">
-        <q-skeleton height="200px" square class="q-mb-md" style="border-radius:16px" />
-        <q-skeleton height="200px" square class="q-mb-md" style="border-radius:16px" />
+        <q-skeleton height="280px" square class="q-mb-md border-radius-24" />
+        <q-skeleton height="280px" square class="q-mb-md border-radius-24" />
       </template>
 
       <template v-else-if="error">
@@ -21,49 +25,69 @@
       </template>
 
       <template v-else>
-        <div class="text-h6 text-weight-bold q-mb-md">Available Properties <span class="text-teal-8">({{ filteredProperties.length }})</span></div>
+        <div class="text-h6 text-weight-bold q-mb-md q-mt-sm" style="font-size: 1.1rem">
+          Available Rooms <span class="text-teal-8">({{ filteredProperties.length }})</span>
+        </div>
 
         <div v-if="filteredProperties.length === 0" class="text-center text-grey-6 q-py-xl">
           No properties match your filters.
         </div>
 
-        <q-card v-for="property in filteredProperties" :key="property.id" flat bordered class="q-mb-md custom-card overflow-hidden">
-          <q-img :src="property.image" height="180px">
-            <div class="absolute-top-left q-pa-sm">
-              <q-chip color="orange-2" text-color="orange-9" dense icon="apartment" size="sm" class="text-weight-bold">{{ property.typeLabel }}</q-chip>
+        <q-card v-for="property in filteredProperties" :key="property.id" flat class="q-mb-lg custom-card overflow-hidden border-radius-24">
+          <q-img :src="property.image" height="200px">
+            <div class="absolute-top-left bg-transparent q-pa-sm">
+              <q-chip 
+                dense 
+                size="12px" 
+                class="text-weight-bold bg-white q-px-sm shadow-1" 
+                :text-color="getTypeColor(property.type)" 
+                :icon="getTypeIcon(property.type)">
+                {{ property.typeLabel }}
+              </q-chip>
             </div>
-            <div class="absolute-top-right q-pa-sm">
+            <div class="absolute-top-right bg-transparent q-pa-sm">
               <q-btn
                 round
                 unelevated
                 size="sm"
                 :icon="property.isFavorited ? 'favorite' : 'favorite_border'"
-                :color="property.isFavorited ? 'red-5' : 'grey-8'"
-                class="favorite-btn"
+                :color="property.isFavorited ? 'red-5' : 'grey-5'"
+                class="bg-white shadow-1"
                 @click.stop="toggleFavorite(property)"
               />
             </div>
-            <div class="absolute-bottom bg-transparent q-pa-sm row justify-between items-end" style="background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7));">
-              <div class="text-h6 text-weight-bold text-white">{{ property.name }}</div>
-              <div class="bg-black text-white q-px-sm q-py-xs text-weight-bold" style="border-radius:8px">{{ property.rent ? formatPeso(property.rent) + '/mo' : 'Price on request' }}</div>
+            <div class="absolute-bottom bg-transparent q-pa-md row justify-between items-end" style="background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%);">
+              <div>
+                <div class="text-h6 text-weight-bold text-white line-height-tight">{{ property.name }}</div>
+                <div class="text-caption text-grey-3">{{ property.landlordName }}</div>
+              </div>
+              <div class="bg-dark text-white q-px-sm q-py-xs text-weight-bold text-caption border-radius-12">
+                {{ property.rent ? formatPeso(property.rent) + '/mo' : 'Price on request' }}
+              </div>
             </div>
           </q-img>
-          <q-card-section class="q-py-sm">
-            <div class="text-subtitle1 text-weight-bold">{{ property.name }}</div>
-            <div class="text-caption text-grey-7 q-mt-xs row items-center">
-              <q-icon name="place" class="q-mr-xs" /> {{ property.address }}
+          <q-card-section class="q-pa-md bg-white">
+            <div class="text-caption text-grey-5 row items-center q-mb-sm">
+              <q-icon name="location_on" size="14px" class="q-mr-xs" />
+              {{ property.address }}
             </div>
-            <div class="row q-gutter-xs q-mt-sm q-mb-sm">
-              <q-chip dense outline color="teal-5" icon="meeting_room" size="sm">{{ property.typeLabel }}</q-chip>
-              <q-chip dense outline color="green-5" icon="check_circle" size="sm">{{ property.availableRooms }} rooms available</q-chip>
-              <q-chip dense outline color="purple-5" icon="store" size="sm">{{ property.landlordName }}</q-chip>
+            
+            <div class="row items-center justify-between q-mb-md">
+              <div class="row q-gutter-x-xs">
+                <div class="amenity-chip text-teal-8 bg-teal-1"><q-icon name="wifi" size="12px" class="q-mr-xs"/> WiFi</div>
+                <div class="amenity-chip text-blue-8 bg-blue-1"><q-icon name="water_drop" size="12px" class="q-mr-xs"/> Water</div>
+                <div class="amenity-chip text-orange-8 bg-orange-1"><q-icon name="bolt" size="12px" class="q-mr-xs"/> Electric</div>
+                <div v-if="property.type === 'solo'" class="amenity-chip text-purple-8 bg-purple-1"><q-icon name="ac_unit" size="12px" class="q-mr-xs"/> Aircon</div>
+              </div>
+              <div class="text-xs text-grey-5">Floor 1 · 1 slot left</div>
             </div>
-            <div class="row items-center justify-between">
-              <q-btn flat no-caps class="q-px-xs" @click="openLandlord(property)">
-                <q-avatar size="28px" color="teal-8" text-color="white" class="text-weight-bold">{{ property.landlordInitials }}</q-avatar>
-                <span class="text-weight-bold text-caption q-ml-sm">{{ property.landlordName }}</span>
-              </q-btn>
-              <q-btn unelevated color="dark" label="View Details" class="rounded-borders text-caption text-weight-bold" no-caps @click="openProperty(property)" />
+            
+            <div class="row items-center justify-between q-pt-sm" style="border-top: 1px solid #f0f0f0">
+              <div class="row items-center">
+                <q-avatar size="28px" color="teal-8" text-color="white" class="text-weight-bold text-caption">{{ property.landlordInitials }}</q-avatar>
+                <span class="text-weight-bold text-caption text-dark q-ml-sm">{{ property.landlordName }}</span>
+              </div>
+              <q-btn unelevated color="dark" label="View Details" class="border-radius-16 text-caption text-weight-bold q-px-md" no-caps @click="openProperty(property)" />
             </div>
           </q-card-section>
         </q-card>
@@ -77,33 +101,37 @@
       </div>
 
       <!-- Hero Image -->
-      <q-card flat class="q-ma-sm custom-card overflow-hidden">
+      <q-card flat class="q-ma-sm custom-card overflow-hidden border-radius-24">
         <q-img :src="heroImage" height="220px">
-          <div class="absolute-top q-pa-sm row q-gutter-xs">
-            <q-chip color="orange-2" text-color="orange-9" dense icon="apartment" size="sm" class="text-weight-bold">{{ selectedProperty.typeLabel }}</q-chip>
-            <q-chip v-if="roomDetail?.status === 'accredited'" color="teal-8" text-color="white" dense icon="verified" size="sm" class="text-weight-bold">OSAS Verified</q-chip>
+          <div class="absolute-top q-pa-sm row q-gutter-xs bg-transparent">
+            <q-chip dense size="12px" class="text-weight-bold bg-white shadow-1" :text-color="getTypeColor(selectedProperty.type)" :icon="getTypeIcon(selectedProperty.type)">
+              {{ selectedProperty.typeLabel }}
+            </q-chip>
+            <q-chip v-if="roomDetail?.status === 'accredited'" color="teal-8" text-color="white" dense icon="verified" size="12px" class="text-weight-bold shadow-1">OSAS Verified</q-chip>
           </div>
-          <div class="absolute-top-right q-pa-sm">
+          <div class="absolute-top-right q-pa-sm bg-transparent">
             <q-btn
               round unelevated size="sm"
               :icon="selectedProperty.isFavorited ? 'favorite' : 'favorite_border'"
-              :color="selectedProperty.isFavorited ? 'red-5' : 'grey-8'"
-              class="favorite-btn"
+              :color="selectedProperty.isFavorited ? 'red-5' : 'grey-5'"
+              class="bg-white shadow-1"
               @click="toggleFavorite(selectedProperty)"
             />
           </div>
-          <div class="absolute-bottom bg-transparent q-pa-sm row justify-between items-end" style="background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7));">
+          <div class="absolute-bottom bg-transparent q-pa-md row justify-between items-end" style="background: linear-gradient(180deg, transparent, rgba(0,0,0,0.8));">
             <div>
-              <div class="text-h6 text-weight-bold text-white">{{ selectedProperty.name }}</div>
-              <div class="text-caption text-white">{{ selectedProperty.address }}</div>
+              <div class="text-h6 text-weight-bold text-white line-height-tight">{{ selectedProperty.name }}</div>
+              <div class="text-caption text-grey-3">{{ selectedProperty.address }}</div>
             </div>
-            <div class="bg-black text-white q-px-sm q-py-xs text-weight-bold" style="border-radius:16px">{{ selectedProperty.rent ? formatPeso(selectedProperty.rent) + '/mo' : 'Price on request' }}</div>
+            <div class="bg-dark text-white q-px-sm q-py-xs text-weight-bold border-radius-12 text-caption">
+              {{ selectedProperty.rent ? formatPeso(selectedProperty.rent) + '/mo' : 'Price on request' }}
+            </div>
           </div>
         </q-img>
       </q-card>
 
       <!-- Type Card -->
-      <q-card flat bordered class="q-mx-sm q-my-sm rounded-borders" style="background:#FFF3E0;">
+      <q-card flat bordered class="q-mx-sm q-my-sm rounded-borders" style="background:#FFF3E0; border-color: rgba(0,0,0,0.05)">
         <q-card-section class="row items-center">
           <q-icon name="apartment" color="orange-8" size="28px" class="q-mr-sm" />
           <div>
@@ -155,37 +183,38 @@
       <!-- Available Rooms list -->
       <div class="q-px-md q-mt-md" v-if="selectedProperty.roomsList.length">
         <div class="text-subtitle1 text-weight-bold q-mb-sm">Available Rooms</div>
-        <q-list bordered separator>
+        <q-list bordered separator class="border-radius-16 overflow-hidden">
           <q-item v-for="rm in selectedProperty.roomsList" :key="rm.id">
             <q-item-section>
               <div class="text-weight-bold">Room {{ rm.roomNumber }}</div>
             </q-item-section>
             <q-item-section side>
-              <div class="text-weight-bold">{{ rm.rent ? formatPeso(rm.rent) + '/mo' : 'Price on request' }}</div>
+              <div class="text-weight-bold text-dark">{{ rm.rent ? formatPeso(rm.rent) + '/mo' : 'Price on request' }}</div>
             </q-item-section>
           </q-item>
         </q-list>
       </div>
 
       <!-- Amenities -->
-      <div class="q-px-md q-mt-md">
-        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm">AMENITIES INCLUDED</div>
+      <div class="q-px-md q-mt-lg">
+        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">AMENITIES INCLUDED</div>
         <div v-if="detailLoading" class="text-caption text-grey-6">Loading…</div>
         <div v-else-if="(roomDetail?.amenities?.length ?? 0) === 0" class="text-caption text-grey-6">No amenities listed.</div>
-        <div v-else class="row q-gutter-xs">
+        <div v-else class="row q-gutter-sm">
           <q-chip
             v-for="a in (roomDetail?.amenities ?? [])"
             :key="a"
             dense outline
             :color="amenityMeta[a]?.color || 'teal'"
             :icon="amenityMeta[a]?.icon || 'check_circle'"
-            size="sm"
+            size="13px"
+            class="bg-white"
           >{{ amenityMeta[a]?.label || a }}</q-chip>
         </div>
       </div>
 
       <!-- About the Property -->
-      <div class="q-px-md q-mt-md">
+      <div class="q-px-md q-mt-lg">
         <div class="text-subtitle1 text-weight-bold q-mb-sm">About the Property</div>
         <div class="text-caption text-grey-7 row items-center q-mb-sm">
           <q-icon name="place" color="grey-6" size="16px" class="q-mr-xs" /> {{ selectedProperty.address }}
@@ -195,22 +224,22 @@
       </div>
 
       <!-- Move-in Cost Breakdown -->
-      <div class="q-px-md q-mt-md">
+      <div class="q-px-md q-mt-lg">
         <div class="text-subtitle1 text-weight-bold q-mb-sm">Move-in Cost Breakdown</div>
-        <q-card flat bordered class="custom-card">
+        <q-card flat bordered class="border-radius-16 overflow-hidden border-grey-3">
           <q-list dense separator>
-            <q-item>
+            <q-item class="q-py-md">
               <q-item-section>{{ advanceMonths }} Month{{ advanceMonths === 1 ? '' : 's' }} Advance Payment</q-item-section>
-              <q-item-section side class="text-weight-bold">{{ formatPeso(selectedProperty.rent * advanceMonths) }}</q-item-section>
+              <q-item-section side class="text-weight-bold text-dark">{{ formatPeso(selectedProperty.rent * advanceMonths) }}</q-item-section>
             </q-item>
-            <q-item>
+            <q-item class="q-py-md">
               <q-item-section>{{ depositMonths }} Month{{ depositMonths === 1 ? '' : 's' }} Security Deposit</q-item-section>
-              <q-item-section side class="text-weight-bold">{{ formatPeso(selectedProperty.rent * depositMonths) }}</q-item-section>
+              <q-item-section side class="text-weight-bold text-dark">{{ formatPeso(selectedProperty.rent * depositMonths) }}</q-item-section>
             </q-item>
           </q-list>
-          <div class="row items-center justify-between q-px-md q-py-sm" style="background:#1d1d1d;border-radius: 0 0 14px 14px;">
+          <div class="row items-center justify-between q-px-md q-py-md" style="background:#1d1d1d;">
             <span class="text-white text-weight-medium">Total Due at Signing</span>
-            <span class="text-white text-weight-bold">{{ formatPeso(selectedProperty.rent * (advanceMonths + depositMonths)) }}</span>
+            <span class="text-white text-weight-bold text-subtitle1">{{ formatPeso(selectedProperty.rent * (advanceMonths + depositMonths)) }}</span>
           </div>
         </q-card>
         <q-banner inline-actions rounded class="q-mt-sm" style="background:#E8F5E9;">
@@ -220,14 +249,14 @@
       </div>
 
       <!-- House Policies -->
-      <div class="q-px-md q-mt-md">
+      <div class="q-px-md q-mt-lg">
         <div class="text-subtitle1 text-weight-bold q-mb-sm">House Policies</div>
         <div v-if="detailLoading" class="text-caption text-grey-6">Loading…</div>
         <div v-else-if="policyCards.length === 0" class="text-caption text-grey-6">No policies listed.</div>
         <div v-else class="row q-col-gutter-sm">
           <div v-for="p in policyCards" :key="p.label" class="col-6">
-            <q-card flat class="policy-box q-pa-sm" :style="{ background: p.bg }">
-              <q-icon :name="p.icon" :color="p.color" size="22px" />
+            <q-card flat class="policy-box q-pa-md" :style="{ background: p.bg }">
+              <q-icon :name="p.icon" :color="p.color" size="24px" />
               <div class="text-subtitle2 text-weight-bold q-mt-xs">{{ p.label }}</div>
               <div class="text-caption text-grey-7">{{ p.desc }}</div>
             </q-card>
@@ -236,33 +265,33 @@
       </div>
 
       <!-- House Rules -->
-      <div class="q-px-md q-mt-md">
-        <div v-if="houseRulesList.length" class="q-banner inline-actions rounded q-mb-sm" style="background:#FFEBEE;">
+      <div class="q-px-md q-mt-lg">
+        <div v-if="houseRulesList.length" class="q-banner inline-actions rounded q-mb-md" style="background:#FFEBEE;">
           <q-icon name="block" color="red-8" class="q-mr-xs" />
           <span class="text-caption text-red-8 text-weight-medium">{{ houseRulesList.join(' · ') }}</span>
         </div>
-        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm">HOUSE RULES</div>
+        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">HOUSE RULES</div>
         <div v-if="positiveRules.length === 0" class="text-caption text-grey-6">No specific house rules listed.</div>
         <div v-for="rule in positiveRules" :key="rule" class="row items-center q-mb-xs">
-          <q-icon name="check_circle" color="green-7" size="16px" class="q-mr-sm" />
+          <q-icon name="check_circle" color="green-7" size="18px" class="q-mr-sm" />
           <span class="text-body2 text-grey-8">{{ rule }}</span>
         </div>
       </div>
 
       <!-- Listed By & CTA -->
-      <div class="q-px-md q-mt-md q-pb-md">
-        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm">LISTED BY</div>
-        <q-card flat bordered class="custom-card q-mb-md cursor-pointer" @click="openLandlord(selectedProperty)">
+      <div class="q-px-md q-mt-lg q-pb-xl">
+        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">LISTED BY</div>
+        <q-card flat bordered class="border-radius-16 q-mb-md cursor-pointer border-grey-3" @click="openLandlord(selectedProperty)">
           <q-card-section class="row items-center">
-            <q-avatar size="44px" color="teal-8" text-color="white" class="text-weight-bold">{{ selectedProperty.landlordInitials }}</q-avatar>
-            <div class="q-ml-sm col">
-              <div class="text-subtitle2 text-weight-bold">{{ roomDetail?.landlord.name ?? selectedProperty.landlordName }}</div>
+            <q-avatar size="48px" color="teal-8" text-color="white" class="text-weight-bold">{{ selectedProperty.landlordInitials }}</q-avatar>
+            <div class="q-ml-md col">
+              <div class="text-subtitle2 text-weight-bold line-height-tight">{{ roomDetail?.landlord.name ?? selectedProperty.landlordName }}</div>
               <div class="text-caption text-grey-6">{{ landlordResponseLabel }}</div>
             </div>
-            <q-btn flat color="teal-8" label="View All" no-caps dense class="text-weight-bold" />
+            <q-btn flat color="teal-8" label="View" no-caps dense class="text-weight-bold" />
           </q-card-section>
         </q-card>
-        <q-btn unelevated color="dark" icon="chat" label="Message to Inquire" class="full-width rounded-borders text-weight-bold q-py-sm" no-caps @click="inquire(selectedProperty)" />
+        <q-btn unelevated color="dark" icon="chat_bubble_outline" label="Message to Inquire" class="full-width border-radius-16 text-weight-bold q-py-sm" size="16px" no-caps @click="inquire(selectedProperty)" />
       </div>
     </div>
 
@@ -274,24 +303,24 @@
 
       <div class="q-pa-md">
         <!-- Landlord Info -->
-        <div class="row items-center q-mb-md">
-          <q-avatar size="64px" color="teal-8" text-color="white" class="text-weight-bold" style="font-size:24px">{{ selectedLandlord.initials }}</q-avatar>
+        <div class="row items-center q-mb-lg">
+          <q-avatar size="72px" color="teal-8" text-color="white" class="text-weight-bold" style="font-size:28px">{{ selectedLandlord.initials }}</q-avatar>
           <div class="q-ml-md">
             <div class="row items-center">
-              <div class="text-h6 text-weight-bold">{{ selectedLandlord.name }}</div>
-              <q-icon name="verified" color="green-7" size="20px" class="q-ml-sm" />
+              <div class="text-h5 text-weight-bold line-height-tight">{{ selectedLandlord.name }}</div>
+              <q-icon name="verified" color="green-7" size="22px" class="q-ml-sm" />
             </div>
-            <div class="text-caption text-grey-6">Business Owner</div>
+            <div class="text-body2 text-grey-6">Business Owner</div>
           </div>
         </div>
 
         <!-- Stats Row -->
-        <div class="row q-col-gutter-sm q-mb-md">
+        <div class="row q-col-gutter-sm q-mb-lg">
           <div class="col-4">
             <q-card flat class="stat-box">
               <q-card-section class="text-center q-py-sm">
                 <div class="text-h6 text-weight-bold">{{ landlordStats.responseRate != null ? Math.round(landlordStats.responseRate * 100) + '%' : '—' }}</div>
-                <div class="text-caption text-grey-6">RESPONSE</div>
+                <div class="text-caption text-grey-6" style="font-size: 10px">RESPONSE</div>
               </q-card-section>
             </q-card>
           </div>
@@ -299,7 +328,7 @@
             <q-card flat class="stat-box">
               <q-card-section class="text-center q-py-sm">
                 <div class="text-h6 text-weight-bold">{{ landlordStats.avgMin != null ? '~' + landlordStats.avgMin + 'm' : '—' }}</div>
-                <div class="text-caption text-grey-6">RESP. TIME</div>
+                <div class="text-caption text-grey-6" style="font-size: 10px">RESP. TIME</div>
               </q-card-section>
             </q-card>
           </div>
@@ -307,39 +336,39 @@
             <q-card flat class="stat-box">
               <q-card-section class="text-center q-py-sm">
                 <div class="text-h6 text-weight-bold">{{ landlordStats.propertyCount }}</div>
-                <div class="text-caption text-grey-6">PROPERTIES</div>
+                <div class="text-caption text-grey-6" style="font-size: 10px">PROPERTIES</div>
               </q-card-section>
             </q-card>
           </div>
         </div>
 
         <!-- Availability Banner -->
-        <q-banner inline-actions rounded class="q-mb-md" style="background:#E8F5E9;border:1px solid #c8e6c9;">
+        <q-banner inline-actions rounded class="q-mb-lg" style="background:#E8F5E9;border:1px solid #c8e6c9;">
           <template #avatar><q-icon name="check_circle" color="green-8" /></template>
           <span class="text-body2 text-green-9 text-weight-medium">{{ selectedLandlord.availableRooms }} of {{ selectedLandlord.totalRooms }} rooms available</span>
         </q-banner>
 
         <!-- Action Button -->
-        <q-btn unelevated color="dark" icon="chat" :label="'Message ' + selectedLandlord.firstName" class="full-width rounded-borders text-weight-bold q-py-sm q-mb-md" no-caps @click="inquireLandlord(selectedLandlord)" />
+        <q-btn unelevated color="dark" icon="chat_bubble_outline" :label="'Message ' + selectedLandlord.firstName" class="full-width border-radius-16 text-weight-bold q-py-sm q-mb-xl" size="16px" no-caps @click="inquireLandlord(selectedLandlord)" />
 
         <!-- Property List -->
         <div class="text-subtitle1 text-weight-bold q-mb-sm">Properties</div>
-        <q-card flat bordered class="custom-card overflow-hidden">
-          <q-img :src="selectedLandlord.propertyImage" height="140px" />
-          <q-card-section class="q-py-sm">
+        <q-card flat bordered class="border-radius-24 overflow-hidden border-grey-3">
+          <q-img :src="selectedLandlord.propertyImage" height="160px" />
+          <q-card-section class="q-py-md">
             <div class="text-subtitle1 text-weight-bold">{{ selectedLandlord.propertyName }}</div>
           </q-card-section>
           <q-separator />
           <q-list dense>
-            <q-item v-for="room in selectedLandlord.rooms" :key="room.id">
+            <q-item v-for="room in selectedLandlord.rooms" :key="room.id" class="q-py-sm">
               <q-item-section>
-                <div class="row items-center q-gutter-xs">
+                <div class="row items-center q-gutter-x-sm">
                   <span class="text-weight-bold">{{ room.roomNumber }}</span>
-                  <q-chip dense size="sm" :color="room.typeColor" text-color="white" :label="room.type" />
+                  <q-chip dense size="11px" :color="room.typeColor" text-color="white" :label="room.type" />
                 </div>
               </q-item-section>
               <q-item-section side>
-                <div class="text-weight-bold">{{ formatPeso(room.price) }}</div>
+                <div class="text-weight-bold text-dark">{{ formatPeso(room.price) }}</div>
                 <div :class="room.open > 0 ? 'text-green-7' : 'text-grey-6'" class="text-caption text-weight-medium">
                   {{ room.open > 0 ? room.open + ' open' : 'Occupied' }}
                 </div>
@@ -354,7 +383,7 @@
     <q-dialog v-model="filterDialog" position="bottom">
       <q-card class="filter-card full-width">
         <q-card-section class="q-pt-sm q-pb-none">
-          <div class="row justify-center q-mb-sm">
+          <div class="row justify-center q-mb-md">
             <div class="drag-handle" />
           </div>
           <div class="row items-center justify-between">
@@ -364,43 +393,44 @@
         </q-card-section>
 
         <q-card-section>
-          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm">PROPERTY TYPE</div>
-          <div class="row q-gutter-sm q-mb-md">
+          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">PROPERTY TYPE</div>
+          <div class="row q-gutter-sm q-mb-lg">
             <div v-for="t in roomTypes" :key="t.value" class="col" @click="selectRoomType(t.value)">
               <div
-                class="type-box column items-center justify-center q-pa-sm cursor-pointer"
-                :class="selectedRoomType === t.value ? 'type-box-active' : ''"
-                :style="{ borderColor: t.color }"
+                class="type-box column items-center justify-center q-pa-sm cursor-pointer transition-active"
+                :class="selectedRoomType === t.value ? 'bg-grey-2 border-dark' : 'border-grey-3'"
               >
-                <q-icon :name="t.icon" :color="t.color" size="22px" />
-                <div class="text-caption q-mt-xs text-weight-medium">{{ t.label }}</div>
+                <q-icon :name="t.icon" :color="t.color" size="24px" />
+                <div class="text-caption q-mt-xs text-weight-medium" style="font-size: 11px">{{ t.label }}</div>
               </div>
             </div>
           </div>
 
-          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm">MAX MONTHLY PRICE</div>
-          <div class="row q-gutter-sm q-mb-md">
+          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">MAX MONTHLY PRICE</div>
+          <div class="row q-gutter-sm q-mb-lg">
             <q-btn
               v-for="p in priceOptions"
               :key="p.value"
               :label="p.label"
-              no-caps dense size="sm"
+              no-caps dense size="13px"
               :unelevated="selectedPrice === p.value"
-              :color="selectedPrice === p.value ? 'dark' : 'grey-3'"
-              :text-color="selectedPrice === p.value ? 'white' : 'grey-8'"
-              class="price-pill"
+              :outline="selectedPrice !== p.value"
+              :color="selectedPrice === p.value ? 'dark' : 'grey-4'"
+              :text-color="selectedPrice === p.value ? 'white' : 'dark'"
+              class="price-pill text-weight-medium"
               @click="selectPrice(p.value)"
             />
           </div>
 
-          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm">MUST HAVE</div>
-          <div class="row q-gutter-xs q-mb-md">
+          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">MUST HAVE</div>
+          <div class="row q-gutter-sm q-mb-lg">
             <q-chip
               v-for="a in amenities"
               :key="a.value"
               :outline="!selectedAmenities.includes(a.value)"
               :color="a.color" :icon="a.icon" :label="a.label"
               clickable @click="toggleAmenity(a.value)"
+              class="text-weight-medium"
             />
           </div>
 
@@ -412,12 +442,12 @@
           </div>
         </q-card-section>
 
-        <q-card-section class="row q-col-gutter-sm q-pt-none">
+        <q-card-section class="row q-col-gutter-sm q-pt-none q-pb-xl">
           <div class="col-6">
-            <q-btn outline color="grey-8" label="Clear All" no-caps class="full-width rounded-borders" @click="clearAll" />
+            <q-btn outline color="grey-4" text-color="dark" label="Clear All" no-caps class="full-width border-radius-16 text-weight-bold q-py-sm" @click="clearAll" />
           </div>
           <div class="col-6">
-            <q-btn unelevated color="dark" label="Apply Filters" no-caps class="full-width rounded-borders text-weight-bold" @click="applyFilters" />
+            <q-btn unelevated color="dark" label="Apply Filters" no-caps class="full-width border-radius-16 text-weight-bold q-py-sm" @click="applyFilters" />
           </div>
         </q-card-section>
       </q-card>
@@ -529,11 +559,11 @@ const amenities = [
 ];
 
 const ROOM_TYPE_META: Record<string, { label: string; desc: string }> = {
-  solo: { label: 'Solo Room', desc: 'Private room for one occupant' },
-  duo: { label: 'Duo Room', desc: 'Shared room for two occupants' },
-  triple: { label: 'Triple Room', desc: 'Shared room for three occupants' },
-  bedspace: { label: 'Bedspacer Room', desc: 'Shared bunk / open bed in a multi-pax room' },
-  studio: { label: 'Studio Unit', desc: 'Self-contained private studio' },
+  solo: { label: 'Solo', desc: 'Private room for one occupant' },
+  duo: { label: 'Double', desc: 'Shared room for two occupants' },
+  triple: { label: 'Triple', desc: 'Shared room for three occupants' },
+  bedspace: { label: 'Bedspacer', desc: 'Shared bunk / open bed in a multi-pax room' },
+  studio: { label: 'Studio', desc: 'Self-contained private studio' },
 };
 
 const AMENITY_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -554,6 +584,20 @@ function roomTypeLabel(t: string): string {
 }
 function roomTypeDesc(t: string): string {
   return ROOM_TYPE_META[t]?.desc ?? '';
+}
+
+function getTypeIcon(t: string): string {
+  if (t === 'solo') return 'person_outline';
+  if (t === 'duo') return 'people_outline';
+  if (t === 'bedspace') return 'single_bed';
+  return 'apartment';
+}
+
+function getTypeColor(t: string): string {
+  if (t === 'bedspace') return 'orange-8';
+  if (t === 'solo') return 'teal-7';
+  if (t === 'duo') return 'purple-7';
+  return 'dark';
 }
 
 function deriveRoomType(capacity: number | null, label: string | null): string {
@@ -867,16 +911,26 @@ async function loadProperties() {
 
     const landlordNames = new Map<string, string>();
     if (landlordIds.length > 0) {
-      const profileResult = await supabase
-        .from('landlord_profiles')
-        .select('user_id, business_name')
-        .in('user_id', landlordIds);
+      // Prefer the business name; fall back to the landlord's real full name so
+      // every card shows a meaningful owner label instead of a generic placeholder.
+      // These enrichment queries must not blank the whole list if they're blocked.
+      const [profileResult, userResult] = await Promise.all([
+        supabase.from('landlord_profiles').select('user_id, business_name').in('user_id', landlordIds),
+        supabase.from('users').select('id, full_name').in('id', landlordIds),
+      ]);
 
-      for (const p of (profileResult.data ?? []) as unknown as Array<{ user_id: string; business_name: string | null }>) {
-        if (p.business_name) landlordNames.set(p.user_id, p.business_name);
+      const userNames = new Map<string, string>();
+      for (const u of (userResult.data ?? []) as unknown as Array<{ id: string; full_name: string | null }>) {
+        if (u.full_name) userNames.set(u.id, u.full_name);
       }
 
-      if (profileResult.error) error.value = profileResult.error.message;
+      for (const p of (profileResult.data ?? []) as unknown as Array<{ user_id: string; business_name: string | null }>) {
+        const name = p.business_name ?? userNames.get(p.user_id) ?? null;
+        if (name) landlordNames.set(p.user_id, name);
+      }
+
+      if (profileResult.error) console.warn('[discover] landlord_profiles fetch failed:', profileResult.error.message);
+      if (userResult.error) console.warn('[discover] users fetch failed:', userResult.error.message);
     }
 
     properties.value = rows.map((r) => {
@@ -925,13 +979,16 @@ onMounted(loadProperties);
 
 <style scoped>
 .custom-card {
-  border-radius: 16px;
   background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
-.rounded-input :deep(.q-field__control) {
-  border-radius: 12px;
+.search-input :deep(.q-field__control) {
+  border: 1px solid #e0e0e0;
+}
+
+.search-input :deep(.q-field__control:before) {
+  border: none;
 }
 
 .room-detail,
@@ -939,60 +996,73 @@ onMounted(loadProperties);
   animation: fadeIn 0.2s ease;
 }
 
-.favorite-btn {
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+.border-radius-24 { border-radius: 24px; }
+.border-radius-16 { border-radius: 16px; }
+.border-radius-12 { border-radius: 12px; }
+
+.line-height-tight { line-height: 1.2; }
+.letter-spacing-1 { letter-spacing: 0.5px; }
+
+.amenity-chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
 }
 
 .stat-box {
-  border-radius: 12px;
-  background: #f5f5f5;
+  border-radius: 16px;
+  background: #f8f9fa;
+  border: 1px solid #f0f0f0;
 }
 
 .detail-box {
-  border-radius: 12px;
-  background: #f5f5f5;
+  border-radius: 16px;
+  background: #f8f9fa;
 }
 
 .policy-box {
-  border-radius: 12px;
+  border-radius: 16px;
 }
 
 .filter-card {
-  border-radius: 20px 20px 0 0;
-  padding-bottom: 12px;
+  border-radius: 24px 24px 0 0;
+  padding-bottom: 24px;
 }
 
 .drag-handle {
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
+  width: 48px;
+  height: 5px;
+  border-radius: 3px;
   background: #e0e0e0;
 }
 
 .type-box {
   border: 1.5px solid;
-  border-radius: 12px;
-  min-height: 64px;
+  border-radius: 16px;
+  min-height: 72px;
 }
 
-.type-box-active {
-  background: #f5f5f5;
-}
+.border-dark { border-color: #212121 !important; }
+.border-grey-3 { border-color: #eeeeee !important; }
+
+.transition-active { transition: all 0.2s ease; }
 
 .price-pill {
-  border-radius: 20px;
-  padding: 0 16px;
-  min-height: 32px;
+  border-radius: 24px;
+  padding: 0 20px;
+  min-height: 36px;
 }
 
 .osas-card {
   border: 1px solid #e0e0e0;
-  border-radius: 12px;
+  border-radius: 16px;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 </style>
