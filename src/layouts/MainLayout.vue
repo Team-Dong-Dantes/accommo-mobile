@@ -98,8 +98,16 @@
         @update:model-value="goToTab"
       >
         <q-tab name="home" icon="home" label="Home" />
-        <q-tab name="tenants" icon="groups" label="Tenants" />
-        <q-tab name="payments" icon="payments" label="Payments" />
+        <q-tab name="tenants" label="Tenants">
+          <template #icon>
+            <IconifyIcon icon="material-icons:people" />
+          </template>
+        </q-tab>
+        <q-tab name="payments" label="Payments">
+          <template #icon>
+            <IconifyIcon icon="material-icons:payments" />
+          </template>
+        </q-tab>
         <q-tab name="notif" icon="notifications" label="Notifications" />
       </q-tabs>
 
