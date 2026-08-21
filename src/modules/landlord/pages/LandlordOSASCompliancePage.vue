@@ -258,9 +258,10 @@ const officeContacts = ref<OfficeContact[]>([
 }
 
 .support-tab[aria-selected='true'] {
-  background: #111827;
-  color: white;
+  background: white;
+  color: #111827;
   border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
 }
 
 .tab-label {
