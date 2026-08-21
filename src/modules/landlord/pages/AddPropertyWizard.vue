@@ -427,10 +427,14 @@ function validateStep1(): boolean {
   const f = form.value
   nameError.value = f.propertyName.trim() ? '' : 'Property name is required'
   addressError.value = f.address.trim() ? '' : 'Full address is required'
+  // Only require a map pin when the map is actually usable. If Mapbox failed to
+  // load (bad token / URL restriction), the user can't drop a pin — don't block
+  // the wizard on it, otherwise "Next" silently does nothing.
+  const locationUsable = mapAvailable && !mapError.value
   locationError.value =
-    f.latitude != null && f.longitude != null
-      ? ''
-      : 'Drop a pin on the map to set the property location'
+    locationUsable && (f.latitude == null || f.longitude == null)
+      ? 'Drop a pin on the map to set the property location'
+      : ''
   descriptionError.value = f.description.trim() ? '' : 'Description is required'
   monthlyRentError.value = f.monthlyRent.trim() ? '' : 'Monthly rent is required'
   totalRoomsError.value = f.totalRooms.trim() ? '' : 'Total rooms is required'
@@ -473,9 +477,9 @@ const propertyTypes = ['solo', 'duo', 'triple', 'bedspace', 'studio']
 const amenitiesOptions = ['wifi', 'water', 'electric', 'aircon']
 
 // --- Mapbox GL JS map picker ---
-// Temporary: Mapbox is disabled on non-localhost deployments until the token's
-// URL restriction is configured for the production (Netlify) domain. Remove this
-// gate once the Mapbox token allows the live site URL.
+// Temporary: Mapbox is disabled outside localhost until the token's URL
+// restriction is configured for the deployed domain. Remove this gate once the
+// Mapbox token allows the live site URL.
 const mapAvailable = isLocalDev()
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const mapContainer = ref<HTMLElement | null>(null)
