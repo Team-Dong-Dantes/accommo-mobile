@@ -97,9 +97,6 @@
               <q-btn round flat icon="edit" color="teal-9" @click="openNewChat" />
             </div>
 
-            <q-banner v-if="showSample" class="bg-amber-1 text-amber-9 rounded-borders q-mx-md q-mt-md">
-              Showing SAMPLE conversations (not from your database) to preview the layout. Real messages appear once you chat with a tenant.
-            </q-banner>
 
             <div v-if="chat.isLoading" class="center-state">
               <q-spinner size="40px" color="teal-8" />
@@ -292,10 +289,7 @@ function initials(name: string): string {
 }
 
 function openConversation(id: string) {
-  if (showSample.value) {
-    $q.notify({ type: 'info', message: 'Sample conversation — not from your database.' })
-    return
-  }
+  if (showSample.value) return
   void chat.loadMessages(id)
 }
 

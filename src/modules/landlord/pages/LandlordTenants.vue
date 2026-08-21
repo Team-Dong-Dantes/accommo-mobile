@@ -20,10 +20,6 @@
       </q-input>
     </div>
 
-    <q-banner v-if="isSample" class="bg-amber-1 text-amber-9 rounded-borders q-mx-md q-mt-md">
-      Showing SAMPLE data (not from your database) to preview the layout. Real tenants appear automatically once leases exist.
-    </q-banner>
-
     <div v-if="isLoading" class="center-state">
       <q-spinner size="42px" color="teal-8" />
     </div>
@@ -120,7 +116,6 @@ const searchText = ref('')
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 const propertyGroups = ref<any[]>([])
-const isSample = ref(false)
 
 const AVATAR_PALETTE = ['teal-8', 'purple-6', 'pink-5', 'orange-5', 'blue-6', 'green-6']
 
@@ -292,7 +287,6 @@ async function loadTenants() {
 }
 
 function loadSampleData() {
-  isSample.value = true
   propertyGroups.value = [
     {
       id: 'sample-prop-1',
