@@ -358,7 +358,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLandlordStore } from '@/stores/landlord'
@@ -585,11 +585,21 @@ onMounted(() => {
   initMap()
 })
 
-// Re-fit the map when returning to Step 1 — the map lives inside a v-if step
-// and can initialize at zero size until it becomes visible, leaving a blank tile.
+// Re-bind the map when returning to Step 1. The map lives inside a v-if step,
+// so leaving and re-entering Step 1 recreates the container <div>; the old
+// `map` would still point at the detached node and render blank. Rebuild it.
 watch(currentStep, (step) => {
-  if (step === 1 && map) {
-    setTimeout(() => map.resize(), 200)
+  if (step === 1) {
+    const detached =
+      !map || !map.getContainer || !map.getContainer() || !map.getContainer().isConnected
+    if (detached) {
+      marker = null
+      mapInitTries = 0
+      map = null
+      nextTick(() => initMap())
+    } else {
+      setTimeout(() => map && map.resize(), 200)
+    }
   }
 })
 
