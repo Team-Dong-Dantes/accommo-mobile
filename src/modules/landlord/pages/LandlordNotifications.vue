@@ -1,173 +1,147 @@
 <template>
-  <q-page class="dashboard-page bg-grey-1">
-    <div class="header-section text-white">
-      <div class="row justify-between items-center q-pa-md">
-        <div>
-          <h4 class="q-my-none text-weight-bold">Notifications</h4>
-          <p class="text-subtitle1 text-white-7 q-mb-none">
-            Alerts regarding payments and repairs
-          </p>
-        </div>
-        <q-btn flat round dense icon="logout" @click="handleLogout" />
-      </div>
+  <q-page class="notif-page">
+    <div class="notif-header">
+      <div class="notif-title">Notifications</div>
+      <q-btn flat no-caps class="mark-read-btn" label="Mark all read" @click="markAllRead" />
     </div>
 
-    <div class="content-section q-pa-md">
-      <q-tabs
-        v-model="notificationsTab"
-        type="tabs"
-        background-color="transparent"
-        text-color="teal-9"
-        ink-bar-color="teal-9"
-        class="tab-style"
-      >
-        <q-tab name="All" label="All" icon="mail" />
-        <q-tab name="Unread" :label="unreadLabel" icon="unread" />
-        <q-tab name="Read" label="Read" icon="visibility" />
-      </q-tabs>
+    <q-list separator class="notif-list">
+      <q-item v-for="item in notifications" :key="item.id" class="notif-item">
+        <q-item-section avatar>
+          <q-icon :name="item.icon" :style="{ color: item.color }" size="24px" />
+        </q-item-section>
 
-      <div v-if="isLoading" class="text-center text-grey-7 q-py-8">
-        <q-spinner size="36px" color="teal-8" />
-      </div>
+        <q-item-section>
+          <q-item-label class="notif-item-title">{{ item.title }}</q-item-label>
+          <q-item-label caption class="notif-item-sub">{{ item.subtext }}</q-item-label>
+          <q-item-label caption class="notif-item-time">{{ item.timestamp }}</q-item-label>
+        </q-item-section>
 
-      <div v-else-if="loadError" class="q-pa-md">
-        <q-banner class="bg-red-1 text-red-8 rounded-borders">{{ loadError }}</q-banner>
-      </div>
-
-      <div v-else-if="filteredNotifications.length === 0" class="text-center text-grey-7 q-py-8">
-        No notifications yet.
-      </div>
-
-      <q-list
-        v-else
-        bordered
-        separator
-        class="rounded-borders bg-white"
-      >
-        <q-item
-          v-for="notification in filteredNotifications"
-          :key="notification.id"
-          clickable
-          @click="openNotification(notification)"
-        >
-          <q-item-section>
-            <q-item-label>{{ notification.title }}</q-item-label>
-            <q-item-label caption>
-              {{ notification.body }}
-              <q-badge v-if="!notification.read_at" color="red" small class="q-ml-sm" />
-            </q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-badge v-if="!notification.read_at" color="amber" small label="Unread" />
-          </q-item-section>
-        </q-item>
-      </q-list>
-    </div>
+        <q-item-section side top>
+          <span v-if="item.unread" class="unread-dot" />
+        </q-item-section>
+      </q-item>
+    </q-list>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { supabase } from '@/shared/utils/supabase'
+import { ref } from 'vue'
 
-const router = useRouter()
-const authStore = useAuthStore()
-
-const notifications = ref<any[]>([])
-const isLoading = ref(false)
-const loadError = ref<string | null>(null)
-const notificationsTab = ref<'All' | 'Unread' | 'Read'>('All')
-
-function handleLogout() {
-  authStore.clearCachedRole()
-  void supabase.auth.signOut()
-  void router.push('/login')
+interface NotificationItem {
+  id: number
+  icon: string
+  color: string
+  title: string
+  subtext: string
+  timestamp: string
+  unread: boolean
 }
 
-// Real, landlord-scoped notifications (RLS: user_id = auth.uid()).
-async function loadNotifications() {
-  isLoading.value = true
-  loadError.value = null
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('id, type, title, body, link_url, read_at')
-      .eq('user_id', user.id)
-      .order('id', { ascending: false })
-    if (error) throw error
-    notifications.value = (data ?? []) as any[]
-  } catch (e: any) {
-    loadError.value = e?.message || 'Failed to load notifications'
-  } finally {
-    isLoading.value = false
-  }
+const notifications = ref<NotificationItem[]>([
+  {
+    id: 1,
+    icon: 'credit_card',
+    color: '#16a34a',
+    title: 'Rent Payment Received',
+    subtext: 'Maria Santos paid April rent of P3,500',
+    timestamp: '2h ago',
+    unread: true,
+  },
+  {
+    id: 2,
+    icon: 'build',
+    color: '#ea580c',
+    title: 'New Repair Request',
+    subtext: 'Jose Reyes: Aircon not cooling in Room 2-B',
+    timestamp: '4h ago',
+    unread: true,
+  },
+  {
+    id: 3,
+    icon: 'groups',
+    color: '#7e22ce',
+    title: 'New Inquiry',
+    subtext: 'A student inquired about Room 101',
+    timestamp: '1d ago',
+    unread: false,
+  },
+  {
+    id: 4,
+    icon: 'error',
+    color: '#dc2626',
+    title: 'Overdue Rent Alert',
+    subtext: 'Ana Villanueva April rent is now overdue',
+    timestamp: '2d ago',
+    unread: false,
+  },
+  {
+    id: 5,
+    icon: 'groups',
+    color: '#ea580c',
+    title: 'Lease Expiring Soon',
+    subtext: 'Jose Reyes lease ends Jul 31',
+    timestamp: '5d ago',
+    unread: false,
+  },
+])
+
+const markAllRead = () => {
+  notifications.value = notifications.value.map(item => ({ ...item, unread: false }))
 }
-
-const unreadCount = computed(() => notifications.value.filter((n) => !n.read_at).length)
-const unreadLabel = computed(() => (unreadCount.value ? `Unread (${unreadCount.value})` : 'Unread'))
-
-const filteredNotifications = computed(() => {
-  if (notificationsTab.value === 'Unread') return notifications.value.filter((n) => !n.read_at)
-  if (notificationsTab.value === 'Read') return notifications.value.filter((n) => !!n.read_at)
-  return notifications.value
-})
-
-// Tapping a notification marks it read (best-effort) and opens its link if present.
-async function markRead(id: string) {
-  const target = notifications.value.find((n) => n.id === id)
-  if (!target || target.read_at) return
-  const ts = new Date().toISOString()
-  target.read_at = ts
-  const { error } = await supabase
-    .from('notifications')
-    .update({ read_at: ts } as any)
-    .eq('id', id)
-  if (error) console.warn('[notifications] mark read failed:', error.message)
-}
-
-function openNotification(n: any) {
-  void markRead(n.id)
-  if (n.link_url) void router.push(n.link_url)
-}
-
-onMounted(loadNotifications)
 </script>
 
 <style scoped>
-.header-section {
-  background: #004d40;
-  border-radius: 0 0 28px 28px;
-  margin-bottom: -40px;
+.notif-page {
+  padding: 16px;
+  padding-bottom: 80px;
+  background: #f3f4f6;
+  min-height: 100vh;
 }
-
-.text-white-7 {
-  color: rgba(255, 255, 255, 0.7);
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
-
-.content-section {
-  position: relative;
-  z-index: 1;
+.notif-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111827;
 }
-
-.custom-card {
-  border-radius: 16px;
+.mark-read-btn {
+  color: #0d9488;
+  font-weight: 700;
+  text-transform: none;
+}
+.notif-list {
   background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: 14px;
+  overflow: hidden;
 }
-
-.tab-style .q-tab {
-  padding: 12px 24px;
-  font-weight: 500;
-  font-size: 14px;
+.notif-item {
+  padding: 14px 12px;
 }
-
-.tab-style .ink-bar {
-  background: #00897B !important;
+.notif-item-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+.notif-item-sub {
+  font-size: 13px;
+  color: #4b5563;
+  margin-top: 2px;
+}
+.notif-item-time {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+.unread-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0d9488;
+  display: inline-block;
 }
 </style>

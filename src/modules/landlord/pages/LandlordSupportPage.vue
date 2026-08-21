@@ -1,113 +1,201 @@
 <template>
-  <q-page class="support-page bg-grey-1">
-    <div class="page-shell q-pb-xl">
-      <div class="header-block q-px-md q-pt-lg q-pb-sm">
-        <div class="page-title">Support</div>
-        <div class="page-subtitle">OSAS Help Center - Maintenance - Reviews</div>
+  <q-page class="support-page">
+    <div class="support-tabs">
+      <q-btn
+        no-caps
+        rounded
+        unelevated
+        class="pill"
+        :class="{ 'pill-active': activeTab === 'osas' }"
+        label="OSAS Support"
+        @click="activeTab = 'osas'"
+      />
+      <q-btn
+        no-caps
+        rounded
+        unelevated
+        class="pill"
+        :class="{ 'pill-active': activeTab === 'maintenance' }"
+        label="Maintenance"
+        @click="activeTab = 'maintenance'"
+      />
+      <q-btn
+        no-caps
+        rounded
+        unelevated
+        class="pill"
+        :class="{ 'pill-active': activeTab === 'reviews' }"
+        label="Reviews"
+        @click="activeTab = 'reviews'"
+      />
+    </div>
+
+    <div v-if="view === 'newTicket'" class="new-ticket">
+      <div class="nt-header">
+        <q-btn flat round dense icon="arrow_back" @click="goBack" />
+        <div class="nt-title">New Ticket</div>
+        <q-chip dense outline color="teal-8" class="nt-chip">{{ ticketCategory }}</q-chip>
       </div>
 
-      <div class="q-px-md q-mt-sm">
-        <q-tabs
-          v-model="activeSupportTab"
-          class="support-tabs"
-          active-color="black"
-          indicator-color="transparent"
-          inline-label
+      <div class="nt-body">
+        <label class="nt-label">Subject</label>
+        <q-input v-model="subject" outlined dense placeholder="Enter subject" class="nt-input" />
+
+        <label class="nt-label">Details</label>
+        <q-input
+          v-model="details"
+          outlined
           dense
-          switch-indicator
-        >
-          <q-tab name="osas" class="support-tab">
-            <span class="tab-label">OSAS Support</span>
-            <q-badge color="grey-3" text-color="black" class="tab-badge">
-              4
-            </q-badge>
-          </q-tab>
-          <q-tab name="maintenance" class="support-tab">
-            <span class="tab-label">Maintenance</span>
-          </q-tab>
-          <q-tab name="reviews" class="support-tab">
-            <span class="tab-label">Reviews</span>
-          </q-tab>
-        </q-tabs>
-      </div>
+          type="textarea"
+          autogrow
+          placeholder="Describe the issue"
+          class="nt-input"
+        />
 
-      <div class="q-px-md q-mt-md">
-        <q-card class="help-banner">
-          <q-card-section class="q-pb-sm">
-            <div class="banner-header">
-              <div>
-                <div class="banner-title">How can OSAS help?</div>
-                <div class="banner-meta">
-                  <span class="online-dot" />
-                  Officer Reyes - Responds within 1-2 business days
-                </div>
-              </div>
-            </div>
-          </q-card-section>
-
-          <q-card-section class="q-pt-none">
-            <q-input
-              v-model="searchText"
-              outlined
-              dense
-              bg-color="white"
-              input-class="search-input"
-              placeholder="Search for help"
-              class="support-search"
-            >
-              <template #prepend>
-                <q-icon name="search" color="grey-7" />
-              </template>
-            </q-input>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <div class="q-px-md q-mt-lg">
-        <div class="section-row">
-          <div class="section-title">Help Categories</div>
+        <label class="nt-label">Priority</label>
+        <div class="priority-row">
+          <q-btn
+            no-caps
+            rounded
+            unelevated
+            class="prio-pill"
+            :class="{ 'prio-active': priority === 'Normal' }"
+            label="Normal"
+            @click="priority = 'Normal'"
+          />
+          <q-btn
+            no-caps
+            rounded
+            unelevated
+            class="prio-pill"
+            :class="{ 'prio-active': priority === 'Urgent' }"
+            label="Urgent"
+            @click="priority = 'Urgent'"
+          />
         </div>
 
-        <div class="category-grid">
-          <q-card
-            v-for="category in helpCategories"
-            :key="category.id"
+        <q-btn
+          unelevated
+          class="submit-ticket"
+          label="Submit Ticket"
+          @click="submitTicket"
+        />
+      </div>
+    </div>
+
+    <div v-else>
+      <div v-if="activeTab === 'osas'">
+        <div class="search-banner">
+          <q-icon name="search" size="20px" class="search-icon" />
+          <input v-model="osasSearch" class="search-input" placeholder="Search for help..." />
+        </div>
+
+        <div class="cat-grid">
+          <q-btn
+            v-for="cat in osasCategories"
+            :key="cat"
             flat
-            bordered
-            class="category-card"
+            class="cat-card"
+            @click="openNewTicket(cat)"
           >
-            <q-card-section class="column items-center text-center q-pa-md">
-              <div class="category-icon" :class="category.tone">
-                <q-icon :name="category.icon" size="22px" />
-              </div>
-              <div class="category-name">{{ category.name }}</div>
-              <div class="category-detail">{{ category.detail }}</div>
-            </q-card-section>
-          </q-card>
+            <div class="cat-inner">
+              <q-icon name="article" size="22px" class="cat-icon" />
+              <div class="cat-name">{{ cat }}</div>
+            </div>
+          </q-btn>
         </div>
+
+        <div class="section-label">MY TICKETS</div>
+        <q-list separator class="ticket-list">
+          <q-item v-for="t in myTickets" :key="t.id" class="ticket-item">
+            <q-item-section>
+              <q-item-label class="ticket-id">{{ t.id }}</q-item-label>
+              <q-item-label class="ticket-subject">{{ t.subject }}</q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-badge
+                :color="t.status === 'Resolved' ? 'green' : 'amber'"
+                class="ticket-badge"
+              >
+                {{ t.status }}
+              </q-badge>
+            </q-item-section>
+          </q-item>
+        </q-list>
       </div>
 
-      <div class="q-px-md q-mt-xl">
-        <div class="section-row ticket-header">
-          <div class="section-title">MY TICKETS</div>
-          <q-btn flat dense class="view-link">View all</q-btn>
+      <div v-else-if="activeTab === 'maintenance'">
+        <q-list separator class="maint-list">
+          <q-item v-for="m in maintenanceTickets" :key="m.id" class="maint-item">
+            <q-item-section>
+              <div class="maint-top">
+                <q-chip dense color="teal-8" text-color="white" class="mini-chip">{{ m.category }}</q-chip>
+                <q-chip dense color="orange-7" text-color="white" class="mini-chip">{{ m.priority }}</q-chip>
+              </div>
+              <q-item-label class="maint-title">{{ m.title }}</q-item-label>
+              <q-item-label caption class="maint-desc">{{ m.description }}</q-item-label>
+              <div class="maint-tenant">
+                <q-avatar size="22px" class="tenant-avatar">{{ m.tenantInitial }}</q-avatar>
+                <span class="tenant-name">{{ m.tenantName }}</span>
+              </div>
+              <div class="maint-resolved">Resolved: {{ m.resolutionDate }}</div>
+              <q-select
+                v-model="m.status"
+                :options="['Resolved', 'In Progress']"
+                dense
+                outlined
+                class="maint-select"
+              />
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </div>
+
+      <div v-else-if="activeTab === 'reviews'">
+        <div class="review-summary">
+          <div class="summary-score">{{ reviewSummary.score.toFixed(1) }}</div>
+          <div class="summary-stars">
+            <q-icon
+              v-for="n in 5"
+              :key="n"
+              :name="starIcon(n, reviewSummary.score)"
+              size="18px"
+              class="summary-star"
+            />
+          </div>
+          <div class="summary-count">{{ reviewSummary.total }} reviews</div>
+          <div class="breakdown">
+            <div v-for="b in reviewSummary.breakdown" :key="b.stars" class="break-row">
+              <span class="break-label">{{ b.stars }} star</span>
+              <q-linear-progress
+                :value="b.count / reviewSummary.total"
+                color="amber"
+                class="break-bar"
+              />
+              <span class="break-count">{{ b.count }}</span>
+            </div>
+          </div>
         </div>
 
-        <q-list bordered class="ticket-list bg-white rounded-borders">
-          <q-item v-for="ticket in tickets" :key="ticket.id" class="ticket-item">
+        <q-list separator class="review-list">
+          <q-item v-for="r in reviewList" :key="r.id" class="review-item">
+            <q-item-section avatar>
+              <q-avatar size="36px" class="anon-avatar">
+                <q-icon name="person" size="20px" />
+              </q-avatar>
+            </q-item-section>
             <q-item-section>
-              <div class="ticket-top-row">
-                <span class="ticket-id">{{ ticket.id }}</span>
-                <q-badge :color="ticket.badgeColor" text-color="black" class="ticket-status">
-                  {{ ticket.status }}
-                </q-badge>
+              <div class="review-stars">
+                <q-icon
+                  v-for="n in 5"
+                  :key="n"
+                  :name="starIcon(n, r.stars)"
+                  size="15px"
+                  class="review-star"
+                />
               </div>
-
-              <div class="ticket-title">{{ ticket.title }}</div>
-              <div class="ticket-meta-row">
-                <span>{{ ticket.date }}</span>
-                <span class="message-snippet">{{ ticket.message }}</span>
-              </div>
+              <q-item-label caption class="review-date">{{ r.date }}</q-item-label>
+              <q-item-label class="review-text">{{ r.feedback }}</q-item-label>
             </q-item-section>
           </q-item>
         </q-list>
@@ -119,325 +207,408 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-interface HelpCategory {
+type SupportTab = 'osas' | 'maintenance' | 'reviews'
+type TicketStatus = 'Resolved' | 'In Progress'
+
+const activeTab = ref<SupportTab>('osas')
+const view = ref<'list' | 'newTicket'>('list')
+const ticketCategory = ref<string>('')
+const subject = ref<string>('')
+const details = ref<string>('')
+const priority = ref<'Normal' | 'Urgent'>('Normal')
+const osasSearch = ref<string>('')
+
+const osasCategories = ['Accreditation', 'Tenant Dispute', 'Documents', 'Inspection', 'General']
+
+interface MyTicket {
   id: string
-  name: string
-  detail: string
-  icon: string
-  tone: string
+  subject: string
+  status: TicketStatus
 }
 
-interface Ticket {
+const myTickets = ref<MyTicket[]>([
+  { id: 'LT-0009', subject: 'Fire safety certificate renewal', status: 'In Progress' },
+  { id: 'LT-0008', subject: 'Room occupancy permit question', status: 'Resolved' },
+])
+
+interface MaintenanceTicket {
   id: string
-  status: string
-  badgeColor: string
+  category: string
+  priority: string
+  status: TicketStatus
   title: string
-  date: string
-  message: string
+  description: string
+  tenantName: string
+  tenantInitial: string
+  resolutionDate: string
 }
 
-const activeSupportTab = ref('osas')
-const searchText = ref('')
-
-const helpCategories = ref<HelpCategory[]>([
+const maintenanceTickets = ref<MaintenanceTicket[]>([
   {
-    id: 'accreditation',
-    name: 'Accreditation',
-    detail: 'Status updates',
-    icon: 'verified_user',
-    tone: 'icon-teal',
-  },
-  {
-    id: 'tenant-dispute',
-    name: 'Tenant Dispute',
-    detail: 'Case support',
-    icon: 'gavel',
-    tone: 'icon-purple',
-  },
-  {
-    id: 'documents',
-    name: 'Documents',
-    detail: 'Certificates',
-    icon: 'description',
-    tone: 'icon-amber',
-  },
-  {
-    id: 'inspection',
-    name: 'Inspection',
-    detail: 'Property check',
-    icon: 'fact_check',
-    tone: 'icon-blue',
-  },
-  {
-    id: 'general',
-    name: 'General',
-    detail: 'General help',
-    icon: 'help_outline',
-    tone: 'icon-slate',
-  },
-])
-
-const tickets = ref<Ticket[]>([
-  {
-    id: 'OSAS-246',
-    status: 'In Progress',
-    badgeColor: 'amber-3',
-    title: 'Fire safety certificate renewal',
-    date: 'Jun 12, 2026',
-    message: 'Pending final inspection approval',
-  },
-  {
-    id: 'OSAS-183',
+    id: 'MT-0042',
+    category: 'Plumbing',
+    priority: 'Medium',
     status: 'Resolved',
-    badgeColor: 'green-3',
-    title: 'Tenant documentation review',
-    date: 'Jun 04, 2026',
-    message: 'Documentation was verified and closed',
+    title: 'Leaking faucet in Room 3-A',
+    description: 'Kitchen faucet drips continuously and wastes water',
+    tenantName: 'Maria Santos',
+    tenantInitial: 'M',
+    resolutionDate: 'Apr 18, 2026',
+  },
+  {
+    id: 'MT-0041',
+    category: 'Electrical',
+    priority: 'High',
+    status: 'In Progress',
+    title: 'Power outlet not working',
+    description: 'Bedroom outlet sparks when plugging in charger',
+    tenantName: 'Jose Reyes',
+    tenantInitial: 'J',
+    resolutionDate: 'Apr 20, 2026',
   },
 ])
+
+interface ReviewSummary {
+  score: number
+  total: number
+  breakdown: { stars: number; count: number }[]
+}
+
+const reviewSummary = ref<ReviewSummary>({
+  score: 4.5,
+  total: 40,
+  breakdown: [
+    { stars: 5, count: 28 },
+    { stars: 4, count: 8 },
+    { stars: 3, count: 3 },
+    { stars: 2, count: 1 },
+    { stars: 1, count: 0 },
+  ],
+})
+
+interface Review {
+  id: number
+  stars: number
+  date: string
+  feedback: string
+}
+
+const reviewList = ref<Review[]>([
+  { id: 1, stars: 5, date: 'Apr 12, 2026', feedback: 'Very clean boarding house and responsive landlord' },
+  { id: 2, stars: 4, date: 'Apr 05, 2026', feedback: 'Good location but wifi can be slow at night' },
+  { id: 3, stars: 5, date: 'Mar 28, 2026', feedback: 'Safe and peaceful. Recommended for students' },
+])
+
+const starIcon = (position: number, rating = 5) => {
+  if (position <= Math.floor(rating)) return 'star'
+  if (position - 0.5 === rating) return 'star_half'
+  return 'star_border'
+}
+
+const openNewTicket = (category: string) => {
+  ticketCategory.value = category
+  subject.value = ''
+  details.value = ''
+  priority.value = 'Normal'
+  view.value = 'newTicket'
+}
+
+const goBack = () => {
+  view.value = 'list'
+}
+
+const submitTicket = () => {
+  view.value = 'list'
+}
 </script>
 
 <style scoped>
 .support-page {
-  background: #f4f5f7;
+  padding: 16px;
+  padding-bottom: 90px;
+  background: #f3f4f6;
+  min-height: 100vh;
 }
-
-.page-shell {
-  padding-bottom: 110px;
-}
-
-.header-block {
-  background: #f4f5f7;
-}
-
-.page-title {
-  color: #111827;
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-}
-
-.page-subtitle {
-  margin-top: 4px;
-  color: #6b7280;
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .support-tabs {
-  background: #edf2f2;
-  border-radius: 999px;
-  padding: 4px;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
 }
-
-.support-tab {
-  min-height: 42px;
-  font-size: 12px;
+.pill {
+  background: #e5e7eb;
+  color: #111827;
   font-weight: 700;
-  color: #374151;
+  font-size: 13px;
+  padding: 6px 14px;
 }
-
-.support-tab :deep(.q-tab__content) {
-  gap: 6px;
-}
-
-.support-tab[aria-selected='true'] {
+.pill-active {
   background: #111827;
   color: white;
-  border-radius: 999px;
 }
-
-.tab-label {
-  position: relative;
-  z-index: 1;
-}
-
-.tab-badge {
-  border-radius: 999px;
-  font-size: 10px;
-  min-width: 20px;
-  min-height: 20px;
-  padding: 0 6px;
-}
-
-.help-banner {
-  background: linear-gradient(135deg, #0d474f 0%, #0f766e 100%);
-  border-radius: 26px;
-  color: white;
-  box-shadow: 0 20px 30px rgba(15, 118, 110, 0.15);
-}
-
-.banner-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.banner-title {
-  font-size: 26px;
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-}
-
-.banner-meta {
+.search-banner {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.online-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #4ade80;
-  display: inline-flex;
-}
-
-.support-search {
-  margin-top: 6px;
-}
-
-:deep(.support-search .q-field__control) {
-  height: 48px;
+  background: #0f766e;
   border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
 }
-
-.section-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.search-icon {
+  color: white;
 }
-
-.section-title {
-  color: #111827;
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: white;
   font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  outline: none;
 }
-
-.category-grid {
-  margin-top: 14px;
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+.cat-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
 }
-
-.category-card {
-  border-radius: 18px;
+.cat-card {
   background: white;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.category-icon {
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
-  display: flex;
+  border-radius: 14px;
+  padding: 16px;
+  min-height: 76px;
   align-items: center;
   justify-content: center;
 }
-
-.icon-teal {
-  background: rgba(13, 148, 136, 0.12);
-  color: #0f766e;
-}
-
-.icon-purple {
-  background: rgba(124, 58, 237, 0.1);
-  color: #7c3aed;
-}
-
-.icon-amber {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
-}
-
-.icon-blue {
-  background: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
-}
-
-.icon-slate {
-  background: rgba(71, 85, 105, 0.08);
-  color: #475569;
-}
-
-.category-name {
-  margin-top: 12px;
-  color: #111827;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.category-detail {
-  margin-top: 4px;
-  color: #6b7280;
-  font-size: 11px;
-}
-
-.ticket-header {
-  margin-bottom: 10px;
-}
-
-.view-link {
-  color: #0f766e;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.ticket-list {
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  overflow: hidden;
-}
-
-.ticket-item {
-  padding: 14px 16px;
-}
-
-.ticket-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.ticket-id {
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.ticket-status {
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.ticket-title {
-  margin-top: 8px;
-  color: #111827;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.ticket-meta-row {
-  margin-top: 6px;
+.cat-inner {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  color: #6b7280;
-  font-size: 11px;
+  align-items: center;
+  gap: 6px;
 }
-
-.message-snippet {
+.cat-icon {
+  color: #0f766e;
+}
+.cat-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+.section-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+.ticket-list {
+  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ticket-item {
+  padding: 12px;
+}
+.ticket-id {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f766e;
+}
+.ticket-subject {
+  font-size: 14px;
+  color: #111827;
+  margin-top: 2px;
+}
+.ticket-badge {
+  font-weight: 700;
+}
+.maint-list {
+  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.maint-item {
+  padding: 14px;
+}
+.maint-top {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.mini-chip {
+  font-size: 11px;
+  font-weight: 700;
+}
+.maint-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+.maint-desc {
+  font-size: 13px;
+  color: #4b5563;
+  margin-top: 2px;
+}
+.maint-tenant {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tenant-avatar {
+  background: #0f766e;
+  color: white;
+  font-weight: 700;
+}
+.tenant-name {
+  font-size: 13px;
   color: #374151;
-  font-weight: 600;
+}
+.maint-resolved {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+.maint-select {
+  margin-top: 8px;
+  max-width: 180px;
+}
+.review-summary {
+  background: white;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.summary-score {
+  font-size: 34px;
+  font-weight: 800;
+  color: #111827;
+}
+.summary-stars {
+  display: flex;
+  gap: 2px;
+  margin-top: 2px;
+}
+.summary-star {
+  color: #f59e0b;
+}
+.summary-count {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+.breakdown {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.break-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.break-label {
+  font-size: 11px;
+  color: #6b7280;
+  width: 42px;
+}
+.break-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+}
+.break-count {
+  font-size: 11px;
+  color: #6b7280;
+  width: 22px;
+  text-align: right;
+}
+.review-list {
+  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.review-item {
+  padding: 14px;
+}
+.anon-avatar {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+.review-stars {
+  display: flex;
+  gap: 1px;
+}
+.review-star {
+  color: #f59e0b;
+}
+.review-date {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+.review-text {
+  font-size: 13px;
+  color: #374151;
+  margin-top: 4px;
+}
+.new-ticket {
+  background: white;
+  border-radius: 14px;
+  padding: 14px;
+}
+.nt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.nt-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+  flex: 1;
+}
+.nt-chip {
+  font-weight: 700;
+}
+.nt-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  margin: 10px 0 4px;
+}
+.nt-input {
+  margin-bottom: 4px;
+}
+.priority-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.prio-pill {
+  background: #e5e7eb;
+  color: #111827;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 18px;
+}
+.prio-active {
+  background: #0f766e;
+  color: white;
+}
+.submit-ticket {
+  background: #0d9488;
+  color: white;
+  font-weight: 700;
+  width: 100%;
+  margin-top: 18px;
+  padding: 10px;
+  border-radius: 10px;
+  text-transform: none;
 }
 </style>

@@ -87,8 +87,6 @@
       <router-view />
     </q-page-container>
 
-    <div v-if="fabMenuOpen" class="fab-backdrop" @click="fabMenuOpen = false" />
-
     <q-footer bordered class="bg-white text-grey-8 bottom-footer">
       <q-tabs
         v-model="activeBottomTab"
@@ -99,40 +97,10 @@
       >
         <q-tab name="home" icon="home" label="Home" />
         <q-tab name="tenants" icon="groups" label="Tenants" />
-        <q-tab name="msgs" icon="chat_bubble_outline" label="Msgs" />
-        <q-tab name="notif" icon="notifications_none" label="Notif" />
+        <q-tab name="payments" icon="payments" label="Payments" />
+        <q-tab name="support" icon="help_outline" label="Support" />
+        <q-tab name="notif" icon="notifications" label="Notifications" />
       </q-tabs>
-
-      <div class="fab-menu-wrap" v-if="fabMenuOpen">
-        <q-btn
-          flat
-          class="fab-menu-item fab-item-osas"
-          @click="openScreen('/landlord/osas-compliance')"
-        >
-          <q-icon name="shield" color="purple-7" size="18px" class="q-mr-sm" />
-          OSAS
-        </q-btn>
-        <q-btn
-          flat
-          class="fab-menu-item fab-item-support"
-          @click="openScreen('/landlord/support')"
-        >
-          <q-icon name="help_outline" color="teal-8" size="18px" class="q-mr-sm" />
-          Support
-        </q-btn>
-        <q-btn
-          flat
-          class="fab-menu-item fab-item-properties"
-          @click="openScreen('/landlord/properties')"
-        >
-          <q-icon name="business" color="teal-8" size="18px" class="q-mr-sm" />
-          Properties
-        </q-btn>
-
-        <q-btn round color="black" icon="close" class="fab-close-button" @click="fabMenuOpen = false" />
-      </div>
-
-      <q-btn round color="teal-9" icon="add" class="fab-button" @click="toggleFabMenu" />
     </q-footer>
   </q-layout>
 </template>
@@ -148,10 +116,6 @@ const route = useRoute()
 const authStore = useAuthStore()
 const leftDrawerOpen = ref(false)
 const userRole = ref('')
-const fabMenuOpen = ref(false)
-
-type BottomTabName = 'home' | 'tenants' | 'msgs' | 'notif'
-
 const activeBottomTab = ref<BottomTabName>('home')
 
 const profileRoute = computed(() => {
@@ -162,24 +126,12 @@ const profileRoute = computed(() => {
 const bottomTabs = [
   { name: 'home', route: '/landlord/dashboard' },
   { name: 'tenants', route: '/landlord/tenants' },
-  { name: 'msgs', route: '/landlord/chat' },
+  { name: 'payments', route: '/landlord/payments' },
+  { name: 'support', route: '/landlord/support' },
   { name: 'notif', route: '/landlord/notifications' },
 ] as const
 
-interface SupabaseAuthOverride {
-  getUser: () => Promise<{ data: { user: { id: string } | null }; error: Error | null }>
-  signOut: () => Promise<{ error: Error | null }>
-}
-
-interface SupabaseDatabaseOverride {
-  from: (table: string) => {
-    select: (columns: string) => {
-      eq: (column: string, value: string) => {
-        single: () => Promise<{ data: { role: string } | null; error: Error | null }>
-      }
-    }
-  }
-}
+type BottomTabName = 'home' | 'tenants' | 'payments' | 'support' | 'notif'
 
 const toggleLeftDrawer = () => {
   leftDrawerOpen.value = !leftDrawerOpen.value
@@ -187,7 +139,6 @@ const toggleLeftDrawer = () => {
 
 const goToTab = (tabName: string | number) => {
   const selectedTab = bottomTabs.find(item => item.name === tabName)
-
   if (selectedTab) {
     void router.push(selectedTab.route)
   }
@@ -197,21 +148,13 @@ const goToProfile = () => {
   void router.push(profileRoute.value)
 }
 
-const toggleFabMenu = () => {
-  fabMenuOpen.value = !fabMenuOpen.value
-}
-
-const openScreen = (path: string) => {
-  fabMenuOpen.value = false
-  void router.push(path)
-}
-
 watch(
   () => route.path,
   value => {
     if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
     else if (value.startsWith('/landlord/tenants')) activeBottomTab.value = 'tenants'
-    else if (value.startsWith('/landlord/chat')) activeBottomTab.value = 'msgs'
+    else if (value.startsWith('/landlord/payments')) activeBottomTab.value = 'payments'
+    else if (value.startsWith('/landlord/support')) activeBottomTab.value = 'support'
     else if (value.startsWith('/landlord/notifications')) activeBottomTab.value = 'notif'
   },
   { immediate: true },
@@ -223,13 +166,11 @@ onMounted(async () => {
     userRole.value = profile?.role ?? ''
 
     if (!profile?.role) {
-      const auth = supabase.auth as unknown as SupabaseAuthOverride
-      const { data } = await auth.getUser()
+      const { data } = await supabase.auth.getUser()
       const user = data?.user
 
       if (user) {
-        const db = supabase as unknown as SupabaseDatabaseOverride
-        const { data: userData } = await db.from('users').select('role').eq('id', user.id).single()
+        const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).single()
 
         if (userData) {
           userRole.value = userData.role
@@ -244,25 +185,21 @@ onMounted(async () => {
 
 <style scoped>
 .app-header {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06)
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
 }
-
 .app-title {
   font-size: 28px;
   letter-spacing: -0.04em;
 }
-
 .menu-button {
   color: #111827;
 }
-
 .avatar-button {
   min-width: 36px;
   min-height: 36px;
   padding: 0;
   color: #111827;
 }
-
 .profile-icon-shell {
   width: 36px;
   height: 36px;
@@ -273,13 +210,11 @@ onMounted(async () => {
   background: #E6F5F3;
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
-
 .profile-action-icon {
   color: #0F766E;
 }
-
 .bottom-footer {
-  height: 78px;
+  height: 64px;
   position: fixed;
   bottom: 0;
   left: 0;
@@ -287,65 +222,17 @@ onMounted(async () => {
   z-index: 30;
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
 }
-
 .bottom-tabs {
-  height: 78px;
+  height: 64px;
 }
-
 .bottom-tabs :deep(.q-tab) {
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 4px;
   font-size: 11px;
   font-weight: 600;
 }
-
 .bottom-tabs :deep(.q-tab__icon) {
   font-size: 22px;
-  margin-bottom: 4px;
-}
-
-.fab-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 25;
-  background: rgba(17, 24, 39, 0.22);
-  backdrop-filter: blur(6px);
-}
-
-.fab-menu-wrap {
-  position: absolute;
-  right: 22px;
-  bottom: 92px;
-  z-index: 31;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-}
-
-.fab-menu-item {
-  min-height: 42px;
-  padding: 0 18px;
-  border-radius: 999px;
-  background: white;
-  color: #111827;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.fab-close-button {
-  width: 44px;
-  height: 44px;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.2);
-}
-
-.fab-button {
-  position: absolute;
-  right: 22px;
-  bottom: 52px;
-  box-shadow: 0 10px 22px rgba(0, 137, 123, 0.32);
-  z-index: 32;
+  margin-bottom: 2px;
 }
 </style>
