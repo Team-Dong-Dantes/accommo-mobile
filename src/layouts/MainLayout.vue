@@ -100,7 +100,6 @@
         <q-tab name="home" icon="home" label="Home" />
         <q-tab name="tenants" icon="groups" label="Tenants" />
         <q-tab name="payments" icon="payments" label="Payments" />
-        <q-tab name="support" icon="help_outline" label="Support" />
         <q-tab name="notif" icon="notifications" label="Notifications" />
       </q-tabs>
 
@@ -161,11 +160,10 @@ const bottomTabs = [
   { name: 'home', route: '/landlord/dashboard' },
   { name: 'tenants', route: '/landlord/tenants' },
   { name: 'payments', route: '/landlord/payments' },
-  { name: 'support', route: '/landlord/support' },
   { name: 'notif', route: '/landlord/notifications' },
 ] as const
 
-type BottomTabName = 'home' | 'tenants' | 'payments' | 'support' | 'notif'
+type BottomTabName = 'home' | 'tenants' | 'payments' | 'notif'
 
 const toggleLeftDrawer = () => {
   leftDrawerOpen.value = !leftDrawerOpen.value
@@ -197,7 +195,6 @@ watch(
     if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
     else if (value.startsWith('/landlord/tenants')) activeBottomTab.value = 'tenants'
     else if (value.startsWith('/landlord/payments')) activeBottomTab.value = 'payments'
-    else if (value.startsWith('/landlord/support')) activeBottomTab.value = 'support'
     else if (value.startsWith('/landlord/notifications')) activeBottomTab.value = 'notif'
   },
   { immediate: true },
