@@ -193,28 +193,6 @@
           </div>
         </div>
 
-        <div class="two-column-row">
-          <div class="form-field">
-            <label class="field-label">Barangay</label>
-            <q-input
-              v-model="form.barangay"
-              outlined
-              dense
-              placeholder="e.g. San Nicolas"
-              class="custom-input"
-            />
-          </div>
-          <div class="form-field">
-            <label class="field-label">City / Municipality</label>
-            <q-input
-              v-model="form.city"
-              outlined
-              dense
-              placeholder="e.g. Cebu City"
-              class="custom-input"
-            />
-          </div>
-        </div>
 
       </div>
 
@@ -379,8 +357,6 @@ interface PropertyFormData {
   monthlyRent: string
   totalRooms: string
   capacity: string
-  barangay: string
-  city: string
   amenities: string[]
   rules: string[]
   images: { file: File; dataUrl: string }[]
@@ -402,8 +378,6 @@ const form = ref<PropertyFormData>({
   monthlyRent: '',
   totalRooms: '',
   capacity: '',
-  barangay: '',
-  city: '',
   amenities: [],
   rules: ['No overnight visitors', 'No smoking inside'],
   images: [],
@@ -427,14 +401,9 @@ function validateStep1(): boolean {
   const f = form.value
   nameError.value = f.propertyName.trim() ? '' : 'Property name is required'
   addressError.value = f.address.trim() ? '' : 'Full address is required'
-  // Only require a map pin when the map is actually usable. If Mapbox failed to
-  // load (bad token / URL restriction), the user can't drop a pin — don't block
-  // the wizard on it, otherwise "Next" silently does nothing.
-  const locationUsable = mapAvailable && !mapError.value
-  locationError.value =
-    locationUsable && (f.latitude == null || f.longitude == null)
-      ? 'Drop a pin on the map to set the property location'
-      : ''
+  // Property location is optional — the map may be unavailable (e.g. Mapbox
+  // token URL restriction), so never block the wizard on it.
+  locationError.value = ''
   descriptionError.value = f.description.trim() ? '' : 'Description is required'
   monthlyRentError.value = f.monthlyRent.trim() ? '' : 'Monthly rent is required'
   totalRoomsError.value = f.totalRooms.trim() ? '' : 'Total rooms is required'
@@ -442,7 +411,6 @@ function validateStep1(): boolean {
   return (
     !nameError.value &&
     !addressError.value &&
-    !locationError.value &&
     !descriptionError.value &&
     !monthlyRentError.value &&
     !totalRoomsError.value &&
@@ -487,6 +455,7 @@ const mapError = ref<string | null>(null)
 let map: any = null
 let marker: any = null
 let mapInitTries = 0
+let mapErrorReported = false
 const DEFAULT_CENTER: [number, number] = [123.8854, 10.3157] // [lng, lat] Cebu City
 
 function setMarker(lng: number, lat: number) {
@@ -542,7 +511,10 @@ function initMap() {
 
     // Surface real Mapbox errors (token/style/network) instead of a silent blank map.
     map.on('error', (e: any) => {
-      console.error('[Mapbox error event]', e)
+      if (!mapErrorReported) {
+        mapErrorReported = true
+        console.error('[Mapbox error event]', e)
+      }
       const status = e?.error?.status
       let msg = e?.error?.message || e?.message || ''
       if (!msg) {
@@ -737,8 +709,6 @@ async function handleSave() {
         monthlyRent: form.value.monthlyRent,
         totalRooms: form.value.totalRooms,
         capacity: form.value.capacity,
-        barangay: form.value.barangay,
-        city: form.value.city,
         amenities: form.value.amenities,
       rules: form.value.rules,
       images: form.value.images,
