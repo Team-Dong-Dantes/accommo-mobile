@@ -21,7 +21,7 @@ const routes: RouteRecordRaw[] = [
 
   {
     path: '/',
-    component: () => import('@/modules/landlord/layouts/MainLayout.vue'),
+    component: () => import('@/layouts/MainLayout.vue'),
     children: [
       ...landlordRoutes,
       {
