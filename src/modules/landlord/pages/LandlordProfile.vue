@@ -217,21 +217,6 @@
               <q-icon name="chevron_right" color="grey-6" />
             </q-item-section>
           </q-item>
-
-          <q-separator />
-
-          <q-item clickable v-ripple>
-            <q-item-section avatar>
-              <q-icon name="notifications_none" color="grey-7" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="settings-title">Notifications</q-item-label>
-              <q-item-label caption class="settings-subtitle">Manage alert preferences</q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-icon name="chevron_right" color="grey-6" />
-            </q-item-section>
-          </q-item>
         </q-list>
 
         <q-btn flat class="logout-button" icon="logout" label="Log Out" @click="handleLogout" />

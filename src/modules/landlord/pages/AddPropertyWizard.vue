@@ -525,7 +525,14 @@ function initMap() {
 
     // Surface real Mapbox errors (token/style/network) instead of a silent blank map.
     map.on('error', (e: any) => {
-      const msg = e?.error?.message || e?.message || 'Unknown map error'
+      console.error('[Mapbox error event]', e)
+      const status = e?.error?.status
+      let msg = e?.error?.message || e?.message || ''
+      if (!msg) {
+        msg = status === 401
+          ? 'Mapbox token is not allowed on this website. Add your site URL in the Mapbox token URL restrictions.'
+          : 'Unknown map error (see console for details)'
+      }
       if (!mapError.value) mapError.value = 'Map error: ' + msg
     })
 
