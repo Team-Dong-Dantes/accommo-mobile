@@ -97,18 +97,22 @@
         class="bottom-tabs"
         @update:model-value="goToTab"
       >
-        <q-tab name="home" icon="home" label="Home" />
-        <q-tab name="tenants" label="Tenants">
-          <template #icon>
-            <IconifyIcon icon="material-icons:people" />
-          </template>
+        <q-tab name="home">
+          <IconifyIcon class="bottom-tab-icon" icon="material-icons:home" />
+          <span class="bottom-tab-label">Home</span>
         </q-tab>
-        <q-tab name="payments" label="Payments">
-          <template #icon>
-            <IconifyIcon icon="material-icons:payments" />
-          </template>
+        <q-tab name="tenants">
+          <IconifyIcon class="bottom-tab-icon" icon="material-icons:people" />
+          <span class="bottom-tab-label">Tenants</span>
         </q-tab>
-        <q-tab name="notif" icon="notifications" label="Notifications" />
+        <q-tab name="payments">
+          <IconifyIcon class="bottom-tab-icon" icon="material-icons:payments" />
+          <span class="bottom-tab-label">Payments</span>
+        </q-tab>
+        <q-tab name="notif">
+          <IconifyIcon class="bottom-tab-icon" icon="material-icons:notifications" />
+          <span class="bottom-tab-label">Notifications</span>
+        </q-tab>
       </q-tabs>
 
       <div class="fab-menu-wrap" v-if="fabMenuOpen">
@@ -279,9 +283,19 @@ onMounted(async () => {
   font-size: 11px;
   font-weight: 600;
 }
-.bottom-tabs :deep(.q-tab__icon) {
-  font-size: 22px;
+.bottom-tab-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  color: inherit;
   margin-bottom: 2px;
+}
+.bottom-tab-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: inherit;
 }
 .fab-backdrop {
   position: fixed;
