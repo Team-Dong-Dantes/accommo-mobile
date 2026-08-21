@@ -90,30 +90,44 @@
     <div v-if="fabMenuOpen" class="fab-backdrop" @click="fabMenuOpen = false" />
 
     <q-footer bordered class="bg-white text-grey-8 bottom-footer">
-      <q-tabs
-        v-model="activeBottomTab"
-        indicator-color="teal-9"
-        active-color="teal-9"
-        class="bottom-tabs"
-        @update:model-value="goToTab"
-      >
-        <q-tab name="home">
-          <IconifyIcon class="bottom-tab-icon" icon="material-icons:home" />
-          <span class="bottom-tab-label">Home</span>
-        </q-tab>
-        <q-tab name="tenants">
-          <IconifyIcon class="bottom-tab-icon" icon="material-icons:people" />
-          <span class="bottom-tab-label">Tenants</span>
-        </q-tab>
-        <q-tab name="payments">
-          <IconifyIcon class="bottom-tab-icon" icon="material-icons:payments" />
-          <span class="bottom-tab-label">Payments</span>
-        </q-tab>
-        <q-tab name="notif">
-          <IconifyIcon class="bottom-tab-icon" icon="material-icons:notifications" />
-          <span class="bottom-tab-label">Notifications</span>
-        </q-tab>
-      </q-tabs>
+      <div class="bottom-nav">
+        <button
+          type="button"
+          class="bottom-nav-item"
+          :class="{ active: activeBottomTab === 'home' }"
+          @click="goToTab('home')"
+        >
+          <IconifyIcon class="bottom-nav-icon" icon="material-icons:home" />
+          <span class="bottom-nav-label">Home</span>
+        </button>
+        <button
+          type="button"
+          class="bottom-nav-item"
+          :class="{ active: activeBottomTab === 'tenants' }"
+          @click="goToTab('tenants')"
+        >
+          <IconifyIcon class="bottom-nav-icon" icon="material-icons:people" />
+          <span class="bottom-nav-label">Tenants</span>
+        </button>
+        <button
+          type="button"
+          class="bottom-nav-item"
+          :class="{ active: activeBottomTab === 'payments' }"
+          @click="goToTab('payments')"
+        >
+          <IconifyIcon class="bottom-nav-icon" icon="material-icons:payments" />
+          <span class="bottom-nav-label">Payments</span>
+        </button>
+        <button
+          type="button"
+          class="bottom-nav-item"
+          :class="{ active: activeBottomTab === 'notif' }"
+          @click="goToTab('notif')"
+        >
+          <IconifyIcon class="bottom-nav-icon" icon="material-icons:notifications" />
+          <span class="bottom-nav-label">Notifications</span>
+        </button>
+      </div>
 
       <div class="fab-menu-wrap" v-if="fabMenuOpen">
         <q-btn
@@ -274,28 +288,55 @@ onMounted(async () => {
   z-index: 30;
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
 }
-.bottom-tabs {
+.bottom-nav {
   height: 78px;
+  display: flex;
+  align-items: stretch;
+  padding-right: 64px;
 }
-.bottom-tabs :deep(.q-tab) {
+.bottom-nav-item {
+  flex: 1 1 0;
   min-width: 0;
-  padding: 0 4px;
-  font-size: 11px;
-  font-weight: 600;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  cursor: pointer;
+  color: #6b7280;
+  font-family: inherit;
 }
-.bottom-tab-icon {
+.bottom-nav-item.active {
+  color: #0f766e;
+}
+.bottom-nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #0f766e;
+}
+.bottom-nav-icon {
   display: block;
   width: 22px;
   height: 22px;
-  color: inherit;
-  margin-bottom: 2px;
 }
-.bottom-tab-label {
+.bottom-nav-label {
   display: block;
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  color: inherit;
 }
 .fab-backdrop {
   position: fixed;
