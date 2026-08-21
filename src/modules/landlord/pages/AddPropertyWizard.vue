@@ -83,14 +83,21 @@
           </q-input>
         </div>
 
-        <!-- Property Location (Map) -->
-        <div class="form-field">
-          <label class="field-label">Property Location <span class="required">*</span></label>
-          <div
-            id="property-map"
-            ref="mapContainer"
-            class="property-map"
-          />
+          <!-- Property Location (Map) -->
+          <div class="form-field">
+            <label class="field-label">Property Location <span class="required">*</span></label>
+            <div
+              v-if="mapAvailable"
+              id="property-map"
+              ref="mapContainer"
+              class="property-map"
+            />
+            <q-banner v-else class="bg-grey-2 text-grey-8 rounded-borders">
+              <template #avatar>
+                <q-icon name="map" />
+              </template>
+              Map preview is not available on this deployment. You can still set the location with "Use my location".
+            </q-banner>
           <div class="map-actions q-mt-sm">
             <q-btn
               unelevated
@@ -362,6 +369,7 @@ import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLandlordStore } from '@/stores/landlord'
+import { isLocalDev } from '@/shared/utils/env'
 
 interface PropertyFormData {
   propertyName: string
@@ -465,6 +473,10 @@ const propertyTypes = ['solo', 'duo', 'triple', 'bedspace', 'studio']
 const amenitiesOptions = ['wifi', 'water', 'electric', 'aircon']
 
 // --- Mapbox GL JS map picker ---
+// Temporary: Mapbox is disabled on non-localhost deployments until the token's
+// URL restriction is configured for the production (Netlify) domain. Remove this
+// gate once the Mapbox token allows the live site URL.
+const mapAvailable = isLocalDev()
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const mapContainer = ref<HTMLElement | null>(null)
 const mapError = ref<string | null>(null)
@@ -487,6 +499,7 @@ function setMarker(lng: number, lat: number) {
 }
 
 function initMap() {
+  if (!mapAvailable) return
   if (!mapContainer.value) return
   const mapboxgl = (window as any).mapboxgl
   if (!mapboxgl) {
