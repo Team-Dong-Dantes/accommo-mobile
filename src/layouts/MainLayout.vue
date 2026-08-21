@@ -56,7 +56,7 @@
             <q-item-section avatar>
               <IconifyIcon width="24" icon="material-icons:domain" />
             </q-item-section>
-            <q-item-section> My Properties </q-item-section>
+            <q-item-section> My Boarding Houses </q-item-section>
           </q-item>
 
           <q-item clickable v-ripple to="/landlord/tenants" exact>

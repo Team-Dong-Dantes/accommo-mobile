@@ -44,7 +44,7 @@
           <q-list bordered class="settings-list">
             <q-item clickable v-ripple class="setting-item">
               <q-item-section>
-                <q-item-label class="setting-title">Manage Properties</q-item-label>
+                <q-item-label class="setting-title">Manage Boarding Houses</q-item-label>
                 <q-item-label caption class="setting-subtitle">Add, edit, or archive your listed properties</q-item-label>
               </q-item-section>
               <q-item-section side>

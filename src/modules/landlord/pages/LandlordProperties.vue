@@ -3,7 +3,7 @@
     <div class="header-section text-white">
       <div class="row justify-between items-center q-pa-md">
         <div>
-          <h4 class="q-my-none text-weight-bold">My Properties</h4>
+          <h4 class="q-my-none text-weight-bold">My Boarding Houses</h4>
           <p class="text-subtitle1 text-white-7 q-mb-none">
             All properties under {{ businessName }}
           </p>

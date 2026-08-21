@@ -91,7 +91,7 @@
 
       <div class="section-wrap q-px-md q-mt-lg">
         <div class="section-header row items-center justify-between">
-          <div class="section-title">My Properties</div>
+          <div class="section-title">My Boarding Houses</div>
           <q-badge color="green-2" text-color="green-9" class="section-badge">{{ properties.length }} active</q-badge>
         </div>
 
@@ -322,7 +322,7 @@ const reviewsAverage = computed(() => {
 
 const metrics = computed<MetricItem[]>(() => [
   {
-    label: 'Properties',
+    label: 'Boarding Houses',
     value: String(properties.value.length || 0),
     note: 'Active',
     noteTone: 'note-positive',

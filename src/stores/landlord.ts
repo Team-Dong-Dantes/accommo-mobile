@@ -267,19 +267,7 @@ export const useLandlordStore = defineStore('landlord', {
         .insert({ property_id: propertyId, house_rules_json: rules } as any)
       if (polError) throw polError
 
-      // 4) Contact details -> the landlord's own users row (users.phone / users.email).
-      const patch: Record<string, unknown> = {}
-      if (propertyData.contactNo) patch.phone = propertyData.contactNo
-      if (propertyData.email) patch.email = propertyData.email
-      if (Object.keys(patch).length) {
-        const { error: userErr } = await supabase
-          .from('users')
-          .update(patch as any)
-          .eq('id', user.id)
-        // Best-effort: contact details live on users, not properties. Don't fail
-        // the whole property creation if this RLS-restricted update is blocked.
-        if (userErr) console.warn('[landlord] could not save contact details:', userErr.message)
-      }
+
 
       // 5) Photos -> property_images. Images are kept as data URLs in `url`,
       //    so this needs no storage bucket or schema change. Inserted one-by-one

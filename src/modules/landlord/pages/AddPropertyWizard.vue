@@ -120,43 +120,7 @@
           </q-banner>
         </div>
 
-        <!-- Contact No and Email Row -->
-        <div class="two-column-row">
-          <div class="form-field">
-            <label class="field-label">Contact No <span class="required">*</span></label>
-            <q-input
-              v-model="form.contactNo"
-              outlined
-              dense
-              placeholder="+63 9XX XXX XXXX"
-              class="custom-input"
-              :error="!!contactError"
-              :error-message="contactError"
-              @update:model-value="clearContactError"
-            >
-              <template #prepend>
-                <q-icon name="phone" color="grey-7" />
-              </template>
-            </q-input>
-          </div>
-          <div class="form-field">
-            <label class="field-label">Email <span class="required">*</span></label>
-            <q-input
-              v-model="form.email"
-              outlined
-              dense
-              placeholder="your@email.com"
-              class="custom-input"
-              :error="!!emailError"
-              :error-message="emailError"
-              @update:model-value="clearEmailError"
-            >
-              <template #prepend>
-                <q-icon name="mail" color="grey-7" />
-              </template>
-            </q-input>
-          </div>
-        </div>
+
 
         <!-- Description -->
         <div class="form-field">
@@ -394,7 +358,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLandlordStore } from '@/stores/landlord'
@@ -403,8 +367,6 @@ interface PropertyFormData {
   propertyName: string
   propertyType: string
   address: string
-  contactNo: string
-  email: string
   description: string
   monthlyRent: string
   totalRooms: string
@@ -428,8 +390,6 @@ const form = ref<PropertyFormData>({
   propertyName: '',
   propertyType: 'solo',
   address: '',
-  contactNo: '',
-  email: '',
   description: '',
   monthlyRent: '',
   totalRooms: '',
@@ -450,22 +410,10 @@ const nameError = ref('')
 const addressError = ref('')
 const locationError = ref('')
 const descriptionError = ref('')
-const contactError = ref('')
-const emailError = ref('')
+
 const monthlyRentError = ref('')
 const totalRoomsError = ref('')
 const capacityError = ref('')
-
-function validateContactNo(value: string): boolean {
-  const digits = value.replace(/\D/g, '')
-  if (digits.startsWith('63')) return digits.length === 12 && digits[2] === '9'
-  if (digits.startsWith('0')) return digits.length === 11 && digits[1] === '9'
-  return false
-}
-
-function validateEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
-}
 
 function validateStep1(): boolean {
   const f = form.value
@@ -476,16 +424,6 @@ function validateStep1(): boolean {
       ? ''
       : 'Drop a pin on the map to set the property location'
   descriptionError.value = f.description.trim() ? '' : 'Description is required'
-  contactError.value = f.contactNo.trim()
-    ? validateContactNo(f.contactNo)
-      ? ''
-      : 'Enter a valid PH number, e.g. +63 9XX XXX XXXX or 09XX XXX XXXX'
-    : 'Contact number is required'
-  emailError.value = f.email.trim()
-    ? validateEmail(f.email)
-      ? ''
-      : 'Enter a valid email address'
-    : 'Email is required'
   monthlyRentError.value = f.monthlyRent.trim() ? '' : 'Monthly rent is required'
   totalRoomsError.value = f.totalRooms.trim() ? '' : 'Total rooms is required'
   capacityError.value = f.capacity.trim() ? '' : 'Capacity is required'
@@ -494,8 +432,6 @@ function validateStep1(): boolean {
     !addressError.value &&
     !locationError.value &&
     !descriptionError.value &&
-    !contactError.value &&
-    !emailError.value &&
     !monthlyRentError.value &&
     !totalRoomsError.value &&
     !capacityError.value
@@ -513,12 +449,6 @@ function clearLocationError() {
 }
 function clearDescriptionError() {
   if (descriptionError.value) descriptionError.value = ''
-}
-function clearContactError() {
-  if (contactError.value) contactError.value = ''
-}
-function clearEmailError() {
-  if (emailError.value) emailError.value = ''
 }
 function clearMonthlyRentError() {
   if (monthlyRentError.value) monthlyRentError.value = ''
@@ -655,6 +585,14 @@ onMounted(() => {
   initMap()
 })
 
+// Re-fit the map when returning to Step 1 — the map lives inside a v-if step
+// and can initialize at zero size until it becomes visible, leaving a blank tile.
+watch(currentStep, (step) => {
+  if (step === 1 && map) {
+    setTimeout(() => map.resize(), 200)
+  }
+})
+
 function getAmenityIcon(amenity: string): string {
 const icons: Record<string, string> = {
   wifi: 'wifi',
@@ -767,9 +705,7 @@ async function handleSave() {
         capacity: form.value.capacity,
         barangay: form.value.barangay,
         city: form.value.city,
-        contactNo: form.value.contactNo,
-      email: form.value.email,
-      amenities: form.value.amenities,
+        amenities: form.value.amenities,
       rules: form.value.rules,
       images: form.value.images,
       latitude: form.value.latitude,

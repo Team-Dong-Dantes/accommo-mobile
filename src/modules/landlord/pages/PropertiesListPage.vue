@@ -5,7 +5,7 @@
       <div class="header-section q-pa-lg">
         <div class="row items-center justify-between q-gutter-md">
           <div class="col">
-            <div class="page-title">Properties</div>
+            <div class="page-title">Boarding Houses</div>
             <div class="page-subtitle">
               {{ totalProperties }} properties · {{ totalAvailableRooms }} rooms available
             </div>
