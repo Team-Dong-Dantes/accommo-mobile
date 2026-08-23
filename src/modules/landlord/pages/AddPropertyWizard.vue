@@ -9,7 +9,7 @@
           <q-icon name="apartment" size="28px" color="teal-8" />
         </div>
         <div class="header-text">
-          <div class="wizard-title">Add New Property</div>
+          <div class="wizard-title">Add Boarding House</div>
           <div class="wizard-subtitle">
             {{ currentStep === 1 ? 'Step 1 of 2 — Basic Info' : 'Step 2 of 2 — Amenities & Rules' }}
           </div>
@@ -35,7 +35,7 @@
       <div v-if="currentStep === 1" class="step-1-content">
         <!-- Property Name -->
         <div class="form-field">
-          <label class="field-label">Property Name <span class="required">*</span></label>
+          <label class="field-label">Boarding House Name <span class="required">*</span></label>
           <q-input
             v-model="form.propertyName"
             outlined
@@ -101,7 +101,7 @@
 
           <!-- Property Location (Map) -->
           <div class="form-field">
-            <label class="field-label">Property Location <span class="required">*</span></label>
+            <label class="field-label">Boarding House Location <span class="required">*</span></label>
             <div
               v-if="mapAvailable"
               id="property-map"
@@ -153,7 +153,7 @@
             outlined
             type="textarea"
             rows="4"
-            placeholder="Tell us about your property..."
+            placeholder="Tell us about your boarding house..."
             class="custom-input"
             :error="!!descriptionError"
             :error-message="descriptionError"
@@ -279,7 +279,7 @@
 
           <div class="photo-dropzone" :class="{ 'has-error': !!imageError }" @click="triggerPhotoInput">
             <q-icon name="cloud_upload" size="32px" color="teal-8" />
-            <div class="photo-drop-text">Tap to add photos of your property</div>
+              <div class="photo-drop-text">Tap to add photos of your boarding house</div>
             <div class="photo-drop-sub">JPG, PNG or WebP · up to 3MB each · max {{ maxPhotos }}</div>
           </div>
           <input
@@ -347,7 +347,7 @@
         unelevated
         color="teal-8"
         text-color="white"
-        label="Save Property"
+        label="Save Boarding House"
         icon="check_circle"
         @click="handleSave"
         class="footer-btn action-btn"
@@ -763,18 +763,18 @@ async function handleSave() {
     if (ok) {
       $q.notify({
         type: 'positive',
-        message: 'Property added successfully',
+        message: 'Boarding house added successfully',
         icon: 'check_circle',
         timeout: 2500,
       })
       void router.push('/landlord/properties')
     } else {
-      const msg = 'Failed to save property. Please sign in and try again.'
+      const msg = 'Failed to save boarding house. Please sign in and try again.'
       mapError.value = msg
       $q.notify({ type: 'negative', message: msg, icon: 'error' })
     }
   } catch (e: any) {
-    const msg = e?.message ?? 'Failed to save property'
+    const msg = e?.message ?? 'Failed to save boarding house'
     mapError.value = msg
     $q.notify({ type: 'negative', message: msg, icon: 'error' })
   }

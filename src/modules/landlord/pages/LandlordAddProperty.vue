@@ -3,9 +3,9 @@
     <div class="header-section text-white">
       <div class="row justify-between items-center q-pa-md">
         <div>
-          <h4 class="q-my-none text-weight-bold">Add Property</h4>
+          <h4 class="q-my-none text-weight-bold">Add Boarding House</h4>
           <p class="text-subtitle1 text-white-7 q-mb-none">
-            Register a new property for accreditation
+            Register a new boarding house for accreditation
           </p>
         </div>
         <q-btn flat round dense icon="close" @click="handleCancel" />
@@ -20,7 +20,7 @@
               <q-input
                 v-model="form.name"
                 outlined
-                label="Property name"
+                label="Boarding House name"
                 placeholder="e.g. Dong's Dormitory"
                 :rules="[(val: string) => !!val?.trim() || 'Property name is required']"
               />
@@ -96,7 +96,7 @@
               unelevated
               color="teal-9"
               class="action-btn"
-              label="Add Property"
+              label="Add Boarding House"
               type="submit"
               :loading="submitting"
             />

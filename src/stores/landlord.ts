@@ -249,6 +249,20 @@ export const useLandlordStore = defineStore('landlord', {
       const propertyId = inserted?.id
       if (!propertyId) throw new Error('Failed to create property')
 
+      // Persist the "who can stay" policy in a separate step so that adding a
+      // boarding house still works before the gender_policy migration is applied.
+      const genderPolicy = propertyData.genderPolicy || null
+      if (genderPolicy) {
+        try {
+          await supabase
+            .from('properties')
+            .update({ gender_policy: genderPolicy } as any)
+            .eq('id', propertyId)
+        } catch (e) {
+          console.warn('gender_policy not saved (column may be missing):', e)
+        }
+      }
+
       // 2) Amenities -> property_amenities (one row per amenity, enum column).
       const amenities = (propertyData.amenities || []).filter(Boolean)
       if (amenities.length) {

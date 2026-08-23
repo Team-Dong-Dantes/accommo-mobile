@@ -71,6 +71,10 @@
               <span class="info-value">{{ property.room_type || '—' }}</span>
             </div>
             <div class="info-row">
+              <span class="info-label">Who can stay</span>
+              <span class="info-value">{{ genderPolicyLabel }}</span>
+            </div>
+            <div class="info-row">
               <span class="info-label">Address</span>
               <span class="info-value">{{ property.address || '—' }}</span>
             </div>
@@ -133,6 +137,7 @@ interface PropertyDetail {
   room_type: string | null
   address: string | null
   status: string
+  gender_policy: string | null
   description: string | null
   landlord_phone: string | null
   landlord_email: string | null
@@ -169,6 +174,14 @@ const rulesList = computed<string[]>(() => {
   return []
 })
 
+const genderPolicyLabel = computed<string>(() => {
+  const v = property.value?.gender_policy
+  if (v === 'boys') return 'Boys only'
+  if (v === 'girls') return 'Girls only'
+  if (v === 'coed') return 'Co-ed'
+  return '—'
+})
+
 const images = computed<string[]>(() => property.value?.images || [])
 const activeImageIndex = ref(0)
 
@@ -199,8 +212,23 @@ async function fetchProperty() {
     const imageList = (imgRes.data || []).map((row: any) => row.url as string)
     activeImageIndex.value = 0
 
+    // "Who can stay" is stored in the gender_policy column (added via migration).
+    // Fetch it separately so the detail page still loads if the column is missing.
+    let genderPolicy: string | null = null
+    try {
+      const { data: gp } = await supabase
+        .from('properties')
+        .select('gender_policy')
+        .eq('id', id)
+        .single()
+      genderPolicy = (gp as any)?.gender_policy ?? null
+    } catch {
+      genderPolicy = null
+    }
+
     property.value = {
       ...p,
+      gender_policy: genderPolicy,
       landlord_phone: usrRes.data?.phone ?? null,
       landlord_email: usrRes.data?.email ?? null,
       amenities: (amenRes.data || []).map((a: any) => a.amenity),

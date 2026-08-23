@@ -160,7 +160,7 @@
           @click="openScreen('/landlord/properties')"
         >
           <q-icon name="business" color="teal-8" size="18px" class="q-mr-sm" />
-          Properties
+          Boarding Houses
         </q-btn>
 
         <q-btn round color="black" icon="close" class="fab-close-button" @click="fabMenuOpen = false" />
