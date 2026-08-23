@@ -485,11 +485,33 @@ function setMarker(lng: number, lat: number) {
   form.value.latitude = lat
   clearLocationError()
   const mapboxgl = (window as any).mapboxgl
-  if (!mapboxgl || !map) return
   if (marker) {
     marker.setLngLat([lng, lat])
-  } else {
+  } else if (mapboxgl && map) {
     marker = new mapboxgl.Marker().setLngLat([lng, lat]).addTo(map)
+  }
+  // Auto-fill the Full Address from the dropped pin / geolocated position.
+  void reverseGeocode(lng, lat).then((address) => {
+    if (address) {
+      form.value.address = address
+      clearAddressError()
+    }
+  })
+}
+
+async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
+  if (!MAPBOX_TOKEN) return null
+  try {
+    const url =
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json` +
+      `?access_token=${MAPBOX_TOKEN}&limit=1`
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const data = (await res.json()) as any
+    const feature = data?.features?.[0]
+    return feature?.place_name || feature?.text || null
+  } catch {
+    return null
   }
 }
 
