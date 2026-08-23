@@ -64,6 +64,22 @@
           </div>
         </div>
 
+        <!-- Who can stay -->
+        <div class="form-field">
+          <label class="field-label">Who can stay <span class="required">*</span></label>
+          <div class="toggle-group">
+            <button
+              v-for="opt in genderOptions"
+              :key="opt"
+              class="toggle-pill"
+              :class="{ active: form.genderPolicy === opt }"
+              @click="form.genderPolicy = opt; clearGenderPolicyError()"
+            >
+              {{ opt }}
+            </button>
+          </div>
+        </div>
+
         <!-- Full Address -->
         <div class="form-field">
           <label class="field-label">Full Address <span class="required">*</span></label>
@@ -356,6 +372,7 @@ interface PropertyFormData {
   monthlyRent: string
   totalRooms: string
   capacity: string
+  genderPolicy: string
   amenities: string[]
   rules: string[]
   images: { file: File; dataUrl: string }[]
@@ -377,6 +394,7 @@ const form = ref<PropertyFormData>({
   monthlyRent: '',
   totalRooms: '',
   capacity: '',
+  genderPolicy: '',
   amenities: [],
   rules: ['No overnight visitors', 'No smoking inside'],
   images: [],
@@ -395,6 +413,7 @@ const descriptionError = ref('')
 const monthlyRentError = ref('')
 const totalRoomsError = ref('')
 const capacityError = ref('')
+const genderPolicyError = ref('')
 
 function validateStep1(): boolean {
   const f = form.value
@@ -407,13 +426,15 @@ function validateStep1(): boolean {
   monthlyRentError.value = f.monthlyRent.trim() ? '' : 'Monthly rent is required'
   totalRoomsError.value = f.totalRooms.trim() ? '' : 'Total rooms is required'
   capacityError.value = f.capacity.trim() ? '' : 'Capacity is required'
+  genderPolicyError.value = f.genderPolicy ? '' : 'Select who can stay'
   return (
     !nameError.value &&
     !addressError.value &&
     !descriptionError.value &&
     !monthlyRentError.value &&
     !totalRoomsError.value &&
-    !capacityError.value
+    !capacityError.value &&
+    !genderPolicyError.value
   )
 }
 
@@ -438,8 +459,13 @@ function clearTotalRoomsError() {
 function clearCapacityError() {
   if (capacityError.value) capacityError.value = ''
 }
+function clearGenderPolicyError() {
+  if (genderPolicyError.value) genderPolicyError.value = ''
+}
 
 const propertyTypes = ['solo', 'duo', 'triple', 'bedspace', 'studio']
+
+const genderOptions = ['Boys only', 'Girls only', 'Co-ed']
 
 const amenitiesOptions = ['wifi', 'water', 'electric', 'aircon']
 
@@ -705,6 +731,7 @@ async function handleSave() {
         monthlyRent: form.value.monthlyRent,
         totalRooms: form.value.totalRooms,
         capacity: form.value.capacity,
+        genderPolicy: form.value.genderPolicy,
         amenities: form.value.amenities,
       rules: form.value.rules,
       images: form.value.images,
