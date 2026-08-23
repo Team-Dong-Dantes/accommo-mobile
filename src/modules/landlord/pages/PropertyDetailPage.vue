@@ -125,7 +125,6 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
-import { isLocalDev } from '@/shared/utils/env'
 
 interface PropertyDetail {
   id: string
@@ -154,9 +153,7 @@ const detailMapContainer = ref<HTMLElement | null>(null)
 let map: any = null
 let marker: any = null
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
-// Temporary: disable Mapbox on non-localhost deployments until the token URL
-// restriction is configured for the Netlify domain. Remove once the token allows it.
-const mapAvailable = isLocalDev()
+const mapAvailable = true
 
 const amenitiesList = computed<string[]>(() => {
   const a = property.value?.amenities

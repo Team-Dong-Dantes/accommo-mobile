@@ -288,7 +288,9 @@ onMounted(async () => {
   color: #0F766E;
 }
 .bottom-footer {
-  height: 78px;
+  min-height: 84px;
+  height: calc(84px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   position: fixed;
   bottom: 0;
   left: 0;
@@ -297,10 +299,9 @@ onMounted(async () => {
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
 }
 .bottom-nav {
-  height: 78px;
+  height: 100%;
   display: flex;
   align-items: stretch;
-  padding-right: 64px;
 }
 .bottom-nav-item {
   flex: 1 1 0;
@@ -310,7 +311,7 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
   padding: 0;
   border: none;
   background: transparent;
@@ -337,12 +338,12 @@ onMounted(async () => {
 }
 .bottom-nav-icon {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
 }
 .bottom-nav-label {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
 }
@@ -356,7 +357,7 @@ onMounted(async () => {
 .fab-menu-wrap {
   position: absolute;
   right: 22px;
-  bottom: 92px;
+  bottom: 150px;
   z-index: 31;
   display: flex;
   flex-direction: column;
@@ -382,7 +383,7 @@ onMounted(async () => {
 .fab-button {
   position: absolute;
   right: 22px;
-  bottom: 52px;
+  bottom: 96px;
   box-shadow: 0 10px 22px rgba(0, 137, 123, 0.32);
   z-index: 32;
 }

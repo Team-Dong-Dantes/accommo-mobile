@@ -347,7 +347,6 @@ import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useLandlordStore } from '@/stores/landlord'
-import { isLocalDev } from '@/shared/utils/env'
 
 interface PropertyFormData {
   propertyName: string
@@ -445,10 +444,7 @@ const propertyTypes = ['solo', 'duo', 'triple', 'bedspace', 'studio']
 const amenitiesOptions = ['wifi', 'water', 'electric', 'aircon']
 
 // --- Mapbox GL JS map picker ---
-// Temporary: Mapbox is disabled outside localhost until the token's URL
-// restriction is configured for the deployed domain. Remove this gate once the
-// Mapbox token allows the live site URL.
-const mapAvailable = isLocalDev()
+const mapAvailable = true
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const mapContainer = ref<HTMLElement | null>(null)
 const mapError = ref<string | null>(null)
