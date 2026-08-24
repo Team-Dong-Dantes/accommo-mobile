@@ -94,7 +94,9 @@
           <div v-if="!chat.activeConversationId" class="conv-list">
             <div class="conv-list-head">
               <div class="conv-list-title">Conversations</div>
-              <q-btn round flat icon="edit" color="teal-9" @click="openNewChat" />
+              <div class="row no-wrap items-center">
+                <q-btn round flat icon="edit" color="teal-9" @click="openNewChat" />
+              </div>
             </div>
 
 
@@ -106,9 +108,9 @@
               {{ chat.loadError }}
             </div>
 
-            <q-list v-else-if="displayConversations.length" separator>
+            <q-list v-else-if="chat.conversations.length" separator>
               <q-item
-                v-for="c in displayConversations"
+                v-for="c in chat.conversations"
                 :key="c.id"
                 clickable
                 v-ripple
@@ -209,23 +211,26 @@
           <div v-if="tenantLoading" class="center-state">
             <q-spinner size="32px" color="teal-8" />
           </div>
-          <q-list v-else separator>
-            <q-item
-              v-for="t in tenants"
-              :key="t.id"
-              clickable
-              v-ripple
-              @click="startChatWith(t.id)"
-            >
-              <q-item-section avatar>
-                <q-avatar color="teal-9" text-color="white">{{ initials(t.name) }}</q-avatar>
-              </q-item-section>
-              <q-item-section>{{ t.name }}</q-item-section>
-            </q-item>
-            <q-item v-if="!tenantLoading && !tenants.length">
-              <q-item-section class="text-grey-7">No active tenants found.</q-item-section>
-            </q-item>
-          </q-list>
+          <template v-else>
+            <q-item-label header>Tenants</q-item-label>
+            <q-list separator>
+              <q-item
+                v-for="t in tenants"
+                :key="t.id"
+                clickable
+                v-ripple
+                @click="startChatWith(t.id)"
+              >
+                <q-item-section avatar>
+                  <q-avatar color="teal-9" text-color="white">{{ initials(t.name) }}</q-avatar>
+                </q-item-section>
+                <q-item-section>{{ t.name }}</q-item-section>
+              </q-item>
+              <q-item v-if="!tenants.length">
+                <q-item-section class="text-grey-7">No active tenants found.</q-item-section>
+              </q-item>
+            </q-list>
+          </template>
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -252,16 +257,7 @@ const showNewChat = ref(false)
 const tenants = ref<{ id: string; name: string }[]>([])
 const tenantLoading = ref(false)
 
-const showSample = computed(
-  () => !chat.isLoading && !chat.loadError && chat.conversations.length === 0,
-)
-const sampleConversations = [
-  { id: 'sample-1', otherName: 'Sample Tenant A', lastMessage: 'Hi, is Room 101 still available?', lastTime: new Date(Date.now() - 60 * 60 * 1000).toISOString() },
-  { id: 'sample-2', otherName: 'Sample Tenant B', lastMessage: 'Thanks for the update!', lastTime: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString() },
-]
-const displayConversations = computed(() =>
-  showSample.value ? sampleConversations : chat.conversations,
-)
+// Conversations load from Supabase only; no placeholder/sample data.
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value
@@ -289,7 +285,6 @@ function initials(name: string): string {
 }
 
 function openConversation(id: string) {
-  if (showSample.value) return
   void chat.loadMessages(id)
 }
 

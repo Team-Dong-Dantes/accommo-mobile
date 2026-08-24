@@ -38,7 +38,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: '/landlord/tenant/:tenantId',
-        component: () => import('@/modules/landlord/pages/TenantProfileBilling.vue'),
+        component: () => import('@/modules/landlord/pages/TenantProfilePage.vue'),
       },
       {
         path: '/landlord/notifications',

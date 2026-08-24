@@ -212,18 +212,16 @@ async function fetchProperty() {
     const imageList = (imgRes.data || []).map((row: any) => row.url as string)
     activeImageIndex.value = 0
 
-    // "Who can stay" is stored in the gender_policy column (added via migration).
-    // Fetch it separately so the detail page still loads if the column is missing.
+    // "Who can stay" is stored inside property_policies.house_rules_json (no new column).
+    // The jsonb may be a plain rules array (older data) or an object with rules + gender_policy.
+    const policyRaw: any = polRes.data?.house_rules_json
+    let rules: string[] = []
     let genderPolicy: string | null = null
-    try {
-      const { data: gp } = await supabase
-        .from('properties')
-        .select('gender_policy')
-        .eq('id', id)
-        .single()
-      genderPolicy = (gp as any)?.gender_policy ?? null
-    } catch {
-      genderPolicy = null
+    if (Array.isArray(policyRaw)) {
+      rules = policyRaw
+    } else if (policyRaw && typeof policyRaw === 'object') {
+      rules = (policyRaw.rules as string[]) || []
+      genderPolicy = policyRaw.gender_policy ?? null
     }
 
     property.value = {
@@ -232,7 +230,7 @@ async function fetchProperty() {
       landlord_phone: usrRes.data?.phone ?? null,
       landlord_email: usrRes.data?.email ?? null,
       amenities: (amenRes.data || []).map((a: any) => a.amenity),
-      rules: (polRes.data?.house_rules_json as string[]) || [],
+      rules,
       images: imageList,
     } as PropertyDetail
   } catch (e: any) {

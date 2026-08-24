@@ -34,10 +34,24 @@
       <div class="nt-header">
         <q-btn flat round dense icon="arrow_back" @click="goBack" />
         <div class="nt-title">New Ticket</div>
-        <q-chip dense outline color="teal-8" class="nt-chip">{{ ticketCategory }}</q-chip>
+        <q-chip dense outline color="teal-8" class="nt-chip">{{ categoryLabel(ticketCategory) }}</q-chip>
       </div>
 
       <div class="nt-body">
+        <label class="nt-label">Related boarding house</label>
+        <q-select
+          v-model="selectedProperty"
+          :options="propertyOptions"
+          option-value="id"
+          option-label="name"
+          emit-value
+          map-options
+          outlined
+          dense
+          placeholder="Select boarding house"
+          class="nt-input"
+        />
+
         <label class="nt-label">Subject</label>
         <q-input v-model="subject" outlined dense placeholder="Enter subject" class="nt-input" />
 
@@ -59,18 +73,18 @@
             rounded
             unelevated
             class="prio-pill"
-            :class="{ 'prio-active': priority === 'Normal' }"
+            :class="{ 'prio-active': priority === 'medium' }"
             label="Normal"
-            @click="priority = 'Normal'"
+            @click="priority = 'medium'"
           />
           <q-btn
             no-caps
             rounded
             unelevated
             class="prio-pill"
-            :class="{ 'prio-active': priority === 'Urgent' }"
+            :class="{ 'prio-active': priority === 'urgent' }"
             label="Urgent"
-            @click="priority = 'Urgent'"
+            @click="priority = 'urgent'"
           />
         </div>
 
@@ -78,6 +92,8 @@
           unelevated
           class="submit-ticket"
           label="Submit Ticket"
+          :disable="!subject.trim() || !selectedProperty"
+          :loading="submitting"
           @click="submitTicket"
         />
       </div>
@@ -92,21 +108,21 @@
 
         <div class="cat-grid">
           <q-btn
-            v-for="cat in osasCategories"
-            :key="cat"
+            v-for="cat in categoryOptions"
+            :key="cat.value"
             flat
             class="cat-card"
-            @click="openNewTicket(cat)"
+            @click="openNewTicket(cat.value)"
           >
             <div class="cat-inner">
               <q-icon name="article" size="22px" class="cat-icon" />
-              <div class="cat-name">{{ cat }}</div>
+              <div class="cat-name">{{ cat.label }}</div>
             </div>
           </q-btn>
         </div>
 
         <div class="section-label">MY TICKETS</div>
-        <q-list separator class="ticket-list">
+        <q-list v-if="!ticketLoading && myTickets.length" separator class="ticket-list">
           <q-item v-for="t in myTickets" :key="t.id" class="ticket-item">
             <q-item-section>
               <q-item-label class="ticket-id">{{ t.id }}</q-item-label>
@@ -114,14 +130,18 @@
             </q-item-section>
             <q-item-section side>
               <q-badge
-                :color="t.status === 'Resolved' ? 'green' : 'amber'"
+                :color="statusColor(COMPLAINT_STATUS, t.status)"
                 class="ticket-badge"
               >
-                {{ t.status }}
+                {{ statusText(COMPLAINT_STATUS, t.status) }}
               </q-badge>
             </q-item-section>
           </q-item>
         </q-list>
+        <div v-else-if="ticketLoading" class="text-center q-pa-md">
+          <q-spinner size="28px" color="teal-8" />
+        </div>
+        <div v-else class="text-grey-7 text-center q-pa-md">No tickets submitted yet.</div>
       </div>
 
       <div v-else-if="activeTab === 'maintenance'">
@@ -205,37 +225,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useQuasar } from 'quasar'
+import { supabase } from '@/shared/utils/supabase'
+import { useLandlordStore } from '@/stores/landlord'
+import { COMPLAINT_STATUS, statusText, statusColor } from '@/shared/utils/format'
 
 type SupportTab = 'osas' | 'maintenance' | 'reviews'
-type TicketStatus = 'Resolved' | 'In Progress'
+
+const $q = useQuasar()
+const landlord = useLandlordStore()
 
 const activeTab = ref<SupportTab>('osas')
 const view = ref<'list' | 'newTicket'>('list')
 const ticketCategory = ref<string>('')
 const subject = ref<string>('')
 const details = ref<string>('')
-const priority = ref<'Normal' | 'Urgent'>('Normal')
+const priority = ref<'medium' | 'urgent'>('medium')
+const selectedProperty = ref<string>('')
 const osasSearch = ref<string>('')
+const submitting = ref(false)
+const ticketLoading = ref(false)
 
-const osasCategories = ['Accreditation', 'Tenant Dispute', 'Documents', 'Inspection', 'General']
+const categoryOptions: { value: string; label: string }[] = [
+  { value: 'financial', label: 'Financial / Payments' },
+  { value: 'privacy', label: 'Privacy' },
+  { value: 'maintenance', label: 'Maintenance' },
+  { value: 'safety', label: 'Safety / Inspection' },
+  { value: 'harassment', label: 'Harassment / Dispute' },
+  { value: 'contract', label: 'Contract / Accreditation' },
+]
+
+const propertyOptions = ref<{ id: string; name: string }[]>([])
 
 interface MyTicket {
   id: string
   subject: string
-  status: TicketStatus
+  status: string
 }
 
-const myTickets = ref<MyTicket[]>([
-  { id: 'LT-0009', subject: 'Fire safety certificate renewal', status: 'In Progress' },
-  { id: 'LT-0008', subject: 'Room occupancy permit question', status: 'Resolved' },
-])
+const myTickets = ref<MyTicket[]>([])
 
 interface MaintenanceTicket {
   id: string
   category: string
   priority: string
-  status: TicketStatus
+  status: 'Resolved' | 'In Progress'
   title: string
   description: string
   tenantName: string
@@ -305,11 +340,15 @@ const starIcon = (position: number, rating = 5) => {
   return 'star_border'
 }
 
+const categoryLabel = (value: string) =>
+  categoryOptions.find((c) => c.value === value)?.label ?? value
+
 const openNewTicket = (category: string) => {
   ticketCategory.value = category
   subject.value = ''
   details.value = ''
-  priority.value = 'Normal'
+  priority.value = 'medium'
+  selectedProperty.value = propertyOptions.value[0]?.id ?? ''
   view.value = 'newTicket'
 }
 
@@ -317,9 +356,93 @@ const goBack = () => {
   view.value = 'list'
 }
 
-const submitTicket = () => {
-  view.value = 'list'
+const submitTicket = async () => {
+  const subj = subject.value.trim()
+  if (!subj) {
+    $q.notify({ type: 'negative', message: 'Please enter a subject' })
+    return
+  }
+  if (!ticketCategory.value) {
+    $q.notify({ type: 'negative', message: 'Please choose a category' })
+    return
+  }
+  if (!selectedProperty.value) {
+    $q.notify({ type: 'negative', message: 'Please select a boarding house' })
+    return
+  }
+
+  submitting.value = true
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    const { error } = await supabase.from('complaints').insert({
+      id: crypto.randomUUID(),
+      // Landlord is the filer. complaints requires a student_id FK; for a
+      // landlord -> OSAS ticket there is no specific student, so we reference the
+      // filing landlord's own user id (valid FK and satisfies RLS, which allows
+      // landlord_id = auth.uid()).
+      landlord_id: user.id,
+      student_id: user.id,
+      property_id: selectedProperty.value,
+      category: ticketCategory.value,
+      priority: priority.value,
+      subject: subj,
+      description: details.value.trim() || null,
+      status: 'pending',
+      filed_at: new Date().toISOString(),
+    } as any)
+    if (error) throw error
+
+    $q.notify({ type: 'positive', message: 'Ticket submitted to OSAS' })
+    view.value = 'list'
+    await loadMyTickets()
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.message || 'Failed to submit ticket' })
+  } finally {
+    submitting.value = false
+  }
 }
+
+const loadMyTickets = async () => {
+  ticketLoading.value = true
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('id, subject, status')
+      .eq('landlord_id', user.id)
+      .order('filed_at', { ascending: false })
+    if (error) throw error
+    myTickets.value = (data ?? []).map((c: any) => ({
+      id: c.id,
+      subject: c.subject,
+      status: c.status,
+    }))
+  } catch (e) {
+    console.error('loadMyTickets error:', e)
+  } finally {
+    ticketLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    if (!landlord.properties.length) await landlord.loadProperties()
+    propertyOptions.value = landlord.properties.map((p: any) => ({
+      id: p.id,
+      name: p.name || 'Boarding House',
+    }))
+  } catch (e) {
+    console.error('Failed to load boarding houses', e)
+  }
+  await loadMyTickets()
+})
 </script>
 
 <style scoped>

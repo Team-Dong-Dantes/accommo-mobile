@@ -249,19 +249,7 @@ export const useLandlordStore = defineStore('landlord', {
       const propertyId = inserted?.id
       if (!propertyId) throw new Error('Failed to create property')
 
-      // Persist the "who can stay" policy in a separate step so that adding a
-      // boarding house still works before the gender_policy migration is applied.
-      const genderPolicy = propertyData.genderPolicy || null
-      if (genderPolicy) {
-        try {
-          await supabase
-            .from('properties')
-            .update({ gender_policy: genderPolicy } as any)
-            .eq('id', propertyId)
-        } catch (e) {
-          console.warn('gender_policy not saved (column may be missing):', e)
-        }
-      }
+      // "Who can stay" is stored inside property_policies.house_rules_json (no new column needed).
 
       // 2) Amenities -> property_amenities (one row per amenity, enum column).
       const amenities = (propertyData.amenities || []).filter(Boolean)
@@ -274,11 +262,15 @@ export const useLandlordStore = defineStore('landlord', {
         if (amenError) throw amenError
       }
 
-      // 3) House rules -> property_policies.house_rules_json (jsonb).
+      // 3) House rules + "who can stay" -> property_policies.house_rules_json (jsonb).
+      // Stored as an object so we avoid adding a new database column.
       const rules = (propertyData.rules || []).filter(Boolean)
+      const policyJson: any = { rules }
+      const genderPolicy = propertyData.genderPolicy || null
+      if (genderPolicy) policyJson.gender_policy = genderPolicy
       const { error: polError } = await supabase
         .from('property_policies')
-        .insert({ property_id: propertyId, house_rules_json: rules } as any)
+        .insert({ property_id: propertyId, house_rules_json: policyJson } as any)
       if (polError) throw polError
 
 

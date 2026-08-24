@@ -2,6 +2,15 @@ import { defineStore } from 'pinia'
 import { supabase } from '@/shared/utils/supabase'
 import type { ChatMessage } from '@/shared/types/app-types'
 
+let messageChannel: any = null
+
+function unsubscribeMessages() {
+  if (messageChannel) {
+    void supabase.removeChannel(messageChannel)
+    messageChannel = null
+  }
+}
+
 export interface Conversation {
   id: string
   otherUserId: string
@@ -77,6 +86,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     async loadMessages(conversationId: string) {
+      unsubscribeMessages()
       this.activeConversationId = conversationId
       this.isLoading = true
       this.loadError = null
@@ -101,6 +111,25 @@ export const useChatStore = defineStore('chat', {
           timestamp: m.sent_at,
           isLandlord: m.sender_id === user.id,
         }))
+
+        messageChannel = supabase
+          .channel(`messages:${conversationId}`)
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+            (payload: any) => {
+              const row = payload.new
+              if (this.messages.some((m) => m.id === row.id)) return
+              this.messages.push({
+                id: row.id,
+                text: row.body,
+                senderId: row.sender_id,
+                timestamp: row.sent_at,
+                isLandlord: row.sender_id === user.id,
+              })
+            },
+          )
+          .subscribe()
       } catch (e: any) {
         this.loadError = e?.message || 'Failed to load messages'
       } finally {
@@ -187,7 +216,10 @@ export const useChatStore = defineStore('chat', {
       }))
     },
 
+    // Landlord messaging is tenant-only; OSAS concerns are filed via the Support page.
+
     clearActive() {
+      unsubscribeMessages()
       this.activeConversationId = null
       this.messages = []
     },
