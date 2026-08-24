@@ -59,7 +59,7 @@ export default defineRouter(() => {
     const { data: { session } } = await supabase.auth.getSession();
     const isAuthenticated = !!session;
 
-    const publicRoutes = ['/', '/login', '/register', '/register/landlord'];
+    const publicRoutes = ['/', '/login', '/register', '/register/role', '/register/landlord'];
     const isPublicRoute = publicRoutes.includes(to.path);
 
     if (!isAuthenticated && !isPublicRoute) {
@@ -67,7 +67,7 @@ export default defineRouter(() => {
     }
 
     if (isAuthenticated) {
-      if (to.path === '/register' || to.path === '/register/landlord') {
+      if (to.path.startsWith('/register')) {
         await supabase.auth.signOut();
         return '/login?accountExists=true';
       }

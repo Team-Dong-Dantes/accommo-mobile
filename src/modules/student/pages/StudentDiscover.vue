@@ -59,7 +59,6 @@
             <div class="absolute-bottom bg-transparent q-pa-md row justify-between items-end" style="background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%);">
               <div>
                 <div class="text-h6 text-weight-bold text-white line-height-tight">{{ property.name }}</div>
-                <div class="text-caption text-grey-3">{{ property.landlordName }}</div>
               </div>
               <div class="bg-dark text-white q-px-sm q-py-xs text-weight-bold text-caption border-radius-12">
                 {{ property.rent ? formatPeso(property.rent) + '/mo' : 'Price on request' }}
@@ -763,20 +762,24 @@ async function loadPropertyDetail(property: DiscoverProperty) {
 
     let landlord = { name: property.landlordName, responseRate: null as number | null, avgResponseMinutes: null as number | null, propertyCount: 0 };
     if (prop?.landlord_id) {
-      const [lp, pc] = await Promise.all([
-        supabase.from('landlord_profiles').select('business_name, response_rate, avg_response_minutes').eq('user_id', prop.landlord_id).maybeSingle(),
+      const [lp, pc, usr] = await Promise.all([
+        supabase.from('landlord_profiles').select('response_rate, avg_response_minutes').eq('user_id', prop.landlord_id).maybeSingle(),
         supabase.from('properties').select('*', { count: 'exact', head: true }).eq('landlord_id', prop.landlord_id),
+        supabase.from('users').select('full_name').eq('id', prop.landlord_id).maybeSingle(),
       ]);
+      const userName = (usr.data as { full_name: string | null } | null)?.full_name ?? null;
+      // Prefer the property's business_name (carried on property.landlordName); fall back to users.full_name.
+      const detailName = property.landlordName !== 'Property Owner' ? property.landlordName : (userName ?? 'Property Owner');
       if (lp.data) {
-        const lpData = lp.data as { business_name: string | null; response_rate: number | null; avg_response_minutes: number | null };
+        const lpData = lp.data as { response_rate: number | null; avg_response_minutes: number | null };
         landlord = {
-          name: lpData.business_name || property.landlordName,
+          name: detailName,
           responseRate: lpData.response_rate ?? null,
           avgResponseMinutes: lpData.avg_response_minutes ?? null,
           propertyCount: pc.count ?? 0,
         };
       } else {
-        landlord.propertyCount = pc.count ?? 0;
+        landlord = { name: detailName, responseRate: null, avgResponseMinutes: null, propertyCount: pc.count ?? 0 };
       }
     }
 
@@ -822,13 +825,16 @@ async function loadLandlordData(
   if (!landlordId) return;
   detailLoading.value = true;
   try {
-    const [lpRes, propsRes] = await Promise.all([
-      supabase.from('landlord_profiles').select('business_name, response_rate, avg_response_minutes').eq('user_id', landlordId).maybeSingle(),
+    const [lpRes, propsRes, usrRes] = await Promise.all([
+      supabase.from('landlord_profiles').select('response_rate, avg_response_minutes').eq('user_id', landlordId).maybeSingle(),
       supabase.from('properties').select('id, name').eq('landlord_id', landlordId),
+      supabase.from('users').select('full_name').eq('id', landlordId).maybeSingle(),
     ]);
 
-    const lpData = lpRes.data as { business_name: string | null; response_rate: number | null; avg_response_minutes: number | null } | null;
-    const businessName = lpData?.business_name ?? ctx.name;
+    const lpData = lpRes.data as { response_rate: number | null; avg_response_minutes: number | null } | null;
+    const userName = (usrRes.data as { full_name: string | null } | null)?.full_name ?? null;
+    // Prefer the property's business_name (carried on ctx.name); fall back to users.full_name.
+    const businessName = ctx.name !== 'Property Owner' ? ctx.name : (userName ?? 'Property Owner');
     const propertyRows = (propsRes.data ?? []) as Array<{ id: string; name: string | null }>;
 
     let roomRows: Array<{ id: string; room_number: string | null; label: string | null; monthly_rent: number | null; capacity: number | null; current_pax: number | null; status: string | null }> = [];
@@ -886,7 +892,7 @@ async function loadProperties() {
 
     const { data, error: queryError } = await supabase
       .from('properties')
-      .select('id, name, address, room_type, monthly_rent, landlord_id, description, property_images(url, sort_order), rooms(id, room_number, monthly_rent, status)')
+      .select('id, name, address, room_type, landlord_id, description, business_name, property_images(url, sort_order), rooms(id, room_number, monthly_rent, status)')
       .eq('status', 'accredited')
       .eq('rooms.status', 'available')
       .order('name', { ascending: true });
@@ -901,6 +907,7 @@ async function loadProperties() {
       monthly_rent: number | null;
       landlord_id: string | null;
       description: string | null;
+      business_name: string | null;
       property_images: Array<{ url: string | null; sort_order: number | null }> | null;
       rooms: Array<{ id: string; room_number: string | null; monthly_rent: number | null; status: string | null }> | null;
     }>;
@@ -909,28 +916,16 @@ async function loadProperties() {
       new Set(rows.map((r) => r.landlord_id).filter((id): id is string => !!id)),
     );
 
-    const landlordNames = new Map<string, string>();
+    const userNames = new Map<string, string>();
     if (landlordIds.length > 0) {
-      // Prefer the business name; fall back to the landlord's real full name so
-      // every card shows a meaningful owner label instead of a generic placeholder.
-      // These enrichment queries must not blank the whole list if they're blocked.
-      const [profileResult, userResult] = await Promise.all([
-        supabase.from('landlord_profiles').select('user_id, business_name').in('user_id', landlordIds),
-        supabase.from('users').select('id, full_name').in('id', landlordIds),
-      ]);
-
-      const userNames = new Map<string, string>();
-      for (const u of (userResult.data ?? []) as unknown as Array<{ id: string; full_name: string | null }>) {
+      // Display name = properties.business_name (populated on the property row),
+      // falling back to the landlord's users.full_name, then "Property Owner".
+      const { data: userData, error: userErr } = await supabase
+        .from('users').select('id, full_name').in('id', landlordIds);
+      for (const u of (userData ?? []) as unknown as Array<{ id: string; full_name: string | null }>) {
         if (u.full_name) userNames.set(u.id, u.full_name);
       }
-
-      for (const p of (profileResult.data ?? []) as unknown as Array<{ user_id: string; business_name: string | null }>) {
-        const name = p.business_name ?? userNames.get(p.user_id) ?? null;
-        if (name) landlordNames.set(p.user_id, name);
-      }
-
-      if (profileResult.error) console.warn('[discover] landlord_profiles fetch failed:', profileResult.error.message);
-      if (userResult.error) console.warn('[discover] users fetch failed:', userResult.error.message);
+      if (userErr) console.warn('[discover] users fetch failed:', userErr.message);
     }
 
     properties.value = rows.map((r) => {
@@ -941,9 +936,7 @@ async function loadProperties() {
       const imgs = (r.property_images ?? [])
         .filter((i) => i.url)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      const landlordName = r.landlord_id
-        ? (landlordNames.get(r.landlord_id) ?? 'Property Owner')
-        : 'Property Owner';
+      const landlordName = r.business_name ?? (r.landlord_id ? userNames.get(r.landlord_id) : null) ?? 'Property Owner';
       return {
         id: r.id,
         name: r.name ?? 'Boarding House',

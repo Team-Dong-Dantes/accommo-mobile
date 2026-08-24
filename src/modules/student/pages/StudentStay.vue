@@ -114,7 +114,7 @@ async function loadStay() {
 
     const { data, error: qErr } = await supabase
       .from('leases')
-      .select('id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, landlord_id, room:rooms(room_number, property:properties(name, address, landlord_id))')
+      .select('id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, landlord_id, room:rooms(room_number, property:properties(name, address, landlord_id, business_name))')
       .eq('student_id', user.id)
       .eq('status', 'active')
       .maybeSingle();
@@ -126,19 +126,16 @@ async function loadStay() {
       id: string; status: string; start_date: string | null; end_date: string | null;
       monthly_rent: number | null; advance_paid: number | null; deposit_paid: number | null;
       landlord_id: string | null;
-      room: { room_number: string | null; property: { name: string | null; address: string | null; landlord_id: string | null } | null } | null;
+      room: { room_number: string | null; property: { name: string | null; address: string | null; landlord_id: string | null; business_name: string | null } | null } | null;
     };
 
     const landlordId = row.landlord_id ?? row.room?.property?.landlord_id ?? null;
+    const propBiz = row.room?.property?.business_name ?? null;
     let landlordName = 'Landlord';
     if (landlordId) {
-      const [u, p] = await Promise.all([
-        supabase.from('users').select('full_name').eq('id', landlordId).maybeSingle(),
-        supabase.from('landlord_profiles').select('business_name').eq('user_id', landlordId).maybeSingle(),
-      ]);
-      const biz = (p.data as { business_name: string | null } | null)?.business_name;
-      const full = (u.data as { full_name: string | null } | null)?.full_name;
-      landlordName = biz || full || 'Landlord';
+      const { data: u } = await supabase.from('users').select('full_name').eq('id', landlordId).maybeSingle();
+      const full = (u as { full_name: string | null } | null)?.full_name;
+      landlordName = propBiz || full || 'Landlord';
     }
 
     const startStr = row.start_date ? new Date(row.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : '—';

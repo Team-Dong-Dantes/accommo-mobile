@@ -176,7 +176,7 @@ interface LeaseRow {
   landlord_id: string | null
   room: {
     room_number: string | null
-    property: { name: string | null; address: string | null } | null
+    property: { name: string | null; address: string | null; business_name: string | null } | null
   } | null
 }
 
@@ -287,7 +287,7 @@ async function loadDashboard() {
 
     const { data: leaseData, error: leaseError } = await supabase
       .from('leases')
-      .select('id, status, start_date, end_date, monthly_rent, landlord_id, room_id, room:rooms(room_number, property:properties(name))')
+      .select('id, status, start_date, end_date, monthly_rent, landlord_id, room_id, room:rooms(room_number, property:properties(name, business_name))')
       .eq('student_id', user.id).eq('status', 'active').maybeSingle()
 
     if (leaseError) throw leaseError
@@ -331,17 +331,11 @@ async function loadDashboard() {
       const lid = lease.value.landlord_id
       landlordId.value = lid ?? null
       if (lid) {
-        // Prefer the business name for display (consistent with Discover)
-        const { data: lp } = await supabase
-          .from('landlord_profiles').select('business_name').eq('user_id', lid).maybeSingle()
-        const bizName = (lp as unknown as { business_name: string | null } | null)?.business_name
-        if (bizName) {
-          landlordName.value = bizName
-        } else {
-          const { data: landlord } = await supabase
-            .from('users').select('full_name').eq('id', lid).maybeSingle()
-          landlordName.value = (landlord as unknown as { full_name: string | null } | null)?.full_name ?? ''
-        }
+        // Prefer the property's business_name (consistent with Discover); fall back to users.full_name.
+        const { data: landlord } = await supabase
+          .from('users').select('full_name').eq('id', lid).maybeSingle()
+        const userName = (landlord as unknown as { full_name: string | null } | null)?.full_name ?? null
+        landlordName.value = (prop?.business_name ?? userName) ?? ''
       }
 
       const roomId = lease.value.room_id

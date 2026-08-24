@@ -33,14 +33,8 @@
 
       <div class="signup-section">
         <span>New to Accommo?</span>
-        <q-btn flat dense no-caps color="teal-9" label="Create Account" to="/register"
+        <q-btn flat dense no-caps color="teal-9" label="Create Account" to="/register/role"
           class="text-weight-bold q-ml-sm" />
-
-        <div class="q-mt-sm">
-          <span style="font-size: 13px;">Own a boarding house?</span>
-          <q-btn flat dense no-caps color="grey-8" label="Apply as a Landlord" to="/register/landlord"
-            class="text-weight-bold q-ml-xs" style="font-size: 13px; text-decoration: underline;" />
-        </div>
       </div>
     </div>
   </q-page>

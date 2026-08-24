@@ -1,16 +1,49 @@
 <template>
-  <q-file v-model="model" borderless color="teal-9" class="file-dropzone" v-bind="$attrs">
-    <template v-for="(_, name) in $slots" #[name]="slotData">
-      <slot :name="name" v-bind="slotData || {}" />
-    </template>
-  </q-file>
+  <div class="file-dropzone-block">
+    <q-file v-model="model" borderless color="teal-9" class="file-dropzone" v-bind="$attrs">
+      <template #prepend><slot name="prepend" /></template>
+      <template #append>
+        <q-btn
+          round
+          flat
+          dense
+          icon="material-icons:photo_camera"
+          color="teal-9"
+          class="camera-icon-btn"
+          @click.stop="openCamera"
+        />
+        <slot name="append" />
+      </template>
+    </q-file>
+
+    <!-- Hidden camera-only input: opens the device camera on mobile -->
+    <q-file
+      ref="cameraRef"
+      v-model="model"
+      accept="image/*"
+      capture="environment"
+      class="hidden-camera"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+
 const model = defineModel<File | null>();
+
+const cameraRef = ref<{ pickFiles: () => void } | null>(null);
+
+function openCamera() {
+  cameraRef.value?.pickFiles();
+}
 </script>
 
 <style scoped>
+.file-dropzone-block {
+  position: relative;
+}
+
 .file-dropzone {
   border-radius: 16px;
 }
@@ -32,5 +65,20 @@ const model = defineModel<File | null>();
 .file-dropzone :deep(svg.iconify) {
   width: 20px !important;
   height: 20px !important;
+}
+
+.camera-icon-btn {
+  margin-left: 4px;
+}
+
+/* Keep the camera input in the DOM (so pickFiles() works) but invisible */
+.hidden-camera {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
 }
 </style>
