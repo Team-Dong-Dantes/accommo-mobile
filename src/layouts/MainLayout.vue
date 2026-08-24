@@ -72,6 +72,35 @@
             </q-item-section>
             <q-item-section> Payments </q-item-section>
           </q-item>
+
+          <q-item clickable v-ripple to="/landlord/support" exact>
+            <q-item-section avatar>
+              <IconifyIcon width="24" icon="material-icons:help_outline" />
+            </q-item-section>
+            <q-item-section> Support </q-item-section>
+          </q-item>
+
+          <q-item clickable v-ripple to="/landlord/osas-compliance" exact>
+            <q-item-section avatar>
+              <IconifyIcon width="24" icon="material-icons:shield" />
+            </q-item-section>
+            <q-item-section> OSAS Compliance </q-item-section>
+          </q-item>
+        </template>
+
+        <template v-else-if="userRole === 'admin'">
+          <q-item clickable v-ripple to="/osas/complaints" exact>
+            <q-item-section avatar>
+              <IconifyIcon width="24" icon="material-icons:inbox" />
+            </q-item-section>
+            <q-item-section> OSAS Inbox </q-item-section>
+          </q-item>
+          <q-item clickable v-ripple to="/landlord/osas-compliance" exact>
+            <q-item-section avatar>
+              <IconifyIcon width="24" icon="material-icons:shield" />
+            </q-item-section>
+            <q-item-section> OSAS Compliance </q-item-section>
+          </q-item>
         </template>
 
         <q-item clickable v-ripple :to="profileRoute" exact>
@@ -86,8 +115,6 @@
     <q-page-container class="bg-grey-1">
       <router-view />
     </q-page-container>
-
-    <div v-if="fabMenuOpen" class="fab-backdrop" @click="fabMenuOpen = false" />
 
     <q-footer bordered class="bg-white text-grey-8 bottom-footer">
       <div class="bottom-nav">
@@ -137,36 +164,7 @@
         </button>
       </div>
 
-      <div class="fab-menu-wrap" v-if="fabMenuOpen">
-        <q-btn
-          flat
-          class="fab-menu-item fab-item-osas"
-          @click="openScreen('/landlord/osas-compliance')"
-        >
-          <q-icon name="shield" color="purple-7" size="18px" class="q-mr-sm" />
-          OSAS
-        </q-btn>
-        <q-btn
-          flat
-          class="fab-menu-item fab-item-support"
-          @click="openScreen('/landlord/support')"
-        >
-          <q-icon name="help_outline" color="teal-8" size="18px" class="q-mr-sm" />
-          Support
-        </q-btn>
-        <q-btn
-          flat
-          class="fab-menu-item fab-item-properties"
-          @click="openScreen('/landlord/properties')"
-        >
-          <q-icon name="business" color="teal-8" size="18px" class="q-mr-sm" />
-          Boarding Houses
-        </q-btn>
-
-        <q-btn round color="black" icon="close" class="fab-close-button" @click="fabMenuOpen = false" />
-      </div>
-
-      <q-btn round color="teal-9" icon="add" class="fab-button" @click="toggleFabMenu" />
+      <q-btn round color="teal-9" icon="add" class="fab-button" @click="goAddProperty" />
     </q-footer>
   </q-layout>
 </template>
@@ -183,7 +181,6 @@ const authStore = useAuthStore()
 const leftDrawerOpen = ref(false)
 const userRole = ref('')
 const activeBottomTab = ref<BottomTabName>('home')
-const fabMenuOpen = ref(false)
 
 const profileRoute = computed(() => {
   if (userRole.value === 'student') return '/profile'
@@ -214,13 +211,8 @@ const goToProfile = () => {
   void router.push(profileRoute.value)
 }
 
-const toggleFabMenu = () => {
-  fabMenuOpen.value = !fabMenuOpen.value
-}
-
-const openScreen = (path: string) => {
-  fabMenuOpen.value = false
-  void router.push(path)
+const goAddProperty = () => {
+  void router.push('/landlord/properties/new')
 }
 
 watch(

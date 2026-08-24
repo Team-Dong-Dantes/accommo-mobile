@@ -2,6 +2,7 @@ import type { RouteRecordRaw } from 'vue-router';
 import landlordRoutes from '@/modules/landlord/router/routes';
 import studentRoutes from '@/modules/student/router/routes';
 import authRoutes from '@/modules/auth/router/routes';
+import osasRoutes from '@/modules/osas/router/routes';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -56,6 +57,7 @@ const routes: RouteRecordRaw[] = [
         path: '/landlord/properties',
         component: () => import('@/modules/landlord/pages/LandlordPropertiesPage.vue'),
       },
+      ...osasRoutes,
     ],
   },
 
