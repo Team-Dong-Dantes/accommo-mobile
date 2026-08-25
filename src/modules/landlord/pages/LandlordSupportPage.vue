@@ -378,21 +378,20 @@ const submitTicket = async () => {
     } = await supabase.auth.getUser()
     if (!user) throw new Error('Not signed in')
 
-    const { error } = await supabase.from('complaints').insert({
+    const { error } = await supabase.from('tickets').insert({
       id: crypto.randomUUID(),
-      // Landlord is the filer. complaints requires a student_id FK; for a
-      // landlord -> OSAS ticket there is no specific student, so we reference the
-      // filing landlord's own user id (valid FK and satisfies RLS, which allows
-      // landlord_id = auth.uid()).
+      // Landlord is the filer. For a landlord -> OSAS ticket there is no specific
+      // student, so student_id is left null and the ticket is owned via landlord_id
+      // (satisfies RLS, which allows landlord_id = auth.uid()).
       landlord_id: user.id,
-      student_id: user.id,
+      student_id: null,
       property_id: selectedProperty.value,
       category: ticketCategory.value,
       priority: priority.value,
       subject: subj,
       description: details.value.trim() || null,
       status: 'pending',
-      filed_at: new Date().toISOString(),
+      reported_at: new Date().toISOString(),
     } as any)
     if (error) throw error
 
@@ -414,10 +413,10 @@ const loadMyTickets = async () => {
     } = await supabase.auth.getUser()
     if (!user) return
     const { data, error } = await supabase
-      .from('complaints')
+      .from('tickets')
       .select('id, subject, status')
       .eq('landlord_id', user.id)
-      .order('filed_at', { ascending: false })
+      .order('reported_at', { ascending: false })
     if (error) throw error
     myTickets.value = (data ?? []).map((c: any) => ({
       id: c.id,

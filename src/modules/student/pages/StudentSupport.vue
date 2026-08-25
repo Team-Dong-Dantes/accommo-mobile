@@ -181,21 +181,21 @@ async function loadTickets() {
     }
 
     const { data, error } = await supabase
-      .from('complaints')
-      .select('id, subject, category, status, filed_at')
+      .from('tickets')
+      .select('id, subject, category, status, reported_at')
       .eq('student_id', user.id)
-      .order('filed_at', { ascending: false });
+      .order('reported_at', { ascending: false });
 
     if (error) throw error;
 
     const rows = (data ?? []) as unknown as Array<{
-      id: string; subject: string; category: string; status: string; filed_at: string;
+      id: string; subject: string; category: string; status: string; reported_at: string;
     }>;
 
     tickets.value = rows.map((c) => ({
       id: c.id,
       title: c.subject,
-      date: new Date(c.filed_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
+      date: new Date(c.reported_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
       category: c.category,
       status: c.status,
     }));
@@ -234,7 +234,7 @@ async function submitTicket() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { error: insertError } = await supabase.from('complaints').insert({
+    const { error: insertError } = await supabase.from('tickets').insert({
       id: crypto.randomUUID(),
       student_id: user.id,
       landlord_id: landlordId,
@@ -244,7 +244,7 @@ async function submitTicket() {
       description: ticketDescription.value.trim() || null,
       priority: ticketPriority.value,
       status: 'pending',
-      filed_at: new Date().toISOString(),
+      reported_at: new Date().toISOString(),
     });
     if (insertError) throw insertError;
     newTicketDialog.value = false;

@@ -46,8 +46,8 @@
               <q-chip dense outline color="grey-7">{{ propName(row.property_id) }}</q-chip>
             </div>
             <div class="text-caption text-grey-7 q-mt-xs">
-              Filed by {{ userName(row.landlord_id) }} •
-              {{ new Date(row.filed_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) }}
+               Filed by {{ row.student_id ? userName(row.student_id) : (row.landlord_id ? userName(row.landlord_id) : 'Unknown') }} •
+              {{ new Date(row.reported_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) }}
             </div>
             <div class="text-body2 q-mt-sm" v-if="row.description">{{ row.description }}</div>
 
@@ -89,21 +89,21 @@ import { COMPLAINT_STATUS, statusText, statusColor } from '@/shared/utils/format
 
 const $q = useQuasar()
 
-interface ComplaintRow {
+interface OsasTicketRow {
   id: string
   subject: string
   category: string
   priority: string
   status: string
   description: string | null
-  filed_at: string
+  reported_at: string
   property_id: string | null
   landlord_id: string | null
   student_id: string | null
 }
 
 const loading = ref(true)
-const rows = ref<ComplaintRow[]>([])
+const rows = ref<OsasTicketRow[]>([])
 const propertyNames = ref<Record<string, string>>({})
 const userNames = ref<Record<string, string>>({})
 const role = ref<string>('')
@@ -148,13 +148,13 @@ async function loadComplaints() {
   loading.value = true
   try {
     const { data, error } = await supabase
-      .from('complaints')
+      .from('tickets')
       .select(
-        'id, subject, category, priority, status, description, filed_at, property_id, landlord_id, student_id',
+        'id, subject, category, priority, status, description, reported_at, property_id, landlord_id, student_id',
       )
-      .order('filed_at', { ascending: false })
+      .order('reported_at', { ascending: false })
     if (error) throw error
-    rows.value = (data ?? []) as ComplaintRow[]
+    rows.value = (data ?? []) as OsasTicketRow[]
 
     const propertyIds = Array.from(
       new Set((data ?? []).map((c: any) => c.property_id).filter(Boolean)),
@@ -185,12 +185,12 @@ async function loadComplaints() {
   }
 }
 
-async function updateStatus(row: ComplaintRow, status: string) {
+async function updateStatus(row: OsasTicketRow, status: string) {
   updatingId.value = row.id
   try {
     const { error } = await supabase
-      .from('complaints')
-      .update({ status } as any)
+      .from('tickets')
+      .update({ status, updated_at: new Date().toISOString() } as any)
       .eq('id', row.id)
     if (error) throw error
     row.status = status
@@ -202,7 +202,7 @@ async function updateStatus(row: ComplaintRow, status: string) {
   }
 }
 
-async function assignToMe(row: ComplaintRow) {
+async function assignToMe(row: OsasTicketRow) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -211,8 +211,8 @@ async function assignToMe(row: ComplaintRow) {
   try {
     const nextStatus = row.status === 'pending' ? 'assigned' : row.status
     const { error } = await supabase
-      .from('complaints')
-      .update({ osas_officer_id: user.id, status: nextStatus } as any)
+      .from('tickets')
+      .update({ assignee_id: user.id, status: nextStatus, updated_at: new Date().toISOString() } as any)
       .eq('id', row.id)
     if (error) throw error
     row.status = nextStatus
