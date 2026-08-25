@@ -125,8 +125,8 @@
         <q-list v-if="!ticketLoading && myTickets.length" separator class="ticket-list">
           <q-item v-for="t in myTickets" :key="t.id" class="ticket-item">
             <q-item-section>
-              <q-item-label class="ticket-id">{{ t.id }}</q-item-label>
               <q-item-label class="ticket-subject">{{ t.subject }}</q-item-label>
+              <q-item-label caption class="ticket-id">{{ t.id }}</q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-badge
