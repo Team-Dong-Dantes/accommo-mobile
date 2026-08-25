@@ -173,9 +173,11 @@ async function loadComplaints() {
     if (userIds.length) {
       const { data: users } = await supabase
         .from('users')
-        .select('id, full_name')
+        .select('id, full_name, email')
         .in('id', userIds)
-      userNames.value = Object.fromEntries((users ?? []).map((u: any) => [u.id, u.full_name]))
+      userNames.value = Object.fromEntries(
+        (users ?? []).map((u: any) => [u.id, u.full_name || u.email || 'Unknown user']),
+      )
     }
   } catch (e) {
     console.error('loadComplaints error:', e)
