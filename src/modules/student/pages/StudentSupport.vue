@@ -234,6 +234,10 @@ async function submitTicket() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const reporterName =
+      ((user.user_metadata as Record<string, any>)?.full_name as string) ||
+      user.email ||
+      'Unknown';
     const { error: insertError } = await supabase.from('tickets').insert({
       id: crypto.randomUUID(),
       student_id: user.id,
@@ -245,6 +249,7 @@ async function submitTicket() {
       priority: ticketPriority.value,
       status: 'pending',
       reported_at: new Date().toISOString(),
+      reporter_name: reporterName,
     });
     if (insertError) throw insertError;
     newTicketDialog.value = false;

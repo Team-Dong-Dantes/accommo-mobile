@@ -378,6 +378,11 @@ const submitTicket = async () => {
     } = await supabase.auth.getUser()
     if (!user) throw new Error('Not signed in')
 
+    const reporterName =
+      ((user.user_metadata as Record<string, any>)?.full_name as string) ||
+      user.email ||
+      'Unknown'
+
     const { error } = await supabase.from('tickets').insert({
       id: crypto.randomUUID(),
       // Landlord is the filer. For a landlord -> OSAS ticket there is no specific
@@ -392,6 +397,7 @@ const submitTicket = async () => {
       description: details.value.trim() || null,
       status: 'pending',
       reported_at: new Date().toISOString(),
+      reporter_name: reporterName,
     } as any)
     if (error) throw error
 

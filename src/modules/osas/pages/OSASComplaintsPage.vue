@@ -46,7 +46,7 @@
               <q-chip dense outline color="grey-7">{{ propName(row.property_id) }}</q-chip>
             </div>
             <div class="text-caption text-grey-7 q-mt-xs">
-               Filed by {{ row.student_id ? userName(row.student_id) : (row.landlord_id ? userName(row.landlord_id) : 'Unknown') }} •
+               Filed by {{ row.reporter_name || (row.student_id ? userName(row.student_id) : (row.landlord_id ? userName(row.landlord_id) : 'Submitter')) }} •
               {{ new Date(row.reported_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) }}
             </div>
             <div class="text-body2 q-mt-sm" v-if="row.description">{{ row.description }}</div>
@@ -97,6 +97,7 @@ interface OsasTicketRow {
   status: string
   description: string | null
   reported_at: string
+  reporter_name: string | null
   property_id: string | null
   landlord_id: string | null
   student_id: string | null
@@ -150,7 +151,7 @@ async function loadComplaints() {
     const { data, error } = await supabase
       .from('tickets')
       .select(
-        'id, subject, category, priority, status, description, reported_at, property_id, landlord_id, student_id',
+        'id, subject, category, priority, status, description, reported_at, reporter_name, property_id, landlord_id, student_id',
       )
       .order('reported_at', { ascending: false })
     if (error) throw error
