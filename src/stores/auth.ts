@@ -151,7 +151,9 @@ export const useAuthStore = defineStore('auth', {
 
       if (profileError) throw sanitizeError(profileError);
 
-      await supabase.auth.signOut();
+      // Keep the session active (email autoconfirm is on) so the caller can proceed
+      // to the phone-verification step without having to sign in again.
+      this.cachedRole = 'student';
 
       return response.data;
     },
@@ -202,6 +204,7 @@ export const useAuthStore = defineStore('auth', {
         });
 
       if (profileError) throw sanitizeError(profileError);
+      this.cachedRole = 'student';
     },
 
     // --- LANDLORD REGISTRATION ---
@@ -326,46 +329,25 @@ export const useAuthStore = defineStore('auth', {
       };
     },
 
-    // --- PHONE OTP LOGIN (passwordless) ---
-    // Sends a 6-digit SMS code to an existing phone number. shouldCreateUser is
-    // false so this only logs in users who already registered with this phone;
-    // brand-new numbers get a clear error instead of creating an orphan auth user.
-    async sendPhoneOtp(phone: string) {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone,
-        options: { shouldCreateUser: false },
-      });
+    // --- PHONE VERIFICATION (proof of ownership, not a login) ---
+    // The user must already be signed in (e.g. immediately after registering, or
+    // from their Profile). updateUser triggers an SMS with a code; verifying it
+    // with the `phone_change` type confirms the number WITHOUT creating a new
+    // session, so this is purely a verification step, not passwordless auth.
+    async sendPhoneVerification(phone: string) {
+      const { error } = await supabase.auth.updateUser({ phone });
       if (error) throw sanitizeError(error);
     },
 
-    async verifyPhoneOtp(phone: string, token: string) {
+    async verifyPhoneVerification(phone: string, token: string) {
       const { data, error } = await supabase.auth.verifyOtp({
         phone,
         token,
-        type: 'sms',
+        type: 'phone_change',
       });
       if (error) throw sanitizeError(error);
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const userId = session?.user?.id;
-      if (!userId) {
-        throw new Error('Phone verification succeeded but no session was returned.');
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileError) throw sanitizeError(profileError);
-
-      this.cachedRole = profile?.role ?? null;
-
-      return { session, role: profile?.role ?? null };
+      this.cachedRole = data.user?.role ?? this.cachedRole;
+      return data;
     },
 
     clearCachedRole() {

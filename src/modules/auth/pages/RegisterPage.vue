@@ -9,7 +9,7 @@
       <q-form
         ref="registerFormRef"
         class="col column"
-        @submit.prevent="() => handleRegister(false)"
+        @submit.prevent="() => step === 4 && handleRegister(false)"
       >
         <q-stepper
           v-model="step"
@@ -204,6 +204,32 @@
               <template #append><IconifyIcon icon="material-icons:cloud_upload" color="grey-6" /></template>
             </AuthFileDropZone>
           </q-step>
+
+          <q-step :name="5" title="Phone" icon="smartphone">
+            <div class="text-subtitle2 text-grey-7 q-ml-sm">Verify your phone number</div>
+            <p class="text-caption text-grey-6 q-ml-sm q-mt-xs">
+              We will text a code to <b>+63{{ form.phoneDigits }}</b> to confirm you are a real person.
+            </p>
+
+            <q-input
+              v-if="phoneOtpSent"
+              v-model="phoneOtp"
+              label="6-digit code"
+              class="q-mt-md"
+              maxlength="6"
+              inputmode="numeric"
+              :rules="[(val: string) => /^\d{6}$/.test(val) || 'Enter the 6-digit code']"
+            >
+              <template #prepend><IconifyIcon icon="material-icons:pin" /></template>
+            </q-input>
+
+            <div v-if="phoneVerifyError" class="text-negative text-caption q-ml-sm q-mt-xs">{{ phoneVerifyError }}</div>
+
+            <div v-if="phoneVerified" class="row items-center q-mt-md text-teal-8">
+              <IconifyIcon icon="material-icons:check_circle" class="q-mr-xs" />
+              <span class="text-body2 text-weight-medium">Phone verified</span>
+            </div>
+          </q-step>
         </q-stepper>
 
         <div class="q-px-sm q-mt-md">
@@ -216,6 +242,17 @@
             {{ isGoogleMode ? 'FINISH PROFILE' : 'REGISTER' }}
             <IconifyIcon icon="material-icons:person_add" class="q-ml-sm" />
           </AuthButton>
+
+          <template v-if="step === 5">
+            <AuthButton v-if="!phoneVerified" type="button" :loading="phoneVerifying" @click="phoneOtpSent ? verifyPhoneCode() : sendPhoneCode()">
+              {{ phoneOtpSent ? 'Verify code' : 'Send code' }}
+              <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
+            </AuthButton>
+            <AuthButton v-else type="button" @click="finishRegistration">
+              Continue
+              <IconifyIcon icon="material-icons:check" class="q-ml-sm" />
+            </AuthButton>
+          </template>
 
           <div class="row justify-center items-center q-mt-md full-width" style="height: 32px">
             <template v-if="step === 1 && !isGoogleMode">
@@ -262,6 +299,17 @@
                   @click="handleRegister(true)"
                 />
               </div>
+            </template>
+            <template v-else-if="step === 5">
+              <q-btn
+                flat
+                dense
+                no-caps
+                label="Skip for now"
+                color="teal-9"
+                class="text-weight-bold"
+                @click="finishRegistration"
+              />
             </template>
           </div>
         </div>
@@ -391,6 +439,12 @@ const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const loading = ref(false);
 
+const phoneOtpSent = ref(false);
+const phoneOtp = ref('');
+const phoneVerifying = ref(false);
+const phoneVerified = ref(false);
+const phoneVerifyError = ref('');
+
 onMounted(async () => {
   if (route.query.newUser) {
     $q.notify({
@@ -503,33 +557,32 @@ async function handleRegister(skipVerification: boolean = false) {
     }
   }
 
-  try {
-    if (isGoogleMode.value) {
-      await authStore.completeGoogleProfile(googleUserId.value, form);
-      $q.notify({
-        message: 'Profile completed successfully!',
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'check_circle',
-        iconColor: 'teal-4',
+   try {
+     if (isGoogleMode.value) {
+       await authStore.completeGoogleProfile(googleUserId.value, form);
+       $q.notify({
+         message: 'Profile completed successfully!',
+         position: 'top',
+         color: 'grey-9',
+         textColor: 'white',
+         icon: 'check_circle',
+         iconColor: 'teal-4',
+         classes: 'custom-notify',
+       });
+     } else {
+       await authStore.register(form);
+       $q.notify({
+         message: 'Account created! Verify your phone to continue.',
+         position: 'top',
+         color: 'grey-9',
+         textColor: 'white',
+         icon: 'check_circle',
+         iconColor: 'teal-4',
         classes: 'custom-notify',
-      });
-      void router.push('/student/home');
-    } else {
-      await authStore.register(form);
-      $q.notify({
-        message: 'Account created! Please sign in.',
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'check_circle',
-        iconColor: 'teal-4',
-        classes: 'custom-notify',
-      });
-      void router.push('/login');
-    }
-  } catch (error: unknown) {
+       });
+     }
+     step.value = 5;
+   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'An unexpected error occurred';
     $q.notify({
       message,
@@ -544,6 +597,72 @@ async function handleRegister(skipVerification: boolean = false) {
     loading.value = false;
   }
 }
+
+  async function sendPhoneCode() {
+    phoneVerifyError.value = '';
+    phoneVerifying.value = true;
+    try {
+      await authStore.sendPhoneVerification(normalizePhPhone(form.phoneDigits));
+      phoneOtpSent.value = true;
+      $q.notify({
+        message: 'Verification code sent to +63' + form.phoneDigits,
+        position: 'top',
+        color: 'grey-9',
+        textColor: 'white',
+        icon: 'check_circle',
+        iconColor: 'teal-4',
+        classes: 'custom-notify',
+      });
+    } catch (error: unknown) {
+      phoneVerifyError.value = error instanceof Error ? error.message : 'Could not send code.';
+      $q.notify({
+        message: phoneVerifyError.value,
+        position: 'top',
+        color: 'grey-9',
+        textColor: 'white',
+        icon: 'error_outline',
+        iconColor: 'red-4',
+        classes: 'custom-notify',
+      });
+    } finally {
+      phoneVerifying.value = false;
+    }
+  }
+
+  async function verifyPhoneCode() {
+    phoneVerifyError.value = '';
+    phoneVerifying.value = true;
+    try {
+      await authStore.verifyPhoneVerification(normalizePhPhone(form.phoneDigits), phoneOtp.value);
+      phoneVerified.value = true;
+      $q.notify({
+        message: 'Phone verified!',
+        position: 'top',
+        color: 'grey-9',
+        textColor: 'white',
+        icon: 'check_circle',
+        iconColor: 'teal-4',
+        classes: 'custom-notify',
+      });
+    } catch (error: unknown) {
+      phoneVerifyError.value = error instanceof Error ? error.message : 'Invalid code.';
+      $q.notify({
+        message: phoneVerifyError.value,
+        position: 'top',
+        color: 'grey-9',
+        textColor: 'white',
+        icon: 'error_outline',
+        iconColor: 'red-4',
+        classes: 'custom-notify',
+      });
+    } finally {
+      phoneVerifying.value = false;
+    }
+  }
+
+  function finishRegistration() {
+    void router.push('/student/home');
+  }
 </script>
 
 <style scoped>
