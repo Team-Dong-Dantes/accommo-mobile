@@ -7,7 +7,7 @@
       <AuthGoogleBtn @click="handleGoogleAuth" />
       <AuthDivider />
 
-      <q-form @submit.prevent="handleLogin" ref="loginFormRef">
+      <q-form v-if="mode === 'email'" @submit.prevent="handleLogin" ref="loginFormRef">
         <AuthInput v-model="email" label="Email address" :rules="[(val: string) => !!val || 'Email is required', (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) || 'Enter a valid email address']">
           <template #prepend><IconifyIcon icon="material-icons:mail_outline" /></template>
         </AuthInput>
@@ -31,6 +31,33 @@
         </AuthButton>
       </q-form>
 
+      <q-form v-else @submit.prevent="handlePhoneLogin" ref="phoneFormRef">
+        <AuthInput :model-value="phoneDigits" @update:model-value="phoneDigits = phNationalDigits($event)" label="Phone Number" class="q-mt-md" maxlength="12" inputmode="numeric"
+          :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => phNationalDigits(val).length === 10 || 'Enter your 10-digit mobile number (e.g. 9123456789)']">
+          <template #prepend>
+            <div class="row items-center no-wrap">
+              <IconifyIcon icon="material-icons:phone" class="q-mr-xs" />
+              <span class="text-grey-7 text-weight-medium phone-prefix">+63</span>
+              <span class="q-ml-xs text-grey-4 phone-prefix">|</span>
+            </div>
+          </template>
+        </AuthInput>
+
+        <AuthInput v-if="otpSent" v-model="otpCode" label="Verification code" class="q-mt-md" maxlength="6" inputmode="numeric"
+          :rules="[(val: string) => /^\d{6}$/.test(val) || 'Enter the 6-digit code']">
+          <template #prepend><IconifyIcon icon="material-icons:pin" /></template>
+        </AuthInput>
+
+        <AuthButton type="submit" :loading="phoneLoading" class="q-mt-md">
+          {{ otpSent ? 'Verify code' : 'Send code' }}
+          <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
+        </AuthButton>
+      </q-form>
+
+      <div class="text-center q-mt-sm">
+        <q-btn flat dense no-caps :label="mode === 'email' ? 'Use phone number instead' : 'Use email instead'" class="switch-link" @click="switchMode" />
+      </div>
+
       <div class="signup-section">
         <span>New to Accommo?</span>
         <q-btn flat dense no-caps color="teal-9" label="Create Account" to="/register/role"
@@ -46,6 +73,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/shared/utils/supabase';
+import { normalizePhPhone, phNationalDigits } from '@/shared/utils/format';
 
 import AuthInput from '@/modules/auth/components/AuthInput.vue';
 import AuthButton from '@/modules/auth/components/AuthButton.vue';
@@ -63,6 +91,13 @@ const showPassword = ref(false);
 const loading = ref(false);
 const forgotPasswordLoading = ref(false);
 const loginFormRef = ref<QForm | null>(null);
+
+const mode = ref<'email' | 'phone'>('email');
+const phoneDigits = ref('');
+const otpSent = ref(false);
+const otpCode = ref('');
+const phoneLoading = ref(false);
+const phoneFormRef = ref<QForm | null>(null);
 
 onMounted(() => {
   if (route.query.accountExists) {
@@ -101,12 +136,65 @@ async function handleLogin() {
     else void router.push('/');
   } catch (error: unknown) {
     $q.notify({ message: error instanceof Error ? error.message : 'An unexpected error occurred', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
-  } finally {
-    loading.value = false;
+    } finally {
+      loading.value = false;
+    }
   }
-}
 
-async function handleForgotPassword() {
+  async function sendPhoneCode() {
+    const digits = phNationalDigits(phoneDigits.value);
+    if (digits.length !== 10) {
+      $q.notify({ message: 'Enter your 10-digit mobile number (e.g. 9123456789).', position: 'top', color: 'grey-9', textColor: 'white', icon: 'warning', iconColor: 'amber-4', classes: 'custom-notify' });
+      return;
+    }
+    try {
+      phoneLoading.value = true;
+      await authStore.sendPhoneOtp(normalizePhPhone(phoneDigits.value));
+      otpSent.value = true;
+      $q.notify({ message: 'Verification code sent to +63' + digits, position: 'top', color: 'grey-9', textColor: 'white', icon: 'check_circle', iconColor: 'teal-4', classes: 'custom-notify' });
+    } catch (error: unknown) {
+      $q.notify({ message: error instanceof Error ? error.message : 'Could not send code.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    } finally {
+      phoneLoading.value = false;
+    }
+  }
+
+  async function handlePhoneLogin() {
+    if (!phoneFormRef.value) return;
+    const valid = await phoneFormRef.value.validate();
+    if (!valid) return;
+
+    const phone = normalizePhPhone(phoneDigits.value);
+    try {
+      phoneLoading.value = true;
+      if (!otpSent.value) {
+        await sendPhoneCode();
+        return;
+      }
+      const { role } = await authStore.verifyPhoneOtp(phone, otpCode.value);
+      $q.notify({ message: 'Welcome back!', position: 'top', color: 'grey-9', textColor: 'white', icon: 'check_circle', iconColor: 'teal-4', classes: 'custom-notify' });
+
+      if (role === 'student') void router.push('/student/home');
+      else if (role === 'landlord') void router.push('/landlord/dashboard');
+      else if (role === 'admin') void router.push('/admin/dashboard');
+      else {
+        await supabase.auth.signOut();
+        void router.push('/register?newUser=true');
+      }
+    } catch (error: unknown) {
+      $q.notify({ message: error instanceof Error ? error.message : 'Verification failed.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    } finally {
+      phoneLoading.value = false;
+    }
+  }
+
+  function switchMode() {
+    mode.value = mode.value === 'email' ? 'phone' : 'email';
+    otpSent.value = false;
+    otpCode.value = '';
+  }
+
+  async function handleForgotPassword() {
   if (!email.value) {
     $q.notify({ message: 'Please enter your email address first.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
     return;
@@ -160,6 +248,15 @@ async function handleForgotPassword() {
   text-align: center;
   margin: 24px 0;
   color: #999;
+}
+
+.phone-prefix {
+  font-size: 16px;
+}
+
+.switch-link {
+  color: #009688;
+  font-weight: 600;
 }
 </style>
 <style>

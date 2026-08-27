@@ -326,6 +326,48 @@ export const useAuthStore = defineStore('auth', {
       };
     },
 
+    // --- PHONE OTP LOGIN (passwordless) ---
+    // Sends a 6-digit SMS code to an existing phone number. shouldCreateUser is
+    // false so this only logs in users who already registered with this phone;
+    // brand-new numbers get a clear error instead of creating an orphan auth user.
+    async sendPhoneOtp(phone: string) {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone,
+        options: { shouldCreateUser: false },
+      });
+      if (error) throw sanitizeError(error);
+    },
+
+    async verifyPhoneOtp(phone: string, token: string) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone,
+        token,
+        type: 'sms',
+      });
+      if (error) throw sanitizeError(error);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error('Phone verification succeeded but no session was returned.');
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileError) throw sanitizeError(profileError);
+
+      this.cachedRole = profile?.role ?? null;
+
+      return { session, role: profile?.role ?? null };
+    },
+
     clearCachedRole() {
       this.cachedRole = null;
     },
