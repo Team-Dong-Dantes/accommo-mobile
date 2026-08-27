@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -45,6 +45,7 @@ export type Database = {
       }
       announcements: {
         Row: {
+          archived: boolean
           audience: Database["public"]["Enums"]["audience_type"]
           author_id: string
           body: string
@@ -54,6 +55,7 @@ export type Database = {
           title: string
         }
         Insert: {
+          archived?: boolean
           audience?: Database["public"]["Enums"]["audience_type"]
           author_id: string
           body: string
@@ -63,6 +65,7 @@ export type Database = {
           title: string
         }
         Update: {
+          archived?: boolean
           audience?: Database["public"]["Enums"]["audience_type"]
           author_id?: string
           body?: string
@@ -294,34 +297,31 @@ export type Database = {
       }
       concerns: {
         Row: {
-          category: Database["public"]["Enums"]["concern_category"]
+          category: string
           description: string | null
           id: string
           lease_id: string
-          photo_urls: string[]
           reported_at: string
           resolved_at: string | null
-          status: Database["public"]["Enums"]["concern_status"]
+          status: string
         }
         Insert: {
-          category: Database["public"]["Enums"]["concern_category"]
+          category: string
           description?: string | null
           id?: string
           lease_id: string
-          photo_urls?: string[]
           reported_at?: string
           resolved_at?: string | null
-          status?: Database["public"]["Enums"]["concern_status"]
+          status?: string
         }
         Update: {
-          category?: Database["public"]["Enums"]["concern_category"]
+          category?: string
           description?: string | null
           id?: string
           lease_id?: string
-          photo_urls?: string[]
           reported_at?: string
           resolved_at?: string | null
-          status?: Database["public"]["Enums"]["concern_status"]
+          status?: string
         }
         Relationships: [
           {
@@ -380,31 +380,25 @@ export type Database = {
       }
       landlord_profiles: {
         Row: {
-          accreditation_expires_at: string | null
-          accreditation_status: string | null
-          accredited_at: string | null
           avg_response_minutes: number | null
-          business_name: string | null
+          extracted_gov_id: string | null
+          extracted_name: string | null
           government_id_url: string | null
           response_rate: number | null
           user_id: string
         }
         Insert: {
-          accreditation_expires_at?: string | null
-          accreditation_status?: string | null
-          accredited_at?: string | null
           avg_response_minutes?: number | null
-          business_name?: string | null
+          extracted_gov_id?: string | null
+          extracted_name?: string | null
           government_id_url?: string | null
           response_rate?: number | null
           user_id: string
         }
         Update: {
-          accreditation_expires_at?: string | null
-          accreditation_status?: string | null
-          accredited_at?: string | null
           avg_response_minutes?: number | null
-          business_name?: string | null
+          extracted_gov_id?: string | null
+          extracted_name?: string | null
           government_id_url?: string | null
           response_rate?: number | null
           user_id?: string
@@ -583,6 +577,7 @@ export type Database = {
       notifications: {
         Row: {
           body: string
+          created_at: string
           id: string
           link_url: string | null
           read_at: string | null
@@ -592,6 +587,7 @@ export type Database = {
         }
         Insert: {
           body: string
+          created_at?: string
           id?: string
           link_url?: string | null
           read_at?: string | null
@@ -601,6 +597,7 @@ export type Database = {
         }
         Update: {
           body?: string
+          created_at?: string
           id?: string
           link_url?: string | null
           read_at?: string | null
@@ -677,6 +674,7 @@ export type Database = {
       }
       policies: {
         Row: {
+          archived: boolean
           body: string
           created_by: string
           effective_date: string
@@ -685,6 +683,7 @@ export type Database = {
           version: string | null
         }
         Insert: {
+          archived?: boolean
           body: string
           created_by: string
           effective_date: string
@@ -693,6 +692,7 @@ export type Database = {
           version?: string | null
         }
         Update: {
+          archived?: boolean
           body?: string
           created_by?: string
           effective_date?: string
@@ -712,8 +712,12 @@ export type Database = {
       }
       properties: {
         Row: {
+          accreditation_expires_at: string | null
+          accreditation_status: string | null
+          accredited_at: string | null
           address: string | null
           barangay: string | null
+          business_name: string | null
           capacity: number | null
           city: string | null
           description: string | null
@@ -721,7 +725,6 @@ export type Database = {
           landlord_id: string
           lat: number | null
           lng: number | null
-          monthly_rent: number | null
           name: string
           property_type: string | null
           rating_avg: number | null
@@ -732,8 +735,12 @@ export type Database = {
           total_rooms: number | null
         }
         Insert: {
+          accreditation_expires_at?: string | null
+          accreditation_status?: string | null
+          accredited_at?: string | null
           address?: string | null
           barangay?: string | null
+          business_name?: string | null
           capacity?: number | null
           city?: string | null
           description?: string | null
@@ -741,7 +748,6 @@ export type Database = {
           landlord_id: string
           lat?: number | null
           lng?: number | null
-          monthly_rent?: number | null
           name: string
           property_type?: string | null
           rating_avg?: number | null
@@ -752,8 +758,12 @@ export type Database = {
           total_rooms?: number | null
         }
         Update: {
+          accreditation_expires_at?: string | null
+          accreditation_status?: string | null
+          accredited_at?: string | null
           address?: string | null
           barangay?: string | null
+          business_name?: string | null
           capacity?: number | null
           city?: string | null
           description?: string | null
@@ -761,7 +771,6 @@ export type Database = {
           landlord_id?: string
           lat?: number | null
           lng?: number | null
-          monthly_rent?: number | null
           name?: string
           property_type?: string | null
           rating_avg?: number | null
@@ -1060,6 +1069,8 @@ export type Database = {
           assessment_of_fees_url: string | null
           college: string | null
           emergency_contact_json: Json | null
+          extracted_name: string | null
+          extracted_school_id: string | null
           osas_verified_at: string | null
           program: string | null
           qr_code_token: string | null
@@ -1072,6 +1083,8 @@ export type Database = {
           assessment_of_fees_url?: string | null
           college?: string | null
           emergency_contact_json?: Json | null
+          extracted_name?: string | null
+          extracted_school_id?: string | null
           osas_verified_at?: string | null
           program?: string | null
           qr_code_token?: string | null
@@ -1084,6 +1097,8 @@ export type Database = {
           assessment_of_fees_url?: string | null
           college?: string | null
           emergency_contact_json?: Json | null
+          extracted_name?: string | null
+          extracted_school_id?: string | null
           osas_verified_at?: string | null
           program?: string | null
           qr_code_token?: string | null
@@ -1154,6 +1169,126 @@ export type Database = {
           },
         ]
       }
+      ticket_messages: {
+        Row: {
+          attachment_urls: string[]
+          author_id: string | null
+          author_role: string
+          body: string
+          created_at: string
+          id: string
+          is_internal: boolean
+          ticket_id: string
+        }
+        Insert: {
+          attachment_urls?: string[]
+          author_id?: string | null
+          author_role?: string
+          body: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          ticket_id: string
+        }
+        Update: {
+          attachment_urls?: string[]
+          author_id?: string | null
+          author_role?: string
+          body?: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tickets: {
+        Row: {
+          assignee_id: string | null
+          category: string | null
+          description: string | null
+          id: string
+          landlord_id: string | null
+          lease_id: string | null
+          photo_urls: string[]
+          priority: string
+          property_id: string | null
+          reported_at: string
+          reporter_name: string | null
+          resolved_at: string | null
+          status: string
+          student_id: string | null
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          category?: string | null
+          description?: string | null
+          id?: string
+          landlord_id?: string | null
+          lease_id?: string | null
+          photo_urls?: string[]
+          priority?: string
+          property_id?: string | null
+          reported_at?: string
+          reporter_name?: string | null
+          resolved_at?: string | null
+          status?: string
+          student_id?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          category?: string | null
+          description?: string | null
+          id?: string
+          landlord_id?: string | null
+          lease_id?: string | null
+          photo_urls?: string[]
+          priority?: string
+          property_id?: string | null
+          reported_at?: string
+          reporter_name?: string | null
+          resolved_at?: string | null
+          status?: string
+          student_id?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_color: string | null
@@ -1163,7 +1298,9 @@ export type Database = {
           full_name: string
           id: string
           initials: string
+          is_superadmin: boolean
           last_login_at: string | null
+          onboarding_complete: boolean
           phone: string
           role: Database["public"]["Enums"]["user_role"]
           sex: string | null
@@ -1178,7 +1315,9 @@ export type Database = {
           full_name: string
           id: string
           initials: string
+          is_superadmin?: boolean
           last_login_at?: string | null
+          onboarding_complete?: boolean
           phone: string
           role: Database["public"]["Enums"]["user_role"]
           sex?: string | null
@@ -1193,7 +1332,9 @@ export type Database = {
           full_name?: string
           id?: string
           initials?: string
+          is_superadmin?: boolean
           last_login_at?: string | null
+          onboarding_complete?: boolean
           phone?: string
           role?: Database["public"]["Enums"]["user_role"]
           sex?: string | null
@@ -1277,8 +1418,26 @@ export type Database = {
       }
     }
     Functions: {
+      check_student_id_exists: {
+        Args: { p_student_id: string }
+        Returns: boolean
+      }
+      current_is_superadmin: { Args: never; Returns: boolean }
       get_my_role: { Args: never; Returns: string }
       is_admin: { Args: { p_uid: string }; Returns: boolean }
+      notify_admins: {
+        Args: {
+          p_body: string
+          p_link_url: string
+          p_title: string
+          p_type: string
+        }
+        Returns: undefined
+      }
+      set_audit_context: {
+        Args: { p_ip_address?: string; p_user_agent?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       amenity:
@@ -1299,14 +1458,6 @@ export type Database = {
         | "harassment"
         | "contract"
       complaint_status: "pending" | "assigned" | "under_review" | "resolved"
-      concern_category:
-        | "maintenance"
-        | "noise"
-        | "cleanliness"
-        | "amenities"
-        | "security"
-        | "others"
-      concern_status: "open" | "in_progress" | "resolved" | "rejected"
       doc_status: "pending" | "approved" | "rejected"
       lease_status: "active" | "ended" | "terminated" | "leave_requested"
       msg_status: "sent" | "delivered" | "read"
@@ -1477,15 +1628,6 @@ export const Constants = {
         "contract",
       ],
       complaint_status: ["pending", "assigned", "under_review", "resolved"],
-      concern_category: [
-        "maintenance",
-        "noise",
-        "cleanliness",
-        "amenities",
-        "security",
-        "others",
-      ],
-      concern_status: ["open", "in_progress", "resolved", "rejected"],
       doc_status: ["pending", "approved", "rejected"],
       lease_status: ["active", "ended", "terminated", "leave_requested"],
       msg_status: ["sent", "delivered", "read"],
