@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { supabase } from '@/shared/utils/supabase'
 
 export const useQrStore = defineStore('qr', {
   state: () => ({
@@ -15,74 +16,97 @@ export const useQrStore = defineStore('qr', {
   actions: {
     async scanStudent(studentId: string) {
       this.isScanning = true
-
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      const mockStudents: any[] = [
-        {
-          studentId: '2023-001',
-          name: 'Juan Dela Cruz',
-          course: 'BS Computer Science',
-          yearLevel: '3rd Year',
-          osasVerified: true,
-          currentBoarding: {
-            propertyName: 'Rose Dormitory',
-            unit: '2B',
-            monthlyRate: 5000,
-          },
-          tenancyHistory: [
-            {
-              propertyName: 'Rose Dormitory',
-              address: '123 Quezon St., Brgy. Tibang',
-              period: 'June 2023 - Present',
-              status: 'Current',
-              remarks: 'Good tenant',
-            },
-            {
-              propertyName: 'St. John Boarding House',
-              address: '456 Rizal Ave., Brgy. Maasin',
-              period: 'June 2022 - May 2023',
-              status: 'Moved Out',
-              remarks: 'Paid on time',
-            },
-          ],
-        },
-        {
-          studentId: '2023-002',
-          name: 'Maria Santos',
-          course: 'BS Business Administration',
-          yearLevel: '2nd Year',
-          osasVerified: false,
-          currentBoarding: {
-            propertyName: 'Rose Dormitory',
-            unit: '3A',
-            monthlyRate: 5500,
-          },
-          tenancyHistory: [
-            {
-              propertyName: 'St. John Boarding House',
-              address: '456 Rizal Ave., Brgy. Maasin',
-              period: 'June 2022 - May 2023',
-              status: 'Moved Out',
-              remarks: 'Late payments',
-            },
-          ],
-        },
-      ]
-
-      const student = mockStudents.find((s: any) => s.studentId === studentId) || mockStudents[0]
-
-      this.scannedStudent = student
-      this.lastScannedAt = new Date().toISOString()
-
-      if (!this.scanHistory.some((s: any) => s.studentId === studentId)) {
-        this.scanHistory.unshift(student)
-        if (this.scanHistory.length > 10) {
-          this.scanHistory.pop()
+      this.scannedStudent = null
+      try {
+        if (!studentId) {
+          throw new Error('Empty QR code.')
         }
-      }
 
-      this.isScanning = false
+        // Look up the student profile by school student_id. RLS
+        // (landlords_read_lease_student_profiles) only returns a row when this
+        // landlord actually has a lease with the student, so a null result means
+        // the scanned student is not this landlord's tenant.
+        const { data: profile, error: profileError } = await supabase
+          .from('student_profiles')
+          .select('user_id, program, college, year_level, osas_verified_at')
+          .eq('student_id', studentId)
+          .maybeSingle()
+
+        if (profileError) throw profileError
+        if (!profile) {
+          throw new Error('No tenant matches this QR code. The student may not board at your property.')
+        }
+
+        const userId = profile.user_id as string
+
+        // User record (RLS: only when linked by a lease to this landlord).
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('full_name, initials')
+          .eq('id', userId)
+          .maybeSingle()
+
+        // Leases between this landlord and the student (RLS enforces landlord_id).
+        const { data: leases } = await supabase
+          .from('leases')
+          .select(
+            'id, status, start_date, end_date, monthly_rent, room:rooms(room_number, property:properties(name, address))',
+          )
+          .eq('student_id', userId)
+          .order('start_date', { ascending: false })
+
+        const leaseRows = (leases ?? []) as Array<{
+          status: string
+          start_date: string | null
+          end_date: string | null
+          monthly_rent: number | null
+          room: { room_number: string | null; property: { name: string | null; address: string | null } | null } | null
+        }>
+
+        const active = leaseRows.find((l) => l.status === 'active')
+        const currentBoarding = active
+          ? {
+              propertyName: active.room?.property?.name ?? 'Your property',
+              unit: active.room?.room_number ?? '—',
+              monthlyRate: active.monthly_rent ?? 0,
+            }
+          : null
+
+        const tenancyHistory = leaseRows.map((l) => ({
+          propertyName: l.room?.property?.name ?? 'Boarding House',
+          address: l.room?.property?.address ?? '—',
+          period: `${l.start_date ? new Date(l.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : ''} - ${l.end_date ? new Date(l.end_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : 'Present'}`,
+          status: l.status === 'active' ? 'Current' : 'Past',
+          remarks: '',
+        }))
+
+        const student = {
+          studentId,
+          name: (userRow?.full_name as string) ?? 'Unknown student',
+          course: (profile.program as string) ?? '—',
+          yearLevel: profile.year_level ? `${profile.year_level}` : '—',
+          osasVerified: !!profile.osas_verified_at,
+          currentBoarding,
+          tenancyHistory,
+        }
+
+        this.scannedStudent = student
+        this.lastScannedAt = new Date().toISOString()
+
+        if (!this.scanHistory.some((s: any) => s.studentId === studentId)) {
+          this.scanHistory.unshift(student)
+          if (this.scanHistory.length > 10) {
+            this.scanHistory.pop()
+          }
+        }
+
+        return student
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to look up student.'
+        throw new Error(message)
+      } finally {
+        this.isScanning = false
+      }
     },
 
     clearScan() {

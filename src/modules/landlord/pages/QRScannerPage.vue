@@ -63,6 +63,7 @@
           <!-- Camera preview area -->
           <div class="camera-preview">
             <div class="camera-frame">
+              <div ref="readerRef" id="qr-reader" class="real-reader"></div>
               <div class="camera-overlay">
                 <div class="flash-icon" />
                 <q-icon
@@ -166,21 +167,72 @@
                   color="teal-9"
                   class="q-ml-sm q-mr-sm q-mt-sm"
                   label="View Tenancy History"
+                  @click="tenancyDialog = true"
                 />
                 <q-btn
                   unelevated
                   color="amber"
                   class="q-mt-sm"
                   label="Mark Attendance"
+                  @click="markAttendance"
                 />
               </q-card-section>
             </q-card>
           </q-bottom-sheet>
 
+          <!-- Camera error / manual fallback -->
+          <div v-if="cameraError" class="camera-error">
+            <q-icon name="material-icons:error_outline" color="white" size="28px" />
+            <span class="q-mx-sm">{{ cameraError }}</span>
+          </div>
+
+          <div v-if="manualMode || cameraError" class="manual-box">
+            <q-input
+              v-model="manualCode"
+              label="Enter student code"
+              filled
+              dense
+              class="manual-input"
+              @keyup.enter="lookupManual"
+            >
+              <template #append>
+                <q-btn round dense flat icon="search" color="teal-9" @click="lookupManual" />
+              </template>
+            </q-input>
+          </div>
+
+          <!-- Tenancy history dialog -->
+          <q-dialog v-model="tenancyDialog">
+            <q-card style="width: 350px; max-width: 90vw">
+              <q-card-section class="row items-center q-pb-none">
+                <div class="text-h6">Tenancy History</div>
+                <q-space />
+                <q-btn icon="close" flat round dense v-close-popup />
+              </q-card-section>
+              <q-card-section>
+                <q-list separator>
+                  <q-item v-for="(h, i) in scannedStudent?.tenancyHistory ?? []" :key="i">
+                    <q-item-section>
+                      <q-item-label>{{ h.propertyName }}</q-item-label>
+                      <q-item-label caption>{{ h.address }}</q-item-label>
+                      <q-item-label caption>{{ h.period }} · {{ h.status }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                  <q-item v-if="!(scannedStudent?.tenancyHistory?.length)">
+                    <q-item-section>
+                      <q-item-label caption>No lease records with your property.</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-card-section>
+            </q-card>
+          </q-dialog>
+
           <!-- Instruction text -->
           <div class="instruction-text">
             <q-icon name="material-icons:flash_on" color="teal-9" class="q-mr-sm" />
             <span>Scan student QR code to verify</span>
+            <q-btn flat dense no-caps color="white" class="q-ml-sm" label="Enter code" @click="manualMode = !manualMode" />
           </div>
         </div>
       </q-page-container>
@@ -189,11 +241,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from '@/stores/auth'
 import { useQrStore } from '@/stores/qr'
+import { Html5Qrcode } from 'html5-qrcode'
 
 import { supabase } from '@/shared/utils/supabase'
 
@@ -218,8 +271,14 @@ function handleLogout() {
 
 const qrBottomSheetOpen = ref(false)
 const scannedStudent = ref<any | null>(null)
+const cameraError = ref('')
+const manualMode = ref(false)
+const manualCode = ref('')
+const tenancyDialog = ref(false)
+const readerRef = ref<HTMLElement | null>(null)
+let html5Scanner: Html5Qrcode | null = null
 
-// Watch for QR scan changes
+// Watch the store so a successful scan (camera or manual) opens the sheet.
 watch(
   () => qrStore.scannedStudent,
   (newStudent) => {
@@ -230,28 +289,75 @@ watch(
   },
 )
 
-// Initial load - simulate a scan for demo
-onMounted(async () => {
-  // In a real app, this would trigger the camera and QR detection
-  // For demo, we'll just initialize the scanner state
-  qrStore.isScanning = true
+function onScanSuccess(decodedText: string) {
+  stopScanner()
+  void lookup(decodedText)
+}
 
-  // Simulate scan after a brief delay
-  await new Promise((resolve) => setTimeout(resolve, 1000))
-
-  // Mock QR scan result
-  const mockScanResult: any = {
-    studentId: '2023-001',
-    name: 'Juan Dela Cruz',
-    course: 'BS Computer Science',
-    osasVerified: true,
-    propertyName: 'Rose Dormitory',
-    unit: '2B',
-    monthlyRate: 5000,
+async function lookup(code: string) {
+  const trimmed = code.trim()
+  if (!trimmed) return
+  try {
+    await qrStore.scanStudent(trimmed)
+    // The watch above opens the bottom sheet once the store updates.
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to look up student.'
+    $q.notify({ message, color: 'negative', position: 'top', icon: 'error_outline' })
   }
+}
 
-  qrStore.scanStudent(mockScanResult.studentId)
-  qrStore.isScanning = false
+function lookupManual() {
+  void lookup(manualCode.value)
+}
+
+function markAttendance() {
+  if (!scannedStudent.value) return
+  $q.notify({
+    message: `Attendance recorded for ${scannedStudent.value.name}.`,
+    color: 'teal-9',
+    position: 'top',
+    icon: 'check_circle',
+  })
+  // TODO: persist attendance (e.g. insert into an attendance table) when that
+  // feature is scoped. For now this confirms the scanned student was identified.
+}
+
+async function startScanner() {
+  cameraError.value = ''
+  if (!readerRef.value) return
+  try {
+    html5Scanner = new Html5Qrcode(readerRef.value.id)
+    await html5Scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 250 },
+      onScanSuccess,
+      () => {
+        /* ignore per-frame decode errors */
+      },
+    )
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Camera unavailable.'
+    cameraError.value =
+      'Camera unavailable (' + message + '). You can enter the student code manually below.'
+    manualMode.value = true
+  }
+}
+
+function stopScanner() {
+  if (html5Scanner) {
+    const scanner = html5Scanner
+    html5Scanner = null
+    void (scanner.stop() as unknown as Promise<void>).catch(() => {})
+    void (scanner.clear() as unknown as Promise<void>).catch(() => {})
+  }
+}
+
+onMounted(() => {
+  void startScanner()
+})
+
+onBeforeUnmount(() => {
+  stopScanner()
 })
 </script>
 
@@ -297,11 +403,7 @@ onMounted(async () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.8) 0%,
-    rgba(0, 0, 0, 0.6) 100%
-  );
+  background: transparent;
 }
 
 .flash-icon {
@@ -449,5 +551,54 @@ onMounted(async () => {
 
 .q-card .q-card-section:last-child {
   padding: 16px 24px 24px;
+}
+
+.real-reader {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.real-reader video,
+.real-reader img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+.camera-overlay {
+  z-index: 1;
+}
+
+.camera-error {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90%;
+  display: flex;
+  align-items: center;
+  color: white;
+  font-size: 14px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 10px 14px;
+  border-radius: 12px;
+  z-index: 3;
+}
+
+.manual-box {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 420px;
+  z-index: 3;
+}
+
+.manual-input {
+  background: white;
+  border-radius: 12px;
 }
 </style>

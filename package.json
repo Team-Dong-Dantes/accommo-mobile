@@ -19,6 +19,7 @@
     "@iconify/vue": "^5.0.1",
     "@quasar/extras": "^2.0.0",
     "@supabase/supabase-js": "^2.111.0",
+    "html5-qrcode": "^2.3.8",
     "pinia": "^4.0.2",
     "qrcode": "^1.5.4",
     "quasar": "^2.23.1",
