@@ -4,7 +4,7 @@
       <q-header elevated class="bg-primary text-white">
         <q-toolbar>
           <q-btn
-            v-if="!chat.activeConversationId"
+            v-if="!chat.activeConversationId && !activePlaceholderConv"
             dense
             flat
             round
@@ -22,7 +22,7 @@
           />
 
           <q-toolbar-title>
-            {{ chat.activeConversationId ? activeOtherName : 'Messages' }}
+            {{ (chat.activeConversationId || activePlaceholderConv) ? activeOtherName : 'Messages' }}
           </q-toolbar-title>
 
           <q-btn flat round dense @click="handleLogout">
@@ -91,7 +91,7 @@
       <q-page-container>
         <div class="chat-page-wrapper">
           <!-- Conversation list -->
-          <div v-if="!chat.activeConversationId" class="conv-list">
+          <div v-if="!chat.activeConversationId && !activePlaceholderConv" class="conv-list">
             <div class="conv-list-head">
               <div class="conv-list-title">Conversations</div>
               <div class="row no-wrap items-center">
@@ -108,9 +108,9 @@
               {{ chat.loadError }}
             </div>
 
-            <q-list v-else-if="chat.conversations.length" separator>
+            <q-list v-else-if="conversationList.length" separator>
               <q-item
-                v-for="c in chat.conversations"
+                v-for="c in conversationList"
                 :key="c.id"
                 clickable
                 v-ripple
@@ -161,7 +161,7 @@
               </div>
               <template v-else>
                 <div
-                  v-for="message in chat.messages"
+                  v-for="message in threadMessages"
                   :key="message.id"
                   class="message-bubble-wrapper"
                   :class="message.isLandlord ? 'from-me' : 'from-them'"
@@ -269,7 +269,59 @@ function handleLogout() {
   void router.push('/login')
 }
 
+interface PlaceholderMessage {
+  id: string
+  text: string
+  isLandlord: boolean
+  timestamp: string
+}
+
+interface PlaceholderConv {
+  id: string
+  otherName: string
+  lastMessage: string
+  lastTime: string
+  messages: PlaceholderMessage[]
+}
+
+const placeholderConversations = ref<PlaceholderConv[]>([
+  {
+    id: 'ph-1',
+    otherName: 'Maria Santos',
+    lastMessage: 'Hi! About the lease renewal for Room 3.',
+    lastTime: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    messages: [
+      { id: 'm1', text: 'Hi! My lease ends next month. Can we renew for another semester?', isLandlord: false, timestamp: new Date(Date.now() - 2 * 3600 * 1000).toISOString() },
+      { id: 'm2', text: 'Sure, Maria. I will prepare the renewal papers this week and message you the details.', isLandlord: true, timestamp: new Date(Date.now() - 1.9 * 3600 * 1000).toISOString() },
+      { id: 'm3', text: 'Thank you! Also, is the advance payment still the same amount?', isLandlord: false, timestamp: new Date(Date.now() - 1.6 * 3600 * 1000).toISOString() },
+    ],
+  },
+  {
+    id: 'ph-2',
+    otherName: 'OSAS Office',
+    lastMessage: 'We received your accreditation documents.',
+    lastTime: new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
+    messages: [
+      { id: 'm1', text: 'Good day! We have received your submitted business permit.', isLandlord: false, timestamp: new Date(Date.now() - 26 * 3600 * 1000).toISOString() },
+      { id: 'm2', text: 'Our officer will review it within 3 business days and update your status.', isLandlord: false, timestamp: new Date(Date.now() - 26 * 3600 * 1000 + 60000).toISOString() },
+    ],
+  },
+])
+
+const activePlaceholderConv = ref<PlaceholderConv | null>(null)
+
+const conversationList = computed(() => {
+  if (chat.conversations.length > 0) return chat.conversations
+  return placeholderConversations.value
+})
+
+const threadMessages = computed(() => {
+  if (activePlaceholderConv.value) return activePlaceholderConv.value.messages
+  return chat.messages
+})
+
 const activeOtherName = computed(() => {
+  if (activePlaceholderConv.value) return activePlaceholderConv.value.otherName
   const c = chat.conversations.find((x) => x.id === chat.activeConversationId)
   return c?.otherName ?? 'Chat'
 })
@@ -285,16 +337,31 @@ function initials(name: string): string {
 }
 
 function openConversation(id: string) {
+  if (id.startsWith('ph-')) {
+    activePlaceholderConv.value = placeholderConversations.value.find((c) => c.id === id) ?? null
+    return
+  }
   void chat.loadMessages(id)
 }
 
 function backToList() {
   chat.clearActive()
+  activePlaceholderConv.value = null
 }
 
 async function sendMessage() {
   const text = newMessage.value.trim()
   if (!text) return
+  if (activePlaceholderConv.value) {
+    activePlaceholderConv.value.messages.push({
+      id: `local-${Date.now()}`,
+      text,
+      isLandlord: true,
+      timestamp: new Date().toISOString(),
+    })
+    newMessage.value = ''
+    return
+  }
   try {
     await chat.sendMessage(text)
     newMessage.value = ''

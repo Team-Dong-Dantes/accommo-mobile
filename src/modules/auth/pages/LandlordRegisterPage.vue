@@ -30,9 +30,9 @@
             </AuthSelect>
 
             <AuthInput :model-value="form.phoneDigits"
-              @update:model-value="form.phoneDigits = String($event ?? '').replace(/\D/g, '')" label="Phone Number" class="q-mt-md"
-              maxlength="10" inputmode="numeric"
-              :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => /^\d{10}$/.test(val) || 'Enter 10 digits after +63 (e.g. 9123456789)']">
+              @update:model-value="form.phoneDigits = phNationalDigits($event)" label="Phone Number" class="q-mt-md"
+              maxlength="12" inputmode="numeric"
+              :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => phNationalDigits(val).length === 10 || 'Enter your 10-digit mobile number (leading 0 is optional, e.g. 9123456789)']">
               <template #prepend>
                 <div class="row items-center no-wrap">
                   <IconifyIcon icon="material-icons:phone" class="q-mr-xs" />
@@ -167,6 +167,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/shared/utils/supabase';
+import { normalizePhPhone, phNationalDigits } from '@/shared/utils/format';
 
 import AuthInput from '@/modules/auth/components/AuthInput.vue';
 import AuthSelect from '@/modules/auth/components/AuthSelect.vue';
@@ -280,7 +281,7 @@ async function cancelGoogle() {
 }
 
 async function handleRegister() {
-  form.phone = '+63' + form.phoneDigits;
+  form.phone = normalizePhPhone(form.phoneDigits);
   if (!isGoogleMode.value) {
     form.email = `${form.emailUser}@${form.emailDomain}`;
   }

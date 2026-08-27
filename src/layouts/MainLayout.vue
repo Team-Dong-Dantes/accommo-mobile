@@ -61,28 +61,28 @@
 
           <q-item clickable v-ripple to="/landlord/tenants" exact>
             <q-item-section avatar>
-              <IconifyIcon width="24" icon="material-icons:people" />
+              <q-icon name="people" size="24px" />
             </q-item-section>
             <q-item-section> Tenants </q-item-section>
           </q-item>
 
           <q-item clickable v-ripple to="/landlord/payments" exact>
             <q-item-section avatar>
-              <IconifyIcon width="24" icon="material-icons:payments" />
+              <q-icon name="payments" size="24px" />
             </q-item-section>
             <q-item-section> Payments </q-item-section>
           </q-item>
 
           <q-item clickable v-ripple to="/landlord/support" exact>
             <q-item-section avatar>
-              <IconifyIcon width="24" icon="material-icons:help_outline" />
+              <q-icon name="help_outline" size="24px" />
             </q-item-section>
             <q-item-section> Support </q-item-section>
           </q-item>
 
           <q-item clickable v-ripple to="/landlord/osas-compliance" exact>
             <q-item-section avatar>
-              <IconifyIcon width="24" icon="material-icons:shield" />
+              <q-icon name="policy" size="24px" />
             </q-item-section>
             <q-item-section> OSAS Compliance </q-item-section>
           </q-item>
@@ -97,7 +97,7 @@
           </q-item>
           <q-item clickable v-ripple to="/landlord/osas-compliance" exact>
             <q-item-section avatar>
-              <IconifyIcon width="24" icon="material-icons:shield" />
+              <q-icon name="policy" size="24px" />
             </q-item-section>
             <q-item-section> OSAS Compliance </q-item-section>
           </q-item>

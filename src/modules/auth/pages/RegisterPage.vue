@@ -51,14 +51,14 @@
 
             <AuthInput
               :model-value="form.phoneDigits"
-              @update:model-value="form.phoneDigits = String($event ?? '').replace(/\D/g, '')"
+              @update:model-value="form.phoneDigits = phNationalDigits($event)"
               label="Phone Number"
               class="q-mt-md"
-              maxlength="10"
+              maxlength="12"
               inputmode="numeric"
               :rules="[
                 (val: string) => !!val || 'Phone number is required',
-                (val: string) => /^\d{10}$/.test(val) || 'Enter 10 digits after +63 (e.g. 9123456789)',
+                (val: string) => phNationalDigits(val).length === 10 || 'Enter your 10-digit mobile number (leading 0 is optional, e.g. 9123456789)',
               ]"
             >
               <template #prepend>
@@ -284,6 +284,7 @@ import AuthButton from '@/modules/auth/components/AuthButton.vue';
 import AuthGoogleBtn from '@/modules/auth/components/AuthGoogleBtn.vue';
 import AuthDivider from '@/modules/auth/components/AuthDivider.vue';
 import ConnectedGoogleBox from '@/modules/auth/components/ConnectedGoogleBox.vue';
+import { normalizePhPhone, phNationalDigits } from '@/shared/utils/format';
 
 const router = useRouter();
 const route = useRoute();
@@ -466,7 +467,7 @@ async function cancelGoogle() {
 }
 
 async function handleRegister(skipVerification: boolean = false) {
-  form.phone = '+63' + form.phoneDigits;
+  form.phone = normalizePhPhone(form.phoneDigits);
   if (!isGoogleMode.value) {
     form.email = `${form.emailUser}@${form.emailDomain}`;
   }

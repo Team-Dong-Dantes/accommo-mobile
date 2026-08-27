@@ -175,13 +175,13 @@
 
         <q-card flat bordered class="content-card">
           <q-list separator>
-            <q-item v-if="reviews.length === 0">
+            <q-item v-if="displayReviews.length === 0">
               <q-item-section>
                 <div class="empty-state">No reviews yet</div>
               </q-item-section>
             </q-item>
 
-            <q-item v-for="review in reviews" :key="review.id" class="review-item">
+            <q-item v-for="review in displayReviews" :key="review.id" class="review-item">
               <q-item-section avatar>
                 <q-avatar size="36px" color="grey-3" text-color="grey-8" class="review-avatar">
                   {{ review.initials }}
@@ -197,6 +197,130 @@
                   <q-icon v-for="star in 5" :key="star" name="star" size="14px" :color="star <= review.rating ? 'amber-6' : 'grey-4'" />
                 </div>
                 <div class="review-comment q-mt-xs">{{ review.comment }}</div>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card>
+      </div>
+
+      <div class="section-wrap q-px-md q-mt-lg">
+        <div class="section-header row items-center justify-between">
+          <div class="section-title row items-center no-wrap">
+            <q-icon name="forum" size="20px" class="q-mr-sm" color="teal-9" />
+            Messages
+          </div>
+          <q-badge color="red-2" text-color="red-9" class="section-badge">{{ unreadMessageCount }} new</q-badge>
+        </div>
+
+        <q-card flat bordered class="content-card">
+          <q-list separator>
+            <q-item v-if="messages.length === 0">
+              <q-item-section>
+                <div class="empty-state">No messages yet</div>
+              </q-item-section>
+            </q-item>
+
+            <q-item v-for="message in messages" :key="message.id" clickable v-ripple class="activity-item" @click="openMessage(message)">
+              <q-item-section avatar>
+                <q-avatar size="40px" color="teal-8" text-color="white" class="activity-avatar">
+                  {{ message.initials }}
+                </q-avatar>
+              </q-item-section>
+
+              <q-item-section>
+                <div class="activity-title row items-center justify-between">
+                  <span class="text-weight-bold">{{ message.sender }}</span>
+                  <span class="activity-time">{{ message.time }}</span>
+                </div>
+                <div class="activity-preview q-mt-xs">{{ message.preview }}</div>
+              </q-item-section>
+
+              <q-item-section side>
+                <span v-if="message.unread" class="unread-dot" />
+                <q-icon v-else name="chevron_right" color="grey-6" size="22px" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card>
+      </div>
+
+      <div class="section-wrap q-px-md q-mt-lg">
+        <div class="section-header row items-center justify-between">
+          <div class="section-title row items-center no-wrap">
+            <q-icon name="notifications" size="20px" class="q-mr-sm" color="teal-9" />
+            Notifications
+          </div>
+          <q-badge color="amber-2" text-color="amber-9" class="section-badge">{{ notifications.length }}</q-badge>
+        </div>
+
+        <q-card flat bordered class="content-card">
+          <q-list separator>
+            <q-item v-if="notifications.length === 0">
+              <q-item-section>
+                <div class="empty-state">No notifications yet</div>
+              </q-item-section>
+            </q-item>
+
+            <q-item v-for="notification in notifications" :key="notification.id" clickable v-ripple class="activity-item" @click="openNotification(notification)">
+              <q-item-section avatar>
+                <div class="activity-icon" :class="notification.tone">
+                  <q-icon :name="notification.icon" size="20px" />
+                </div>
+              </q-item-section>
+
+              <q-item-section>
+                <div class="activity-title row items-center justify-between">
+                  <span class="text-weight-bold">{{ notification.title }}</span>
+                  <span class="activity-time">{{ notification.time }}</span>
+                </div>
+                <div class="activity-preview q-mt-xs">{{ notification.body }}</div>
+              </q-item-section>
+
+              <q-item-section side>
+                <q-icon name="chevron_right" color="grey-6" size="22px" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card>
+      </div>
+
+      <div class="section-wrap q-px-md q-mt-lg">
+        <div class="section-header row items-center justify-between">
+          <div class="section-title row items-center no-wrap">
+            <q-icon name="rate_review" size="20px" class="q-mr-sm" color="teal-9" />
+            Feedback
+          </div>
+          <q-badge color="amber-2" text-color="amber-9" class="section-badge">{{ feedbackAverage }} avg</q-badge>
+        </div>
+
+        <q-card flat bordered class="content-card">
+          <q-list separator>
+            <q-item v-if="feedback.length === 0">
+              <q-item-section>
+                <div class="empty-state">No feedback yet</div>
+              </q-item-section>
+            </q-item>
+
+            <q-item v-for="item in feedback" :key="item.id" clickable v-ripple class="activity-item" @click="openFeedback(item)">
+              <q-item-section avatar>
+                <q-avatar size="40px" color="grey-3" text-color="grey-8" class="activity-avatar">
+                  {{ item.initials }}
+                </q-avatar>
+              </q-item-section>
+
+              <q-item-section>
+                <div class="activity-title row items-center justify-between">
+                  <span class="text-weight-bold">{{ item.author }}</span>
+                  <span class="activity-time">{{ item.date }}</span>
+                </div>
+                <div class="activity-stars row items-center q-mt-xs">
+                  <q-icon v-for="star in 5" :key="star" name="star" size="13px" :color="star <= item.rating ? 'amber-6' : 'grey-4'" />
+                </div>
+                <div class="activity-preview q-mt-xs">{{ item.comment }}</div>
+              </q-item-section>
+
+              <q-item-section side>
+                <q-icon name="chevron_right" color="grey-6" size="22px" />
               </q-item-section>
             </q-item>
           </q-list>
@@ -222,6 +346,26 @@
         <q-btn flat class="logout-button" icon="logout" label="Log Out" @click="handleLogout" />
       </div>
     </div>
+      <q-dialog v-model="detailDialog" position="bottom">
+        <q-card class="detail-dialog-card">
+          <q-card-section class="q-pt-lg">
+            <div class="detail-type">{{ detailData.type }}</div>
+            <div class="detail-title">{{ detailData.title }}</div>
+            <div v-if="detailData.subtitle" class="detail-subtitle">{{ detailData.subtitle }}</div>
+            <div class="detail-meta">{{ detailData.meta }}</div>
+            <div v-if="detailData.rating" class="detail-stars row items-center q-mt-sm">
+              <q-icon v-for="star in 5" :key="star" name="star" size="18px" :color="star <= detailData.rating ? 'amber-6' : 'grey-4'" />
+              <span class="detail-rating-label q-ml-sm">{{ detailData.rating }} / 5</span>
+            </div>
+            <div class="detail-body q-mt-md">{{ detailData.body }}</div>
+          </q-card-section>
+
+          <q-card-actions align="right" class="q-pa-md q-pt-none">
+            <q-btn flat label="Close" color="teal-9" v-close-popup />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
   </q-page>
 </template>
 
@@ -291,6 +435,38 @@ const profileError = ref<string | null>(null)
 const properties = ref<PropertyItem[]>([])
 const complianceItems = ref<ComplianceItem[]>([])
 const reviews = ref<ReviewItem[]>([])
+
+const placeholderReviews = ref<ReviewItem[]>([
+  {
+    id: 'pr1',
+    initials: 'MS',
+    author: 'Maria Santos',
+    rating: 5,
+    date: '2d ago',
+    comment: 'Very responsive landlord. The boarding house is clean and well-maintained. Highly recommended!',
+  },
+  {
+    id: 'pr2',
+    initials: 'JR',
+    author: 'John Reyes',
+    rating: 4,
+    date: '5d ago',
+    comment: 'Great location near campus and affordable. Wifi could be a bit faster at night.',
+  },
+  {
+    id: 'pr3',
+    initials: 'AT',
+    author: 'Anonymous Tenant',
+    rating: 5,
+    date: '1w ago',
+    comment: 'Safe and quiet environment. The landlord handles repairs quickly.',
+  },
+])
+
+const displayReviews = computed(() => {
+  if (reviews.value.length > 0) return reviews.value
+  return placeholderReviews.value
+})
 const activeTenantCount = ref(0)
 const reviewAverage = ref(0)
 
@@ -300,8 +476,9 @@ const initials = computed(() => {
 })
 
 const reviewsAverage = computed(() => {
-  if (reviews.value.length === 0) return '4.8'
-  const average = reviews.value.reduce((sum, review) => sum + review.rating, 0) / reviews.value.length
+  const source = displayReviews.value
+  if (source.length === 0) return '0.0'
+  const average = source.reduce((sum, review) => sum + review.rating, 0) / source.length
   return average.toFixed(1)
 })
 
@@ -508,6 +685,173 @@ const goToSettings = () => {
 const handleLogout = async () => {
   await supabase.auth.signOut()
   void router.push('/login')
+}
+
+interface MessageItem {
+  id: string
+  sender: string
+  initials: string
+  preview: string
+  body: string
+  time: string
+  unread: boolean
+}
+
+interface NotificationItem {
+  id: string
+  icon: string
+  tone: string
+  title: string
+  body: string
+  time: string
+}
+
+interface FeedbackItem {
+  id: string
+  author: string
+  initials: string
+  rating: number
+  date: string
+  comment: string
+}
+
+interface DetailView {
+  type: string
+  title: string
+  subtitle: string
+  meta: string
+  body: string
+  rating: number
+}
+
+const messages = ref<MessageItem[]>([
+  {
+    id: 'm1',
+    sender: 'Maria Santos',
+    initials: 'MS',
+    preview: 'Question about lease renewal for Room 3',
+    body: 'Hi! My lease ends next month. Can we renew for another semester? Also, is the advance payment still the same amount?',
+    time: '2h ago',
+    unread: true,
+  },
+  {
+    id: 'm2',
+    sender: 'OSAS Office',
+    initials: 'OS',
+    preview: 'Accreditation documents received',
+    body: 'We have received your submitted business permit. Our officer will review it within 3 business days and update your status.',
+    time: '1d ago',
+    unread: false,
+  },
+  {
+    id: 'm3',
+    sender: 'Pedro Cruz',
+    initials: 'PC',
+    preview: 'Maintenance request: leaky faucet',
+    body: 'The faucet in the common kitchen has been dripping since yesterday. Could someone take a look at it this week?',
+    time: '3d ago',
+    unread: false,
+  },
+])
+
+const notifications = ref<NotificationItem[]>([
+  {
+    id: 'n1',
+    icon: 'payments',
+    tone: 'tone-green',
+    title: 'Rent payment received',
+    body: 'Maria Santos paid 3,500 for Room 3 (August 2026).',
+    time: '2h ago',
+  },
+  {
+    id: 'n2',
+    icon: 'assignment',
+    tone: 'tone-purple',
+    title: 'New lease request',
+    body: 'John Reyes submitted a lease application for Sunset Terrace.',
+    time: '5h ago',
+  },
+  {
+    id: 'n3',
+    icon: 'warning',
+    tone: 'tone-amber',
+    title: 'Document expiring soon',
+    body: 'Your Fire Safety Certificate expires in 14 days. Please renew to avoid compliance issues.',
+    time: '1d ago',
+  },
+])
+
+const feedback = ref<FeedbackItem[]>([
+  {
+    id: 'f1',
+    author: 'Maria Santos',
+    initials: 'MS',
+    rating: 5,
+    date: '2d ago',
+    comment: 'Very responsive landlord. The boarding house is clean and well-maintained. Highly recommended!',
+  },
+  {
+    id: 'f2',
+    author: 'Anonymous Tenant',
+    initials: 'AT',
+    rating: 4,
+    date: '1w ago',
+    comment: 'Good location near campus. Wifi could be a bit faster during peak hours.',
+  },
+])
+
+const detailDialog = ref(false)
+const detailData = ref<DetailView>({
+  type: '',
+  title: '',
+  subtitle: '',
+  meta: '',
+  body: '',
+  rating: 0,
+})
+
+const unreadMessageCount = computed(() => messages.value.filter((message) => message.unread).length)
+
+const feedbackAverage = computed(() => {
+  if (feedback.value.length === 0) return '0.0'
+  const average = feedback.value.reduce((sum, item) => sum + item.rating, 0) / feedback.value.length
+  return average.toFixed(1)
+})
+
+function openMessage(message: MessageItem) {
+  detailData.value = {
+    type: 'Message',
+    title: message.sender,
+    subtitle: message.preview,
+    meta: message.time,
+    body: message.body,
+    rating: 0,
+  }
+  detailDialog.value = true
+}
+
+function openNotification(notification: NotificationItem) {
+  detailData.value = {
+    type: 'Notification',
+    title: notification.title,
+    subtitle: '',
+    meta: notification.time,
+    body: notification.body,
+    rating: 0,
+  }
+  detailDialog.value = true
+}
+
+function openFeedback(item: FeedbackItem) {
+  detailData.value = {
+    type: 'Feedback',
+    title: item.author,
+    subtitle: '',
+    meta: item.date,
+    body: item.comment,
+    rating: item.rating,
+  }
+  detailDialog.value = true
 }
 
 onMounted(() => {
@@ -871,6 +1215,104 @@ onMounted(() => {
     max-width: 760px;
     margin: 0 auto;
   }
+}
+
+.activity-item {
+  padding: 14px;
+}
+
+.activity-avatar {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.activity-title {
+  color: #1F2937;
+  font-size: 14px;
+}
+
+.activity-time {
+  color: #9CA3AF;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.activity-preview {
+  color: #6B7280;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.activity-stars {
+  gap: 2px;
+}
+
+.unread-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #DC2626;
+}
+
+.activity-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.tone-green { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.tone-purple { background: rgba(124, 58, 237, 0.12); color: #7C3AED; }
+.tone-amber { background: rgba(245, 158, 11, 0.14); color: #D97706; }
+
+.detail-dialog-card {
+  width: 100%;
+  max-width: 460px;
+  border-radius: 20px 20px 0 0;
+}
+
+.detail-type {
+  color: #0F766E;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detail-title {
+  color: #1F2937;
+  font-size: 20px;
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.detail-subtitle {
+  color: #4B5563;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.detail-meta {
+  color: #9CA3AF;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.detail-rating-label {
+  color: #6B7280;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detail-body {
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.6;
 }
 </style>
 

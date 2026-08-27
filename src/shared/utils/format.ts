@@ -13,6 +13,26 @@ export function initialsOf(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
 }
 
+// Normalize a Philippine mobile number to E.164 (+63xxxxxxxxx).
+// Accepts "09123456789", "9123456789", "+639123456789", or "63 912...".
+// A leading country code (63) or the local leading 0 is stripped, so the
+// user never has to remember whether to include it next to the +63 prefix.
+export function normalizePhPhone(raw: string | number | null | undefined): string {
+  let digits = String(raw ?? '').replace(/\D/g, '')
+  if (digits.startsWith('63') && digits.length >= 12) {
+    digits = digits.slice(2)
+  }
+  if (digits.startsWith('0')) {
+    digits = digits.slice(1)
+  }
+  return '+63' + digits
+}
+
+// Returns just the 10-digit national number (no +63, no leading 0).
+export function phNationalDigits(raw: string | number | null | undefined): string {
+  return normalizePhPhone(raw).replace(/^\+63/, '')
+}
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
