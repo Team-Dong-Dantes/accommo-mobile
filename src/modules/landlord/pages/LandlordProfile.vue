@@ -300,7 +300,7 @@ const activeProperties = computed(() => properties.value.length)
 const navItems = [
   { key: 'home', label: 'Home', icon: 'home', to: '/landlord/dashboard' },
   { key: 'tenants', label: 'Tenants', icon: 'groups', to: '/landlord/tenants' },
-  { key: 'msgs', label: 'Msgs', icon: 'chat', to: '/landlord/chat' },
+  { key: 'msgs', label: 'Msgs', icon: 'chat', to: '/landlord/messages' },
   { key: 'notif', label: 'Notif', icon: 'notifications', to: '/landlord/notifications' },
 ]
 const activeTab = ref('')
