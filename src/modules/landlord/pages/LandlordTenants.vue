@@ -191,21 +191,41 @@ async function loadTenants() {
     } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: leases, error } = await supabase
-      .from('leases')
-      .select(
-        `id, student_id, status, start_date, end_date, monthly_rent, deposit_paid, leave_requested_at,
-         room:rooms!room_id(id, room_number, label, floor, capacity, current_pax, status,
-           property:properties(name, address))`,
-      )
+    // 1) Boarding houses this landlord created
+    const { data: props, error: pErr } = await supabase
+      .from('properties')
+      .select('id, name, address')
       .eq('landlord_id', user.id)
-      .order('start_date', { ascending: false })
+    if (pErr) throw pErr
 
-    if (error) throw error
+    const propertyList = (props || []) as any[]
+    const propIds = propertyList.map((p) => p.id)
 
-    const leaseRows = (leases || []) as any[]
+    // 2) Rooms for those properties
+    let roomRows: any[] = []
+    if (propIds.length) {
+      const { data: rooms, error: rErr } = await supabase
+        .from('rooms')
+        .select('id, property_id, room_number, label, floor, capacity, current_pax, status')
+        .in('property_id', propIds)
+      if (rErr) throw rErr
+      roomRows = (rooms || []) as any[]
+    }
 
-    // Pull payment status per lease to surface pending/overdue tenants.
+    const roomIds = roomRows.map((r) => r.id)
+
+    // 3) Leases (tenants) for those rooms
+    let leaseRows: any[] = []
+    if (roomIds.length) {
+      const { data: leases, error: lErr } = await supabase
+        .from('leases')
+        .select('id, student_id, status, leave_requested_at, room_id')
+        .in('room_id', roomIds)
+      if (lErr) throw lErr
+      leaseRows = (leases || []) as any[]
+    }
+
+    // 4) Payment status to flag due/overdue tenants
     const leaseIds = leaseRows.map((l) => l.id)
     const payPending = new Set<string>()
     if (leaseIds.length) {
@@ -217,139 +237,93 @@ async function loadTenants() {
       ;(pays || []).forEach((p: any) => payPending.add(p.lease_id))
     }
 
-    const propMap = new Map<string, any>()
-    let activeTotal = 0
-    let overdueTotal = 0
+    // 5) Student profiles for the tenants
+    const studentIds = Array.from(new Set(leaseRows.map((l) => l.student_id)))
+    const studentMap = new Map<string, any>()
+    if (studentIds.length) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, full_name, avatar_color')
+        .in('id', studentIds)
+      ;(users || []).forEach((u: any) => studentMap.set(u.id, u))
+    }
 
-    for (const l of leaseRows) {
-      const room = (l.room as any) || {}
-      const prop = (room.property as any) || {}
-      const propId = prop.id || 'unknown'
-      const propName = prop.name || 'Property'
-      const propAddr = prop.address || ''
-      const roomId = room.id || l.id
-      const roomLabel = room.label || (room.room_number ? `Room ${room.room_number}` : 'Room')
+    // Build groups keyed by property -> room
+    const propMap = new Map<string, any>()
+    for (const p of propertyList) {
+      propMap.set(p.id, {
+        id: p.id,
+        name: p.name,
+        address: p.address,
+        tenantCount: 0,
+        rooms: new Map<string, any>(),
+      })
+    }
+
+    for (const room of roomRows) {
+      const pg = propMap.get(room.property_id)
+      if (!pg) continue
       const capacity = room.capacity ?? 0
       const currentPax = room.current_pax ?? 0
+      const title = room.label || (room.room_number ? `Room ${room.room_number}` : 'Room')
+      const dotCount = Math.max(capacity, 1)
+      const dots: any[] = []
+      for (let i = 0; i < dotCount; i++) dots.push({ id: String(i), filled: i < currentPax })
+      pg.rooms.set(room.id, {
+        id: room.id,
+        title,
+        icon: 'meeting_room',
+        iconColor: 'icon-teal',
+        subtitle: `${Math.max(capacity - currentPax, 0)} available`,
+        subtextColor: 'text-teal',
+        dotColor: 'dot-teal',
+        dotList: dots,
+        tenants: [],
+      })
+    }
+
+    for (const l of leaseRows) {
+      const roomRec = roomRows.find((r) => r.id === l.room_id)
+      const pg = propMap.get(roomRec?.property_id || '')
+      if (!pg) continue
+      const roomGroup = pg.rooms.get(l.room_id)
+      if (!roomGroup) continue
+
       const statusInfo = leaseStatusInfo(l.status, !!l.leave_requested_at)
-
-      if (l.status === 'active') activeTotal++
-      if (payPending.has(l.id)) overdueTotal++
-
-      const name = (l as any).student?.full_name || `Tenant ${l.student_id.slice(0, 4)}`
-      const course =
-        (room.label || room.room_number ? `Room ${room.room_number || room.label}` : '') +
-        (room.floor ? ` · Floor ${room.floor}` : '')
-
+      const userRec = studentMap.get(l.student_id)
+      const name = userRec?.full_name || `Tenant ${(l.student_id || '').slice(0, 4)}`
+      const isPayDue = payPending.has(l.id)
       const tenant = {
         id: l.id,
         studentId: l.student_id,
         name,
-        initials: (l as any).student?.initials || initialsOf(name),
-        course: course || '—',
-        status: payPending.has(l.id) ? 'Payment due' : statusInfo.label,
-        avatarColor:
-          (l as any).student?.avatar_color ||
-          AVATAR_PALETTE[hashIndex(l.student_id, AVATAR_PALETTE.length)],
-        statusColor: payPending.has(l.id) ? 'red-1' : statusInfo.color,
-        statusTextColor: payPending.has(l.id) ? 'red-7' : statusInfo.textColor,
+        initials: initialsOf(name),
+        course: `${roomGroup.title}${roomRec?.floor ? ` · Floor ${roomRec.floor}` : ''}`,
+        status: isPayDue ? 'Payment due' : statusInfo.label,
+        avatarColor: userRec?.avatar_color || AVATAR_PALETTE[hashIndex(l.student_id, AVATAR_PALETTE.length)],
+        statusColor: isPayDue ? 'red-1' : statusInfo.color,
+        statusTextColor: isPayDue ? 'red-7' : statusInfo.textColor,
       }
-
-      if (!propMap.has(propId)) {
-        propMap.set(propId, {
-          id: propId,
-          name: propName,
-          address: propAddr,
-          tenantCount: 0,
-          rooms: new Map<string, any>(),
-        })
-      }
-      const pg = propMap.get(propId)!
+      roomGroup.tenants.push(tenant)
+      roomGroup.icon = 'person_outline'
       pg.tenantCount++
-
-      if (!pg.rooms.has(roomId)) {
-        const dots = []
-        const dotCount = Math.max(capacity, 1)
-        for (let i = 0; i < dotCount; i++) {
-          dots.push({ id: String(i), filled: i < currentPax })
-        }
-        pg.rooms.set(roomId, {
-          id: roomId,
-          title: roomLabel,
-          icon: statusInfo.icon,
-          iconColor: statusInfo.iconColor,
-          subtitle: `${currentPax}/${capacity} occupied`,
-          subtextColor: statusInfo.subtextColor,
-          dotColor: statusInfo.dotColor,
-          dotList: dots,
-          tenants: [],
-        })
-      }
-      pg.rooms.get(roomId)!.tenants.push(tenant)
     }
 
-    propertyGroups.value = Array.from(propMap.values()).map((pg) => ({
-      id: pg.id,
-      name: pg.name,
-      address: pg.address,
-      tenantCount: pg.tenantCount,
-      rooms: Array.from(pg.rooms.values()),
-    }))
-
-    if (propertyGroups.value.length === 0) loadSampleData()
+    propertyGroups.value = propertyList.map((p) => {
+      const pg = propMap.get(p.id)!
+      return {
+        id: pg.id,
+        name: pg.name,
+        address: pg.address,
+        tenantCount: pg.tenantCount,
+        rooms: Array.from(pg.rooms.values()),
+      }
+    })
   } catch (e: any) {
     loadError.value = e?.message || 'Failed to load tenants'
   } finally {
     isLoading.value = false
   }
-}
-
-function loadSampleData() {
-  propertyGroups.value = [
-    {
-      id: 'sample-prop-1',
-      name: 'Sample Boarding House',
-      address: 'Sample St., Sample City',
-      tenantCount: 3,
-      rooms: [
-        {
-          id: 'sample-room-1',
-          title: 'Room 101',
-          icon: 'person_outline',
-          iconColor: 'icon-teal',
-          subtitle: '2/4 occupied',
-          subtextColor: 'text-teal',
-          dotColor: 'dot-teal',
-          dotList: [
-            { id: '0', filled: true },
-            { id: '1', filled: true },
-            { id: '2', filled: false },
-            { id: '3', filled: false },
-          ],
-          tenants: [
-            { id: 's1', studentId: 'sample-1', name: 'Sample Tenant A', initials: 'ST', course: 'Room 101 · Floor 1', status: 'Current', avatarColor: 'teal-8', statusColor: 'teal-1', statusTextColor: 'teal-8' },
-            { id: 's2', studentId: 'sample-2', name: 'Sample Tenant B', initials: 'SB', course: 'Room 101 · Floor 1', status: 'Current', avatarColor: 'purple-6', statusColor: 'teal-1', statusTextColor: 'teal-8' },
-          ],
-        },
-        {
-          id: 'sample-room-2',
-          title: 'Room 102',
-          icon: 'schedule',
-          iconColor: 'icon-teal',
-          subtitle: '1/2 occupied',
-          subtextColor: 'text-teal',
-          dotColor: 'dot-teal',
-          dotList: [
-            { id: '0', filled: true },
-            { id: '1', filled: false },
-          ],
-          tenants: [
-            { id: 's3', studentId: 'sample-3', name: 'Sample Tenant C', initials: 'SC', course: 'Room 102 · Floor 1', status: 'Payment due', avatarColor: 'orange-5', statusColor: 'red-1', statusTextColor: 'red-7' },
-          ],
-        },
-      ],
-    },
-  ]
 }
 
 const activeCount = computed(() => {
