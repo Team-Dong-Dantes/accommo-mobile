@@ -149,6 +149,8 @@ function openConversation(conv: Conversation) {
   if (conv.unread > 0) {
     conv.read = true
     conv.unread = 0
+    $q.notify({ message: `Marked conversation with ${conv.name} as read`, color: 'teal-9', position: 'top' })
+    return
   }
   $q.notify({ message: `Opening chat with ${conv.name} (mock)`, color: 'teal-9', position: 'top' })
 }
@@ -204,6 +206,13 @@ function navTo(key: string, to: string) {
 .conv-card {
   border-radius: 18px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.conv-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .conv-inquiring {
@@ -352,6 +361,13 @@ function navTo(key: string, to: string) {
   cursor: pointer;
   padding: 0;
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+
+.nav-item:active {
+  transform: scale(0.9);
 }
 
 .nav-item.nav-active {
