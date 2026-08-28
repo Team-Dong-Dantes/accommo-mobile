@@ -1,6 +1,11 @@
 <template>
   <q-page class="dashboard-page bg-grey-1">
     <div class="page-shell q-pb-xl">
+      <div class="header-shell q-px-md q-pt-lg q-pb-md">
+        <div class="page-title">Home</div>
+        <div class="page-subtitle">Your boarding houses at a glance</div>
+      </div>
+
       <div class="top-summary q-mx-md q-mt-md">
         <div class="row q-col-gutter-sm">
           <div v-for="metric in metrics" :key="metric.id" class="col-6">
@@ -234,7 +239,25 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-page {
-  background: #F7F9FA;
+  background: #f4f5f7;
+}
+
+.header-shell {
+  background: #f4f5f7;
+}
+
+.page-title {
+  color: #111827;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.page-subtitle {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
 }
 
 .page-shell {
@@ -244,7 +267,7 @@ onMounted(() => {
 .metric-card {
   background: #FFFFFF;
   border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 18px;
+  border-radius: 22px;
   min-height: 168px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03);
 }

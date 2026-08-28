@@ -71,30 +71,11 @@
       </div>
     </div>
 
-    <!-- FIXED BOTTOM NAV -->
-    <div class="bottom-nav">
-      <button
-        v-for="item in navItems"
-        :key="item.key"
-        type="button"
-        class="nav-item"
-        :class="{ 'nav-active': activeTab === item.key }"
-        @click="navTo(item.key, item.to)"
-      >
-        <q-icon :name="item.icon" size="22px" />
-        <span class="nav-label">{{ item.label }}</span>
-      </button>
-    </div>
-
-    <!-- TEAL FAB -->
-    <q-btn fab icon="add" color="teal-9" class="messages-fab" @click="openAddProperty" />
   </q-page>
 </template>
 
-<script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
+<script lang="ts">
+import { ref } from 'vue'
 
 interface Conversation {
   id: string
@@ -110,13 +91,9 @@ interface Conversation {
   read: boolean
 }
 
-const router = useRouter()
-const $q = useQuasar()
-
-const searchText = ref('')
-
-// Mock conversation data for the Messages inbox. Swap for a store or API
-// fetch once the backend conversations table is ready to use.
+// Module-level singleton: the read/unread state must survive tab switches and
+// component remounts (the page is recreated on each navigation). Keeping the
+// data here instead of inside setup means it is not re-seeded on every mount.
 const conversations = ref<Conversation[]>([
   { id: 'c1', initials: 'MS', avatarColor: 'teal-9', name: 'Maria Santos', badge: 'Inquiring', timestamp: 'Just now', unread: 2, active: true, context: 'Inquiring - Pinzon Student Hub - Rm 101-A', snippet: 'Is the room still available this semester?', read: false },
   { id: 'c2', initials: 'CR', avatarColor: 'purple-6', name: 'Carlo Reyes', badge: 'Inquiring', timestamp: '2h ago', unread: 1, active: true, context: 'Inquiring - Pinzon Student Hub - Rm 203', snippet: 'Thank you! I will bring the requirements on Saturday.', read: false },
@@ -124,7 +101,18 @@ const conversations = ref<Conversation[]>([
   { id: 'c4', initials: 'BC', avatarColor: 'green-6', name: 'Ben Castillo', badge: 'Current', timestamp: '2d ago', unread: 0, active: false, context: 'Camarag View - Rm 05', snippet: 'Okay, I will reconsider and get back to you.', read: true },
   { id: 'c5', initials: 'LD', avatarColor: 'red-6', name: 'Lea Domingo', badge: 'Current', timestamp: '3d ago', unread: 0, active: false, context: 'Pinzon Student Hub - Rm 110', snippet: 'Thank you for the quick reply!', read: true },
 ])
+</script>
 
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useQuasar } from 'quasar'
+
+const $q = useQuasar()
+
+const searchText = ref('')
+
+// Mock conversation data for the Messages inbox. Swap for a store or API
+// fetch once the backend conversations table is ready to use.
 const pendingInquiries = computed(
   () => conversations.value.filter((c) => c.badge === 'Inquiring').length,
 )
@@ -137,14 +125,6 @@ const filteredConversations = computed(() => {
   )
 })
 
-const navItems = [
-  { key: 'home', label: 'Home', icon: 'home', to: '/landlord/dashboard' },
-  { key: 'tenants', label: 'Tenants', icon: 'groups', to: '/landlord/tenants' },
-  { key: 'msgs', label: 'Msgs', icon: 'chat', to: '/landlord/messages' },
-  { key: 'notif', label: 'Notif', icon: 'notifications', to: '/landlord/notifications' },
-]
-const activeTab = ref('msgs')
-
 function openConversation(conv: Conversation) {
   if (conv.unread > 0) {
     conv.read = true
@@ -154,20 +134,11 @@ function openConversation(conv: Conversation) {
   }
   $q.notify({ message: `Opening chat with ${conv.name} (mock)`, color: 'teal-9', position: 'top' })
 }
-
-function openAddProperty() {
-  void router.push('/landlord/properties/new')
-}
-
-function navTo(key: string, to: string) {
-  activeTab.value = key
-  void router.push(to)
-}
 </script>
 
 <style scoped>
 .messages-page {
-  background: #F7F9FA;
+  background: #f4f5f7;
   min-height: 100vh;
 }
 
@@ -334,56 +305,6 @@ function navTo(key: string, to: string) {
   color: #9CA3AF;
   font-size: 14px;
   padding: 32px 0;
-}
-
-.bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 64px;
-  background: #FFFFFF;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
-  display: flex;
-  z-index: 50;
-}
-
-.nav-item {
-  flex: 1;
-  border: none;
-  background: transparent;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: #9CA3AF;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-  transition: transform 0.12s ease, color 0.12s ease;
-}
-
-.nav-item:active {
-  transform: scale(0.9);
-}
-
-.nav-item.nav-active {
-  color: #00897B;
-}
-
-.nav-label {
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.messages-fab {
-  position: fixed;
-  right: 16px;
-  bottom: 80px;
-  z-index: 60;
 }
 
 @media (min-width: 768px) {

@@ -118,53 +118,25 @@
 
     <q-footer bordered class="bg-white text-grey-8 bottom-footer">
       <div class="bottom-nav">
-        <button
-          type="button"
-          class="bottom-nav-item"
-          :class="{ active: activeBottomTab === 'home' }"
-          @click="goToTab('home')"
-        >
-          <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-          </svg>
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'home' }" @click="goToTab('home')">
+          <q-icon name="home" size="22px" />
           <span class="bottom-nav-label">Home</span>
         </button>
-        <button
-          type="button"
-          class="bottom-nav-item"
-          :class="{ active: activeBottomTab === 'tenants' }"
-          @click="goToTab('tenants')"
-        >
-          <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-          </svg>
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'tenants' }" @click="goToTab('tenants')">
+          <q-icon name="groups" size="22px" />
           <span class="bottom-nav-label">Tenants</span>
         </button>
-        <button
-          type="button"
-          class="bottom-nav-item"
-          :class="{ active: activeBottomTab === 'messages' }"
-          @click="goToTab('messages')"
-        >
-          <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-          </svg>
-          <span class="bottom-nav-label">Messages</span>
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'messages' }" @click="goToTab('messages')">
+          <q-icon name="chat" size="22px" />
+          <span class="bottom-nav-label">Msgs</span>
         </button>
-        <button
-          type="button"
-          class="bottom-nav-item"
-          :class="{ active: activeBottomTab === 'notif' }"
-          @click="goToTab('notif')"
-        >
-          <svg class="bottom-nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
-          </svg>
-          <span class="bottom-nav-label">Notification</span>
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'notif' }" @click="goToTab('notif')">
+          <q-icon name="notifications" size="22px" />
+          <span class="bottom-nav-label">Notif</span>
         </button>
       </div>
 
-      <q-btn round color="teal-9" icon="add" class="fab-button" @click="goAddProperty" />
+      <q-btn fab icon="add" color="teal-9" class="bottom-fab" @click="goAddProperty" />
     </q-footer>
   </q-layout>
 </template>
@@ -190,7 +162,7 @@ const profileRoute = computed(() => {
 const bottomTabs = [
   { name: 'home', route: '/landlord/dashboard' },
   { name: 'tenants', route: '/landlord/tenants' },
-  { name: 'messages', route: '/landlord/chat' },
+  { name: 'messages', route: '/landlord/messages' },
   { name: 'notif', route: '/landlord/notifications' },
 ] as const
 
@@ -220,6 +192,7 @@ watch(
   value => {
     if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
     else if (value.startsWith('/landlord/tenants')) activeBottomTab.value = 'tenants'
+    else if (value.startsWith('/landlord/messages')) activeBottomTab.value = 'messages'
     else if (value.startsWith('/landlord/chat')) activeBottomTab.value = 'messages'
     else if (value.startsWith('/landlord/notifications')) activeBottomTab.value = 'notif'
   },
@@ -280,14 +253,14 @@ onMounted(async () => {
   color: #0F766E;
 }
 .bottom-footer {
-  min-height: 84px;
-  height: calc(84px + env(safe-area-inset-bottom, 0px));
+  min-height: 64px;
+  height: calc(64px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: 50;
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
 }
 .bottom-nav {
@@ -303,7 +276,7 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 2px;
   padding: 0;
   border: none;
   background: transparent;
@@ -311,72 +284,29 @@ onMounted(async () => {
   -webkit-appearance: none;
   outline: none;
   cursor: pointer;
-  color: #6b7280;
+  color: #9CA3AF;
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+.bottom-nav-item:active {
+  transform: scale(0.9);
 }
 .bottom-nav-item.active {
-  color: #0f766e;
-}
-.bottom-nav-item.active::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 28px;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: #0f766e;
-}
-.bottom-nav-icon {
-  display: block;
-  width: 26px;
-  height: 26px;
+  color: #00897B;
 }
 .bottom-nav-label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1;
 }
-.fab-backdrop {
+.bottom-fab {
   position: fixed;
-  inset: 0;
-  z-index: 25;
-  background: rgba(17, 24, 39, 0.22);
-  backdrop-filter: blur(6px);
-}
-.fab-menu-wrap {
-  position: absolute;
-  right: 22px;
-  bottom: 150px;
-  z-index: 31;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-}
-.fab-menu-item {
-  min-height: 42px;
-  padding: 0 18px;
-  border-radius: 999px;
-  background: white;
-  color: #111827;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  font-weight: 700;
-  font-size: 14px;
-}
-.fab-close-button {
-  width: 44px;
-  height: 44px;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.2);
-}
-.fab-button {
-  position: absolute;
-  right: 22px;
-  bottom: 96px;
+  right: 16px;
+  bottom: 80px;
+  z-index: 60;
   box-shadow: 0 10px 22px rgba(0, 137, 123, 0.32);
-  z-index: 32;
 }
 </style>

@@ -1,11 +1,15 @@
 <template>
   <q-page class="notif-page">
-    <div class="notif-header">
-      <div class="notif-title">Notifications</div>
+    <div class="header-shell q-px-md q-pt-lg q-pb-md row items-center no-wrap">
+      <div class="col">
+        <div class="page-title">Notifications</div>
+        <div class="page-subtitle">{{ unreadCount }} unread</div>
+      </div>
       <q-btn flat no-caps class="mark-read-btn" label="Mark all read" @click="markAllRead" />
     </div>
 
-    <q-list separator class="notif-list">
+    <div class="q-px-md">
+      <q-list separator class="notif-list">
       <q-item v-for="item in notifications" :key="item.id" class="notif-item">
         <q-item-section avatar>
           <q-icon :name="item.icon" :style="{ color: item.color }" size="24px" />
@@ -20,13 +24,14 @@
         <q-item-section side top>
           <span v-if="item.unread" class="unread-dot" />
         </q-item-section>
-      </q-item>
-    </q-list>
+        </q-item>
+      </q-list>
+    </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 interface NotificationItem {
   id: number
@@ -89,25 +94,30 @@ const notifications = ref<NotificationItem[]>([
 const markAllRead = () => {
   notifications.value = notifications.value.map(item => ({ ...item, unread: false }))
 }
+
+const unreadCount = computed(() => notifications.value.filter(item => item.unread).length)
 </script>
 
 <style scoped>
 .notif-page {
-  padding: 16px;
-  padding-bottom: 80px;
-  background: #f3f4f6;
+  padding-bottom: 96px;
+  background: #f4f5f7;
   min-height: 100vh;
 }
-.notif-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+.header-shell {
+  background: #f4f5f7;
 }
-.notif-title {
-  font-size: 22px;
-  font-weight: 800;
+.page-title {
   color: #111827;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+.page-subtitle {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
 }
 .mark-read-btn {
   color: #0d9488;
@@ -115,8 +125,9 @@ const markAllRead = () => {
   text-transform: none;
 }
 .notif-list {
-  background: white;
-  border-radius: 14px;
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 22px;
   overflow: hidden;
 }
 .notif-item {

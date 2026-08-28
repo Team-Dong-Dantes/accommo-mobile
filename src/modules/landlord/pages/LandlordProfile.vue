@@ -191,16 +191,6 @@
       </q-card>
     </q-dialog>
 
-    <!-- FIXED BOTTOM NAV -->
-    <div class="bottom-nav">
-      <button v-for="item in navItems" :key="item.key" type="button" class="nav-item" :class="{ 'nav-active': activeTab === item.key }" @click="navTo(item.key, item.to)">
-        <q-icon :name="item.icon" size="22px" />
-        <span class="nav-label">{{ item.label }}</span>
-      </button>
-    </div>
-
-    <!-- TEAL FAB -->
-    <q-btn fab icon="add" color="teal-9" class="profile-fab" @click="openAddProperty" />
   </q-page>
 </template>
 
@@ -297,14 +287,6 @@ const reviews = ref<ReviewItem[]>([
 const reviewsAverage = '4.8'
 const activeProperties = computed(() => properties.value.length)
 
-const navItems = [
-  { key: 'home', label: 'Home', icon: 'home', to: '/landlord/dashboard' },
-  { key: 'tenants', label: 'Tenants', icon: 'groups', to: '/landlord/tenants' },
-  { key: 'msgs', label: 'Msgs', icon: 'chat', to: '/landlord/messages' },
-  { key: 'notif', label: 'Notif', icon: 'notifications', to: '/landlord/notifications' },
-]
-const activeTab = ref('')
-
 const editDialog = ref(false)
 const editForm = ref({ fullName: '', email: '' })
 
@@ -336,15 +318,6 @@ function goToSettings() {
   void router.push('/landlord/settings')
 }
 
-function openAddProperty() {
-  void router.push('/landlord/properties/new')
-}
-
-function navTo(key: string, to: string) {
-  activeTab.value = key
-  void router.push(to)
-}
-
 async function handleLogout() {
   await supabase.auth.signOut()
   void router.push('/login')
@@ -353,7 +326,7 @@ async function handleLogout() {
 
 <style scoped>
 .profile-page {
-  background: #F7F9FA;
+  background: #f4f5f7;
   min-height: 100vh;
 }
 
@@ -678,49 +651,6 @@ async function handleLogout() {
   font-size: 18px;
   font-weight: 800;
   color: #1F2937;
-}
-
-.bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 64px;
-  background: #FFFFFF;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
-  display: flex;
-  z-index: 50;
-}
-
-.nav-item {
-  flex: 1;
-  border: none;
-  background: transparent;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: #9CA3AF;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-}
-
-.nav-item.nav-active {
-  color: #00897B;
-}
-
-.nav-label {
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.profile-fab {
-  position: fixed;
-  right: 16px;
-  bottom: 80px;
-  z-index: 60;
 }
 
 @media (min-width: 768px) {
