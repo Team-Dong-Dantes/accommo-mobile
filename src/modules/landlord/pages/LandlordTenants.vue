@@ -99,6 +99,24 @@
         </div>
       </div>
     </div>
+
+    <!-- FIXED BOTTOM NAV -->
+    <div class="bottom-nav">
+      <button
+        v-for="item in navItems"
+        :key="item.key"
+        type="button"
+        class="nav-item"
+        :class="{ 'nav-active': activeTab === item.key }"
+        @click="navTo(item.key, item.to)"
+      >
+        <q-icon :name="item.icon" size="22px" />
+        <span class="nav-label">{{ item.label }}</span>
+      </button>
+    </div>
+
+    <!-- TEAL FAB -->
+    <q-btn fab icon="add" color="teal-9" class="tenants-fab" @click="openAddProperty" />
   </q-page>
 </template>
 
@@ -386,6 +404,23 @@ function openTenant(studentId: string) {
   void router.push(`/landlord/tenant/${studentId}`)
 }
 
+const navItems = [
+  { key: 'home', label: 'Home', icon: 'home', to: '/landlord/dashboard' },
+  { key: 'tenants', label: 'Tenants', icon: 'groups', to: '/landlord/tenants' },
+  { key: 'msgs', label: 'Msgs', icon: 'chat', to: '/landlord/messages' },
+  { key: 'notif', label: 'Notif', icon: 'notifications', to: '/landlord/notifications' },
+]
+const activeTab = ref('tenants')
+
+function openAddProperty() {
+  void router.push('/landlord/properties/new')
+}
+
+function navTo(key: string, to: string) {
+  activeTab.value = key
+  void router.push(to)
+}
+
 onMounted(() => {
   void loadTenants()
 })
@@ -394,6 +429,7 @@ onMounted(() => {
 <style scoped>
 .tenants-page {
   background: #f4f5f7;
+  padding-bottom: 96px;
 }
 
 .center-state {
@@ -614,5 +650,55 @@ onMounted(() => {
   font-size: 10px;
   font-weight: 700;
   padding: 5px 10px;
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+  background: #FFFFFF;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  display: flex;
+  z-index: 50;
+}
+
+.nav-item {
+  flex: 1;
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+
+.nav-item:active {
+  transform: scale(0.9);
+}
+
+.nav-item.nav-active {
+  color: #00897B;
+}
+
+.nav-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tenants-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 80px;
+  z-index: 60;
 }
 </style>
