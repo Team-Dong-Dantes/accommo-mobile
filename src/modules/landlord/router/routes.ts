@@ -57,6 +57,10 @@ const landlordRoutes: RouteRecordRaw[] = [
     path: '/landlord/notifications',
     component: () => import('@/modules/landlord/pages/LandlordNotifications.vue'),
   },
+  {
+    path: '/landlord/messages',
+    component: () => import('@/modules/landlord/pages/MessagesPage.vue'),
+  },
 ];
 
 export default landlordRoutes;
