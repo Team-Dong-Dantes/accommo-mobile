@@ -123,10 +123,16 @@
 
         <div class="section-label">MY TICKETS</div>
         <q-list v-if="!ticketLoading && myTickets.length" separator class="ticket-list">
-          <q-item v-for="t in myTickets" :key="t.id" class="ticket-item">
+          <q-item
+            v-for="t in myTickets"
+            :key="t.id"
+            class="ticket-item"
+            clickable
+            @click="openTicket(t)"
+          >
             <q-item-section>
               <q-item-label class="ticket-subject">{{ t.subject }}</q-item-label>
-              <q-item-label caption class="ticket-id">{{ t.id }}</q-item-label>
+              <q-item-label caption class="ticket-meta">{{ categoryLabel(t.category) }} · {{ priorityLabel(t.priority) }}</q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-badge
@@ -221,6 +227,29 @@
         </q-list>
       </div>
     </div>
+
+    <q-dialog v-model="detailOpen" position="bottom">
+      <q-card class="ticket-detail">
+        <q-card-section>
+          <div class="td-header">
+            <div class="td-title">{{ detailTicket?.subject }}</div>
+            <q-btn flat round dense icon="close" @click="detailOpen = false" />
+          </div>
+          <q-badge :color="statusColor(COMPLAINT_STATUS, detailTicket?.status)" class="td-badge">
+            {{ statusText(COMPLAINT_STATUS, detailTicket?.status) }}
+          </q-badge>
+          <div class="td-rows">
+            <div class="td-row"><span class="td-key">Category</span><span class="td-val">{{ categoryLabel(detailTicket?.category || '') }}</span></div>
+            <div class="td-row"><span class="td-key">Priority</span><span class="td-val">{{ priorityLabel(detailTicket?.priority) }}</span></div>
+            <div class="td-row"><span class="td-key">Boarding house</span><span class="td-val">{{ propertyName(detailTicket?.property_id) }}</span></div>
+            <div class="td-row"><span class="td-key">Reported</span><span class="td-val">{{ formatDate(detailTicket?.reported_at) }}</span></div>
+            <div class="td-row"><span class="td-key">Reporter</span><span class="td-val">{{ detailTicket?.reporter_name || '—' }}</span></div>
+          </div>
+          <div class="td-desc-label">Details</div>
+          <div class="td-desc">{{ detailTicket?.description || 'No additional details provided.' }}</div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -262,9 +291,36 @@ interface MyTicket {
   id: string
   subject: string
   status: string
+  category: string
+  priority: string
+  property_id: string | null
+  reported_at: string | null
+  reporter_name: string | null
+  description: string | null
 }
 
 const myTickets = ref<MyTicket[]>([])
+
+const detailOpen = ref(false)
+const detailTicket = ref<MyTicket | null>(null)
+
+const priorityLabel = (value: string | null | undefined) =>
+  value === 'urgent' ? 'Urgent' : value === 'high' ? 'High' : 'Normal'
+
+const propertyName = (id: string | null | undefined) =>
+  propertyOptions.value.find((p) => p.id === id)?.name ?? 'Unknown boarding house'
+
+const formatDate = (value: string | null | undefined) => {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+const openTicket = (ticket: MyTicket) => {
+  detailTicket.value = ticket
+  detailOpen.value = true
+}
 
 interface MaintenanceTicket {
   id: string
@@ -420,7 +476,7 @@ const loadMyTickets = async () => {
     if (!user) return
     const { data, error } = await supabase
       .from('tickets')
-      .select('id, subject, status')
+      .select('id, subject, status, category, priority, property_id, reported_at, reporter_name, description')
       .eq('landlord_id', user.id)
       .order('reported_at', { ascending: false })
     if (error) throw error
@@ -428,6 +484,12 @@ const loadMyTickets = async () => {
       id: c.id,
       subject: c.subject,
       status: c.status,
+      category: c.category,
+      priority: c.priority,
+      property_id: c.property_id,
+      reported_at: c.reported_at,
+      reporter_name: c.reporter_name,
+      description: c.description,
     }))
   } catch (e) {
     console.error('loadMyTickets error:', e)
@@ -539,10 +601,10 @@ onMounted(async () => {
 .ticket-item {
   padding: 12px;
 }
-.ticket-id {
+.ticket-meta {
   font-size: 12px;
-  font-weight: 700;
-  color: #0f766e;
+  color: #6b7280;
+  margin-top: 2px;
 }
 .ticket-subject {
   font-size: 14px;
@@ -738,5 +800,60 @@ onMounted(async () => {
   padding: 10px;
   border-radius: 10px;
   text-transform: none;
+}
+.ticket-detail {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 20px 20px 0 0;
+  padding: 8px 0 16px;
+}
+.td-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 4px;
+}
+.td-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+  flex: 1;
+}
+.td-badge {
+  margin: 4px 16px 8px;
+  font-weight: 700;
+}
+.td-rows {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.td-row {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+.td-key {
+  width: 110px;
+  color: #6b7280;
+  font-weight: 600;
+}
+.td-val {
+  color: #111827;
+  flex: 1;
+}
+.td-desc-label {
+  padding: 12px 16px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+.td-desc {
+  padding: 0 16px;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 </style>
