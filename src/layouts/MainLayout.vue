@@ -122,10 +122,6 @@
           <q-icon name="home" size="22px" />
           <span class="bottom-nav-label">Home</span>
         </button>
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'tenants' }" @click="goToTab('tenants')">
-          <q-icon name="groups" size="22px" />
-          <span class="bottom-nav-label">Tenants</span>
-        </button>
         <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'messages' }" @click="goToTab('messages')">
           <q-icon name="chat" size="22px" />
           <span class="bottom-nav-label">Msgs</span>
@@ -161,7 +157,6 @@ const profileRoute = computed(() => {
 
 const bottomTabs = [
   { name: 'home', route: '/landlord/dashboard' },
-  { name: 'tenants', route: '/landlord/tenants' },
   { name: 'messages', route: '/landlord/messages' },
   { name: 'notif', route: '/landlord/notifications' },
 ] as const
@@ -191,7 +186,6 @@ watch(
   () => route.path,
   value => {
     if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
-    else if (value.startsWith('/landlord/tenants')) activeBottomTab.value = 'tenants'
     else if (value.startsWith('/landlord/messages')) activeBottomTab.value = 'messages'
     else if (value.startsWith('/landlord/chat')) activeBottomTab.value = 'messages'
     else if (value.startsWith('/landlord/notifications')) activeBottomTab.value = 'notif'
