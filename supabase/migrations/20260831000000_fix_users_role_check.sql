@@ -1,31 +1,15 @@
 -- Allow the 'landlord' role in addition to 'student'.
 --
--- The users.role CHECK constraint previously only accepted 'student', which
+-- users.role is an enum type (user_role) that only contained 'student', which
 -- made landlord registration fail with a 500 ("Database error saving new
 -- user") because the auth -> public.users sync trigger inserts the role from
--- signup metadata and 'landlord' violated the constraint.
+-- signup metadata and 'landlord' was not a valid enum value
+-- (error: invalid input value for enum user_role: "landlord").
 --
 -- There is no admin role in this app (login/signup only offer student and
 -- landlord), so it is intentionally excluded.
 --
--- This finds and drops any CHECK constraint on users whose definition mentions
--- 'role', then re-adds one allowing 'student' and 'landlord'. Idempotent.
+-- ALTER TYPE ... ADD VALUE IF NOT EXISTS requires Postgres 12+ (Supabase uses
+-- 15+). Idempotent via IF NOT EXISTS.
 
-DO $$
-DECLARE
-  cname text;
-BEGIN
-  SELECT conname INTO cname
-  FROM pg_constraint
-  WHERE conrelid = 'public.users'::regclass
-    AND contype = 'c'
-    AND pg_get_constraintdef(oid) ILIKE '%role%';
-
-  IF cname IS NOT NULL THEN
-    EXECUTE format('ALTER TABLE public.users DROP CONSTRAINT %I', cname);
-  END IF;
-END $$;
-
-ALTER TABLE public.users
-  ADD CONSTRAINT users_role_check
-  CHECK (role IN ('student', 'landlord'));
+ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'landlord';
