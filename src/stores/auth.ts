@@ -329,7 +329,19 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
-      const role = typeof userData?.role === 'string' ? userData.role.toLowerCase() : null;
+      let role = typeof userData?.role === 'string' ? userData.role.toLowerCase() : null;
+
+      // Some accounts were created by the auth trigger without a role. Fall back
+      // to the role captured in user_metadata at signup and backfill the users
+      // row so future logins resolve it directly.
+      if (!role) {
+        const metaRole = (authData.user?.user_metadata as Record<string, unknown> | undefined)?.role;
+        if (typeof metaRole === 'string' && metaRole) {
+          role = metaRole.toLowerCase();
+          await supabase.from('users').update({ role } as any).eq('id', authData.user.id);
+        }
+      }
+
       this.cachedRole = role;
 
       return {

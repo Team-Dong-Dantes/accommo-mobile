@@ -22,7 +22,7 @@ export default defineRouter(() => {
 
   let roleFetchInProgress: Promise<string | null> | null = null;
 
-  async function fetchUserRole(session: { user: { id: string } }): Promise<string | null> {
+  async function fetchUserRole(session: { user: { id: string; user_metadata?: Record<string, unknown> } }): Promise<string | null> {
     const authStore = useAuthStore();
     if (authStore.cachedRole) return authStore.cachedRole;
 
@@ -38,7 +38,11 @@ export default defineRouter(() => {
 
         if (error || !data) return null;
 
-        const role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
+        let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
+        if (!role) {
+          const metaRole = session.user.user_metadata?.role;
+          if (typeof metaRole === 'string' && metaRole) role = metaRole.toLowerCase();
+        }
         authStore.cachedRole = role;
         return role;
       } catch {
