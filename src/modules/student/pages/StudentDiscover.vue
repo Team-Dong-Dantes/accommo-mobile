@@ -291,6 +291,7 @@
           </q-card-section>
         </q-card>
         <q-btn unelevated color="dark" icon="chat_bubble_outline" label="Message to Inquire" class="full-width border-radius-16 text-weight-bold q-py-sm" size="16px" no-caps @click="inquire(selectedProperty)" />
+        <q-btn outline color="teal-8" icon="fact_check" label="Apply Now" class="full-width border-radius-16 text-weight-bold q-py-sm q-mt-sm" size="16px" no-caps @click="openApply" />
       </div>
     </div>
 
@@ -451,12 +452,34 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- Apply Dialog -->
+    <q-dialog v-model="applyDialog" persistent>
+      <q-card class="border-radius-24" style="width: 320px; max-width: 90vw;">
+        <q-card-section class="row items-center q-pb-sm">
+          <div class="q-mr-sm" style="width:40px;height:40px;border-radius:50%;background:#e0f2f1;display:flex;align-items:center;justify-content:center;">
+            <q-icon name="fact_check" color="teal-8" size="22px" />
+          </div>
+          <div class="text-subtitle1 text-weight-bold">Apply to this Boarding House?</div>
+        </q-card-section>
+        <q-card-section class="q-pt-sm">
+          <div class="text-body2 text-grey-7">
+            Your application will be sent to the landlord as a message. They'll reach out to you to continue the process.
+          </div>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md q-pt-none">
+          <q-btn flat label="Cancel" no-caps color="grey-7" v-close-popup />
+          <q-btn unelevated color="teal-8" label="Send Application" no-caps :loading="applying" @click="confirmApply" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { formatPeso, initialsOf } from '@/shared/utils/format';
 
@@ -516,6 +539,7 @@ interface RoomDetail {
 }
 
 const router = useRouter();
+const $q = useQuasar();
 
 const searchQuery = ref('');
 const loading = ref(true);
@@ -536,6 +560,9 @@ const selectedRoomType = ref<string | null>(null);
 const selectedPrice = ref<string>('any');
 const selectedAmenities = ref<string[]>([]);
 const osasVerified = ref(false);
+
+const applyDialog = ref(false);
+const applying = ref(false);
 
 const roomTypes = [
   { value: 'solo', label: 'Solo', icon: 'person', color: '#00897b' },
@@ -726,6 +753,58 @@ function openLandlord(property: DiscoverProperty) {
     propertyName: property.name,
     propertyImage: property.image,
   });
+}
+
+function openApply() {
+  if (!selectedProperty.value?.landlordId) {
+    $q.notify({ message: 'This property has no landlord to contact.', color: 'warning', position: 'top' });
+    return;
+  }
+  applyDialog.value = true;
+}
+
+async function confirmApply() {
+  const p = selectedProperty.value;
+  if (!p?.landlordId) return;
+  applying.value = true;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { void router.push('/login'); return; }
+    const me = user.id;
+    const other = p.landlordId;
+
+    let convoId: string | null = null;
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id')
+      .or(`and(user_a_id.eq.${me},user_b_id.eq.${other}),and(user_a_id.eq.${other},user_b_id.eq.${me})`)
+      .limit(1);
+    const ex = (existing ?? []) as unknown as Array<{ id: string }>;
+    if (ex.length > 0) {
+      convoId = ex[0]?.id ?? null;
+    } else {
+      const { data: created, error: createErr } = await supabase
+        .from('conversations')
+        .insert({ user_a_id: me, user_b_id: other, last_message: null, last_time: new Date().toISOString(), unread_a: 0, unread_b: 0 })
+        .select('id')
+        .single();
+      if (createErr) throw createErr;
+      convoId = (created as { id: string }).id;
+    }
+
+    if (!convoId) throw new Error('Could not start a conversation');
+
+    const body = `Hello! I'd like to apply for a room at "${p.name}". Please let me know the next steps.`;
+    const { error: msgErr } = await supabase.from('messages').insert({ conversation_id: convoId, sender_id: me, body });
+    if (msgErr) throw msgErr;
+
+    applyDialog.value = false;
+    $q.notify({ message: 'Application sent! Check your messages.', color: 'teal-8', position: 'top' });
+  } catch (e) {
+    $q.notify({ message: e instanceof Error ? e.message : 'Failed to apply', color: 'negative', position: 'top' });
+  } finally {
+    applying.value = false;
+  }
 }
 
 function selectRoomType(value: string) {
@@ -947,7 +1026,7 @@ async function loadProperties() {
       const imgs = (r.accommodation_images ?? [])
         .filter((i) => i.url)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      const landlordName = r.business_name ?? (r.accommodation_manager_id ? userNames.get(r.accommodation_manager_id) : null) ?? 'Property Owner';
+      const landlordName = r.name ?? (r.accommodation_manager_id ? userNames.get(r.accommodation_manager_id) : null) ?? 'Property Owner';
       return {
         id: r.id,
         name: r.name ?? 'Boarding House',
