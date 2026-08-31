@@ -20,6 +20,32 @@
       </q-input>
     </div>
 
+    <div v-if="pendingApplications.length" class="q-px-md q-mt-md">
+      <div class="row items-center no-wrap q-mb-sm">
+        <q-icon name="pending_actions" size="20px" color="purple-7" class="q-mr-sm" />
+        <span class="pending-title">Pending Applications</span>
+      </div>
+      <q-card flat bordered class="pending-card">
+        <q-list separator>
+          <q-item v-for="app in pendingApplications" :key="app.id" class="pending-item">
+            <q-item-section avatar>
+              <q-avatar :color="app.avatarColor" text-color="white" size="38px">{{ app.initials }}</q-avatar>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="pending-name">{{ app.name }}</q-item-label>
+              <q-item-label caption class="pending-meta">{{ app.room }} · {{ app.property }}</q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row q-col-gutter-xs no-wrap">
+                <q-btn unelevated color="green-6" size="sm" label="Accept" @click="acceptApplication(app.id)" />
+                <q-btn flat color="grey-7" size="sm" label="Decline" @click="declineApplication(app.id)" />
+              </div>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card>
+    </div>
+
     <div v-if="isLoading" class="center-state">
       <q-spinner size="42px" color="teal-8" />
     </div>
@@ -117,6 +143,7 @@ const searchText = ref('')
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 const propertyGroups = ref<any[]>([])
+const pendingApplications = ref<any[]>([])
 
 const AVATAR_PALETTE = ['teal-8', 'purple-6', 'pink-5', 'orange-5', 'blue-6', 'green-6']
 
@@ -231,6 +258,25 @@ async function loadTenants() {
       ;(users || []).forEach((u: any) => studentMap.set(u.id, u))
     }
 
+    // Pending applications (leases not yet accepted) — shown separately for accept/decline.
+    pendingApplications.value = leaseRows
+      .filter((l) => l.status === 'pending')
+      .map((l) => {
+        const roomRec = roomRows.find((r) => r.id === l.room_id)
+        const propRec = propertyList.find((p) => p.id === roomRec?.accommodation_id)
+        const userRec = studentMap.get(l.student_id)
+        const name = userRec?.full_name || `Tenant ${(l.student_id || '').slice(0, 4)}`
+        return {
+          id: l.id,
+          studentId: l.student_id,
+          name,
+          initials: initialsOf(name),
+          avatarColor: userRec?.avatar_color || AVATAR_PALETTE[hashIndex(l.student_id, AVATAR_PALETTE.length)],
+          room: roomRec?.label || (roomRec?.room_number ? `Room ${roomRec.room_number}` : 'Room'),
+          property: propRec?.name || 'Boarding House',
+        }
+      })
+
     // Build groups keyed by property -> room
     const propMap = new Map<string, any>()
     for (const p of propertyList) {
@@ -266,6 +312,7 @@ async function loadTenants() {
     }
 
     for (const l of leaseRows) {
+      if (l.status === 'pending') continue // handled in pendingApplications
       const roomRec = roomRows.find((r) => r.id === l.room_id)
       const pg = propMap.get(roomRec?.accommodation_id || '')
       if (!pg) continue
@@ -307,6 +354,26 @@ async function loadTenants() {
   } finally {
     isLoading.value = false
   }
+}
+
+async function acceptApplication(leaseId: string) {
+  const { error } = await supabase.from('leases').update({ status: 'active' } as any).eq('id', leaseId)
+  if (error) {
+    $q.notify({ type: 'negative', message: error.message })
+    return
+  }
+  $q.notify({ type: 'positive', message: 'Application accepted' })
+  await loadTenants()
+}
+
+async function declineApplication(leaseId: string) {
+  const { error } = await supabase.from('leases').update({ status: 'ended' } as any).eq('id', leaseId)
+  if (error) {
+    $q.notify({ type: 'negative', message: error.message })
+    return
+  }
+  $q.notify({ type: 'positive', message: 'Application declined' })
+  await loadTenants()
 }
 
 const activeCount = computed(() => {
@@ -590,5 +657,34 @@ onMounted(() => {
   font-size: 10px;
   font-weight: 700;
   padding: 5px 10px;
+}
+
+.pending-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.pending-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.pending-item {
+  padding: 12px 14px;
+}
+
+.pending-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.pending-meta {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
 }
 </style>
