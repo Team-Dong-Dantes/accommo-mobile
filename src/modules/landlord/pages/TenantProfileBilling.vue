@@ -508,7 +508,7 @@ async function loadData() {
         .maybeSingle(),
       supabase
         .from('student_profiles')
-        .select('student_id, college, program, year_level, sex')
+        .select('student_id, college, program, year_level')
         .eq('user_id', data.student_id)
         .maybeSingle(),
     ])
