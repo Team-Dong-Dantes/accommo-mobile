@@ -3,6 +3,22 @@ import { supabase } from '@/shared/utils/supabase';
 import { uploadDocument } from '@/shared/utils/upload';
 import type { RegisterForm } from '@/shared/types/database';
 
+// The database role enum uses 'accommodation_manager' where the app's UI and
+// routing use 'landlord' (the leader's terminology change). Map between them
+// at the DB boundary so the rest of the app keeps using 'landlord'.
+const APP_ROLE_TO_DB: Record<string, string> = { landlord: 'accommodation_manager' };
+const DB_ROLE_TO_APP: Record<string, string> = { accommodation_manager: 'landlord' };
+
+function toDbRole(role: string): string {
+  return APP_ROLE_TO_DB[role] ?? role;
+}
+
+function toAppRole(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const r = raw.toLowerCase();
+  return DB_ROLE_TO_APP[r] ?? r;
+}
+
 function sanitizeError(error: unknown): Error {
   const raw = error instanceof Error ? error.message : String(error);
   let friendly = 'An unexpected error occurred. Please try again.';
@@ -67,7 +83,7 @@ export const useAuthStore = defineStore('auth', {
         full_name: form.fullName,
         initials,
         sex: formattedSex,
-        role: role,
+        role: toDbRole(role) as any,
         phone: form.phone,
       };
     },
@@ -329,7 +345,7 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
-      let role = typeof userData?.role === 'string' ? userData.role.toLowerCase() : null;
+      let role = toAppRole(userData?.role);
 
       // Some accounts were created by the auth trigger without a role. Fall back
       // to the role captured in user_metadata at signup and backfill the users
@@ -337,8 +353,10 @@ export const useAuthStore = defineStore('auth', {
       if (!role) {
         const metaRole = (authData.user?.user_metadata as Record<string, unknown> | undefined)?.role;
         if (typeof metaRole === 'string' && metaRole) {
-          role = metaRole.toLowerCase();
-          await supabase.from('users').update({ role } as any).eq('id', authData.user.id);
+          role = toAppRole(metaRole);
+          if (role) {
+            await supabase.from('users').update({ role: toDbRole(role) } as any).eq('id', authData.user.id);
+          }
         }
       }
 
@@ -401,7 +419,7 @@ export const useAuthStore = defineStore('auth', {
         .eq('id', session.user.id)
         .maybeSingle();
 
-      const role = typeof profile?.role === 'string' ? profile.role.toLowerCase() : null;
+      const role = toAppRole(profile?.role);
       this.cachedRole = role;
 
       return { session, profile };
