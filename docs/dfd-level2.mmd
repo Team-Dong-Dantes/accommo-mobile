@@ -1,0 +1,155 @@
+flowchart TB
+  %% ===== External Entities =====
+  S(["Student"])
+  L(["Landlord"])
+  O(["OSAS Officer"])
+  A(["Admin"])
+
+  %% ===== P1 sub-processes =====
+  P11(("P1.1 Collect Student Sign-up"))
+  P12(("P1.2 Upload Student ID"))
+  P13(("P1.3 OSAS Validate Student ID"))
+  P14(("P1.4 Activate Student Account"))
+
+  %% ===== P2 sub-processes =====
+  P21(("P2.1 Collect Landlord Sign-up"))
+  P22(("P2.2 Upload Government ID"))
+  P23(("P2.3 OSAS Accredit Landlord"))
+  P24(("P2.4 Activate Landlord Account"))
+
+  %% ===== P3 sub-processes =====
+  P31(("P3.1 Add Property"))
+  P32(("P3.2 Add Rooms"))
+  P33(("P3.3 Upload Media"))
+  P34(("P3.4 Set Amenities & Policies"))
+
+  %% ===== P4 sub-processes =====
+  P41(("P4.1 Search Listings"))
+  P42(("P4.2 Filter & Sort"))
+  P43(("P4.3 View Detail"))
+  P44(("P4.4 Shortlist"))
+  P45(("P4.5 Request Booking"))
+
+  %% ===== P5 sub-processes =====
+  P51(("P5.1 Create Lease"))
+  P52(("P5.2 Generate Invoice"))
+  P53(("P5.3 Record Payment"))
+  P54(("P5.4 OSAS Confirm Payment"))
+  P55(("P5.5 Track Concern"))
+
+  %% ===== P6 sub-processes =====
+  P61(("P6.1 Start Conversation"))
+  P62(("P6.2 Exchange Messages"))
+  P63(("P6.3 File Complaint"))
+  P64(("P6.4 OSAS Triage"))
+  P65(("P6.5 Resolve & Close"))
+
+  %% ===== P7 sub-processes =====
+  P71(("P7.1 Rate Property"))
+  P72(("P7.2 Rate Landlord"))
+  P73(("P7.3 Rate Tenant"))
+  P74(("P7.4 Publish Reviews"))
+
+  %% ===== P8 sub-processes =====
+  P81(("P8.1 Manage Users"))
+  P82(("P8.2 Publish Announcements"))
+  P83(("P8.3 Manage Policies"))
+  P84(("P8.4 View Audit Logs"))
+
+  %% ===== Data Stores =====
+  D1[("D1 Student Profiles")]
+  D2[("D2 Landlord Profiles")]
+  D3[("D3 Properties & Rooms")]
+  D4[("D4 Leases & Payments")]
+  D5[("D5 Conversations & Messages")]
+  D6[("D6 Complaints & Concerns")]
+  D7[("D7 Reviews & Boarding History")]
+  D8[("D8 Announcements, Policies & Audit Logs")]
+
+  %% ===== Flows =====
+  S -->|details| P11
+  P11 -->|create| D1
+  S -->|student ID file| P12
+  P12 -->|doc| D1
+  P12 -->|submit for validation| P13
+  O -->|validate| P13
+  P13 -->|verified flag| D1
+  P13 -->|activate| P14
+  P14 -->|active account| D1
+
+  L -->|details| P21
+  P21 -->|create| D2
+  L -->|gov ID file| P22
+  P22 -->|doc| D2
+  P22 -->|request accreditation| P23
+  O -->|accredit| P23
+  P23 -->|status| D2
+  P23 -->|activate| P24
+  P24 -->|active account| D2
+
+  L -->|property data| P31
+  P31 -->|create| D3
+  L -->|rooms| P32
+  P32 -->|create| D3
+  L -->|photos/docs| P33
+  P33 -->|attach| D3
+  L -->|amenities & rules| P34
+  P34 -->|attach| D3
+
+  S -->|query| P41
+  P41 -->|read| D3
+  P41 -->|results| P42
+  P42 -->|read| D3
+  P42 -->|filtered| P43
+  P43 -->|read| D3
+  S -->|save| P44
+  P44 -->|store| D3
+  S -->|request| P45
+  P45 -->|notify| L
+  P45 -->|booking| P51
+
+  P51 -->|create| D4
+  P51 -->|invoice| P52
+  P52 -->|amount| D4
+  S -->|receipt| P53
+  P53 -->|record| D4
+  P53 -->|confirm| P54
+  O -->|verify| P54
+  P54 -->|verified| D4
+  S -->|raise concern| P55
+  P55 -->|store| D4
+
+  S -->|start| P61
+  L -->|start| P61
+  P61 -->|create| D5
+  S -->|text| P62
+  L -->|text| P62
+  P62 -->|store| D5
+  S -->|complaint| P63
+  P63 -->|create| D6
+  P63 -->|route| P64
+  O -->|triage| P64
+  P64 -->|assign| P65
+  O -->|resolve| P65
+  P65 -->|close| D6
+
+  S -->|ratings| P71
+  P71 -->|to property| D7
+  S -->|ratings| P72
+  L -->|ratings| P73
+  P72 -->|to landlord| D7
+  P73 -->|to tenant| D7
+  P71 -->|publish| P74
+  P72 -->|publish| P74
+  P73 -->|publish| P74
+  P74 -->|visible| D7
+
+  A -->|suspend / edit| P81
+  P81 -->|oversee| D1
+  P81 -->|oversee| D2
+  A -->|post| P82
+  P82 -->|publish| D8
+  A -->|set| P83
+  P83 -->|store| D8
+  A -->|review| P84
+  P84 -->|read| D8
