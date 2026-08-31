@@ -26,15 +26,19 @@
         </q-item-section>
         </q-item>
       </q-list>
+      <div v-if="!isLoading && notifications.length === 0" class="text-grey-7 text-center q-py-lg">
+        No notifications yet.
+      </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { supabase } from '@/shared/utils/supabase'
 
 interface NotificationItem {
-  id: number
+  id: string
   icon: string
   color: string
   title: string
@@ -43,59 +47,80 @@ interface NotificationItem {
   unread: boolean
 }
 
-const notifications = ref<NotificationItem[]>([
-  {
-    id: 1,
-    icon: 'credit_card',
-    color: '#16a34a',
-    title: 'Rent Payment Received',
-    subtext: 'Maria Santos paid April rent of P3,500',
-    timestamp: '2h ago',
-    unread: true,
-  },
-  {
-    id: 2,
-    icon: 'build',
-    color: '#ea580c',
-    title: 'New Repair Request',
-    subtext: 'Jose Reyes: Aircon not cooling in Room 2-B',
-    timestamp: '4h ago',
-    unread: true,
-  },
-  {
-    id: 3,
-    icon: 'groups',
-    color: '#7e22ce',
-    title: 'New Inquiry',
-    subtext: 'A student inquired about Room 101',
-    timestamp: '1d ago',
-    unread: false,
-  },
-  {
-    id: 4,
-    icon: 'error',
-    color: '#dc2626',
-    title: 'Overdue Rent Alert',
-    subtext: 'Ana Villanueva April rent is now overdue',
-    timestamp: '2d ago',
-    unread: false,
-  },
-  {
-    id: 5,
-    icon: 'groups',
-    color: '#ea580c',
-    title: 'Lease Expiring Soon',
-    subtext: 'Jose Reyes lease ends Jul 31',
-    timestamp: '5d ago',
-    unread: false,
-  },
-])
+const notifications = ref<NotificationItem[]>([])
+const isLoading = ref(false)
 
-const markAllRead = () => {
-  notifications.value = notifications.value.map(item => ({ ...item, unread: false }))
+const TYPE_META: Record<string, { icon: string; color: string }> = {
+  payment: { icon: 'credit_card', color: '#16a34a' },
+  maintenance: { icon: 'build', color: '#ea580c' },
+  inquiry: { icon: 'groups', color: '#7e22ce' },
+  alert: { icon: 'error', color: '#dc2626' },
+  lease: { icon: 'groups', color: '#ea580c' },
 }
 
-const unreadCount = computed(() => notifications.value.filter(item => item.unread).length)
+function timeAgo(iso: string | null): string {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+async function loadNotifications() {
+  isLoading.value = true
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id, title, body, type, read_at, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error) throw error
+    notifications.value = (data ?? []).map((n: any) => {
+      const meta = TYPE_META[n.type] || { icon: 'notifications', color: '#0d9488' }
+      return {
+        id: n.id,
+        icon: meta.icon,
+        color: meta.color,
+        title: n.title,
+        subtext: n.body || '',
+        timestamp: timeAgo(n.created_at),
+        unread: !n.read_at,
+      }
+    })
+  } catch (e) {
+    console.error('loadNotifications error:', e)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const markAllRead = async () => {
+  notifications.value = notifications.value.map((item) => ({ ...item, unread: false }))
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (user) {
+    await supabase
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+  }
+}
+
+const unreadCount = computed(() => notifications.value.filter((item) => item.unread).length)
+
+onMounted(() => {
+  void loadNotifications()
+})
 </script>
 
 <style scoped>

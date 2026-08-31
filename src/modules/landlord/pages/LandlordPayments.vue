@@ -106,15 +106,64 @@ async function loadPayments() {
     if (userError) throw userError
     if (!user) return
 
-    const { data: paymentRows, error: paymentsError } = await supabase
-      .from('payments')
-      .select('id, amount, method, month, status, paid_at, lease_id')
-      .eq('lease_id', user.id)
+    const { data: accs } = await supabase
+      .from('accommodations' as any)
+      .select('id, name, business_name')
+      .eq('accommodation_manager_id', user.id)
+    const accIds = (accs ?? []).map((a: any) => a.id)
+    const accNameById = new Map((accs ?? []).map((a: any) => [a.id, a.business_name || a.name]))
 
-    if (paymentsError) throw paymentsError
+    // Lease -> student/room linkage (payments link via lease_id, not landlord_id)
+    const leaseStudent = new Map<string, string>()
+    const leaseRoom = new Map<string, string>()
+    const roomAcc = new Map<string, string>()
+    if (accIds.length) {
+      const { data: rooms } = await supabase
+        .from('rooms')
+        .select('id, accommodation_id')
+        .in('accommodation_id', accIds)
+      const roomRows = rooms ?? []
+      roomRows.forEach((r: any) => roomAcc.set(r.id, r.accommodation_id))
+      const roomIds = roomRows.map((r: any) => r.id)
+      if (roomIds.length) {
+        const { data: leases } = await supabase
+          .from('leases')
+          .select('id, student_id, room_id')
+          .in('room_id', roomIds)
+        ;(leases ?? []).forEach((l: any) => {
+          leaseStudent.set(l.id, l.student_id)
+          leaseRoom.set(l.id, l.room_id)
+        })
+      }
+    }
 
-    payments.value = (paymentRows ?? []).map((payment: any) => {
+    let paymentRows: any[] = []
+    if (leaseStudent.size) {
+      const { data: pays, error: paymentsError } = await supabase
+        .from('payments')
+        .select('id, amount, method, month, status, paid_at, lease_id')
+        .in('lease_id', Array.from(leaseStudent.keys()))
+
+      if (paymentsError) throw paymentsError
+      paymentRows = pays ?? []
+    }
+
+    // Student display names
+    const studentIds = Array.from(new Set(leaseStudent.values()))
+    const userMap = new Map<string, any>()
+    if (studentIds.length) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', studentIds)
+      ;(users ?? []).forEach((u: any) => userMap.set(u.id, u))
+    }
+
+    payments.value = paymentRows.map((payment: any) => {
       const info = statusInfo(payment.status)
+      const student = userMap.get(leaseStudent.get(payment.lease_id) || '')
+      const roomId = leaseRoom.get(payment.lease_id)
+      const accId = roomId ? roomAcc.get(roomId) : undefined
       return {
         id: payment.id,
         amount: Number(payment.amount ?? 0),
@@ -125,9 +174,9 @@ async function loadPayments() {
         statusColor: info.color,
         status_display: info.label,
         statusDisplay: info.label,
-        student_name: 'Unknown Student',
+        student_name: student?.full_name ?? 'Unknown Student',
         room_number: '—',
-        property_name: 'Unassigned',
+        property_name: accId ? accNameById.get(accId) ?? 'Unassigned' : 'Unassigned',
         paid_at: payment.paid_at ?? null,
       }
     })

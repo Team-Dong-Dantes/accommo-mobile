@@ -340,6 +340,8 @@ const lease = ref<any>(null)
 const payments = ref<any[]>([])
 const studentProfile = ref<any>(null)
 const studentUser = ref<any>(null)
+const roomRecord = ref<any>(null)
+const accommodationRecord = ref<any>(null)
 const isSample = ref(false)
 
 // In-memory SAMPLE tenant profiles so the click-through can be previewed end to
@@ -456,13 +458,8 @@ async function loadData() {
 
     const { data, error } = await supabase
       .from('leases')
-      .select(
-        `id, student_id, status, start_date, end_date, monthly_rent, deposit_paid, leave_requested_at,
-         room:rooms!room_id(id, room_number, label, floor, capacity, current_pax, status,
-           property:properties(name, address))`,
-      )
+      .select('id, student_id, status, start_date, end_date, monthly_rent, deposit_paid, leave_requested_at, room_id')
       .eq('student_id', studentId.value)
-      .eq('landlord_id', user.id)
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -470,6 +467,26 @@ async function loadData() {
     if (error) throw error
     lease.value = data as any
     if (!data) return
+
+    // Resolve room + accommodation (leases has no landlord_id; ownership is via
+    // room -> accommodation -> accommodation_manager_id).
+    const roomId = (data as any).room_id
+    if (roomId) {
+      const { data: roomRow } = await supabase
+        .from('rooms')
+        .select('id, room_number, label, floor, capacity, current_pax, status, accommodation_id')
+        .eq('id', roomId)
+        .maybeSingle()
+      roomRecord.value = roomRow ?? null
+      if ((roomRow as any)?.accommodation_id) {
+        const { data: accRow } = await supabase
+          .from('accommodations' as any)
+          .select('id, name, address, accommodation_manager_id')
+          .eq('id', (roomRow as any).accommodation_id)
+          .maybeSingle()
+        accommodationRecord.value = accRow ?? null
+      }
+    }
 
     // RLS note: `users` and `student_profiles` only return the caller's own
     // row, so a landlord cannot read a tenant's name/background. These queries
@@ -507,8 +524,8 @@ async function loadData() {
   }
 }
 
-const room = computed(() => (lease.value?.room as any) || {})
-const property = computed(() => (room.value.property as any) || {})
+const room = computed(() => roomRecord.value || {})
+const property = computed(() => accommodationRecord.value || {})
 
 const tenantName = computed(() => studentUser.value?.full_name || `Tenant ${studentId.value.slice(0, 4)}`)
 const initials = computed(() => studentUser.value?.initials || initialsOf(tenantName.value))

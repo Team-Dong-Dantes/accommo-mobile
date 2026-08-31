@@ -87,15 +87,19 @@ async function loadProperties() {
 
     if (!user) return;
 
-    // Business name isn't stored on landlord_profiles in the current schema;
-    // fall back to the landlord's display name from auth metadata.
-    businessName.value = (user.user_metadata?.full_name as string) || 'Property Manager';
+    // Business name from the users table (source of truth), not auth metadata.
+    const { data: me } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+    businessName.value = (me as any)?.full_name || (user.user_metadata?.full_name as string) || 'Property Manager'
 
-    // Properties owned by this landlord
+    // Accommodations managed by this landlord
     const { data: props, error: propsError } = await supabase
-      .from('properties')
+      .from('accommodations' as any)
       .select('id, name, address, status')
-      .eq('landlord_id', user.id)
+      .eq('accommodation_manager_id', user.id)
       .order('name');
 
     if (propsError) throw propsError;

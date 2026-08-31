@@ -192,20 +192,20 @@ async function fetchProperty() {
     const id = route.params.id as string
 
     const { data: p, error } = await supabase
-      .from('properties')
-      .select('id, name, property_type, room_type, address, description, lat, lng, status, landlord_id')
+      .from('accommodations' as any)
+      .select('id, name, accommodation_type, room_type, address, description, lat, lng, status, accommodation_manager_id')
       .eq('id', id)
       .single()
     if (error) throw error
 
     const [amenRes, polRes, usrRes, imgRes] = await Promise.all([
-      supabase.from('property_amenities').select('amenity').eq('property_id', id),
-      supabase.from('property_policies').select('house_rules_json').eq('property_id', id).maybeSingle(),
-      supabase.from('users').select('phone, email').eq('id', p.landlord_id).maybeSingle(),
+      supabase.from('accommodation_amenities' as any).select('amenity').eq('accommodation_id', id),
+      supabase.from('accommodation_policies' as any).select('house_rules_json').eq('accommodation_id', id).maybeSingle(),
+      supabase.from('users').select('phone, email').eq('id', (p as any).accommodation_manager_id).maybeSingle(),
       supabase
-        .from('property_images')
+        .from('accommodation_images' as any)
         .select('url, sort_order')
-        .eq('property_id', id)
+        .eq('accommodation_id', id)
         .order('sort_order', { ascending: true }),
     ])
 
@@ -214,7 +214,7 @@ async function fetchProperty() {
 
     // "Who can stay" is stored inside property_policies.house_rules_json (no new column).
     // The jsonb may be a plain rules array (older data) or an object with rules + gender_policy.
-    const policyRaw: any = polRes.data?.house_rules_json
+    const policyRaw: any = (polRes as any)?.data?.house_rules_json
     let rules: string[] = []
     let genderPolicy: string | null = null
     if (Array.isArray(policyRaw)) {
@@ -225,7 +225,7 @@ async function fetchProperty() {
     }
 
     property.value = {
-      ...p,
+      ...(p as any),
       gender_policy: genderPolicy,
       landlord_phone: usrRes.data?.phone ?? null,
       landlord_email: usrRes.data?.email ?? null,
