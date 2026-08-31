@@ -320,11 +320,12 @@ async function loadProfile() {
     // Real accommodations managed by this landlord.
     const { data: accs } = await supabase
       .from('accommodations' as any)
-      .select('id, name, address, total_rooms, rating_avg')
+      .select('id, name, address, city, total_rooms, rating_avg')
       .eq('accommodation_manager_id', user.id)
       .order('name')
 
     const accList = (accs ?? []) as any[]
+    if (accList[0]?.city) profile.value.area = accList[0].city
     const accIds = accList.map((a: any) => a.id)
 
     // Occupancy via rooms -> active leases.
