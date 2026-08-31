@@ -1,0 +1,37 @@
+flowchart TD
+  subgraph Ext["External Entities"]
+    S[Student Mobile]
+    L[Landlord Mobile]
+    A[OSAS Admin]
+  end
+  subgraph Proc["Processes"]
+    P1[Authentication]
+    P2[Registration and Accreditation]
+    P3[Property and Room Management]
+    P4[Leasing and Payments]
+    P5[Messaging]
+    P6[Reviews and Ratings]
+    P7[Complaints and Concerns]
+    P8[Notifications]
+  end
+  DB[("Supabase Database (PostgreSQL)")]
+
+  S -->|credentials| P1
+  P1 <-->|users, sessions| DB
+  S -->|profile plus documents| P2
+  L -->|business plus documents| P2
+  P2 <-->|student_profiles, landlord_profiles, verification_documents| DB
+  A -->|approve or reject| P2
+  L -->|property, rooms, images, docs| P3
+  P3 <-->|properties, rooms, images, amenities| DB
+  S -->|browse, apply, pay| P4
+  P4 <-->|leases, payments| DB
+  S <-->|messages| P5
+  L <-->|messages| P5
+  P5 <-->|conversations, messages| DB
+  S -->|submit ratings| P6
+  P6 <-->|property/landlord/tenant reviews| DB
+  S -->|raise concern| P7
+  A -->|resolve| P7
+  P7 <-->|complaints, concerns, timelines| DB
+  P8 <-->|notifications| DB
