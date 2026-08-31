@@ -291,7 +291,11 @@
           </q-card-section>
         </q-card>
         <q-btn unelevated color="dark" icon="chat_bubble_outline" label="Message to Inquire" class="full-width border-radius-16 text-weight-bold q-py-sm" size="16px" no-caps @click="inquire(selectedProperty)" />
+<<<<<<< HEAD
         <q-btn outline color="teal-8" icon="fact_check" label="Apply Now" class="full-width border-radius-16 text-weight-bold q-py-sm q-mt-sm" size="16px" no-caps @click="openApply" />
+=======
+        <q-btn unelevated color="teal-8" icon="assignment_turned_in" label="Apply to Stay" class="full-width border-radius-16 text-weight-bold q-py-sm q-mt-sm" size="16px" no-caps :loading="applying" @click="applyToStay(selectedProperty)" />
+>>>>>>> bec7e553e1fe386ecca31959c683aac7c0edce8e
       </div>
     </div>
 
@@ -540,6 +544,10 @@ interface RoomDetail {
 
 const router = useRouter();
 const $q = useQuasar();
+<<<<<<< HEAD
+=======
+const applying = ref(false);
+>>>>>>> bec7e553e1fe386ecca31959c683aac7c0edce8e
 
 const searchQuery = ref('');
 const loading = ref(true);
@@ -735,6 +743,31 @@ function toggleFavorite(property: DiscoverProperty) {
 function inquire(property: DiscoverProperty) {
   if (property.landlordId) {
     void router.push({ path: '/student/messages', query: { landlord: property.landlordId } });
+  }
+}
+
+async function applyToStay(property: DiscoverProperty) {
+  const room = property.roomsList?.[0]
+  if (!room?.id) {
+    $q.notify({ type: 'negative', message: 'No available rooms to apply for.' })
+    return
+  }
+  applying.value = true
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { void router.push('/login'); return }
+    const { error } = await supabase.from('leases').insert({
+      id: crypto.randomUUID(),
+      student_id: user.id,
+      room_id: room.id,
+      status: 'pending',
+    } as any)
+    if (error) throw error
+    $q.notify({ type: 'positive', message: 'Application submitted! Wait for the landlord to accept.' })
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.message || 'Failed to apply' })
+  } finally {
+    applying.value = false
   }
 }
 
@@ -982,34 +1015,45 @@ async function loadProperties() {
 
     const { data, error: queryError } = await supabase
       .from('accommodations' as any)
-      .select('id, name, address, room_type, accommodation_manager_id, description, business_name, accommodation_images(url, sort_order), rooms(id, room_number, monthly_rent, status)')
+      .select('id, name, address, room_type, accommodation_manager_id, description, business_name')
       .eq('status', 'accredited')
-      .eq('rooms.status', 'available')
       .order('name', { ascending: true });
 
     if (queryError) throw queryError;
 
-    const rows = (data ?? []) as unknown as Array<{
+    const accs = (data ?? []) as unknown as Array<{
       id: string;
       name: string | null;
       address: string | null;
       room_type: string | null;
-      monthly_rent: number | null;
       accommodation_manager_id: string | null;
       description: string | null;
       business_name: string | null;
-      accommodation_images: Array<{ url: string | null; sort_order: number | null }> | null;
-      rooms: Array<{ id: string; room_number: string | null; monthly_rent: number | null; status: string | null }> | null;
     }>;
+    const accIds = accs.map((a) => a.id);
+
+    // Rooms + images via column-based queries (no fragile relation joins).
+    const [roomsRes, imgsRes] = await Promise.all([
+      accIds.length
+        ? supabase.from('rooms').select('id, accommodation_id, room_number, monthly_rent, status').in('accommodation_id', accIds)
+        : Promise.resolve({ data: [], error: null }),
+      accIds.length
+        ? supabase.from('accommodation_images' as any).select('accommodation_id, url, sort_order').in('accommodation_id', accIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (roomsRes.error) throw roomsRes.error;
+    if (imgsRes.error) throw imgsRes.error;
+    const roomRows = (roomsRes.data ?? []) as Array<{ id: string; accommodation_id: string; room_number: string | null; monthly_rent: number | null; status: string | null }>;
+    const imgRows = (imgsRes.data ?? []) as Array<{ accommodation_id: string; url: string | null; sort_order: number | null }>;
 
     const landlordIds = Array.from(
-      new Set(rows.map((r) => r.accommodation_manager_id).filter((id): id is string => !!id)),
+      new Set(accs.map((r) => r.accommodation_manager_id).filter((id): id is string => !!id)),
     );
 
     const userNames = new Map<string, string>();
     if (landlordIds.length > 0) {
-      // Display name = properties.business_name (populated on the property row),
-      // falling back to the landlord's users.full_name, then "Property Owner".
+      // Display name = business_name (on the accommodation row), falling back to
+      // the manager's users.full_name, then "Property Owner".
       const { data: userData, error: userErr } = await supabase
         .from('users').select('id, full_name').in('id', landlordIds);
       for (const u of (userData ?? []) as unknown as Array<{ id: string; full_name: string | null }>) {
@@ -1018,13 +1062,13 @@ async function loadProperties() {
       if (userErr) console.warn('[discover] users fetch failed:', userErr.message);
     }
 
-    properties.value = rows.map((r) => {
+    properties.value = accs.map((r) => {
       const type = r.room_type ?? 'room';
-      const availableRooms = (r.rooms ?? []) as Array<{ id: string; room_number: string | null; monthly_rent: number | null; status: string | null }>;
-      const available = availableRooms.filter((x) => x.status === 'available');
-      const rent = r.monthly_rent ?? available[0]?.monthly_rent ?? 0;
-      const imgs = (r.accommodation_images ?? [])
-        .filter((i) => i.url)
+      const accRooms = roomRows.filter((x) => x.accommodation_id === r.id);
+      const available = accRooms.filter((x) => x.status === 'available');
+      const rent = available[0]?.monthly_rent ?? 0;
+      const imgs = imgRows
+        .filter((i) => i.accommodation_id === r.id && i.url)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
       const landlordName = r.name ?? (r.accommodation_manager_id ? userNames.get(r.accommodation_manager_id) : null) ?? 'Property Owner';
       return {
