@@ -291,6 +291,7 @@
           </q-card-section>
         </q-card>
         <q-btn unelevated color="dark" icon="chat_bubble_outline" label="Message to Inquire" class="full-width border-radius-16 text-weight-bold q-py-sm" size="16px" no-caps @click="inquire(selectedProperty)" />
+        <q-btn unelevated color="teal-8" icon="assignment_turned_in" label="Apply to Stay" class="full-width border-radius-16 text-weight-bold q-py-sm q-mt-sm" size="16px" no-caps :loading="applying" @click="applyToStay(selectedProperty)" />
       </div>
     </div>
 
@@ -457,6 +458,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { formatPeso, initialsOf } from '@/shared/utils/format';
 
@@ -516,6 +518,8 @@ interface RoomDetail {
 }
 
 const router = useRouter();
+const $q = useQuasar();
+const applying = ref(false);
 
 const searchQuery = ref('');
 const loading = ref(true);
@@ -708,6 +712,31 @@ function toggleFavorite(property: DiscoverProperty) {
 function inquire(property: DiscoverProperty) {
   if (property.landlordId) {
     void router.push({ path: '/student/messages', query: { landlord: property.landlordId } });
+  }
+}
+
+async function applyToStay(property: DiscoverProperty) {
+  const room = property.roomsList?.[0]
+  if (!room?.id) {
+    $q.notify({ type: 'negative', message: 'No available rooms to apply for.' })
+    return
+  }
+  applying.value = true
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { void router.push('/login'); return }
+    const { error } = await supabase.from('leases').insert({
+      id: crypto.randomUUID(),
+      student_id: user.id,
+      room_id: room.id,
+      status: 'pending',
+    } as any)
+    if (error) throw error
+    $q.notify({ type: 'positive', message: 'Application submitted! Wait for the landlord to accept.' })
+  } catch (e: any) {
+    $q.notify({ type: 'negative', message: e?.message || 'Failed to apply' })
+  } finally {
+    applying.value = false
   }
 }
 

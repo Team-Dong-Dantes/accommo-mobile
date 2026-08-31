@@ -348,6 +348,7 @@ function openConversation(id: string) {
 function backToList() {
   chat.clearActive()
   activePlaceholderConv.value = null
+  void router.push('/landlord/messages')
 }
 
 async function sendMessage() {
