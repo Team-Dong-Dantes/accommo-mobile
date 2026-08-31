@@ -891,35 +891,46 @@ async function loadProperties() {
     if (!user) { void router.push('/login'); return; }
 
     const { data, error: queryError } = await supabase
-      .from('properties')
-      .select('id, name, address, room_type, landlord_id, description, business_name, property_images(url, sort_order), rooms(id, room_number, monthly_rent, status)')
+      .from('accommodations' as any)
+      .select('id, name, address, room_type, accommodation_manager_id, description, business_name')
       .eq('status', 'accredited')
-      .eq('rooms.status', 'available')
       .order('name', { ascending: true });
 
     if (queryError) throw queryError;
 
-    const rows = (data ?? []) as unknown as Array<{
+    const accs = (data ?? []) as unknown as Array<{
       id: string;
       name: string | null;
       address: string | null;
       room_type: string | null;
-      monthly_rent: number | null;
-      landlord_id: string | null;
+      accommodation_manager_id: string | null;
       description: string | null;
       business_name: string | null;
-      property_images: Array<{ url: string | null; sort_order: number | null }> | null;
-      rooms: Array<{ id: string; room_number: string | null; monthly_rent: number | null; status: string | null }> | null;
     }>;
+    const accIds = accs.map((a) => a.id);
+
+    // Rooms + images via column-based queries (no fragile relation joins).
+    const [roomsRes, imgsRes] = await Promise.all([
+      accIds.length
+        ? supabase.from('rooms').select('id, accommodation_id, room_number, monthly_rent, status').in('accommodation_id', accIds)
+        : Promise.resolve({ data: [], error: null }),
+      accIds.length
+        ? supabase.from('accommodation_images' as any).select('accommodation_id, url, sort_order').in('accommodation_id', accIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (roomsRes.error) throw roomsRes.error;
+    if (imgsRes.error) throw imgsRes.error;
+    const roomRows = (roomsRes.data ?? []) as Array<{ id: string; accommodation_id: string; room_number: string | null; monthly_rent: number | null; status: string | null }>;
+    const imgRows = (imgsRes.data ?? []) as Array<{ accommodation_id: string; url: string | null; sort_order: number | null }>;
 
     const landlordIds = Array.from(
-      new Set(rows.map((r) => r.landlord_id).filter((id): id is string => !!id)),
+      new Set(accs.map((r) => r.accommodation_manager_id).filter((id): id is string => !!id)),
     );
 
     const userNames = new Map<string, string>();
     if (landlordIds.length > 0) {
-      // Display name = properties.business_name (populated on the property row),
-      // falling back to the landlord's users.full_name, then "Property Owner".
+      // Display name = business_name (on the accommodation row), falling back to
+      // the manager's users.full_name, then "Property Owner".
       const { data: userData, error: userErr } = await supabase
         .from('users').select('id, full_name').in('id', landlordIds);
       for (const u of (userData ?? []) as unknown as Array<{ id: string; full_name: string | null }>) {
@@ -928,15 +939,15 @@ async function loadProperties() {
       if (userErr) console.warn('[discover] users fetch failed:', userErr.message);
     }
 
-    properties.value = rows.map((r) => {
+    properties.value = accs.map((r) => {
       const type = r.room_type ?? 'room';
-      const availableRooms = (r.rooms ?? []) as Array<{ id: string; room_number: string | null; monthly_rent: number | null; status: string | null }>;
-      const available = availableRooms.filter((x) => x.status === 'available');
-      const rent = r.monthly_rent ?? available[0]?.monthly_rent ?? 0;
-      const imgs = (r.property_images ?? [])
-        .filter((i) => i.url)
+      const accRooms = roomRows.filter((x) => x.accommodation_id === r.id);
+      const available = accRooms.filter((x) => x.status === 'available');
+      const rent = available[0]?.monthly_rent ?? 0;
+      const imgs = imgRows
+        .filter((i) => i.accommodation_id === r.id && i.url)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      const landlordName = r.business_name ?? (r.landlord_id ? userNames.get(r.landlord_id) : null) ?? 'Property Owner';
+      const landlordName = r.business_name ?? (r.accommodation_manager_id ? userNames.get(r.accommodation_manager_id) : null) ?? 'Property Owner';
       return {
         id: r.id,
         name: r.name ?? 'Boarding House',
@@ -948,7 +959,7 @@ async function loadProperties() {
         isFavorited: false,
         landlordName,
         landlordInitials: initialsOf(landlordName),
-        landlordId: r.landlord_id ?? null,
+        landlordId: r.accommodation_manager_id ?? null,
         description: r.description ?? null,
         availableRooms: available.length,
         roomsList: available.map((x) => ({
