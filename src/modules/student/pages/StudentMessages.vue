@@ -347,7 +347,9 @@ async function sendMessage() {
       .select('user_a_id, user_b_id, unread_a, unread_b')
       .eq('id', convoId)
       .maybeSingle();
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const now = `${nowDate.getFullYear()}-${pad(nowDate.getMonth() + 1)}-${pad(nowDate.getDate())}T${pad(nowDate.getHours())}:${pad(nowDate.getMinutes())}:${pad(nowDate.getSeconds())}`;
     if (convo) {
       const c = convo as unknown as { user_a_id: string; user_b_id: string; unread_a: number; unread_b: number };
       if (c.user_a_id === me) {
@@ -363,6 +365,27 @@ async function sendMessage() {
       }
     } else {
       await supabase.from('conversations').update({ last_message: body, last_time: now }).eq('id', convoId);
+    }
+
+    // Notify the other participant so the recipient gets an in-app notification.
+    const { data: convoInfo } = await supabase
+      .from('conversations')
+      .select('user_a_id, user_b_id')
+      .eq('id', convoId)
+      .maybeSingle();
+    if (convoInfo) {
+      const ci = convoInfo as unknown as { user_a_id: string; user_b_id: string };
+      const otherId = ci.user_a_id === me ? ci.user_b_id : ci.user_a_id;
+      if (otherId) {
+        await supabase.from('notifications').insert({
+          id: crypto.randomUUID(),
+          user_id: otherId,
+          title: 'New message',
+          body,
+          type: 'message',
+          read_at: null,
+        } as any);
+      }
     }
 
     // Reflect the reply in the local conversation list immediately.
