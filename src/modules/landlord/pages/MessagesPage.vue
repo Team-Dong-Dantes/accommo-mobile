@@ -94,25 +94,18 @@ interface Conversation {
 // Module-level singleton: the read/unread state must survive tab switches and
 // component remounts (the page is recreated on each navigation). Keeping the
 // data here instead of inside setup means it is not re-seeded on every mount.
-const conversations = ref<Conversation[]>([
-  { id: 'c1', initials: 'MS', avatarColor: 'teal-9', name: 'Maria Santos', badge: 'Inquiring', timestamp: 'Just now', unread: 2, active: true, context: 'Inquiring - Pinzon Student Hub - Rm 101-A', snippet: 'Is the room still available this semester?', read: false },
-  { id: 'c2', initials: 'CR', avatarColor: 'purple-6', name: 'Carlo Reyes', badge: 'Inquiring', timestamp: '2h ago', unread: 1, active: true, context: 'Inquiring - Pinzon Student Hub - Rm 203', snippet: 'Thank you! I will bring the requirements on Saturday.', read: false },
-  { id: 'c3', initials: 'AV', avatarColor: 'orange-6', name: 'Ana Villanueva', badge: 'Inquiring', timestamp: 'Yesterday', unread: 0, active: false, context: 'Inquiring - ISU Gate Apartment - Unit 3B', snippet: 'Got it. See you then!', read: true },
-  { id: 'c4', initials: 'BC', avatarColor: 'green-6', name: 'Ben Castillo', badge: 'Current', timestamp: '2d ago', unread: 0, active: false, context: 'Camarag View - Rm 05', snippet: 'Okay, I will reconsider and get back to you.', read: true },
-  { id: 'c5', initials: 'LD', avatarColor: 'red-6', name: 'Lea Domingo', badge: 'Current', timestamp: '3d ago', unread: 0, active: false, context: 'Pinzon Student Hub - Rm 110', snippet: 'Thank you for the quick reply!', read: true },
-])
+const conversations = ref<Conversation[]>([])
 </script>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
+import { supabase } from '@/shared/utils/supabase'
 
 const $q = useQuasar()
 
 const searchText = ref('')
 
-// Mock conversation data for the Messages inbox. Swap for a store or API
-// fetch once the backend conversations table is ready to use.
 const pendingInquiries = computed(
   () => conversations.value.filter((c) => c.badge === 'Inquiring').length,
 )
@@ -125,15 +118,83 @@ const filteredConversations = computed(() => {
   )
 })
 
-function openConversation(conv: Conversation) {
-  if (conv.unread > 0) {
-    conv.read = true
-    conv.unread = 0
-    $q.notify({ message: `Marked conversation with ${conv.name} as read`, color: 'teal-9', position: 'top' })
-    return
+function initialsOf(name: string) {
+  const parts = name.trim().split(' ').filter(Boolean)
+  if (parts.length >= 2) {
+    const first = parts[0]?.[0] || ''
+    const last = parts[parts.length - 1]?.[0] || ''
+    return (first + last).toUpperCase()
   }
-  $q.notify({ message: `Opening chat with ${conv.name} (mock)`, color: 'teal-9', position: 'top' })
+  if (parts.length === 1) return (parts[0] || '').slice(0, 2).toUpperCase()
+  return 'UN'
 }
+
+async function loadConversations() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: convos } = await supabase
+      .from('conversations')
+      .select('id, user_a_id, user_b_id')
+      .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+    const convoList = (convos ?? []) as any[]
+
+    const otherIds = convoList.map((c: any) => (c.user_a_id === user.id ? c.user_b_id : c.user_a_id))
+    const userMap = new Map<string, any>()
+    if (otherIds.length) {
+      const { data: users } = await supabase.from('users').select('id, full_name').in('id', otherIds)
+      ;(users ?? []).forEach((u: any) => userMap.set(u.id, u))
+    }
+
+    const convoIds = convoList.map((c: any) => c.id)
+    const msgsByConvo = new Map<string, any[]>()
+    if (convoIds.length) {
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('id, conversation_id, sender_id, body')
+        .in('conversation_id', convoIds)
+      ;(msgs ?? []).forEach((m: any) => {
+        if (!msgsByConvo.has(m.conversation_id)) msgsByConvo.set(m.conversation_id, [])
+        msgsByConvo.get(m.conversation_id)!.push(m)
+      })
+    }
+
+    conversations.value = convoList.map((c: any) => {
+      const otherId = c.user_a_id === user.id ? c.user_b_id : c.user_a_id
+      const other = userMap.get(otherId)
+      const name = other?.full_name || 'Unknown User'
+      const msgs = msgsByConvo.get(c.id) || []
+      const last = msgs[msgs.length - 1]
+      const isMine = last && last.sender_id === user.id
+      return {
+        id: c.id,
+        initials: initialsOf(name),
+        avatarColor: 'teal-9',
+        name,
+        badge: msgs.length ? 'Current' : 'Inquiring',
+        timestamp: '',
+        unread: 0,
+        active: msgs.length > 0,
+        context: '',
+        snippet: last ? (isMine ? 'You: ' : '') + (last.body || '') : 'No messages yet',
+        read: true,
+      }
+    })
+  } catch (e) {
+    console.error('loadConversations error:', e)
+  }
+}
+
+function openConversation(conv: Conversation) {
+  $q.notify({ message: `Opening chat with ${conv.name}`, color: 'teal-9', position: 'top' })
+}
+
+onMounted(() => {
+  void loadConversations()
+})
 </script>
 
 <style scoped>

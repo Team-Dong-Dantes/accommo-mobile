@@ -116,18 +116,18 @@ interface PaymentRow {
 const metrics = ref<MetricCard[]>([
   {
     id: 'revenue',
-    value: 'P46,200',
+    value: '—',
     label: 'Monthly Revenue',
-    subtext: '+3.1%',
+    subtext: 'Paid',
     icon: 'attach_money',
     tone: 'icon-green',
     subtone: 'sub-green',
   },
   {
     id: 'overdue',
-    value: 'P7,000',
+    value: '—',
     label: 'Overdue Rent',
-    subtext: 'Due Mar 31',
+    subtext: 'Outstanding',
     icon: 'warning_amber',
     tone: 'icon-red',
     subtone: 'sub-red',
@@ -143,9 +143,9 @@ const metrics = ref<MetricCard[]>([
   },
   {
     id: 'tenancies',
-    value: '32',
+    value: '—',
     label: 'Active Tenancies',
-    subtext: '+2 new',
+    subtext: 'Current leases',
     icon: 'people',
     tone: 'icon-orange',
     subtone: 'sub-orange',
@@ -169,76 +169,118 @@ const revenueBars = computed<RevenueBar[]>(() => [
 
 const yLabels = ['P0k', 'P15k', 'P30k', 'P45k', 'P60k']
 
-const paymentRows = ref<PaymentRow[]>([
-  {
-    id: 'ms',
-    initials: 'MS',
-    name: 'Maria Santos',
-    meta: 'HSE-001 - Rm 101-A - GCash',
-    amount: 'P3,500',
-    status: 'Paid',
-  },
-  {
-    id: 'ar',
-    initials: 'AR',
-    name: 'Ana Rivera',
-    meta: 'HSE-001 - Rm 202-B - Bank Transfer',
-    amount: 'P3,500',
-    status: 'Paid',
-  },
-])
+const paymentRows = ref<PaymentRow[]>([])
 
-// Override the demo occupancy card with real available-room counts.
-async function loadOccupancy() {
+function initialsOf(name: string) {
+  const parts = name.trim().split(' ').filter(Boolean)
+  if (parts.length >= 2) {
+    const first = parts[0]?.[0] || ''
+    const last = parts[parts.length - 1]?.[0] || ''
+    return (first + last).toUpperCase()
+  }
+  if (parts.length === 1) return (parts[0] || '').slice(0, 2).toUpperCase()
+  return 'UN'
+}
+
+function peso(n: number) {
+  return '₱' + n.toLocaleString('en-PH', { maximumFractionDigits: 0 })
+}
+
+// Load real metrics + recent payments (accommodations -> rooms -> leases -> payments).
+async function loadDashboard() {
   try {
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: props } = await supabase
+    const { data: accs } = await supabase
       .from('accommodations' as any)
-      .select('id, total_rooms, capacity')
+      .select('id, total_rooms')
       .eq('accommodation_manager_id', user.id)
+    const accList = accs ?? []
+    const accIds = accList.map((a: any) => a.id)
+    const totalRooms = accList.reduce((s: number, a: any) => s + (Number(a.total_rooms) || 0), 0)
 
-    // Occupancy: rooms under the landlord's accommodations -> active leases.
-    const accIds = (props ?? []).map((p: any) => p.id)
-    let occupied = 0
+    let roomRows: any[] = []
     if (accIds.length) {
-      const { data: rooms } = await supabase
-        .from('rooms')
-        .select('id')
-        .in('accommodation_id', accIds)
-      const roomIds = (rooms ?? []).map((r: any) => r.id)
-      if (roomIds.length) {
-        const { data: leases } = await supabase
-          .from('leases')
-          .select('status')
-          .in('room_id', roomIds)
-          .eq('status', 'active')
-        occupied = (leases ?? []).length
-      }
+      const { data: rooms } = await supabase.from('rooms').select('id').in('accommodation_id', accIds)
+      roomRows = rooms ?? []
+    }
+    const roomIds = roomRows.map((r: any) => r.id)
+
+    let leaseRows: any[] = []
+    if (roomIds.length) {
+      const { data: leases } = await supabase
+        .from('leases')
+        .select('id, student_id, room_id, status')
+        .in('room_id', roomIds)
+      leaseRows = leases ?? []
+    }
+    const activeLeases = leaseRows.filter((l: any) => l.status === 'active').length
+    const leaseIds = leaseRows.map((l: any) => l.id)
+    const leaseStudent = new Map<string, string>(leaseRows.map((l: any) => [l.id, l.student_id]))
+
+    let pays: any[] = []
+    if (leaseIds.length) {
+      const { data } = await supabase
+        .from('payments')
+        .select('id, lease_id, amount, status, month, method, paid_at')
+        .in('lease_id', leaseIds)
+      pays = data ?? []
     }
 
-    const totalRooms = (props ?? []).reduce(
-      (sum: number, p: any) => sum + (Number(p.total_rooms) || 0),
-      0,
-    )
+    const studentIds = Array.from(new Set(leaseRows.map((l: any) => l.student_id)))
+    const userMap = new Map<string, any>()
+    if (studentIds.length) {
+      const { data: users } = await supabase.from('users').select('id, full_name').in('id', studentIds)
+      ;(users ?? []).forEach((u: any) => userMap.set(u.id, u))
+    }
+
+    const paidSum = pays.filter((p: any) => p.status === 'paid').reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+    const overdueSum = pays.filter((p: any) => p.status === 'overdue').reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+    const occupied = activeLeases
     const available = Math.max(totalRooms - occupied, 0)
 
-    const card = metrics.value.find((m) => m.id === 'occupancy')
-    if (card) {
-      card.value = `${available}`
-      card.label = 'Rooms Available'
-      card.subtext = totalRooms > 0 ? `${occupied}/${totalRooms} occupied` : 'No rooms yet'
+    const setMetric = (id: string, value: string, subtext: string) => {
+      const m = metrics.value.find((x) => x.id === id)
+      if (m) {
+        m.value = value
+        m.subtext = subtext
+      }
     }
-  } catch {
-    // keep the placeholder if the query fails
+    setMetric('revenue', peso(paidSum), 'Paid')
+    setMetric('overdue', peso(overdueSum), 'Outstanding')
+    setMetric('tenancies', String(activeLeases), 'Current leases')
+    setMetric('occupancy', String(available), totalRooms > 0 ? `${occupied}/${totalRooms} occupied` : 'No rooms yet')
+
+    // Recent payments (most recently paid first, then the rest).
+    const sorted = [...pays].sort((a: any, b: any) => {
+      const ta = a.paid_at ? new Date(a.paid_at).getTime() : 0
+      const tb = b.paid_at ? new Date(b.paid_at).getTime() : 0
+      return tb - ta
+    })
+
+    paymentRows.value = sorted.slice(0, 5).map((p: any) => {
+      const student = userMap.get(leaseStudent.get(p.lease_id) || '')
+      const name = student?.full_name || 'Unknown Student'
+      const statusLabel = p.status === 'paid' ? 'Paid' : p.status === 'overdue' ? 'Overdue' : p.status === 'pending_verification' ? 'Pending' : (p.status || '—')
+      return {
+        id: p.id,
+        initials: initialsOf(name),
+        name,
+        meta: `${p.month || '—'} · ${p.method || 'cash'}`,
+        amount: peso(Number(p.amount || 0)),
+        status: statusLabel,
+      }
+    })
+  } catch (e) {
+    console.error('loadDashboard error:', e)
   }
 }
 
 onMounted(() => {
-  void loadOccupancy()
+  void loadDashboard()
 })
 
 </script>
