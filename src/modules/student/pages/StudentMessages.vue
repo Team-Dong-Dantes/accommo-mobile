@@ -55,7 +55,7 @@
     <div v-else class="column" style="height: calc(100vh - 50px);">
       <!-- Chat header -->
       <div class="row items-center q-pa-sm bg-white" style="border-bottom: 1px solid #eee;">
-        <q-btn flat round dense icon="arrow_back" @click="activeConversation = null" />
+        <q-btn flat round dense icon="arrow_back" @click="closeConversation" />
         <q-avatar :color="activeChat.avatarColor" text-color="white" size="40px" class="q-ml-sm">{{ activeChat.initials }}</q-avatar>
         <div class="q-ml-sm">
           <div class="text-subtitle2 text-weight-bold">{{ activeChat.name }}</div>
@@ -157,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
@@ -219,6 +219,9 @@ const newConvoDialog = ref(false);
 const newConvoLoading = ref(false);
 const landlords = ref<{ id: string; name: string }[]>([]);
 
+// Realtime subscription for the active conversation
+const messageChannel = ref<{ unsubscribe: () => void } | null>(null);
+
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return 'U';
@@ -229,7 +232,7 @@ function initialsOf(name: string): string {
 async function fetchUserName(id: string): Promise<string> {
   const { data } = await supabase.from('users').select('full_name, role').eq('id', id).maybeSingle();
   const u = data as unknown as { full_name: string | null; role: string | null } | null;
-  return u?.full_name ?? (u?.role === 'landlord' ? 'Landlord' : 'Unknown');
+  return u?.full_name ?? (u?.role === 'landlord' || u?.role === 'accommodation_manager' ? 'Landlord' : 'Unknown');
 }
 
 async function loadConversations() {
@@ -324,6 +327,39 @@ async function openConversation(id: string) {
       if (idx >= 0 && existing) conversations.value[idx] = { ...existing, unread: 0 };
     }
   }
+
+  subscribeToConversation(id);
+}
+
+function unsubscribeMessages() {
+  if (messageChannel.value) {
+    messageChannel.value.unsubscribe();
+    messageChannel.value = null;
+  }
+}
+
+function closeConversation() {
+  unsubscribeMessages();
+  activeConversation.value = null;
+  messages.value = [];
+}
+
+function subscribeToConversation(id: string) {
+  unsubscribeMessages();
+  messageChannel.value = supabase
+    .channel(`messages-${id}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
+      (payload) => {
+        const row = payload.new as MessageRow;
+        // Ignore the current user's own message — sendMessage already appends it.
+        if (row.sender_id === currentUserId.value) return;
+        messages.value.push({ id: row.id, body: row.body, sentAt: row.sent_at, isMine: false });
+        void scrollToBottom();
+      },
+    )
+    .subscribe();
 }
 
 async function sendMessage() {
@@ -338,6 +374,7 @@ async function sendMessage() {
       conversation_id: convoId,
       sender_id: me,
       body,
+      sent_at: new Date().toISOString(),
     });
     if (insertError) throw insertError;
 
@@ -437,7 +474,7 @@ async function startNewConversation() {
     const { data, error } = await supabase
       .from('users')
       .select('id, full_name')
-      .eq('role', 'landlord');
+      .or('role.eq.accommodation_manager');
 
     if (error) throw error;
 
@@ -523,6 +560,10 @@ async function handleLandlordQuery() {
 onMounted(async () => {
   await loadConversations();
   await handleLandlordQuery();
+});
+
+onUnmounted(() => {
+  unsubscribeMessages();
 });
 </script>
 
