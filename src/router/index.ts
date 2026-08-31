@@ -83,11 +83,11 @@ export default defineRouter(() => {
         if (role === 'student') return '/student/home';
         if (role === 'landlord') return '/landlord/dashboard';
         if (role === 'admin') return '/admin/dashboard';
-        if (role === null) {
-          await supabase.auth.signOut();
-          return '/register?newUser=true';
-        }
-        return '/';
+        // Missing or unrecognized role: invalid account state. Sign out and land
+        // on a safe (still public) route instead of returning '/' again, which
+        // would re-trigger this guard and loop forever.
+        await supabase.auth.signOut();
+        return role === null ? '/register?newUser=true' : '/login';
       }
 
       // Role-based authorization: protect student vs landlord routes
