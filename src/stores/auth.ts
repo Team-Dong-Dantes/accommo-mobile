@@ -237,14 +237,18 @@ export const useAuthStore = defineStore('auth', {
 
       await this.ensureUserRow(userId, form.email, profileData);
 
-      const { error: profileError } = await supabase
-        .from('landlord_profiles')
-        .insert({
+      // The live schema has no landlord_profiles table (only admin_profiles);
+      // store the government ID as a verification document, like the permit.
+      if (govIdUrl) {
+        const { error: govIdError } = await supabase.from('verification_documents').insert({
           user_id: userId,
-          government_id_url: govIdUrl,
+          doc_type: 'government_id',
+          file_url: govIdUrl,
+          filename: form.governmentIdFile?.name ?? null,
+          status: 'pending',
         });
-
-      if (profileError) throw sanitizeError(profileError);
+        if (govIdError) throw sanitizeError(govIdError);
+      }
 
       if (permitUrl) {
         await supabase.from('verification_documents').insert({
@@ -283,14 +287,18 @@ export const useAuthStore = defineStore('auth', {
           : Promise.resolve(null),
       ]);
 
-      const { error: profileError } = await supabase
-        .from('landlord_profiles')
-        .insert({
+      // The live schema has no landlord_profiles table (only admin_profiles);
+      // store the government ID as a verification document, like the permit.
+      if (govIdUrl) {
+        const { error: govIdError } = await supabase.from('verification_documents').insert({
           user_id: userId,
-          government_id_url: govIdUrl,
+          doc_type: 'government_id',
+          file_url: govIdUrl,
+          filename: form.governmentIdFile?.name ?? null,
+          status: 'pending',
         });
-
-      if (profileError) throw sanitizeError(profileError);
+        if (govIdError) throw sanitizeError(govIdError);
+      }
 
       if (permitUrl) {
         await supabase.from('verification_documents').insert({
