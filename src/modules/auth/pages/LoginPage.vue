@@ -98,7 +98,13 @@ async function handleLogin() {
     if (role === 'student') void router.push('/student/home');
     else if (role === 'landlord') void router.push('/landlord/dashboard');
     else if (role === 'admin') void router.push('/admin/dashboard');
-    else void router.push('/');
+    else {
+      // Account has no role yet (incomplete registration). Sign out and send
+      // them to register instead of bouncing through the '/' guard.
+      $q.notify({ message: 'Your account role is not set. Please complete registration.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
+      await supabase.auth.signOut();
+      void router.push('/register?newUser=true');
+    }
   } catch (error: unknown) {
     $q.notify({ message: error instanceof Error ? error.message : 'An unexpected error occurred', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
   } finally {
@@ -114,9 +120,9 @@ async function handleForgotPassword() {
 
   forgotPasswordLoading.value = true;
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
-      redirectTo: window.location.origin + '/login',
-    });
+      const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
+        redirectTo: window.location.origin + '/#/login',
+      });
     if (error) throw error;
     $q.notify({ message: 'Password reset link sent to your email.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'check_circle', iconColor: 'teal-4', classes: 'custom-notify' });
   } catch {
