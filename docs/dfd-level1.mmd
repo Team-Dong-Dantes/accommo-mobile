@@ -1,0 +1,69 @@
+flowchart TB
+  %% ===== External Entities =====
+  S(["Student"])
+  L(["Landlord"])
+  O(["OSAS Officer"])
+  A(["Admin"])
+
+  %% ===== Level 1 Processes =====
+  P1(("P1 - Student Registration & Verification"))
+  P2(("P2 - Landlord Registration & Accreditation"))
+  P3(("P3 - Property & Room Management"))
+  P4(("P4 - Search, Shortlist & Booking"))
+  P5(("P5 - Lease & Payment Management"))
+  P6(("P6 - Messaging & Complaints"))
+  P7(("P7 - Reviews & Ratings"))
+  P8(("P8 - Admin & System Oversight"))
+
+  %% ===== Data Stores =====
+  D1[("D1 Student Profiles")]
+  D2[("D2 Landlord Profiles")]
+  D3[("D3 Properties & Rooms")]
+  D4[("D4 Leases & Payments")]
+  D5[("D5 Conversations & Messages")]
+  D6[("D6 Complaints & Concerns")]
+  D7[("D7 Reviews & Boarding History")]
+  D8[("D8 Announcements, Policies & Audit Logs")]
+
+  %% ===== Flows =====
+  S -->|registration & student ID| P1
+  P1 -->|create profile| D1
+  P1 -->|submit student ID for validation| O
+  O -->|verification result| D1
+
+  L -->|registration & government ID| P2
+  P2 -->|create profile| D2
+  P2 -->|request accreditation| O
+  O -->|accreditation status| D2
+
+  L -->|property & room data| P3
+  P3 -->|create / update| D3
+
+  S -->|search criteria| P4
+  P4 -->|read listings| D3
+  P4 -->|shortlist| D3
+  P4 -->|booking request| P5
+
+  P5 -->|create lease| D4
+  S -->|payment & receipt| P5
+  P5 -->|record payment| D4
+  P5 -->|confirm payment| O
+  O -->|payment verification| D4
+
+  S -->|message| P6
+  L -->|message| P6
+  P6 -->|store conversation| D5
+  S -->|complaint| P6
+  P6 -->|create complaint| D6
+  P6 -->|route to OSAS| O
+  O -->|resolution| D6
+
+  S -->|property / landlord review| P7
+  L -->|tenant review| P7
+  P7 -->|publish| D7
+
+  A -->|manage users| P8
+  P8 -->|oversee| D1
+  P8 -->|oversee| D2
+  P8 -->|publish| D8
+  P8 -->|audit| D8

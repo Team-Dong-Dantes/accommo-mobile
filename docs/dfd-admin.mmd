@@ -1,0 +1,40 @@
+flowchart TB
+  %% ===== External Entities =====
+  A(["Admin"])
+  O(["OSAS Officer"])
+  S(["Student"])
+  L(["Landlord"])
+
+  %% ===== Processes (Admin view) =====
+  P1(("P8.1 - Manage Users"))
+  P2(("P8.2 - Publish Announcements"))
+  P3(("P8.3 - Manage Policies"))
+  P4(("P8.4 - View Audit Logs"))
+  P5(("P8.5 - Oversee Complaints & OSAS"))
+
+  %% ===== Data Stores =====
+  D1[("D1 Student Profiles")]
+  D2[("D2 Landlord Profiles")]
+  D6[("D6 Complaints & Concerns")]
+  D8[("D8 Announcements, Policies & Audit Logs")]
+
+  %% ===== Flows =====
+  A -->|suspend / edit / verify| P1
+  P1 -->|oversee| D1
+  P1 -->|oversee| D2
+
+  A -->|compose post| P2
+  P2 -->|publish| D8
+  S -->|read| D8
+  L -->|read| D8
+
+  A -->|define rules| P3
+  P3 -->|store| D8
+
+  A -->|review activity| P4
+  P4 -->|read| D8
+
+  O -->|escalated cases| P5
+  P5 -->|monitor| D6
+  A -->|directive| O
+  P5 -->|report| D8

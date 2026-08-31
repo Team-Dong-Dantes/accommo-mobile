@@ -167,17 +167,18 @@ async function loadTickets() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Capture the active lease so a new ticket can be linked to it.
+    // Capture the active lease so a new ticket can be linked to it. The
+    // property is reached through the lease's room (leases has no property_id).
     const { data: activeLease } = await supabase
       .from('leases')
-      .select('property_id, landlord_id')
+      .select('landlord_id, room:rooms(property_id)')
       .eq('student_id', user.id)
       .eq('status', 'active')
       .maybeSingle();
     if (activeLease) {
-      const al = activeLease as unknown as { property_id: string | null; landlord_id: string | null };
-      ticketPropertyId.value = al.property_id;
+      const al = activeLease as unknown as { landlord_id: string | null; room: { property_id: string | null } | null };
       ticketLandlordId.value = al.landlord_id;
+      ticketPropertyId.value = al.room?.property_id ?? null;
     }
 
     const { data, error } = await supabase

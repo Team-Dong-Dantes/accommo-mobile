@@ -1,0 +1,73 @@
+flowchart TB
+  %% ===== External Entities =====
+  S(["Student"])
+  L(["Landlord"])
+  O(["OSAS Officer"])
+
+  %% ===== P1.3.2 Cross-check School Records (leaf) =====
+  P1321(("P1.3.2.1 Call RPC check_student_id_exists"))
+  P1322(("P1.3.2.2 Match Full Name"))
+  P1323(("P1.3.2.3 Match Program & College"))
+
+  %% ===== P4.5.2 Notify Landlord (leaf) =====
+  P4521(("P4.5.2.1 Build Notification"))
+  P4522(("P4.5.2.2 Push In-App"))
+  P4523(("P4.5.2.3 Email / SMS"))
+
+  %% ===== P5.3.1 Validate Receipt (leaf) =====
+  P5311(("P5.3.1.1 Parse Receipt File"))
+  P5312(("P5.3.1.2 Check Amount & Date"))
+  P5313(("P5.3.1.3 Duplicate Check"))
+
+  %% ===== P5.4.1 Cross-check Ledger (leaf) =====
+  P5411(("P5.4.1.1 Fetch Lease monthly_rent"))
+  P5412(("P5.4.1.2 Compare Amounts"))
+  P5413(("P5.4.1.3 Flag Mismatch"))
+
+  %% ===== P6.4.1 Categorize Complaint (leaf) =====
+  P6411(("P6.4.1.1 Detect Category"))
+  P6412(("P6.4.1.2 Compute Priority Score"))
+
+  %% ===== Data Stores (field-level) =====
+  D1[("D1 Student Profiles")]
+  D3[("D3 Properties & Rooms")]
+  D4[("D4 Leases & Payments")]
+  D5[("D5 Notifications")]
+  D6[("D6 Complaints & Concerns")]
+
+  %% ===== Flows =====
+  S -->|student_id, name| P1321
+  P1321 -->|lookup| D1
+  P1321 -->|exists| P1322
+  P1322 -->|compare| D1
+  P1322 -->|match| P1323
+  P1323 -->|compare| D1
+  P1323 -->|result| O
+
+  P4521 -->|compose| D5
+  P4521 -->|target landlord| P4522
+  P4522 -->|deliver| L
+  P4521 -->|address| P4523
+  P4523 -->|send| L
+  L -->|seen| D5
+
+  S -->|receipt image| P5311
+  P5311 -->|extract| P5312
+  P5312 -->|read lease| D4
+  P5312 -->|amount ok| P5313
+  P5313 -->|check existing| D4
+  P5313 -->|unique| O
+
+  O -->|verify| P5411
+  P5411 -->|monthly_rent| D4
+  P5411 -->|value| P5412
+  P5412 -->|compare to receipt| D4
+  P5412 -->|equal| P5413
+  P5413 -->|status| D4
+  P5413 -->|exception| O
+
+  S -->|complaint text| P6411
+  P6411 -->|classify| D6
+  P6411 -->|category| P6412
+  P6412 -->|score| D6
+  P6412 -->|route to OSAS| O

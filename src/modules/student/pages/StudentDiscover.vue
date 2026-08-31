@@ -486,6 +486,7 @@ interface LandlordProfile {
   totalRooms: number;
   propertyName: string;
   propertyImage: string;
+  landlordId: string | null;
   rooms: Array<{ id: string; roomNumber: string; type: string; typeColor: string; price: number; open: number }>;
 }
 
@@ -508,6 +509,7 @@ interface RoomDetail {
   ratingAvg: number | null;
   reviewsCount: number | null;
   policy: RoomPolicy | null;
+  houseRules: string[];
   amenities: string[];
   images: string[];
   landlord: { name: string; responseRate: number | null; avgResponseMinutes: number | null; propertyCount: number };
@@ -665,10 +667,12 @@ const houseRulesList = computed(() => {
 
 const positiveRules = computed(() => {
   const p = roomDetail.value?.policy;
-  if (!p) return [];
   const rules: string[] = [];
-  if (p.cooking) rules.push('Cooking allowed in common kitchen');
-  if (p.laundry) rules.push('Laundry facilities available');
+  if (p?.cooking) rules.push('Cooking allowed in common kitchen');
+  if (p?.laundry) rules.push('Laundry facilities available');
+  for (const r of roomDetail.value?.houseRules ?? []) {
+    if (r && !rules.includes(r)) rules.push(r);
+  }
   return rules;
 });
 
@@ -708,7 +712,9 @@ function inquire(property: DiscoverProperty) {
 }
 
 function inquireLandlord(landlord: LandlordProfile) {
-  void router.push({ path: '/student/messages', query: { landlord: selectedLandlord.value?.rooms ? null : null } });
+  if (landlord.landlordId) {
+    void router.push({ path: '/student/messages', query: { landlord: landlord.landlordId } });
+  }
 }
 
 function openLandlord(property: DiscoverProperty) {
@@ -751,49 +757,55 @@ function applyFilters() {
 async function loadPropertyDetail(property: DiscoverProperty) {
   detailLoading.value = true;
   try {
-    const { data: prop, error: pe } = await supabase
-      .from('properties')
-      .select('description, status, rating_avg, reviews_count, landlord_id, property_policies(cooking, curfew_time, deposit_months, advance_months, pets, visitor_policy, laundry, quiet_hours, smoking, min_stay), property_amenities(amenity), property_images(url, sort_order), rooms(id, room_number, monthly_rent, status)')
+    const { data, error: pe } = await supabase
+      .from('accommodations' as any)
+      .select('description, status, rating_avg, reviews_count, accommodation_manager_id, accommodation_policies(house_rules_json), accommodation_amenities(amenity), accommodation_images(url, sort_order), rooms(id, room_number, monthly_rent, status)')
       .eq('id', property.id)
       .eq('rooms.status', 'available')
       .maybeSingle();
 
     if (pe) throw pe;
 
+    const prop = data as unknown as {
+      description: string | null;
+      status: string | null;
+      rating_avg: number | null;
+      reviews_count: number | null;
+      accommodation_manager_id: string | null;
+      rooms: Array<{ id: string; room_number: string | null; monthly_rent: number | null; status: string | null }> | null;
+      accommodation_amenities: Array<{ amenity: string }> | null;
+      accommodation_images: Array<{ url: string | null; sort_order: number | null }> | null;
+      accommodation_policies: Array<{ house_rules_json: unknown }> | null;
+    } | null;
+
     let landlord = { name: property.landlordName, responseRate: null as number | null, avgResponseMinutes: null as number | null, propertyCount: 0 };
-    if (prop?.landlord_id) {
-      const [lp, pc, usr] = await Promise.all([
-        supabase.from('landlord_profiles').select('response_rate, avg_response_minutes').eq('user_id', prop.landlord_id).maybeSingle(),
-        supabase.from('properties').select('*', { count: 'exact', head: true }).eq('landlord_id', prop.landlord_id),
-        supabase.from('users').select('full_name').eq('id', prop.landlord_id).maybeSingle(),
+    if (prop?.accommodation_manager_id) {
+      const [pc, usr] = await Promise.all([
+        supabase.from('accommodations' as any).select('*', { count: 'exact', head: true }).eq('accommodation_manager_id', prop.accommodation_manager_id),
+        supabase.from('users').select('full_name').eq('id', prop.accommodation_manager_id).maybeSingle(),
       ]);
       const userName = (usr.data as { full_name: string | null } | null)?.full_name ?? null;
       // Prefer the property's business_name (carried on property.landlordName); fall back to users.full_name.
       const detailName = property.landlordName !== 'Property Owner' ? property.landlordName : (userName ?? 'Property Owner');
-      if (lp.data) {
-        const lpData = lp.data as { response_rate: number | null; avg_response_minutes: number | null };
-        landlord = {
-          name: detailName,
-          responseRate: lpData.response_rate ?? null,
-          avgResponseMinutes: lpData.avg_response_minutes ?? null,
-          propertyCount: pc.count ?? 0,
-        };
-      } else {
-        landlord = { name: detailName, responseRate: null, avgResponseMinutes: null, propertyCount: pc.count ?? 0 };
-      }
+      landlord = { name: detailName, responseRate: null, avgResponseMinutes: null, propertyCount: pc.count ?? 0 };
     }
 
     const availableRooms = (prop?.rooms ?? []).filter((x) => x.status === 'available');
-    const amenitiesRaw = (prop?.property_amenities ?? []) as Array<{ amenity: string }>;
-    const imagesRaw = (prop?.property_images ?? []) as Array<{ url: string | null; sort_order: number | null }>;
+    const amenitiesRaw = (prop?.accommodation_amenities ?? []) as Array<{ amenity: string }>;
+    const imagesRaw = (prop?.accommodation_images ?? []) as Array<{ url: string | null; sort_order: number | null }>;
     const imgs = imagesRaw.filter((i) => i.url).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+    const policyRaw = (prop?.accommodation_policies ?? []) as Array<{ house_rules_json: unknown }> | null;
+    const houseRulesJson = policyRaw?.[0]?.house_rules_json as { rules?: string[] } | null;
+    const houseRules = houseRulesJson?.rules ?? [];
 
     roomDetail.value = {
       description: prop?.description ?? null,
       status: prop?.status ?? null,
       ratingAvg: prop?.rating_avg ?? null,
       reviewsCount: prop?.reviews_count ?? null,
-      policy: (prop?.property_policies as unknown as RoomPolicy | null) ?? null,
+      policy: null,
+      houseRules,
       amenities: amenitiesRaw.map((a) => a.amenity),
       images: imgs.map((i) => i.url).filter((u): u is string => !!u),
       landlord,
@@ -825,24 +837,22 @@ async function loadLandlordData(
   if (!landlordId) return;
   detailLoading.value = true;
   try {
-    const [lpRes, propsRes, usrRes] = await Promise.all([
-      supabase.from('landlord_profiles').select('response_rate, avg_response_minutes').eq('user_id', landlordId).maybeSingle(),
-      supabase.from('properties').select('id, name').eq('landlord_id', landlordId),
+    const [propsRes, usrRes] = await Promise.all([
+      supabase.from('accommodations' as any).select('id, name').eq('accommodation_manager_id', landlordId),
       supabase.from('users').select('full_name').eq('id', landlordId).maybeSingle(),
     ]);
 
-    const lpData = lpRes.data as { response_rate: number | null; avg_response_minutes: number | null } | null;
     const userName = (usrRes.data as { full_name: string | null } | null)?.full_name ?? null;
     // Prefer the property's business_name (carried on ctx.name); fall back to users.full_name.
     const businessName = ctx.name !== 'Property Owner' ? ctx.name : (userName ?? 'Property Owner');
-    const propertyRows = (propsRes.data ?? []) as Array<{ id: string; name: string | null }>;
+    const propertyRows = (propsRes.data ?? []) as unknown as Array<{ id: string; name: string | null }>;
 
     let roomRows: Array<{ id: string; room_number: string | null; label: string | null; monthly_rent: number | null; capacity: number | null; current_pax: number | null; status: string | null }> = [];
     if (propertyRows.length > 0) {
       const { data: rm } = await supabase
         .from('rooms')
         .select('id, room_number, label, monthly_rent, capacity, current_pax, status')
-        .in('property_id', propertyRows.map((p) => p.id));
+        .in('accommodation_id', propertyRows.map((p) => p.id));
       roomRows = (rm ?? []) as typeof roomRows;
     }
 
@@ -860,8 +870,8 @@ async function loadLandlordData(
     });
 
     landlordStats.value = {
-      responseRate: lpData?.response_rate ?? null,
-      avgMin: lpData?.avg_response_minutes ?? null,
+      responseRate: null,
+      avgMin: null,
       propertyCount: propertyRows.length,
     };
 
@@ -874,6 +884,7 @@ async function loadLandlordData(
       totalRooms: roomRows.length,
       propertyName: primary?.name ?? ctx.propertyName,
       propertyImage: ctx.propertyImage,
+      landlordId: landlordId,
       rooms: roomsList,
     };
   } catch (e) {
