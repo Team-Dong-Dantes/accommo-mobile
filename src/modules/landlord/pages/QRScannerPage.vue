@@ -347,7 +347,15 @@ function stopScanner() {
   if (html5Scanner) {
     const scanner = html5Scanner
     html5Scanner = null
-    void (scanner.stop() as unknown as Promise<void>).catch(() => {})
+    try {
+      // Only stop when actually scanning; stop() throws a synchronous
+      // "Cannot stop, scanner is not running or paused." otherwise.
+      if (scanner.isScanning) {
+        void (scanner.stop() as unknown as Promise<void>).catch(() => {})
+      }
+    } catch {
+      /* ignore stop errors */
+    }
     void (scanner.clear() as unknown as Promise<void>).catch(() => {})
   }
 }

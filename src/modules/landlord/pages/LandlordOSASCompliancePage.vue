@@ -169,7 +169,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { supabase } from '@/shared/utils/supabase'
 
 interface ComplianceItem {
   id: string
@@ -199,42 +200,7 @@ interface OfficeContact {
 
 const activeComplianceTab = ref('accreditation')
 
-const complianceItems = ref<ComplianceItem[]>([
-  {
-    id: 'green-hills',
-    propertyName: 'Green Hills Residences',
-    osasId: 'OSAS-1024',
-    address: '118 Avenue, Quezon City',
-    status: 'Active',
-    statusColor: 'green-5',
-    issuedOn: '12 Feb 2026',
-    validUntil: '12 Feb 2027',
-    score: '92 / 100',
-    officer: {
-      name: 'Officer Reyes',
-      email: 'officer.reyes@osas.gov',
-      phone: '+63 917 222 9841',
-    },
-    open: true,
-  },
-  {
-    id: 'sunset-terrace',
-    propertyName: 'Sunset Terrace',
-    osasId: 'OSAS-887',
-    address: '66 Ipil Street, Makati',
-    status: 'Expiring',
-    statusColor: 'amber-5',
-    issuedOn: '22 Jul 2025',
-    validUntil: '22 Jul 2026',
-    score: '84 / 100',
-    officer: {
-      name: 'Officer Dela Cruz',
-      email: 'officer.delacruz@osas.gov',
-      phone: '+63 909 555 2150',
-    },
-    open: false,
-  },
-])
+const complianceItems = ref<ComplianceItem[]>([])
 
 const officeContacts = ref<OfficeContact[]>([
   {
@@ -286,40 +252,102 @@ const selectedRequirement = ref<RequirementItem>({
   dueDate: '',
 })
 
-const requirementItems = ref<RequirementItem[]>([
-  {
-    id: 'r1',
-    name: 'Business Permit',
-    description: 'Valid Mayor’s Business Permit issued by the local government unit (LGU) for your boarding house operation.',
-    status: 'Approved',
-    statusColor: 'green-5',
-    dueDate: 'Dec 2026',
-  },
-  {
-    id: 'r2',
-    name: 'Fire Safety Certificate',
-    description: 'Certificate from the Bureau of Fire Protection after a successful fire safety inspection.',
-    status: 'Pending',
-    statusColor: 'amber-5',
-    dueDate: 'Sep 2026',
-  },
-  {
-    id: 'r3',
-    name: 'Sanitary Permit',
-    description: 'Clearance from the City Health Office confirming compliance with sanitation standards.',
-    status: 'Submitted',
-    statusColor: 'blue-5',
-    dueDate: 'Oct 2026',
-  },
-  {
-    id: 'r4',
-    name: 'OSAS Accreditation Form',
-    description: 'Completed accreditation application containing owner and property details for OSAS review.',
-    status: 'Required',
-    statusColor: 'grey-5',
-    dueDate: 'Aug 2026',
-  },
-])
+const requirementItems = ref<RequirementItem[]>([])
+
+function docTypeLabel(t: string) {
+  const map: Record<string, string> = {
+    government_id: 'Government ID',
+    business_permit: 'Business Permit',
+    fire_safety: 'Fire Safety Certificate',
+    sanitary: 'Sanitary Permit',
+    accreditation: 'OSAS Accreditation Form',
+  }
+  return map[t] || t.replace(/_/g, ' ')
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+async function loadAccreditation() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: accs } = await supabase
+      .from('accommodations' as any)
+      .select('id, name, address, accreditation_status, accredited_at, accreditation_expires_at, rating_avg')
+      .eq('accommodation_manager_id', user.id)
+      .order('name')
+    const statusMap: Record<string, { label: string; color: string }> = {
+      accredited: { label: 'Active', color: 'green-5' },
+      reviewing: { label: 'Reviewing', color: 'blue-5' },
+      pending: { label: 'Pending', color: 'amber-5' },
+      expired: { label: 'Expiring', color: 'amber-5' },
+      rejected: { label: 'Rejected', color: 'red-5' },
+      delisted: { label: 'Delisted', color: 'grey-5' },
+    }
+    complianceItems.value = (accs ?? []).map((a: any) => {
+      const info = statusMap[a.accreditation_status] || { label: a.accreditation_status || 'Pending', color: 'grey-5' }
+      return {
+        id: a.id,
+        propertyName: a.name || 'Boarding House',
+        osasId: 'OSAS-' + String(a.id).slice(0, 6).toUpperCase(),
+        address: a.address || '—',
+        status: info.label,
+        statusColor: info.color,
+        issuedOn: fmtDate(a.accredited_at),
+        validUntil: fmtDate(a.accreditation_expires_at),
+        score: a.rating_avg ? Number(a.rating_avg).toFixed(1) + ' / 5' : '—',
+        officer: { name: '—', email: '—', phone: '—' },
+        open: false,
+      }
+    })
+  } catch (e) {
+    console.error('loadAccreditation error:', e)
+  }
+}
+
+async function loadRequirements() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: docs } = await supabase
+      .from('verification_documents')
+      .select('id, doc_type, filename, status')
+      .eq('user_id', user.id)
+    const statusMap: Record<string, { label: string; color: string }> = {
+      approved: { label: 'Approved', color: 'green-5' },
+      pending: { label: 'Pending', color: 'amber-5' },
+      submitted: { label: 'Submitted', color: 'blue-5' },
+      rejected: { label: 'Rejected', color: 'red-5' },
+    }
+    requirementItems.value = (docs ?? []).map((d: any) => {
+      const info = statusMap[d.status] || { label: d.status || 'Required', color: 'grey-5' }
+      return {
+        id: d.id,
+        name: docTypeLabel(d.doc_type),
+        description: d.filename || 'Uploaded document',
+        status: info.label,
+        statusColor: info.color,
+        dueDate: '—',
+      }
+    })
+  } catch (e) {
+    console.error('loadRequirements error:', e)
+  }
+}
+
+onMounted(() => {
+  void loadAccreditation()
+  void loadRequirements()
+})
 
 function openRequirement(req: RequirementItem) {
   selectedRequirement.value = req

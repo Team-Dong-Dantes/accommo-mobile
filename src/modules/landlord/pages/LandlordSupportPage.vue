@@ -334,30 +334,7 @@ interface MaintenanceTicket {
   resolutionDate: string
 }
 
-const maintenanceTickets = ref<MaintenanceTicket[]>([
-  {
-    id: 'MT-0042',
-    category: 'Plumbing',
-    priority: 'Medium',
-    status: 'Resolved',
-    title: 'Leaking faucet in Room 3-A',
-    description: 'Kitchen faucet drips continuously and wastes water',
-    tenantName: 'Maria Santos',
-    tenantInitial: 'M',
-    resolutionDate: 'Apr 18, 2026',
-  },
-  {
-    id: 'MT-0041',
-    category: 'Electrical',
-    priority: 'High',
-    status: 'In Progress',
-    title: 'Power outlet not working',
-    description: 'Bedroom outlet sparks when plugging in charger',
-    tenantName: 'Jose Reyes',
-    tenantInitial: 'J',
-    resolutionDate: 'Apr 20, 2026',
-  },
-])
+const maintenanceTickets = ref<MaintenanceTicket[]>([])
 
 interface ReviewSummary {
   score: number
@@ -366,29 +343,19 @@ interface ReviewSummary {
 }
 
 const reviewSummary = ref<ReviewSummary>({
-  score: 4.5,
-  total: 40,
-  breakdown: [
-    { stars: 5, count: 28 },
-    { stars: 4, count: 8 },
-    { stars: 3, count: 3 },
-    { stars: 2, count: 1 },
-    { stars: 1, count: 0 },
-  ],
+  score: 0,
+  total: 0,
+  breakdown: [],
 })
 
 interface Review {
-  id: number
+  id: string
   stars: number
   date: string
   feedback: string
 }
 
-const reviewList = ref<Review[]>([
-  { id: 1, stars: 5, date: 'Apr 12, 2026', feedback: 'Very clean boarding house and responsive landlord' },
-  { id: 2, stars: 4, date: 'Apr 05, 2026', feedback: 'Good location but wifi can be slow at night' },
-  { id: 3, stars: 5, date: 'Mar 28, 2026', feedback: 'Safe and peaceful. Recommended for students' },
-])
+const reviewList = ref<Review[]>([])
 
 const starIcon = (position: number, rating = 5) => {
   if (position <= Math.floor(rating)) return 'star'
@@ -520,6 +487,94 @@ const loadMyTickets = async () => {
   }
 }
 
+const loadMaintenanceTickets = async () => {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: accs } = await supabase
+      .from('accommodations' as any)
+      .select('id')
+      .eq('accommodation_manager_id', user.id)
+    const accIds = (accs ?? []).map((a: any) => a.id)
+    let data: any[] = []
+    if (accIds.length) {
+      const res = await supabase
+        .from('tickets')
+        .select('id, subject, description, category, priority, status, reporter_name, resolved_at')
+        .in('accommodation_id', accIds)
+        .eq('category', 'maintenance')
+        .order('reported_at', { ascending: false })
+      if (res.error) throw res.error
+      data = res.data ?? []
+    }
+    maintenanceTickets.value = data.map((c: any) => ({
+      id: c.id,
+      category: 'Maintenance',
+      priority: priorityLabel(c.priority),
+      status: c.status === 'resolved' ? 'Resolved' : 'In Progress',
+      title: c.subject,
+      description: c.description || '',
+      tenantName: c.reporter_name || '—',
+      tenantInitial: (c.reporter_name || '?')[0]?.toUpperCase() || '?',
+      resolutionDate: c.resolved_at ? new Date(c.resolved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+    }))
+  } catch (e) {
+    console.error('loadMaintenanceTickets error:', e)
+  }
+}
+
+const loadReviews = async () => {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: accs } = await supabase
+      .from('accommodations' as any)
+      .select('id')
+      .eq('accommodation_manager_id', user.id)
+    const accIds = (accs ?? []).map((a: any) => a.id)
+    let leaseIds: string[] = []
+    if (accIds.length) {
+      const { data: rooms } = await supabase.from('rooms').select('id').in('accommodation_id', accIds)
+      const roomIds = (rooms ?? []).map((r: any) => r.id)
+      if (roomIds.length) {
+        const { data: leases } = await supabase.from('leases').select('id').in('room_id', roomIds)
+        leaseIds = (leases ?? []).map((l: any) => l.id)
+      }
+    }
+    let reviews: any[] = []
+    if (leaseIds.length) {
+      const res = await supabase
+        .from('tenant_reviews')
+        .select('id, rating, comment, created_at')
+        .in('lease_id', leaseIds)
+        .order('created_at', { ascending: false })
+      if (res.error) throw res.error
+      reviews = res.data ?? []
+    }
+    reviewList.value = reviews.map((r: any) => ({
+      id: r.id,
+      stars: Number(r.rating) || 0,
+      date: r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+      feedback: r.comment || '',
+    }))
+    const total = reviews.length
+    const avg = total ? reviews.reduce((s: number, r: any) => s + (Number(r.rating) || 0), 0) / total : 0
+    const breakdown = total
+      ? [5, 4, 3, 2, 1].map((stars) => ({
+          stars,
+          count: reviews.filter((r: any) => Math.round(Number(r.rating) || 0) === stars).length,
+        }))
+      : []
+    reviewSummary.value = { score: avg, total, breakdown }
+  } catch (e) {
+    console.error('loadReviews error:', e)
+  }
+}
+
 onMounted(async () => {
   try {
     if (!landlord.properties.length) await landlord.loadProperties()
@@ -530,7 +585,9 @@ onMounted(async () => {
   } catch (e) {
     console.error('Failed to load boarding houses', e)
   }
-  await loadMyTickets()
+  void loadMyTickets()
+  void loadMaintenanceTickets()
+  void loadReviews()
 })
 </script>
 
