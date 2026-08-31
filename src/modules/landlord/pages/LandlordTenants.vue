@@ -174,23 +174,23 @@ async function loadTenants() {
     } = await supabase.auth.getUser()
     if (!user) return
 
-    // 1) Boarding houses this landlord created
+    // 1) Boarding houses (accommodations) this landlord manages
     const { data: props, error: pErr } = await supabase
-      .from('properties')
+      .from('accommodations' as any)
       .select('id, name, address')
-      .eq('landlord_id', user.id)
+      .eq('accommodation_manager_id', user.id)
     if (pErr) throw pErr
 
     const propertyList = (props || []) as any[]
     const propIds = propertyList.map((p) => p.id)
 
-    // 2) Rooms for those properties
+    // 2) Rooms for those accommodations (rooms link via accommodation_id)
     let roomRows: any[] = []
     if (propIds.length) {
       const { data: rooms, error: rErr } = await supabase
         .from('rooms')
-        .select('id, property_id, room_number, label, floor, capacity, current_pax, status')
-        .in('property_id', propIds)
+        .select('id, accommodation_id, room_number, label, floor, capacity, current_pax, status')
+        .in('accommodation_id', propIds)
       if (rErr) throw rErr
       roomRows = (rooms || []) as any[]
     }
@@ -244,7 +244,7 @@ async function loadTenants() {
     }
 
     for (const room of roomRows) {
-      const pg = propMap.get(room.property_id)
+      const pg = propMap.get(room.accommodation_id)
       if (!pg) continue
       const capacity = room.capacity ?? 0
       const currentPax = room.current_pax ?? 0
@@ -267,7 +267,7 @@ async function loadTenants() {
 
     for (const l of leaseRows) {
       const roomRec = roomRows.find((r) => r.id === l.room_id)
-      const pg = propMap.get(roomRec?.property_id || '')
+      const pg = propMap.get(roomRec?.accommodation_id || '')
       if (!pg) continue
       const roomGroup = pg.rooms.get(l.room_id)
       if (!roomGroup) continue

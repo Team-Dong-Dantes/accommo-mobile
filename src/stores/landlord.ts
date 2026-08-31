@@ -59,61 +59,74 @@ export const useLandlordStore = defineStore('landlord', {
       try {
         const {
           data: { user },
-          error: userError,
         } = await supabase.auth.getUser()
 
         if (!user) return
 
-        // Properties
-        const { data: props, error: propsError } = await supabase
-          .from('properties')
-          .select('id, name, address, status, total_rooms, capacity')
-          .eq('landlord_id', user.id)
+        // 1) Accommodations managed by this landlord (accommodation_manager_id)
+        const { data: accs, error: accError } = await supabase
+          .from('accommodations' as any)
+          .select('id, name, address, status, total_rooms, capacity, business_name')
+          .eq('accommodation_manager_id', user.id)
           .order('name')
 
-        if (propsError) throw propsError
-        this.properties = (props ?? []).map((property: any) => ({
-          ...property,
-          totalRooms: property.total_rooms ?? 0,
-          vacantRooms: property.capacity ?? 0,
+        if (accError) throw accError
+        this.properties = (accs ?? []).map((a: any) => ({
+          ...a,
+          totalRooms: a.total_rooms ?? 0,
+          vacantRooms: a.capacity ?? 0,
         }))
+        const accIds = (accs ?? []).map((a: any) => a.id)
+        const accNameById = new Map((accs ?? []).map((a: any) => [a.id, a.business_name || a.name]))
 
-        // Active leases
-        const { data: leases, error: leasesError } = await supabase
-          .from('leases')
-          .select('id, status, rooms!room_id(room_number, properties(name)), users!student_id(full_name)')
-          .eq('landlord_id', user.id)
-          .eq('status', 'active')
+        // 2) Rooms under those accommodations
+        let roomRows: any[] = []
+        if (accIds.length) {
+          const { data: rooms, error: roomError } = await supabase
+            .from('rooms')
+            .select('id, accommodation_id, label, room_number, capacity, current_pax')
+            .in('accommodation_id', accIds)
+          if (roomError) throw roomError
+          roomRows = rooms ?? []
+        }
+        const roomIds = roomRows.map((r: any) => r.id)
+        const roomById = new Map(roomRows.map((r: any) => [r.id, r]))
 
-        if (leasesError) throw leasesError
-        this.activeTenants = leases?.length ?? 0
+        // 3) Leases for those rooms (leases link via room_id, not landlord_id)
+        let leaseRows: any[] = []
+        if (roomIds.length) {
+          const { data: leases, error: leaseError } = await supabase
+            .from('leases')
+            .select('id, student_id, room_id, status')
+            .in('room_id', roomIds)
+          if (leaseError) throw leaseError
+          leaseRows = leases ?? []
+        }
+        this.activeTenants = leaseRows.filter((l: any) => l.status === 'active').length
+        const leaseIds = leaseRows.map((l: any) => l.id)
+        const leaseById = new Map(leaseRows.map((l: any) => [l.id, l]))
 
-        // Payments needing attention
-        const { data: payments, error: paymentsError } = await supabase
-          .from('payments')
-          .select(
-            'id, amount, status, month, leases!lease_id(users!student_id(full_name), rooms!room_id(room_number, properties(name)))',
-          )
-          .in('status', ['due', 'overdue', 'pending_verification'])
-          .eq('leases.landlord_id', user.id)
+        // 4) Payments needing attention (link via lease_id)
+        let paymentRows: any[] = []
+        if (leaseIds.length) {
+          const { data: pays, error: payError } = await supabase
+            .from('payments')
+            .select('id, lease_id, amount, status, month')
+            .in('lease_id', leaseIds)
+            .in('status', ['due', 'overdue', 'pending_verification'])
+          if (payError) throw payError
+          paymentRows = pays ?? []
+        }
+        this.pendingPayments = paymentRows.length
+        this.pendingAmount = paymentRows.reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0)
+        this.verificationRequests = paymentRows.filter((p: any) => p.status === 'pending_verification')
 
-        if (paymentsError) throw paymentsError
-        const typedPayments = (payments ?? []) as any[]
-        this.pendingPayments = typedPayments.length
-        this.pendingAmount =
-          typedPayments.length > 0
-            ? typedPayments.reduce((sum: number, p: any) => sum + p.amount, 0)
-            : 0
-        this.verificationRequests = typedPayments.filter(
-          (payment: any) => payment.status === 'pending_verification',
-        )
-
-        // Notifications
+        // 5) Notifications
         const { data: notifData, error: notifError } = await supabase
           .from('notifications')
           .select('*')
           .eq('user_id', user.id)
-          .order('id', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(20)
 
         if (notifError) throw notifError
@@ -124,47 +137,50 @@ export const useLandlordStore = defineStore('landlord', {
           type: n.type,
           read_at: n.read_at,
         }))
-        this.unreadCount = this.notifications.filter(
-          (n: any) => !n.read_at,
-        ).length
+        this.unreadCount = this.notifications.filter((n: any) => !n.read_at).length
 
-        // Tenants grouped by property/room
-        const grouped: any[] = []
-        if (leases) {
-          const groupedMap = new Map<string, any>()
-          leases.forEach((lease: any) => {
-            const propKey = lease.room?.property?.name || 'Unassigned'
-            const roomKey = lease.room?.room_number || '—'
-            const studentName = lease.student_id?.full_name || 'Unknown Student'
-
-            if (!groupedMap.has(propKey)) {
-              groupedMap.set(propKey, { property: propKey, rooms: [] })
-            }
-            groupedMap.get(propKey)!.rooms!.push({
-              room: roomKey,
-              student: studentName,
-              leaseId: lease.id,
-            })
-          })
-          grouped.push(...groupedMap.values())
+        // 6) Student display names for grouping + recent payments
+        const studentIds = Array.from(new Set(leaseRows.map((l: any) => l.student_id)))
+        const userMap = new Map<string, any>()
+        if (studentIds.length) {
+          const { data: users } = await supabase
+            .from('users')
+            .select('id, full_name, initials, avatar_color')
+            .in('id', studentIds)
+          ;(users ?? []).forEach((u: any) => userMap.set(u.id, u))
         }
-        this.tenantsByGroup = grouped
 
-        // Recent payments (last 10)
-        const recent = typedPayments
-          .sort((a: any, b: any) => (a.created_at ?? '') > (b.created_at ?? '') ? -1 : 1)
-          .slice(0, 10)
-        this.recentPayments = recent.map((p: any) => ({
-          id: p.id,
-          student_name: p.lease?.student?.full_name ?? 'Unknown Student',
-          amount: p.amount,
-          month: p.month ?? '—',
-          status: p.status,
-          property_name: p.lease?.room?.property?.name ?? '—',
-          room_number: p.lease?.room?.room_number ?? '—',
-        }))
+        // Tenants grouped by accommodation -> room
+        const groupedMap = new Map<string, any>()
+        leaseRows.forEach((l: any) => {
+          if (l.status !== 'active') return
+          const room = roomById.get(l.room_id)
+          const accName = room ? accNameById.get(room.accommodation_id) || 'Unassigned' : 'Unassigned'
+          const roomNum = room?.room_number || '—'
+          const student = userMap.get(l.student_id)
+          const studentName = student?.full_name || 'Unknown Student'
+          if (!groupedMap.has(accName)) groupedMap.set(accName, { property: accName, rooms: [] })
+          groupedMap.get(accName)!.rooms.push({ room: roomNum, student: studentName, leaseId: l.id })
+        })
+        this.tenantsByGroup = Array.from(groupedMap.values())
 
-        // Revenue chart data - 12 months
+        // Recent payments
+        this.recentPayments = paymentRows.slice(0, 10).map((p: any) => {
+          const lease = leaseById.get(p.lease_id)
+          const room = lease ? roomById.get(lease.room_id) : undefined
+          const student = lease ? userMap.get(lease.student_id) : undefined
+          return {
+            id: p.id,
+            student_name: student?.full_name ?? 'Unknown Student',
+            amount: p.amount,
+            month: p.month ?? '—',
+            status: p.status,
+            property_name: room ? accNameById.get(room.accommodation_id) ?? '—' : '—',
+            room_number: room?.room_number ?? '—',
+          }
+        })
+
+        // Revenue chart data - 12 months (no revenue aggregation table; placeholder zeros)
         const today = new Date()
         const labels = []
         for (let i = 11; i >= 0; i--) {
@@ -184,7 +200,6 @@ export const useLandlordStore = defineStore('landlord', {
             },
           ],
         }
-
       } catch (e) {
         this.loadError = e instanceof Error ? e.message : 'Failed to load dashboard'
         console.error('loadDashboard error:', e)
@@ -196,40 +211,38 @@ export const useLandlordStore = defineStore('landlord', {
     async loadProperties() {
       const {
         data: { user },
-        error: userError,
       } = await supabase.auth.getUser()
 
       if (!user) return
 
       const { data: props, error: propsError } = await supabase
-        .from('properties')
-        .select('id, name, address, status, total_rooms, capacity')
-        .eq('landlord_id', user.id)
+        .from('accommodations' as any)
+        .select('id, name, address, status, total_rooms, capacity, business_name')
+        .eq('accommodation_manager_id', user.id)
         .order('name')
 
       if (propsError) throw propsError
-      this.properties = (props ?? []).map((property: any) => ({
-        ...property,
-        totalRooms: property.total_rooms ?? 0,
-        vacantRooms: property.capacity ?? 0,
+      this.properties = (props ?? []).map((a: any) => ({
+        ...a,
+        totalRooms: a.total_rooms ?? 0,
+        vacantRooms: a.capacity ?? 0,
       }))
     },
 
     async addProperty(propertyData: any) {
       const {
         data: { user },
-        error: userError,
       } = await supabase.auth.getUser()
 
       if (!user) return false
 
-      // 1) Base property row — uses ONLY existing columns (no invented ones).
+      // 1) Base accommodation row — uses only existing columns (no invented ones).
       const { data: inserted, error: insertError } = await supabase
-        .from('properties')
+        .from('accommodations' as any)
         .insert({
-          landlord_id: user.id,
+          accommodation_manager_id: user.id,
           name: propertyData.name,
-          property_type: propertyData.propertyType || null, // free-text category
+          accommodation_type: propertyData.propertyType || null, // free-text category
           room_type: propertyData.roomType, // enum: solo|duo|triple|bedspace|studio
           status: 'pending',
           address: propertyData.address || null,
@@ -246,45 +259,34 @@ export const useLandlordStore = defineStore('landlord', {
         .single()
 
       if (insertError) throw insertError
-      const propertyId = inserted?.id
-      if (!propertyId) throw new Error('Failed to create property')
+      const accommodationId = (inserted as any)?.id
+      if (!accommodationId) throw new Error('Failed to create accommodation')
 
-      // "Who can stay" is stored inside property_policies.house_rules_json (no new column needed).
-
-      // 2) Amenities -> property_amenities (one row per amenity, enum column).
+      // 2) Amenities -> accommodation_amenities (one row per amenity).
       const amenities = (propertyData.amenities || []).filter(Boolean)
       if (amenities.length) {
         const { error: amenError } = await supabase
-          .from('property_amenities')
-          .insert(
-            amenities.map((a: string) => ({ property_id: propertyId, amenity: a })) as any,
-          )
+          .from('accommodation_amenities' as any)
+          .insert(amenities.map((a: string) => ({ accommodation_id: accommodationId, amenity: a })) as any)
         if (amenError) throw amenError
       }
 
-      // 3) House rules + "who can stay" -> property_policies.house_rules_json (jsonb).
-      // Stored as an object so we avoid adding a new database column.
+      // 3) House rules + "who can stay" -> accommodation_policies.house_rules_json (jsonb).
       const rules = (propertyData.rules || []).filter(Boolean)
       const policyJson: any = { rules }
       const genderPolicy = propertyData.genderPolicy || null
       if (genderPolicy) policyJson.gender_policy = genderPolicy
       const { error: polError } = await supabase
-        .from('property_policies')
-        .insert({ property_id: propertyId, house_rules_json: policyJson } as any)
+          .from('accommodation_policies' as any)
+        .insert({ accommodation_id: accommodationId, house_rules_json: policyJson } as any)
       if (polError) throw polError
 
-
-
-      // 5) Photos -> property_images. Images are kept as data URLs in `url`,
-      //    so this needs no storage bucket or schema change. Inserted one-by-one
-      //    to keep each request small. The owner-scoped RLS policy allows it.
-      const photos = ((propertyData.images as any[]) || []).filter(
-        (img) => img && img.dataUrl,
-      )
+      // 4) Photos -> accommodation_images (data URLs in `url`).
+      const photos = ((propertyData.images as any[]) || []).filter((img) => img && img.dataUrl)
       for (let i = 0; i < photos.length; i++) {
         const { error: imgErr } = await supabase
-          .from('property_images')
-          .insert({ property_id: propertyId, url: photos[i].dataUrl, sort_order: i } as any)
+          .from('accommodation_images' as any)
+          .insert({ accommodation_id: accommodationId, url: photos[i].dataUrl, sort_order: i } as any)
         if (imgErr) throw imgErr
       }
 
@@ -294,7 +296,6 @@ export const useLandlordStore = defineStore('landlord', {
     async fetchComplianceItems() {
       const {
         data: { user },
-        error: userError,
       } = await supabase.auth.getUser()
 
       if (!user) return []
@@ -316,7 +317,6 @@ export const useLandlordStore = defineStore('landlord', {
     async createVerificationDocument(docData: any) {
       const {
         data: { user },
-        error: userError,
       } = await supabase.auth.getUser()
 
       if (!user) return false

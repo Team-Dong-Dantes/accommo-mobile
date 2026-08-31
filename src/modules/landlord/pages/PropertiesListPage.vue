@@ -270,32 +270,55 @@ async function fetchProperties() {
     }
 
     const { data, error } = await supabase
-      .from('properties')
-      .select('*, property_amenities(amenity), property_images(url, sort_order)')
-      .eq('landlord_id', user.id)
+      .from('accommodations' as any)
+      .select('id, name, address, status, room_type, total_rooms, rating_avg, reviews_count, lat, lng')
+      .eq('accommodation_manager_id', user.id)
       .order('id', { ascending: false })
 
     if (error) throw error
+    const accs = data ?? []
+    const accIds = accs.map((a: any) => a.id)
 
-    // Occupancy is derived from active leases — the properties table has no
-    // occupied_rooms column. Group active leases by their property.
-    const { data: leases } = await supabase
-      .from('leases')
-      .select('room:rooms!room_id(property:properties(id))')
-      .eq('landlord_id', user.id)
-      .eq('status', 'active')
+    // Amenities + images (column-based, no fragile relation joins)
+    let amenRows: any[] = []
+    let imgRows: any[] = []
+    if (accIds.length) {
+      const [amenRes, imgRes] = await Promise.all([
+        supabase.from('accommodation_amenities' as any).select('accommodation_id, amenity').in('accommodation_id', accIds),
+        supabase.from('accommodation_images' as any).select('accommodation_id, url, sort_order').in('accommodation_id', accIds),
+      ])
+      if (amenRes.error) throw amenRes.error
+      if (imgRes.error) throw imgRes.error
+      amenRows = amenRes.data ?? []
+      imgRows = imgRes.data ?? []
+    }
 
+    // Occupancy derived from active leases via rooms -> accommodations
     const occupiedByProperty = new Map<string, number>()
-    ;(leases || []).forEach((l: any) => {
-      const propertyId = l.room?.property?.id
-      if (propertyId) {
-        occupiedByProperty.set(propertyId, (occupiedByProperty.get(propertyId) || 0) + 1)
+    if (accIds.length) {
+      const { data: rooms } = await supabase
+        .from('rooms')
+        .select('id, accommodation_id')
+        .in('accommodation_id', accIds)
+      const roomRows = rooms ?? []
+      const roomIds = roomRows.map((r: any) => r.id)
+      if (roomIds.length) {
+        const { data: leases } = await supabase
+          .from('leases')
+          .select('room_id')
+          .in('room_id', roomIds)
+          .eq('status', 'active')
+        const roomToAcc = new Map(roomRows.map((r: any) => [r.id, r.accommodation_id]))
+        ;(leases ?? []).forEach((l: any) => {
+          const accId = roomToAcc.get(l.room_id)
+          if (accId) occupiedByProperty.set(accId, (occupiedByProperty.get(accId) || 0) + 1)
+        })
       }
-    })
+    }
 
-    properties.value = (data || []).map((p: any) => {
-      const imgs = (p.property_images || [])
-        .slice()
+    properties.value = accs.map((p: any) => {
+      const imgs = imgRows
+        .filter((i: any) => i.accommodation_id === p.id)
         .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       return {
         id: p.id,
@@ -307,10 +330,10 @@ async function fetchProperties() {
         occupied_rooms: occupiedByProperty.get(p.id) || 0,
         rating: p.rating_avg || 0,
         reviews: p.reviews_count || 0,
-        amenities: (p.property_amenities || []).map((a: any) => a.amenity),
+        amenities: amenRows.filter((a: any) => a.accommodation_id === p.id).map((a: any) => a.amenity),
         coverImage: imgs[0]?.url || undefined,
-        latitude: p.latitude,
-        longitude: p.longitude,
+        latitude: p.lat,
+        longitude: p.lng,
       }
     })
   } catch (err) {

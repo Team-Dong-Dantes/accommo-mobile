@@ -434,19 +434,26 @@ const submitTicket = async () => {
     } = await supabase.auth.getUser()
     if (!user) throw new Error('Not signed in')
 
+    // Resolve the reporter's display name from the users table (source of truth),
+    // falling back to email. user_metadata.full_name is often unset, which is what
+    // caused the ticket to show "Unknown".
+    const { data: reporterRow } = await supabase
+      .from('users')
+      .select('full_name, email')
+      .eq('id', user.id)
+      .maybeSingle()
     const reporterName =
-      ((user.user_metadata as Record<string, any>)?.full_name as string) ||
+      (reporterRow as any)?.full_name ||
+      (reporterRow as any)?.email ||
       user.email ||
       'Unknown'
 
     const { error } = await supabase.from('tickets').insert({
       id: crypto.randomUUID(),
-      // Landlord is the filer. For a landlord -> OSAS ticket there is no specific
-      // student, so student_id is left null and the ticket is owned via landlord_id
-      // (satisfies RLS, which allows landlord_id = auth.uid()).
-      landlord_id: user.id,
+      // Landlord is the filer. Tickets link to a boarding house via accommodation_id
+      // (the live tickets table has no landlord_id/property_id columns).
       student_id: null,
-      property_id: selectedProperty.value,
+      accommodation_id: selectedProperty.value,
       category: ticketCategory.value,
       priority: priority.value,
       subject: subj,
@@ -454,6 +461,7 @@ const submitTicket = async () => {
       status: 'pending',
       reported_at: new Date().toISOString(),
       reporter_name: reporterName,
+      lease_id: null,
     } as any)
     if (error) throw error
 
@@ -474,19 +482,33 @@ const loadMyTickets = async () => {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
-    const { data, error } = await supabase
-      .from('tickets')
-      .select('id, subject, status, category, priority, property_id, reported_at, reporter_name, description')
-      .eq('landlord_id', user.id)
-      .order('reported_at', { ascending: false })
-    if (error) throw error
-    myTickets.value = (data ?? []).map((c: any) => ({
+
+    // Tickets are linked to a boarding house via accommodation_id (no landlord_id).
+    // Resolve the landlord's accommodations first, then filter tickets by those ids.
+    const { data: accs } = await supabase
+      .from('accommodations' as any)
+      .select('id')
+      .eq('accommodation_manager_id', user.id)
+    const accIds = (accs ?? []).map((a: any) => a.id)
+
+    let data: any[] = []
+    if (accIds.length) {
+      const res = await supabase
+        .from('tickets')
+        .select('id, subject, status, category, priority, accommodation_id, reported_at, reporter_name, description')
+        .in('accommodation_id', accIds)
+        .order('reported_at', { ascending: false })
+      if (res.error) throw res.error
+      data = res.data ?? []
+    }
+
+    myTickets.value = data.map((c: any) => ({
       id: c.id,
       subject: c.subject,
       status: c.status,
       category: c.category,
       priority: c.priority,
-      property_id: c.property_id,
+      property_id: c.accommodation_id,
       reported_at: c.reported_at,
       reporter_name: c.reporter_name,
       description: c.description,

@@ -197,27 +197,33 @@ async function loadOccupancy() {
     if (!user) return
 
     const { data: props } = await supabase
-      .from('properties')
+      .from('accommodations' as any)
       .select('id, total_rooms, capacity')
-      .eq('landlord_id', user.id)
+      .eq('accommodation_manager_id', user.id)
 
-    const { data: leases } = await supabase
-      .from('leases')
-      .select('status, room:rooms(property_id)')
-      .eq('landlord_id', user.id)
+    // Occupancy: rooms under the landlord's accommodations -> active leases.
+    const accIds = (props ?? []).map((p: any) => p.id)
+    let occupied = 0
+    if (accIds.length) {
+      const { data: rooms } = await supabase
+        .from('rooms')
+        .select('id')
+        .in('accommodation_id', accIds)
+      const roomIds = (rooms ?? []).map((r: any) => r.id)
+      if (roomIds.length) {
+        const { data: leases } = await supabase
+          .from('leases')
+          .select('status')
+          .in('room_id', roomIds)
+          .eq('status', 'active')
+        occupied = (leases ?? []).length
+      }
+    }
 
     const totalRooms = (props ?? []).reduce(
       (sum: number, p: any) => sum + (Number(p.total_rooms) || 0),
       0,
     )
-    const occupiedByProp = new Map<string, number>()
-    ;(leases ?? []).forEach((l: any) => {
-      if (l.status === 'active') {
-        const pid = l.room?.property_id
-        if (pid) occupiedByProp.set(pid, (occupiedByProp.get(pid) || 0) + 1)
-      }
-    })
-    const occupied = Array.from(occupiedByProp.values()).reduce((s, n) => s + n, 0)
     const available = Math.max(totalRooms - occupied, 0)
 
     const card = metrics.value.find((m) => m.id === 'occupancy')
