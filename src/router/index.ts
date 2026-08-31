@@ -39,9 +39,13 @@ export default defineRouter(() => {
         if (error || !data) return null;
 
         let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
+        if (role === 'accommodation_manager') role = 'landlord';
         if (!role) {
           const metaRole = session.user.user_metadata?.role;
-          if (typeof metaRole === 'string' && metaRole) role = metaRole.toLowerCase();
+          if (typeof metaRole === 'string' && metaRole) {
+            role = metaRole.toLowerCase();
+            if (role === 'accommodation_manager') role = 'landlord';
+          }
         }
         authStore.cachedRole = role;
         return role;
