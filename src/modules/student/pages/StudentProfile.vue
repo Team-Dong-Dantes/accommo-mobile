@@ -5,23 +5,23 @@
       <div class="row items-center no-wrap">
         <q-icon name="error_outline" color="orange-9" size="28px" class="q-mr-md" />
         <div class="col">
-          <div class="text-subtitle2 text-weight-bold text-orange-10 line-height-tight">Enrollment not verified</div>
-          <div class="text-caption text-orange-9 q-mt-xs" style="line-height: 1.2">Submit your documents for OSAS accreditation.</div>
+          <div class="text-subtitle2 text-weight-bold text-orange-10 line-height-tight">{{ pendingReview ? 'Enrollment under review' : 'Enrollment not verified' }}</div>
+          <div class="text-caption text-orange-9 q-mt-xs" style="line-height: 1.2">{{ pendingReview ? 'OSAS is reviewing your documents (1–2 business days).' : 'Submit your documents for OSAS accreditation.' }}</div>
         </div>
-        <q-btn unelevated color="orange-9" label="Verify Now" size="sm" no-caps class="border-radius-16 text-weight-bold q-px-sm q-ml-sm" @click="verifyNow" />
+        <q-btn unelevated color="orange-9" :label="pendingReview ? 'View Status' : 'Verify Now'" size="sm" no-caps class="border-radius-16 text-weight-bold q-px-sm q-ml-sm" @click="verifyNow" />
       </div>
     </q-banner>
 
     <!-- Profile Header Card -->
     <q-card flat class="q-mx-md q-mb-lg border-radius-24 overflow-hidden shadow-soft">
       <div class="profile-gradient relative-position" style="height: 110px;">
-        <q-btn round flat icon="edit" class="absolute-top-right q-ma-sm text-white bg-white-20" size="sm" />
+        <q-btn round flat icon="edit" class="absolute-top-right q-ma-sm text-white bg-white-20" size="sm" @click="openEditProfile" />
       </div>
 
       <div class="q-px-md relative-position bg-white" style="padding-top: 50px; padding-bottom: 24px;">
         <!-- Avatar -->
         <div class="absolute" style="top: -48px; left: 16px;">
-          <q-avatar size="96px" class="profile-avatar shadow-2 bg-blue-8 text-white font-size-32 text-weight-bold">
+          <q-avatar size="96px" class="profile-avatar shadow-2 bg-blue-8 text-white font-size-32 text-weight-bold" @click="openEditProfile">
             {{ initials }}
             <q-badge floating color="dark" class="camera-badge flex flex-center" rounded>
               <q-icon name="camera_alt" size="12px" />
@@ -228,7 +228,7 @@
           <div class="icon-circle bg-orange-1 text-orange-8 q-mr-sm"><q-icon name="person_outline" size="18px" /></div>
           <div class="text-subtitle1 text-weight-bold">Emergency Contact</div>
         </div>
-        <q-btn flat color="teal-8" label="Edit" no-caps dense class="text-weight-bold text-caption" />
+        <q-btn flat color="teal-8" label="Edit" no-caps dense class="text-weight-bold text-caption" @click="openEmergency" />
       </div>
 
       <div class="emergency-box q-pa-md row items-center">
@@ -246,7 +246,7 @@
     <!-- Actions List -->
     <q-card flat class="q-mx-md q-mb-xl border-radius-24 overflow-hidden shadow-soft">
       <q-list class="bg-white">
-        <q-item clickable v-ripple class="q-py-md">
+        <q-item clickable v-ripple class="q-py-md" @click="openEditProfile">
           <q-item-section avatar>
             <div class="icon-circle bg-teal-1 text-teal-8"><q-icon name="settings_outlined" size="18px" /></div>
           </q-item-section>
@@ -261,7 +261,7 @@
         
         <q-separator inset class="bg-grey-2" />
         
-        <q-item clickable v-ripple class="q-py-md">
+        <q-item clickable v-ripple class="q-py-md" @click="goNotifications">
           <q-item-section avatar>
             <div class="icon-circle bg-indigo-1 text-indigo-5"><q-icon name="notifications_none" size="18px" /></div>
           </q-item-section>
@@ -285,11 +285,6 @@
       </q-list>
     </q-card>
     
-    <!-- Floating FAB placeholder matching screenshot -->
-    <q-page-sticky position="bottom-right" :offset="[18, 18]">
-      <q-btn fab icon="add" color="teal-8" class="shadow-4" />
-    </q-page-sticky>
-
     <!-- OSAS Verification Dialog -->
     <q-dialog v-model="verificationDialog" position="bottom" :persistent="submitting || verifiedSuccess">
       <!-- Loading State -->
@@ -311,9 +306,9 @@
         <div class="icon-circle bg-teal-1 text-teal-7 q-mx-auto q-mb-lg shadow-1" style="width: 72px; height: 72px;">
           <q-icon name="check_circle_outline" size="42px" />
         </div>
-        <div class="text-h6 text-weight-bold text-dark line-height-tight q-mb-md">Verified!</div>
+        <div class="text-h6 text-weight-bold text-dark line-height-tight q-mb-md">Documents Submitted!</div>
         <div class="text-caption text-grey-6 q-px-sm">
-          Your enrollment has been confirmed by OSAS. Your QR code is now active.
+          OSAS will review your enrollment within 1–2 business days. You'll be notified once your QR code is active.
         </div>
       </q-card>
 
@@ -401,6 +396,45 @@
       </q-card>
     </q-dialog>
 
+    <!-- Edit Profile Dialog -->
+    <q-dialog v-model="editDialog" position="bottom">
+      <q-card class="full-width border-radius-24-top q-pa-md pb-safe">
+        <div class="row items-center justify-between q-mb-md">
+          <div class="text-h6 text-weight-bold">Edit Profile</div>
+          <q-btn flat round dense icon="close" color="grey-6" v-close-popup />
+        </div>
+        <div class="text-caption text-grey-6 q-mb-xs">Full Name</div>
+        <q-input v-model="editFullName" outlined dense class="q-mb-md" placeholder="Your full name" />
+        <div class="text-caption text-grey-6 q-mb-xs">Phone</div>
+        <q-input v-model="editPhone" outlined dense class="q-mb-md" placeholder="+63..." />
+        <div class="text-caption text-grey-6 q-mb-xs">Sex</div>
+        <q-select
+          v-model="editSex"
+          outlined dense class="q-mb-lg"
+          :options="[{ label: 'Male', value: 'M' }, { label: 'Female', value: 'F' }]"
+          emit-value map-options clearable
+        />
+        <q-btn unelevated color="teal-8" label="Save Changes" class="full-width border-radius-16 text-weight-bold q-py-sm" no-caps :loading="savingProfile" @click="saveProfile" />
+      </q-card>
+    </q-dialog>
+
+    <!-- Emergency Contact Dialog -->
+    <q-dialog v-model="emergencyDialog" position="bottom">
+      <q-card class="full-width border-radius-24-top q-pa-md pb-safe">
+        <div class="row items-center justify-between q-mb-md">
+          <div class="text-h6 text-weight-bold">Emergency Contact</div>
+          <q-btn flat round dense icon="close" color="grey-6" v-close-popup />
+        </div>
+        <div class="text-caption text-grey-6 q-mb-xs">Full Name</div>
+        <q-input v-model="emergencyName" outlined dense class="q-mb-md" placeholder="Contact name" />
+        <div class="text-caption text-grey-6 q-mb-xs">Relationship</div>
+        <q-input v-model="emergencyRelation" outlined dense class="q-mb-md" placeholder="e.g. Mother, Guardian" />
+        <div class="text-caption text-grey-6 q-mb-xs">Phone</div>
+        <q-input v-model="emergencyPhone" outlined dense class="q-mb-lg" placeholder="+63..." />
+        <q-btn unelevated color="orange-9" label="Save Contact" class="full-width border-radius-16 text-weight-bold q-py-sm" no-caps :loading="savingEmergency" @click="saveEmergency" />
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
@@ -410,6 +444,7 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
+import { uploadDocument } from '@/shared/utils/upload';
 import QRCode from 'qrcode';
 
 interface UserRow {
@@ -419,6 +454,7 @@ interface UserRow {
   phone: string | null;
   status: string | null;
   avatar_color: string | null;
+  sex: string | null;
 }
 
 interface StudentProfileRow {
@@ -428,6 +464,8 @@ interface StudentProfileRow {
   year_level: number | null;
   emergency_contact_json: unknown;
   osas_verified_at: string | null;
+  school_id_url: string | null;
+  assessment_of_fees_url: string | null;
 }
 
 interface LeaseRow {
@@ -459,6 +497,8 @@ const email = ref('—');
 const contact = ref('—');
 const verified = ref(false);
 const osasVerified = ref(false);
+const pendingReview = ref(false);
+const sex = ref<string | null>(null);
 const qrDataUrl = ref('');
 const stayLabel = ref('—');
 const yearLevel = ref('3rd Year'); // Default fallback
@@ -472,6 +512,20 @@ const assessmentRef = ref<any>(null);
 const schoolIdRef = ref<any>(null);
 const assessmentFile = ref<File | null>(null);
 const schoolIdFile = ref<File | null>(null);
+
+// Edit Profile Dialog State
+const editDialog = ref(false);
+const savingProfile = ref(false);
+const editFullName = ref('');
+const editPhone = ref('');
+const editSex = ref('');
+
+// Emergency Contact Dialog State
+const emergencyDialog = ref(false);
+const savingEmergency = ref(false);
+const emergencyName = ref('');
+const emergencyRelation = ref('');
+const emergencyPhone = ref('');
 
 const isVerificationReady = computed(() => !!assessmentFile.value && !!schoolIdFile.value);
 
@@ -496,6 +550,21 @@ function formatPeso(amount: number): string {
   return '\u20B1' + amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return 'th';
+  switch (n % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
+
+function yearLevelLabel(y: number): string {
+  return `${y}${ordinal(y)} Year`;
+}
+
 async function loadProfile() {
   loading.value = true;
   error.value = null;
@@ -505,8 +574,8 @@ async function loadProfile() {
 
     // Fetch user + student profile + active lease in parallel
     const [userResult, profileResult, leaseResult] = await Promise.all([
-      supabase.from('users').select('full_name, initials, email, phone, status, avatar_color').eq('id', user.id).maybeSingle(),
-      supabase.from('student_profiles').select('student_id, program, college, year_level, emergency_contact_json, osas_verified_at').eq('user_id', user.id).maybeSingle(),
+      supabase.from('users').select('full_name, initials, email, phone, status, avatar_color, sex').eq('id', user.id).maybeSingle(),
+      supabase.from('student_profiles').select('student_id, program, college, year_level, emergency_contact_json, osas_verified_at, school_id_url, assessment_of_fees_url').eq('user_id', user.id).maybeSingle(),
       supabase.from('leases')
         .select('id, status, start_date, end_date, monthly_rent, room:rooms(room_number, property:properties(name, address, rating_avg))')
         .eq('student_id', user.id).eq('status', 'active').maybeSingle(),
@@ -519,6 +588,7 @@ async function loadProfile() {
       email.value = u.email ?? '—';
       contact.value = u.phone ?? '—';
       verified.value = u.status === 'verified';
+      sex.value = u.sex ?? null;
     }
 
     let totalMonths = 12;
@@ -528,9 +598,11 @@ async function loadProfile() {
       course.value = p.program ?? '—';
       campus.value = p.college ? p.college.replace(/^.*\((.*)\)$/, '$1') : 'ISU Echague';
       osasVerified.value = !!p.osas_verified_at;
-      
+      // "Under review" = documents submitted but OSAS has not approved yet.
+      pendingReview.value = !p.osas_verified_at && (!!p.school_id_url || !!p.assessment_of_fees_url);
+
       if (p.year_level) {
-        yearLevel.value = `${p.year_level}rd Year`; // naive mapping for suffix if needed, or simply assign
+        yearLevel.value = yearLevelLabel(p.year_level);
       }
 
       if (p.emergency_contact_json) {
@@ -606,33 +678,24 @@ async function loadProfile() {
       id: string; property_name: string | null; period_start: string; period_end: string; room_type: string | null; end_reason: string | null;
     }>;
 
-    // Hardcode matching layout exactly for demo purpose based on screenshot if empty, but logic uses DB
-    if(rows.length === 0) {
-       history.value = [
-          { id: 1, name: 'Pinzon Student Hub', address: 'Purok 3, Alibagu, Ilagan', dateRange: 'Aug 2022 – May 2023', status: 'Moved Out', badgeColor: 'grey-3', textColor: 'grey-7', dotColor: '#BDBDBD', last: false },
-          { id: 2, name: 'Campus View Dorm', address: 'Brgy. Ugac Norte, Cauayan', dateRange: 'Jun 2023 – Dec 2023', status: 'Evicted', badgeColor: 'red-1', textColor: 'red-5', dotColor: '#EF5350', last: false },
-          { id: 3, name: 'Dela Cruz Boarding', address: 'Brgy. Osmeña, Echague', dateRange: 'Jan 2024 – Present', status: 'Current', badgeColor: 'teal-1', textColor: 'teal-7', dotColor: '#00897B', last: true }
-       ]
-    } else {
-      history.value = rows.map((h, i) => {
-        const start = new Date(h.period_start).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
-        const end = new Date(h.period_end).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
-        const active = !h.end_reason;
-        return {
-          id: i + 1,
-          name: h.property_name ?? 'Boarding House',
-          address: h.room_type ? `${h.room_type} room` : '—',
-          dateRange: `${start} – ${end}`,
-          status: active ? 'Current' : h.end_reason === 'evicted' ? 'Evicted' : 'Moved Out',
-          badgeColor: active ? 'teal-1' : h.end_reason === 'evicted' ? 'red-1' : 'grey-3',
-          textColor: active ? 'teal-7' : h.end_reason === 'evicted' ? 'red-5' : 'grey-7',
-          dotColor: active ? '#00897B' : h.end_reason === 'evicted' ? '#EF5350' : '#BDBDBD',
-          last: false,
-        };
-      });
-      const lastRow = history.value.at(-1);
-      if (lastRow) lastRow.last = true;
-    }
+    history.value = rows.map((h, i) => {
+      const start = new Date(h.period_start).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+      const end = new Date(h.period_end).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+      const active = !h.end_reason;
+      return {
+        id: i + 1,
+        name: h.property_name ?? 'Boarding House',
+        address: h.room_type ? `${h.room_type} room` : '—',
+        dateRange: `${start} – ${end}`,
+        status: active ? 'Current' : h.end_reason === 'evicted' ? 'Evicted' : 'Moved Out',
+        badgeColor: active ? 'teal-1' : h.end_reason === 'evicted' ? 'red-1' : 'grey-3',
+        textColor: active ? 'teal-7' : h.end_reason === 'evicted' ? 'red-5' : 'grey-7',
+        dotColor: active ? '#00897B' : h.end_reason === 'evicted' ? '#EF5350' : '#BDBDBD',
+        last: false,
+      };
+    });
+    const lastRow = history.value.at(-1);
+    if (lastRow) lastRow.last = true;
 
     // Generate the verification QR locally (no external service)
     if (osasVerified.value) {
@@ -647,6 +710,83 @@ async function loadProfile() {
 
 function verifyNow() {
   verificationDialog.value = true;
+}
+
+function openEditProfile() {
+  editFullName.value = fullName.value === 'Student' ? '' : fullName.value;
+  editPhone.value = contact.value === '—' ? '' : contact.value;
+  editSex.value = sex.value ?? '';
+  editDialog.value = true;
+}
+
+async function saveProfile() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) { void router.push('/login'); return; }
+
+  const name = editFullName.value.trim();
+  if (!name) {
+    $q.notify({ message: 'Full name is required.', color: 'warning', position: 'top', classes: 'custom-notify' });
+    return;
+  }
+
+  savingProfile.value = true;
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({ full_name: name, phone: editPhone.value.trim() || '+639000000000', sex: editSex.value || null })
+      .eq('id', user.id);
+    if (error) throw error;
+    editDialog.value = false;
+    $q.notify({ message: 'Profile updated.', color: 'teal-8', position: 'top', classes: 'custom-notify', icon: 'check_circle' });
+    await loadProfile();
+  } catch (e) {
+    $q.notify({ message: e instanceof Error ? e.message : 'Failed to update profile', color: 'negative', position: 'top', classes: 'custom-notify' });
+  } finally {
+    savingProfile.value = false;
+  }
+}
+
+function openEmergency() {
+  emergencyName.value = emergency.value.name === 'Emergency Contact' ? '' : emergency.value.name;
+  emergencyRelation.value = emergency.value.relation === '—' ? '' : emergency.value.relation;
+  emergencyPhone.value = emergency.value.phone === '—' ? '' : emergency.value.phone;
+  emergencyDialog.value = true;
+}
+
+async function saveEmergency() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) { void router.push('/login'); return; }
+
+  if (!emergencyName.value.trim()) {
+    $q.notify({ message: 'Emergency contact name is required.', color: 'warning', position: 'top', classes: 'custom-notify' });
+    return;
+  }
+
+  savingEmergency.value = true;
+  try {
+    const { error } = await supabase
+      .from('student_profiles')
+      .update({
+        emergency_contact_json: {
+          name: emergencyName.value.trim(),
+          relation: emergencyRelation.value.trim() || null,
+          phone: emergencyPhone.value.trim() || null,
+        },
+      })
+      .eq('user_id', user.id);
+    if (error) throw error;
+    emergencyDialog.value = false;
+    $q.notify({ message: 'Emergency contact saved.', color: 'teal-8', position: 'top', classes: 'custom-notify', icon: 'check_circle' });
+    await loadProfile();
+  } catch (e) {
+    $q.notify({ message: e instanceof Error ? e.message : 'Failed to save emergency contact', color: 'negative', position: 'top', classes: 'custom-notify' });
+  } finally {
+    savingEmergency.value = false;
+  }
+}
+
+function goNotifications() {
+  void router.push('/student/notifications');
 }
 
 async function generateQr() {
@@ -666,39 +806,90 @@ async function generateQr() {
   }
 }
 
-function submitVerification() {
-  submitting.value = true;
+async function submitVerification() {
+  if (!assessmentFile.value || !schoolIdFile.value) {
+    $q.notify({
+      message: 'Please attach both your Assessment of Fees and School ID.',
+      color: 'warning',
+      position: 'top',
+      classes: 'custom-notify',
+      icon: 'error',
+    });
+    return;
+  }
 
-  // Simulate upload & verification processing
-  setTimeout(() => {
-    submitting.value = false;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) { void router.push('/login'); return; }
+
+  submitting.value = true;
+  try {
+    // Upload both documents to the 'documents' storage bucket in parallel.
+    const [assessmentUrl, schoolIdUrl] = await Promise.all([
+      uploadDocument(assessmentFile.value, user.id, 'assessment'),
+      uploadDocument(schoolIdFile.value, user.id, 'school_id'),
+    ]);
+
+    // Persist the document URLs on the student profile for OSAS review.
+    const { error: profileError } = await supabase
+      .from('student_profiles')
+      .update({
+        assessment_of_fees_url: assessmentUrl,
+        school_id_url: schoolIdUrl,
+      })
+      .eq('user_id', user.id);
+
+    if (profileError) throw profileError;
+
+    // Add entries to the verification queue for OSAS admins. Best-effort: a
+    // failure here must not fail the submission, since the profile URLs are
+    // already persisted (and drive the "under review" state on reload).
+    try {
+      const { error: docError } = await supabase.from('verification_documents').insert([
+        { user_id: user.id, doc_type: 'assessment_of_fees', file_url: assessmentUrl, filename: assessmentFile.value.name, status: 'pending' },
+        { user_id: user.id, doc_type: 'school_id', file_url: schoolIdUrl, filename: schoolIdFile.value.name, status: 'pending' },
+      ]);
+      if (docError) console.warn('[profile] verification_documents insert skipped:', docError.message);
+    } catch (e) {
+      console.warn('[profile] verification_documents insert skipped:', e);
+    }
+
+    pendingReview.value = true;
     verifiedSuccess.value = true;
 
-    // Wait for user to read success message before closing
+    // Give the user a moment to read the success message before closing.
     setTimeout(() => {
       verificationDialog.value = false;
-      osasVerified.value = true;
-      void generateQr();
-      
-      // Clean up states
-      setTimeout(() => {
-        verifiedSuccess.value = false;
-        assessmentFile.value = null;
-        schoolIdFile.value = null;
-      }, 300);
-      
+      assessmentFile.value = null;
+      schoolIdFile.value = null;
+      verifiedSuccess.value = false;
+      void loadProfile();
     }, 2500);
-  }, 2000);
+  } catch (e) {
+    $q.notify({
+      message: e instanceof Error ? e.message : 'Failed to submit documents',
+      color: 'negative',
+      position: 'top',
+      classes: 'custom-notify',
+      icon: 'error',
+    });
+  } finally {
+    submitting.value = false;
+  }
 }
 
 function callEmergency() {
-  $q.notify({
-    message: 'Calling ' + emergency.value.name + '...',
-    color: 'orange-9',
-    position: 'top',
-    classes: 'custom-notify',
-    icon: 'call',
-  });
+  const phone = emergency.value.phone;
+  if (!phone || phone === '—') {
+    $q.notify({
+      message: 'No phone number saved for this contact.',
+      color: 'warning',
+      position: 'top',
+      classes: 'custom-notify',
+      icon: 'call',
+    });
+    return;
+  }
+  window.location.href = 'tel:' + phone.replace(/[^+0-9]/g, '');
 }
 
 async function handleLogout() {

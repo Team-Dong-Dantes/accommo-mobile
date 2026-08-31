@@ -244,6 +244,7 @@ interface PaymentRow {
   status: string;
   method: string | null;
   txn_reference: string | null;
+  proof_url: string | null;
 }
 
 interface PaymentMethod {
@@ -348,7 +349,7 @@ async function loadPayments() {
     if (lease.value?.id) {
       const { data: payments, error: payError } = await supabase
         .from('payments')
-        .select('id, month, description, amount, status, method, txn_reference')
+        .select('id, month, description, amount, status, method, txn_reference, proof_url')
         .eq('lease_id', lease.value.id)
         .order('month', { ascending: false });
 
@@ -364,8 +365,8 @@ async function loadPayments() {
   }
 }
 
-function openPaymentMethod(amount: number = 2500) {
-  amountDue.value = amount;
+function openPaymentMethod(amount?: number) {
+  amountDue.value = amount ?? lease.value?.monthly_rent ?? 0;
   selectedMethod.value = null;
   referenceNumber.value = '';
   proofFile.value = null;
@@ -464,13 +465,19 @@ function finishPayment() {
 }
 
 function downloadReceipt(id: string) {
-  $q.notify({
-    message: 'Receipt download started.',
-    color: 'grey-9',
-    position: 'top',
-    classes: 'custom-notify',
-    icon: 'download',
-  });
+  const payment = paymentHistory.value.find((p) => p.id === id);
+  const url = payment?.proof_url;
+  if (url) {
+    window.open(url, '_blank');
+  } else {
+    $q.notify({
+      message: 'No receipt available for this payment.',
+      color: 'grey-9',
+      position: 'top',
+      classes: 'custom-notify',
+      icon: 'download',
+    });
+  }
 }
 
 onMounted(loadPayments);
