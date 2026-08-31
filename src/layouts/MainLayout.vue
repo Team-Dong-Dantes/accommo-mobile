@@ -205,7 +205,7 @@ onMounted(async () => {
         const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).single()
 
         if (userData) {
-          userRole.value = userData.role
+          userRole.value = String(userData.role) === 'accommodation_manager' ? 'landlord' : userData.role
         }
       }
     }

@@ -195,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { supabase } from '@/shared/utils/supabase'
@@ -249,42 +249,21 @@ const router = useRouter()
 const $q = useQuasar()
 
 const profile = ref<ProfileState>({
-  initials: 'JD',
-  fullName: 'Juan Dela Cruz',
-  landlordCode: 'LL-2021-009',
-  memberSince: 'Aug 2021',
-  email: 'jdelacruz@email.com',
-  contact: '+63 912 345 6789',
-  area: 'Echague, Isabela',
-  joined: 'August 2021',
+  initials: '',
+  fullName: '',
+  landlordCode: '',
+  memberSince: '',
+  email: '',
+  contact: '',
+  area: '',
+  joined: '',
 })
 
-const stats = ref<StatItem[]>([
-  { label: 'Properties', value: '3', note: 'Active', noteClass: 'stat-active' },
-  { label: 'Tenants', value: '15', note: '+2 new', noteClass: 'stat-new' },
-  { label: 'Rating', value: '4.8', note: '22 reviews', noteClass: 'stat-reviews' },
-  { label: 'Occupancy', value: '98%', note: '+1.2%', noteClass: 'stat-active' },
-])
-
-const properties = ref<PropertyItem[]>([
-  { id: 'p1', name: 'Pinzon Student Hub', address: 'Purok 3, Alibagu', rating: 4.8, occupied: 7, total: 8 },
-  { id: 'p2', name: 'JD Boarding House', address: 'Brgy. Osmeña', rating: 4.6, occupied: 4, total: 5 },
-  { id: 'p3', name: 'Campus View Annex', address: 'Brgy. Ugac Norte', rating: 4.9, occupied: 4, total: 4 },
-])
-
-const compliance = ref<ComplianceItem[]>([
-  { name: 'Business Permit', date: 'Dec 2026', status: 'Valid', tone: 'valid' },
-  { name: 'OSAS Accreditation', date: 'Jun 2026', status: 'Valid', tone: 'valid' },
-  { name: 'Fire Safety Cert.', date: 'May 2026', status: 'Expiring', tone: 'expiring' },
-  { name: 'Sanitary Permit', date: 'Dec 2026', status: 'Valid', tone: 'valid' },
-])
-
-const reviews = ref<ReviewItem[]>([
-  { id: 'r1', initials: 'MS', author: 'Maria S.', rating: 5, date: 'Apr 2026', comment: 'Very clean and affordable. Landlord is very responsive!' },
-  { id: 'r2', initials: 'CR', author: 'Carlo R.', rating: 4, date: 'Mar 2026', comment: 'Good location near ISU. Minor issues fixed quickly.' },
-])
-
-const reviewsAverage = '4.8'
+const stats = ref<StatItem[]>([])
+const properties = ref<PropertyItem[]>([])
+const compliance = ref<ComplianceItem[]>([])
+const reviews = ref<ReviewItem[]>([])
+const reviewsAverage = '—'
 const activeProperties = computed(() => properties.value.length)
 
 const editDialog = ref(false)
@@ -295,11 +274,123 @@ function openEdit() {
   editDialog.value = true
 }
 
+function initialsOf(name: string) {
+  const parts = name.trim().split(' ').filter(Boolean)
+  if (parts.length >= 2) {
+    const first = parts[0]?.[0] || ''
+    const last = parts[parts.length - 1]?.[0] || ''
+    return (first + last).toUpperCase()
+  }
+  if (parts.length === 1) {
+    return (parts[0] || '').slice(0, 2).toUpperCase()
+  }
+  return 'UN'
+}
+
+async function loadProfile() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Real profile from the users table (fall back to auth metadata/email).
+    const { data: me } = await supabase
+      .from('users')
+      .select('full_name, initials, email, phone, created_at')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const fullName = (me as any)?.full_name || (user.user_metadata as any)?.full_name || ''
+    const email = (me as any)?.email || user.email || ''
+    const phone = (me as any)?.phone || ''
+    const createdAt = (me as any)?.created_at
+
+    profile.value = {
+      initials: (me as any)?.initials || initialsOf(fullName),
+      fullName: fullName || 'Accommodation Manager',
+      landlordCode: '',
+      memberSince: createdAt ? new Date(createdAt).toLocaleString('en-US', { month: 'short', year: 'numeric' }) : '—',
+      email: email || '—',
+      contact: phone || '—',
+      area: '—',
+      joined: createdAt ? new Date(createdAt).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : '—',
+    }
+
+    // Real accommodations managed by this landlord.
+    const { data: accs } = await supabase
+      .from('accommodations' as any)
+      .select('id, name, address, total_rooms, rating_avg')
+      .eq('accommodation_manager_id', user.id)
+      .order('name')
+
+    const accList = (accs ?? []) as any[]
+    const accIds = accList.map((a: any) => a.id)
+
+    // Occupancy via rooms -> active leases.
+    const occupiedByAcc = new Map<string, number>()
+    if (accIds.length) {
+      const { data: rooms } = await supabase
+        .from('rooms')
+        .select('id, accommodation_id')
+        .in('accommodation_id', accIds)
+      const roomRows = (rooms ?? []) as any[]
+      const roomIds = roomRows.map((r: any) => r.id)
+      if (roomIds.length) {
+        const { data: leases } = await supabase
+          .from('leases')
+          .select('room_id')
+          .in('room_id', roomIds)
+          .eq('status', 'active')
+        const roomToAcc = new Map(roomRows.map((r: any) => [r.id, r.accommodation_id]))
+        ;(leases ?? []).forEach((l: any) => {
+          const accId = roomToAcc.get(l.room_id)
+          if (accId) occupiedByAcc.set(accId, (occupiedByAcc.get(accId) || 0) + 1)
+        })
+      }
+    }
+
+    properties.value = accList.map((a: any) => {
+      const total = Number(a.total_rooms) || 0
+      return {
+        id: a.id,
+        name: a.name || 'Boarding House',
+        address: a.address || '—',
+        rating: Number(a.rating_avg) || 0,
+        occupied: occupiedByAcc.get(a.id) || 0,
+        total: total || 1,
+      }
+    })
+
+    const totalTenants = Array.from(occupiedByAcc.values()).reduce((s, n) => s + n, 0)
+    const totalRooms = accList.reduce((s, a) => s + (Number(a.total_rooms) || 0), 0)
+    const avgRating = accList.length
+      ? accList.reduce((s, a) => s + (Number(a.rating_avg) || 0), 0) / accList.length
+      : 0
+
+    stats.value = [
+      { label: 'Properties', value: String(accList.length), note: 'Active', noteClass: 'stat-active' },
+      { label: 'Tenants', value: String(totalTenants), note: '', noteClass: 'stat-new' },
+      { label: 'Rating', value: accList.length ? avgRating.toFixed(1) : '—', note: 'avg', noteClass: 'stat-reviews' },
+      { label: 'Occupancy', value: totalRooms ? Math.round((totalTenants / totalRooms) * 100) + '%' : '0%', note: '', noteClass: 'stat-active' },
+    ]
+  } catch (e) {
+    console.error('loadProfile error:', e)
+  }
+}
+
 function saveEdit() {
-  profile.value.fullName = editForm.value.fullName
-  profile.value.email = editForm.value.email
+  const fullName = editForm.value.fullName.trim()
+  if (!fullName) return
+  profile.value.fullName = fullName
+  profile.value.initials = initialsOf(fullName)
   editDialog.value = false
-  $q.notify({ message: 'Profile updated (mock)', color: 'teal-9', position: 'top' })
+  $q.notify({ message: 'Profile updated', color: 'teal-9', position: 'top' })
+  // Persist the name to the users table.
+  void supabase.auth.getUser().then(({ data }) => {
+    const id = data?.user?.id
+    if (id) void supabase.from('users').update({ full_name: fullName } as any).eq('id', id)
+  })
 }
 
 function openCamera() {
@@ -322,6 +413,10 @@ async function handleLogout() {
   await supabase.auth.signOut()
   void router.push('/login')
 }
+
+onMounted(() => {
+  void loadProfile()
+})
 </script>
 
 <style scoped>
