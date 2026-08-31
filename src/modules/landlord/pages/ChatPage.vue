@@ -239,13 +239,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { supabase } from '@/shared/utils/supabase'
 
 const router = useRouter()
+const route = useRoute()
 const $q = useQuasar()
 const authStore = useAuthStore()
 const chat = useChatStore()
@@ -411,8 +412,12 @@ function formatTimestamp(ts: string): string {
   return date.toLocaleDateString()
 }
 
-onMounted(() => {
-  void chat.loadConversations()
+onMounted(async () => {
+  await chat.loadConversations()
+  const convId = route.query.conv as string | undefined
+  if (convId) {
+    void chat.loadMessages(convId)
+  }
 })
 </script>
 

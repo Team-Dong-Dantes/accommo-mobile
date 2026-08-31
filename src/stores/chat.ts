@@ -203,17 +203,38 @@ export const useChatStore = defineStore('chat', {
       } = await supabase.auth.getUser()
       if (!user) return []
 
-      const { data, error } = await supabase
-        .from('leases')
-        .select('student_id, users!leases_student_id_fkey(full_name)')
-        .eq('landlord_id', user.id)
-        .eq('status', 'active')
-      if (error) throw error
+      // leases have no landlord_id; resolve via accommodations -> rooms -> leases.
+      const { data: accs } = await supabase
+        .from('accommodations' as any)
+        .select('id')
+        .eq('accommodation_manager_id', user.id)
+      const accIds = (accs ?? []).map((a: any) => a.id)
 
-      return (data || []).map((l: any) => ({
-        id: l.student_id,
-        name: l.users?.full_name || 'Student',
-      }))
+      let leaseRows: any[] = []
+      if (accIds.length) {
+        const { data: rooms } = await supabase.from('rooms').select('id').in('accommodation_id', accIds)
+        const roomIds = (rooms ?? []).map((r: any) => r.id)
+        if (roomIds.length) {
+          const { data: leases } = await supabase
+            .from('leases')
+            .select('student_id')
+            .in('room_id', roomIds)
+            .eq('status', 'active')
+          leaseRows = leases ?? []
+        }
+      }
+
+      const studentIds = Array.from(new Set(leaseRows.map((l: any) => l.student_id)))
+      const userMap = new Map<string, string>()
+      if (studentIds.length) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('id, full_name')
+          .in('id', studentIds)
+        ;(users ?? []).forEach((u: any) => userMap.set(u.id, u.full_name || 'Student'))
+      }
+
+      return studentIds.map((id) => ({ id, name: userMap.get(id) || 'Student' }))
     },
 
     // Landlord messaging is tenant-only; OSAS concerns are filed via the Support page.

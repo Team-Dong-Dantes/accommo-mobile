@@ -99,10 +99,12 @@ const conversations = ref<Conversation[]>([])
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { supabase } from '@/shared/utils/supabase'
 
 const $q = useQuasar()
+const router = useRouter()
 
 const searchText = ref('')
 
@@ -145,7 +147,7 @@ async function loadConversations() {
     const otherIds = convoList.map((c: any) => (c.user_a_id === user.id ? c.user_b_id : c.user_a_id))
     const userMap = new Map<string, any>()
     if (otherIds.length) {
-      const { data: users } = await supabase.from('users').select('id, full_name').in('id', otherIds)
+      const { data: users } = await supabase.from('users').select('id, full_name, email').in('id', otherIds)
       ;(users ?? []).forEach((u: any) => userMap.set(u.id, u))
     }
 
@@ -165,7 +167,7 @@ async function loadConversations() {
     conversations.value = convoList.map((c: any) => {
       const otherId = c.user_a_id === user.id ? c.user_b_id : c.user_a_id
       const other = userMap.get(otherId)
-      const name = other?.full_name || 'Unknown User'
+      const name = other?.full_name || other?.email || 'User'
       const msgs = msgsByConvo.get(c.id) || []
       const last = msgs[msgs.length - 1]
       const isMine = last && last.sender_id === user.id
@@ -189,7 +191,7 @@ async function loadConversations() {
 }
 
 function openConversation(conv: Conversation) {
-  $q.notify({ message: `Opening chat with ${conv.name}`, color: 'teal-9', position: 'top' })
+  void router.push(`/landlord/chat?conv=${conv.id}`)
 }
 
 onMounted(() => {
