@@ -4,6 +4,13 @@ import type { ChatMessage } from '@/shared/types/app-types'
 
 let messageChannel: any = null
 
+// Store timestamps as local naive datetime (no timezone) so a naive
+// `timestamp` column round-trips without the UTC offset shifting the display.
+function localNaiveISO(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
 function unsubscribeMessages() {
   if (messageChannel) {
     void supabase.removeChannel(messageChannel)
@@ -146,6 +153,7 @@ export const useChatStore = defineStore('chat', {
       } = await supabase.auth.getUser()
       if (!user) return
 
+      const nowLocal = localNaiveISO(new Date())
       const { error } = await supabase
         .from('messages')
         .insert({
@@ -153,7 +161,7 @@ export const useChatStore = defineStore('chat', {
           sender_id: user.id,
           body: text.trim(),
           status: 'sent',
-          sent_at: new Date().toISOString(),
+          sent_at: nowLocal,
         } as any)
       if (error) throw error
 
@@ -161,9 +169,29 @@ export const useChatStore = defineStore('chat', {
         .from('conversations')
         .update({
           last_message: text.trim(),
-          last_time: new Date().toISOString(),
+          last_time: nowLocal,
         } as any)
         .eq('id', conversationId)
+
+      // Notify the other participant so they see the new message.
+      const { data: convo } = await supabase
+        .from('conversations')
+        .select('user_a_id, user_b_id')
+        .eq('id', conversationId)
+        .maybeSingle()
+      if (convo) {
+        const otherId = (convo as any).user_a_id === user.id ? (convo as any).user_b_id : (convo as any).user_a_id
+        if (otherId) {
+          await supabase.from('notifications').insert({
+            id: crypto.randomUUID(),
+            user_id: otherId,
+            title: 'New message',
+            body: text.trim(),
+            type: 'message',
+            read_at: null,
+          } as any)
+        }
+      }
 
       await this.loadMessages(conversationId)
     },
