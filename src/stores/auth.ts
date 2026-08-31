@@ -321,11 +321,12 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
-      this.cachedRole = userData?.role ?? null;
+      const role = typeof userData?.role === 'string' ? userData.role.toLowerCase() : null;
+      this.cachedRole = role;
 
       return {
         session: authData.session,
-        role: userData?.role,
+        role,
       };
     },
 
@@ -355,11 +356,14 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async loginWithGoogle(redirectPath: string) {
+      // The app uses hash-based routing (/#/login), so the OAuth callback must
+      // include the hash; otherwise the redirect lands on the wrong route and
+      // the returned session is never picked up.
+      const redirectTo = window.location.origin + '/#/' + redirectPath.replace(/^\/+/, '');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin + redirectPath },
+        options: { redirectTo },
       });
-
       if (error) throw sanitizeError(error);
       return data;
     },
@@ -377,7 +381,8 @@ export const useAuthStore = defineStore('auth', {
         .eq('id', session.user.id)
         .maybeSingle();
 
-      this.cachedRole = profile?.role ?? null;
+      const role = typeof profile?.role === 'string' ? profile.role.toLowerCase() : null;
+      this.cachedRole = role;
 
       return { session, profile };
     },

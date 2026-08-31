@@ -38,8 +38,9 @@ export default defineRouter(() => {
 
         if (error || !data) return null;
 
-        authStore.cachedRole = data.role;
-        return data.role;
+        const role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
+        authStore.cachedRole = role;
+        return role;
       } catch {
         return null;
       } finally {
