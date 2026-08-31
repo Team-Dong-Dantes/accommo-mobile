@@ -1,0 +1,347 @@
+<mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="3200" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" value="Database ER Diagram" />
+    <mxCell id="USERS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">USERS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">email</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">full_name</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">role</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">phone</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">status</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="20" width="240" height="170" as="geometry" />
+    </mxCell>
+    <mxCell id="STUDENT_PROFILES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">STUDENT_PROFILES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">user_id</td><td style="width:54%;">PK/FK→USERS</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">student_id</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">program</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">college</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">year_level</td><td style="width:54%;">int</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">school_id_url</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">assessment_of_fees_url</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">osas_verified_at</td><td style="width:54%;">timestamp</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="300" y="20" width="240" height="218" as="geometry" />
+    </mxCell>
+    <mxCell id="LANDLORD_PROFILES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">LANDLORD_PROFILES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">user_id</td><td style="width:54%;">PK/FK→USERS</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">government_id_url</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">response_rate</td><td style="width:54%;">numeric</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">avg_response_minutes</td><td style="width:54%;">int</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="580" y="20" width="240" height="122" as="geometry" />
+    </mxCell>
+    <mxCell id="ADMIN_PROFILES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">ADMIN_PROFILES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">user_id</td><td style="width:54%;">PK/FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="860" y="20" width="240" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="PROPERTIES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">PROPERTIES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">landlord_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">name</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">address</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">business_name</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">accreditation_status</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">rating_avg</td><td style="width:54%;">numeric</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="278" width="240" height="194" as="geometry" />
+    </mxCell>
+    <mxCell id="ROOMS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">ROOMS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">room_number</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="300" y="278" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="ROOM_IMAGES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">ROOM_IMAGES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">room_id</td><td style="width:54%;">FK→ROOMS</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">url</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="580" y="278" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="PROPERTY_IMAGES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">PROPERTY_IMAGES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">url</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="860" y="278" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="PROPERTY_AMENITIES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">PROPERTY_AMENITIES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="512" width="240" height="74" as="geometry" />
+    </mxCell>
+    <mxCell id="PROPERTY_POLICIES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">PROPERTY_POLICIES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="300" y="512" width="240" height="74" as="geometry" />
+    </mxCell>
+    <mxCell id="PROPERTY_DOCUMENTS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">PROPERTY_DOCUMENTS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">file_url</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="580" y="512" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="PROPERTY_REVIEWS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">PROPERTY_REVIEWS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">lease_id</td><td style="width:54%;">FK→LEASES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">student_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="860" y="512" width="240" height="122" as="geometry" />
+    </mxCell>
+    <mxCell id="LEASES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">LEASES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">student_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">landlord_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">room_id</td><td style="width:54%;">FK→ROOMS</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">status</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">monthly_rent</td><td style="width:54%;">numeric</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">start_date</td><td style="width:54%;">timestamp</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">end_date</td><td style="width:54%;">timestamp</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="674" width="240" height="218" as="geometry" />
+    </mxCell>
+    <mxCell id="PAYMENTS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">PAYMENTS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">lease_id</td><td style="width:54%;">FK→LEASES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">verified_by</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">amount</td><td style="width:54%;">numeric</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">status</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="300" y="674" width="240" height="146" as="geometry" />
+    </mxCell>
+    <mxCell id="CONCERNS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">CONCERNS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">lease_id</td><td style="width:54%;">FK→LEASES</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">category</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">status</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="580" y="674" width="240" height="122" as="geometry" />
+    </mxCell>
+    <mxCell id="CONVERSATIONS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">CONVERSATIONS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">user_a_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">user_b_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="860" y="674" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="MESSAGES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">MESSAGES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">conversation_id</td><td style="width:54%;">FK→CONVERSATIONS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">sender_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="932" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="NOTIFICATIONS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">NOTIFICATIONS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">user_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="300" y="932" width="240" height="74" as="geometry" />
+    </mxCell>
+    <mxCell id="BOARDING_HISTORY" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">BOARDING_HISTORY</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">student_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="580" y="932" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="COMPLAINTS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">COMPLAINTS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">student_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">landlord_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">property_id</td><td style="width:54%;">FK→PROPERTIES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">osas_officer_id</td><td style="width:54%;">FK→ADMIN_PROFILES</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">status</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="860" y="932" width="240" height="170" as="geometry" />
+    </mxCell>
+    <mxCell id="COMPLAINT_TIMELINE" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">COMPLAINT_TIMELINE</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">complaint_id</td><td style="width:54%;">FK→COMPLAINTS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">actor_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="1142" width="240" height="98" as="geometry" />
+    </mxCell>
+    <mxCell id="LANDLORD_REVIEWS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">LANDLORD_REVIEWS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">landlord_id</td><td style="width:54%;">FK→LANDLORD_PROFILES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">lease_id</td><td style="width:54%;">FK→LEASES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">student_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="300" y="1142" width="240" height="122" as="geometry" />
+    </mxCell>
+    <mxCell id="TENANT_REVIEWS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">TENANT_REVIEWS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">landlord_id</td><td style="width:54%;">FK→LANDLORD_PROFILES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">lease_id</td><td style="width:54%;">FK→LEASES</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">student_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="580" y="1142" width="240" height="122" as="geometry" />
+    </mxCell>
+    <mxCell id="VERIFICATION_DOCUMENTS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">VERIFICATION_DOCUMENTS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">user_id</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">verified_by</td><td style="width:54%;">FK→USERS</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">doc_type</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">file_url</td><td style="width:54%;">string</td></tr><tr><td style="background:#ffffff;font-weight:600;width:46%;">status</td><td style="width:54%;">string</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="860" y="1142" width="240" height="170" as="geometry" />
+    </mxCell>
+    <mxCell id="ANNOUNCEMENTS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">ANNOUNCEMENTS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">author_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="1352" width="240" height="74" as="geometry" />
+    </mxCell>
+    <mxCell id="POLICIES" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">POLICIES</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">created_by</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="300" y="1352" width="240" height="74" as="geometry" />
+    </mxCell>
+    <mxCell id="AUDIT_LOGS" value="<table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;font-size:11px;font-family:Segoe UI,Arial;"><tr><td colspan="2" style="background:#00897b;color:#fff;font-weight:bold;text-align:center;">AUDIT_LOGS</td></tr><tr><td style="background:#ffe0b2;font-weight:600;width:46%;">id</td><td style="width:54%;">PK uuid</td></tr><tr><td style="background:#e0f2f1;font-weight:600;width:46%;">actor_id</td><td style="width:54%;">FK→USERS</td></tr></table>" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#004d40;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="580" y="1352" width="240" height="74" as="geometry" />
+    </mxCell>
+    <mxCell id="e0" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="STUDENT_PROFILES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e1" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="LANDLORD_PROFILES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e2" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="ADMIN_PROFILES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e3" value="landlord_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTIES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e4" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="ROOMS" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e5" value="room_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="ROOM_IMAGES" target="ROOMS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e6" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTY_IMAGES" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e7" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTY_AMENITIES" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e8" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTY_POLICIES" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e9" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTY_DOCUMENTS" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e10" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTY_REVIEWS" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e11" value="lease_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTY_REVIEWS" target="LEASES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e12" value="student_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PROPERTY_REVIEWS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e13" value="student_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="LEASES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e14" value="landlord_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="LEASES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e15" value="room_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="LEASES" target="ROOMS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e16" value="lease_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PAYMENTS" target="LEASES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e17" value="verified_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="PAYMENTS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e18" value="lease_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="CONCERNS" target="LEASES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e19" value="user_a_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="CONVERSATIONS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e20" value="user_b_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="CONVERSATIONS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e21" value="conversation_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="MESSAGES" target="CONVERSATIONS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e22" value="sender_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="MESSAGES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e23" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="NOTIFICATIONS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e24" value="student_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="BOARDING_HISTORY" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e25" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="BOARDING_HISTORY" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e26" value="student_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="COMPLAINTS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e27" value="landlord_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="COMPLAINTS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e28" value="property_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="COMPLAINTS" target="PROPERTIES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e29" value="osas_officer_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="COMPLAINTS" target="ADMIN_PROFILES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e30" value="complaint_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="COMPLAINT_TIMELINE" target="COMPLAINTS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e31" value="actor_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="COMPLAINT_TIMELINE" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e32" value="landlord_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="LANDLORD_REVIEWS" target="LANDLORD_PROFILES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e33" value="lease_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="LANDLORD_REVIEWS" target="LEASES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e34" value="student_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="LANDLORD_REVIEWS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e35" value="landlord_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="TENANT_REVIEWS" target="LANDLORD_PROFILES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e36" value="lease_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="TENANT_REVIEWS" target="LEASES">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e37" value="student_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="TENANT_REVIEWS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e38" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="VERIFICATION_DOCUMENTS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e39" value="verified_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="VERIFICATION_DOCUMENTS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e40" value="author_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="ANNOUNCEMENTS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e41" value="created_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="POLICIES" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e42" value="actor_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=ERmandatory;strokeColor=#004d40;" edge="1" parent="1" source="AUDIT_LOGS" target="USERS">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="2" parent="0" value="Level-0 DFD" />
+    <mxCell id="ext_student" value="Student
+(Mobile App)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="2">
+      <mxGeometry x="40" y="80" width="170" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="ext_landlord" value="Landlord
+(Mobile App)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="2">
+      <mxGeometry x="40" y="360" width="170" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="ext_osas" value="OSAS Admin
+(Web)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="2">
+      <mxGeometry x="40" y="640" width="170" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="p1" value="P1 Authentication" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="380" y="80" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="p5" value="P5 Messaging" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="380" y="240" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="p6" value="P6 Reviews & Ratings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="380" y="400" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="p2" value="P2 Registration &
+Accreditation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="380" y="560" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="p3" value="P3 Property & Room
+Management" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="380" y="720" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="p4" value="P4 Leasing & Payments" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="380" y="880" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="p7" value="P7 Complaints &
+Concerns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="760" y="560" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="p8" value="P8 Notifications" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="2">
+      <mxGeometry x="760" y="880" width="190" height="56" as="geometry" />
+    </mxCell>
+    <mxCell id="db" value="Supabase Database
+(PostgreSQL)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;" vertex="1" parent="2">
+      <mxGeometry x="1120" y="460" width="200" height="90" as="geometry" />
+    </mxCell>
+    <mxCell id="d0" value="credentials" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_student" target="p1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d1" value="users, sessions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p1" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d2" value="users, sessions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d3" value="profile + documents" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_student" target="p2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d4" value="business + documents" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_landlord" target="p2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d5" value="profiles, verification_docs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p2" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d6" value="profiles, verification_docs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d7" value="approve / reject" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_osas" target="p2">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d8" value="property, rooms, images" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_landlord" target="p3">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d9" value="properties, rooms, images" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p3" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d10" value="properties, rooms, images" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p3">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d11" value="browse, apply, pay" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_student" target="p4">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d12" value="leases, payments" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p4" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d13" value="leases, payments" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p4">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d14" value="messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_student" target="p5">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d15" value="messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p5" target="ext_student">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d16" value="messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_landlord" target="p5">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d17" value="messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p5" target="ext_landlord">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d18" value="conversations, messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p5" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d19" value="conversations, messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p5">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d20" value="submit ratings" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_student" target="p6">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d21" value="property/landlord/tenant reviews" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p6" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d22" value="property/landlord/tenant reviews" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p6">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d23" value="raise concern" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_student" target="p7">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d24" value="resolve" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="ext_osas" target="p7">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d25" value="complaints, concerns, timelines" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p7" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d26" value="complaints, concerns, timelines" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p7">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d27" value="notifications" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="p8" target="db">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="d28" value="notifications" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#333333;endArrow=block;" edge="1" parent="2" source="db" target="p8">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+  </root>
+</mxGraphModel>

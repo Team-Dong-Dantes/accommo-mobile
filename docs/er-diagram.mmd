@@ -1,0 +1,194 @@
+erDiagram
+  USERS {
+    uuid id PK
+    string email
+    string full_name
+    string role
+    string phone
+    string status
+  }
+  STUDENT_PROFILES {
+    uuid user_id PK
+    string student_id
+    string program
+    string college
+    int year_level
+    string school_id_url
+    string assessment_of_fees_url
+    timestamp osas_verified_at
+  }
+  LANDLORD_PROFILES {
+    uuid user_id PK
+    string government_id_url
+    numeric response_rate
+    int avg_response_minutes
+  }
+  ADMIN_PROFILES {
+    uuid user_id PK
+  }
+  PROPERTIES {
+    uuid id PK
+    uuid landlord_id FK
+    string name
+    string address
+    string business_name
+    string accreditation_status
+    numeric rating_avg
+  }
+  ROOMS {
+    uuid id PK
+    uuid property_id FK
+    string room_number
+  }
+  ROOM_IMAGES {
+    uuid id PK
+    uuid room_id FK
+    string url
+  }
+  PROPERTY_IMAGES {
+    uuid id PK
+    uuid property_id FK
+    string url
+  }
+  PROPERTY_AMENITIES {
+    uuid id PK
+    uuid property_id FK
+  }
+  PROPERTY_POLICIES {
+    uuid id PK
+    uuid property_id FK
+  }
+  PROPERTY_DOCUMENTS {
+    uuid id PK
+    uuid property_id FK
+    string file_url
+  }
+  PROPERTY_REVIEWS {
+    uuid id PK
+    uuid property_id FK
+    uuid lease_id FK
+    uuid student_id FK
+  }
+  LEASES {
+    uuid id PK
+    uuid student_id FK
+    uuid landlord_id FK
+    uuid room_id FK
+    string status
+    numeric monthly_rent
+    timestamp start_date
+    timestamp end_date
+  }
+  PAYMENTS {
+    uuid id PK
+    uuid lease_id FK
+    uuid verified_by FK
+    numeric amount
+    string status
+  }
+  CONCERNS {
+    uuid id PK
+    uuid lease_id FK
+    string category
+    string status
+  }
+  CONVERSATIONS {
+    uuid id PK
+    uuid user_a_id FK
+    uuid user_b_id FK
+  }
+  MESSAGES {
+    uuid id PK
+    uuid conversation_id FK
+    uuid sender_id FK
+  }
+  NOTIFICATIONS {
+    uuid id PK
+    uuid user_id FK
+  }
+  BOARDING_HISTORY {
+    uuid id PK
+    uuid student_id FK
+    uuid property_id FK
+  }
+  COMPLAINTS {
+    uuid id PK
+    uuid student_id FK
+    uuid landlord_id FK
+    uuid property_id FK
+    uuid osas_officer_id FK
+    string status
+  }
+  COMPLAINT_TIMELINE {
+    uuid id PK
+    uuid complaint_id FK
+    uuid actor_id FK
+  }
+  LANDLORD_REVIEWS {
+    uuid id PK
+    uuid landlord_id FK
+    uuid lease_id FK
+    uuid student_id FK
+  }
+  TENANT_REVIEWS {
+    uuid id PK
+    uuid landlord_id FK
+    uuid lease_id FK
+    uuid student_id FK
+  }
+  VERIFICATION_DOCUMENTS {
+    uuid id PK
+    uuid user_id FK
+    uuid verified_by FK
+    string doc_type
+    string file_url
+    string status
+  }
+  ANNOUNCEMENTS {
+    uuid id PK
+    uuid author_id FK
+  }
+  POLICIES {
+    uuid id PK
+    uuid created_by FK
+  }
+  AUDIT_LOGS {
+    uuid id PK
+    uuid actor_id FK
+  }
+
+  USERS ||--o| STUDENT_PROFILES : "has"
+  USERS ||--o| LANDLORD_PROFILES : "has"
+  USERS ||--o| ADMIN_PROFILES : "has"
+  USERS ||--o{ LEASES : "student in"
+  USERS ||--o{ LEASES : "landlord in"
+  USERS ||--o{ MESSAGES : "sends"
+  USERS ||--o{ NOTIFICATIONS : "receives"
+  USERS ||--o{ BOARDING_HISTORY : "has"
+  USERS ||--o{ CONVERSATIONS : "participates"
+  USERS ||--o{ COMPLAINT_TIMELINE : "acts in"
+  USERS ||--o{ VERIFICATION_DOCUMENTS : "submits"
+  USERS ||--o{ ANNOUNCEMENTS : "authors"
+  USERS ||--o{ POLICIES : "authors"
+  USERS ||--o{ AUDIT_LOGS : "acts in"
+  PROPERTIES ||--o{ ROOMS : "contains"
+  PROPERTIES ||--o{ PROPERTY_IMAGES : "has"
+  PROPERTIES ||--o{ PROPERTY_AMENITIES : "has"
+  PROPERTIES ||--o{ PROPERTY_POLICIES : "has"
+  PROPERTIES ||--o{ PROPERTY_DOCUMENTS : "has"
+  PROPERTIES ||--o{ PROPERTY_REVIEWS : "receives"
+  PROPERTIES ||--o{ COMPLAINTS : "about"
+  ROOMS ||--o{ LEASES : "leased via"
+  ROOMS ||--o{ ROOM_IMAGES : "has"
+  LEASES ||--o{ PAYMENTS : "has"
+  LEASES ||--o{ CONCERNS : "has"
+  LEASES ||--o{ PROPERTY_REVIEWS : "generates"
+  LEASES ||--o{ LANDLORD_REVIEWS : "has"
+  LEASES ||--o{ TENANT_REVIEWS : "has"
+  CONVERSATIONS ||--o{ MESSAGES : "contains"
+  COMPLAINTS ||--o{ COMPLAINT_TIMELINE : "has"
+  LANDLORD_PROFILES ||--o{ LANDLORD_REVIEWS : "receives"
+  LANDLORD_PROFILES ||--o{ TENANT_REVIEWS : "receives"
+  PROPERTIES ||--o{ BOARDING_HISTORY : "in"
+  USERS ||--o{ COMPLAINTS : "files"
+  USERS ||--o{ COMPLAINTS : "against"

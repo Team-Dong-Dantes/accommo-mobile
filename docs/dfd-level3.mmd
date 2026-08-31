@@ -1,0 +1,95 @@
+flowchart TB
+  %% ===== External Entities =====
+  S(["Student"])
+  L(["Landlord"])
+  O(["OSAS Officer"])
+  A(["Admin"])
+
+  %% ===== P1.3 Validate Student ID =====
+  P131(("P1.3.1 Check ID Format"))
+  P132(("P1.3.2 Cross-check School Records"))
+  P133(("P1.3.3 Approve / Reject"))
+
+  %% ===== P2.3 Accredit Landlord =====
+  P231(("P2.3.1 Review Gov ID & Docs"))
+  P232(("P2.3.2 Background Check"))
+  P233(("P2.3.3 Approve / Reject"))
+
+  %% ===== P4.1 Search internals =====
+  P411(("P4.1.1 Parse Query"))
+  P412(("P4.1.2 Match Listings"))
+  P413(("P4.1.3 Rank Results"))
+
+  %% ===== P4.5 Request Booking internals =====
+  P451(("P4.5.1 Validate Availability"))
+  P452(("P4.5.2 Notify Landlord"))
+  P453(("P4.5.3 Landlord Decision"))
+  P454(("P4.5.4 Create Pending Lease"))
+
+  %% ===== P5.3 Record Payment internals =====
+  P531(("P5.3.1 Validate Receipt"))
+  P532(("P5.3.2 Store Proof of Payment"))
+
+  %% ===== P5.4 OSAS Confirm internals =====
+  P541(("P5.4.1 Cross-check with Ledger"))
+  P542(("P5.4.2 Mark Verified"))
+
+  %% ===== P6.4 Triage internals =====
+  P641(("P6.4.1 Categorize Complaint"))
+  P642(("P6.4.2 Assign Officer"))
+
+  %% ===== Data Stores =====
+  D1[("D1 Student Profiles")]
+  D2[("D2 Landlord Profiles")]
+  D3[("D3 Properties & Rooms")]
+  D4[("D4 Leases & Payments")]
+  D5[("D5 Conversations & Messages")]
+  D6[("D6 Complaints & Concerns")]
+  D7[("D7 Reviews & Boarding History")]
+  D8[("D8 Announcements, Policies & Audit Logs")]
+
+  %% ===== Flows =====
+  S -->|student ID doc| P131
+  P131 -->|ok| P132
+  P132 -->|school DB check| D1
+  P132 -->|matched| P133
+  O -->|decision| P133
+  P133 -->|verified flag| D1
+
+  L -->|gov ID & docs| P231
+  P231 -->|ok| P232
+  A -->|background data| P232
+  P232 -->|clear| P233
+  O -->|decision| P233
+  P233 -->|accreditation status| D2
+
+  S -->|query| P411
+  P411 -->|read| D3
+  P411 -->|terms| P412
+  P412 -->|read| D3
+  P412 -->|matches| P413
+  P413 -->|ranked| D3
+  P413 -->|results| S
+
+  S -->|booking request| P451
+  P451 -->|check room| D3
+  P451 -->|available| P452
+  P452 -->|notify| L
+  L -->|accept / reject| P453
+  P453 -->|accepted| P454
+  P454 -->|pending lease| D4
+
+  S -->|receipt file| P531
+  P531 -->|valid| P532
+  P532 -->|proof| D4
+  P532 -->|send for confirm| P541
+  P541 -->|ledger check| D4
+  P541 -->|match| P542
+  O -->|confirm| P542
+  P542 -->|verified| D4
+
+  S -->|complaint| P641
+  P641 -->|tag| D6
+  P641 -->|route| P642
+  O -->|assigned| P642
+  P642 -->|open case| D6
