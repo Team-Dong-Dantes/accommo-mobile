@@ -64,7 +64,7 @@
           <q-linear-progress :value="leaseProgress" color="teal-6" track-color="grey-3" rounded size="6px" class="q-my-sm" />
           <div class="text-caption text-grey-6 q-mb-md">{{ leaseProgressPercent }}% of lease elapsed</div>
 
-          <q-btn outline color="negative" class="full-width border-radius-12 text-weight-bold" no-caps flat style="background: #FFF1F1">
+          <q-btn outline color="negative" class="full-width border-radius-12 text-weight-bold" no-caps flat style="background: #FFF1F1" @click="requestLeave">
             <q-icon name="logout" size="18px" class="q-mr-sm" />
             Request to Leave
           </q-btn>
@@ -153,8 +153,29 @@
       </q-card>
 
       <q-page-sticky position="bottom-right" :offset="[16, 16]">
-        <q-btn fab icon="add" color="teal-7" class="shadow-4" />
+        <q-btn fab icon="add" color="teal-7" class="shadow-4" @click="goToDiscover" />
       </q-page-sticky>
+
+      <!-- Leave Request Confirmation Dialog -->
+      <q-dialog v-model="leaveDialog" persistent>
+        <q-card class="border-radius-20" style="width: 320px; max-width: 90vw;">
+          <q-card-section class="row items-center q-pb-sm">
+            <div class="q-mr-sm" style="width:36px;height:36px;border-radius:50%;background:#ffebee;display:flex;align-items:center;justify-content:center;">
+              <q-icon name="logout" size="20px" color="red-5" />
+            </div>
+            <div class="text-subtitle1 text-weight-bold">Request to Leave?</div>
+          </q-card-section>
+          <q-card-section class="q-pt-sm">
+            <div class="text-body2 text-grey-7">
+              This notifies your landlord that you intend to end your stay. They'll confirm before your lease is closed.
+            </div>
+          </q-card-section>
+          <q-card-actions align="right" class="q-pa-md q-pt-none">
+            <q-btn flat label="Cancel" no-caps color="grey-7" v-close-popup />
+            <q-btn unelevated color="negative" label="Request Leave" no-caps :loading="leaving" @click="confirmLeave" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
 
       <div v-if="error" class="text-negative text-center q-px-md">{{ error }}</div>
     </template>
@@ -164,6 +185,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { supabase } from '@/shared/utils/supabase'
 
 interface LeaseRow {
@@ -188,6 +210,7 @@ interface PaymentRow {
 }
 
 const router = useRouter()
+const $q = useQuasar()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -400,9 +423,40 @@ async function loadDashboard() {
 }
 
 function goToPayments() { void router.push('/student/payments') }
+function goToDiscover() { void router.push('/student/discover') }
 function goToMessages() {
   const query = landlordId.value ? { landlord: landlordId.value } : {}
   void router.push({ path: '/student/messages', query })
+}
+
+const leaveDialog = ref(false)
+const leaving = ref(false)
+
+function requestLeave() {
+  if (!lease.value?.id) {
+    $q.notify({ message: 'No active lease to leave.', color: 'warning', position: 'top' })
+    return
+  }
+  leaveDialog.value = true
+}
+
+async function confirmLeave() {
+  if (!lease.value?.id) return
+  leaving.value = true
+  try {
+    const { error } = await supabase
+      .from('leases')
+      .update({ status: 'leave_requested', leave_requested_at: new Date().toISOString() })
+      .eq('id', lease.value.id)
+    if (error) throw error
+    leaveDialog.value = false
+    $q.notify({ message: 'Leave request sent to your landlord.', color: 'teal-8', position: 'top' })
+    await loadDashboard()
+  } catch (e) {
+    $q.notify({ message: e instanceof Error ? e.message : 'Failed to request leave', color: 'negative', position: 'top' })
+  } finally {
+    leaving.value = false
+  }
 }
 
 onMounted(loadDashboard)
