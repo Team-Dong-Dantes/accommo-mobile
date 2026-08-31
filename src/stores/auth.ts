@@ -422,7 +422,7 @@ export const useAuthStore = defineStore('auth', {
       const role = toAppRole(profile?.role);
       this.cachedRole = role;
 
-      return { session, profile };
+      return { session, profile: profile ? { ...profile, role } : null };
     },
   },
 });
