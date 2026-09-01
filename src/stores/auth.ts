@@ -53,7 +53,6 @@ export interface LandlordRegisterForm {
   fullName: string;
   sex: string;
   phone: string;
-  businessName: string;
   governmentIdFile: File | null;
   businessPermitFile: File | null;
 }

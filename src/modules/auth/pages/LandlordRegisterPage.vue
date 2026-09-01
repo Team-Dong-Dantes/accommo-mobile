@@ -19,10 +19,20 @@
               <ConnectedGoogleBox :email="form.email" @cancel="cancelGoogle" />
             </template>
 
-            <AuthInput v-model="form.fullName" label="Full Name"
-              :rules="[(val: string) => !!val || 'Full Name is required']">
-              <template #prepend><IconifyIcon icon="material-icons:person_outline" /></template>
-            </AuthInput>
+            <div class="row q-col-gutter-sm">
+              <div class="col-6">
+                <AuthInput v-model="form.firstName" label="First Name"
+                  :rules="[(val: string) => !!val || 'First name is required']">
+                  <template #prepend><IconifyIcon icon="material-icons:person_outline" /></template>
+                </AuthInput>
+              </div>
+              <div class="col-6">
+                <AuthInput v-model="form.lastName" label="Last Name"
+                  :rules="[(val: string) => !!val || 'Last name is required']">
+                  <template #prepend><IconifyIcon icon="material-icons:badge" /></template>
+                </AuthInput>
+              </div>
+            </div>
 
             <AuthSelect v-model="form.sex" :options="sexOptions" label="Sex" class="q-mt-md"
               :rules="[(val: string) => !!val || 'Please select your sex']">
@@ -30,9 +40,9 @@
             </AuthSelect>
 
             <AuthInput :model-value="form.phoneDigits"
-              @update:model-value="form.phoneDigits = phNationalDigits($event)" label="Phone Number" class="q-mt-md"
-              maxlength="12" inputmode="numeric"
-              :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => phNationalDigits(val).length === 10 || 'Enter your 10-digit mobile number (leading 0 is optional, e.g. 9123456789)']">
+              @update:model-value="form.phoneDigits = phNationalDigits($event).slice(0, 10)" label="Phone Number"
+              class="q-mt-md" maxlength="10" inputmode="numeric" placeholder="9123456789"
+              :rules="[(val: string) => !!val || 'Phone number is required', (val: string) => /^\d{10}$/.test(val) || 'Enter exactly 10 digits', (val: string) => /^9\d{9}$/.test(val) || 'Must start with 9 (e.g. 9123456789)']">
               <template #prepend>
                 <div class="row items-center no-wrap">
                   <IconifyIcon icon="material-icons:phone" class="q-mr-xs" />
@@ -86,6 +96,13 @@
               </template>
             </AuthInput>
 
+            <ul class="password-checklist q-mt-sm">
+              <li v-for="item in passwordChecks" :key="item.label" :class="{ ok: item.ok }">
+                <IconifyIcon :icon="item.ok ? 'material-icons:check_circle' : 'material-icons:radio_button_unchecked'" />
+                <span>{{ item.label }}</span>
+              </li>
+            </ul>
+
             <AuthInput v-model="form.confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
               label="Confirm Password" class="q-mt-md"
               :rules="[(val: string) => !!val || 'Please confirm your password', (val: string) => val === form.password || 'Passwords do not match']">
@@ -97,18 +114,9 @@
             </AuthInput>
           </q-step>
 
-          <q-step :name="3" title="Business" icon="storefront" :done="step > 3">
-            <div class="q-mb-md text-subtitle2 text-grey-8">Tell us about your property</div>
-
-            <AuthInput v-model="form.businessName" label="Boarding House / Business Name"
-              :rules="[(val: string) => !!val || 'Business name is required']">
-              <template #prepend><IconifyIcon icon="material-icons:apartment" /></template>
-            </AuthInput>
-          </q-step>
-
-          <q-step :name="4" title="Documents" icon="verified_user">
+          <q-step :name="3" title="Verification" icon="verified_user">
             <div class="q-mt-xs q-mb-md text-subtitle2 text-grey-8 font-weight-medium">
-              Upload documents for accreditation
+              Upload verification documents
             </div>
 
             <AuthFileDropZone v-model="form.governmentIdFile" label="Tap to upload Valid Government ID"
@@ -128,12 +136,12 @@
         </q-stepper>
 
         <div class="q-px-sm q-mt-md">
-          <AuthButton v-if="step < 4" @click="nextStep">
+          <AuthButton v-if="step < 3" @click="nextStep">
             NEXT STEP
             <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
           </AuthButton>
 
-          <AuthButton v-if="step === 4" type="submit" :loading="loading">
+          <AuthButton v-if="step === 3" type="submit" :loading="loading">
             {{ isGoogleMode ? 'SUBMIT APPLICATION' : 'REGISTER' }}
             <IconifyIcon icon="material-icons:check_circle" class="q-ml-sm" />
           </AuthButton>
@@ -149,11 +157,6 @@
               <q-btn flat dense no-caps label="Go Back" color="grey-6" class="text-weight-bold nav-link-btn"
                 @click="prevStep" />
             </template>
-
-            <template v-else-if="step === 4">
-              <q-btn flat dense no-caps label="Go Back" color="grey-6" class="text-weight-bold nav-link-btn"
-                @click="prevStep" />
-            </template>
           </div>
         </div>
       </q-form>
@@ -162,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue';
+import { computed, reactive, ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
@@ -191,19 +194,43 @@ const sexOptions = ['Male', 'Female'];
 const emailDomains = ['gmail.com', 'isu.edu.ph'];
 
 const form = reactive({
+  firstName: '',
+  lastName: '',
   fullName: '',
   sex: '',
   phoneDigits: '',
   phone: '',
   emailUser: '',
-  emailDomain: '',
+  emailDomain: 'gmail.com',
   email: '',
   password: '',
   confirmPassword: '',
-  businessName: '',
   governmentIdFile: null as File | null,
   businessPermitFile: null as File | null,
 });
+
+const passwordChecks = computed(() => {
+  const pwd = form.password;
+  return [
+    { label: 'At least 8 characters', ok: pwd.length >= 8 },
+    { label: 'One lowercase letter', ok: /[a-z]/.test(pwd) },
+    { label: 'One uppercase letter', ok: /[A-Z]/.test(pwd) },
+    { label: 'One number', ok: /\d/.test(pwd) },
+    { label: 'One special character (!@#$%^&*)', ok: /[!@#$%^&*]/.test(pwd) },
+  ];
+});
+
+function splitFullName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? '',
+    lastName: parts.slice(1).join(' '),
+  };
+}
+
+function syncFullName() {
+  form.fullName = `${form.firstName} ${form.lastName}`.trim().replace(/\s+/g, ' ');
+}
 
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
@@ -229,7 +256,10 @@ onMounted(async () => {
     isGoogleMode.value = true;
     googleUserId.value = session.user.id;
     form.email = session.user.email || '';
-    form.fullName = session.user.user_metadata?.full_name || '';
+    const split = splitFullName(String(session.user.user_metadata?.full_name || ''));
+    form.firstName = split.firstName;
+    form.lastName = split.lastName;
+    syncFullName();
   }
 });
 
@@ -238,7 +268,7 @@ async function nextStep() {
   const success = await registerFormRef.value.validate();
   if (success) {
     if (step.value === 1 && isGoogleMode.value) step.value = 3;
-    else if (step.value < 4) step.value++;
+    else if (step.value < 3) step.value++;
   }
 }
 
@@ -268,7 +298,10 @@ async function cancelGoogle() {
   isGoogleMode.value = false;
   googleUserId.value = '';
   form.email = '';
+  form.firstName = '';
+  form.lastName = '';
   form.fullName = '';
+  form.emailDomain = 'gmail.com';
 
   $q.notify({
     message: 'Google account unlinked.',
@@ -281,6 +314,7 @@ async function cancelGoogle() {
 }
 
 async function handleRegister() {
+  syncFullName();
   form.phone = normalizePhPhone(form.phoneDigits);
   if (!isGoogleMode.value) {
     form.email = `${form.emailUser}@${form.emailDomain}`;
@@ -378,6 +412,25 @@ async function handleRegister() {
 
 .phone-prefix {
   font-size: 16px;
+}
+
+.password-checklist {
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+}
+
+.password-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.password-checklist li.ok {
+  color: #15803d;
 }
 
 .email-domain-select :deep(.q-field__control) {
