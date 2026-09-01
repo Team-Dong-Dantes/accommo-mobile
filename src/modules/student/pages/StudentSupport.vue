@@ -1,8 +1,6 @@
 <template>
   <q-page class="bg-grey-1 q-pb-xl">
     <div class="header-banner text-white q-pa-md">
-      <div class="text-h5 text-weight-bold">OSAS Support</div>
-      <div class="text-subtitle2 q-mt-xs opacity-8">How can we help you today?</div>
       <q-input
         v-model="search"
         outlined dense

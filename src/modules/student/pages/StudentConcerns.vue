@@ -1,10 +1,6 @@
 <template>
   <q-page class="bg-grey-1 q-pb-xl">
     <div class="row justify-between items-center q-pa-md">
-      <div>
-        <div class="text-h5 text-weight-bold">My Concerns</div>
-        <div class="text-subtitle2 text-grey-6">Track your reported issues</div>
-      </div>
       <q-btn unelevated color="teal-8" icon="add" label="New Concern" class="rounded-borders text-weight-bold" no-caps @click="newConcern" />
     </div>
 

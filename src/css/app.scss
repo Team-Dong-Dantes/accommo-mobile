@@ -1,5 +1,37 @@
 // app global css
 
+:root {
+  --m-primary: #00897b;
+  --m-primary-dark: #00695c;
+  --m-primary-soft: #e6f5f3;
+  --m-ink: #17202a;
+  --m-text: #374151;
+  --m-muted: #6b7280;
+  --m-bg: #f6f7f8;
+  --m-surface: #ffffff;
+  --m-border: #e5e7eb;
+  --m-success: #15803d;
+  --m-success-soft: #ecfdf3;
+  --m-warning: #b45309;
+  --m-warning-soft: #fff7ed;
+  --m-danger: #b42318;
+  --m-danger-soft: #fef3f2;
+  --m-info: #175cd3;
+  --m-info-soft: #eff8ff;
+  --m-space-1: 4px;
+  --m-space-2: 8px;
+  --m-space-3: 12px;
+  --m-space-4: 16px;
+  --m-space-5: 20px;
+  --m-space-6: 24px;
+  --m-space-8: 32px;
+  --m-page-gutter: 12px;
+  --m-radius-sm: 12px;
+  --m-radius: 16px;
+  --m-radius-lg: 24px;
+  --m-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
 .q-field__prepend svg.iconify,
 .q-field__append svg.iconify {
   width: 20px !important;

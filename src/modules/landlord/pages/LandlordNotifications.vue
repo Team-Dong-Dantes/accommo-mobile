@@ -1,8 +1,7 @@
 <template>
   <q-page class="notif-page">
-    <div class="header-shell q-px-md q-pt-lg q-pb-md row items-center no-wrap">
+    <div class="header-shell q-px-md q-pt-md q-pb-sm row items-center no-wrap">
       <div class="col">
-        <div class="page-title">Notifications</div>
         <div class="page-subtitle">{{ unreadCount }} unread</div>
       </div>
       <q-btn flat no-caps class="mark-read-btn" label="Mark all read" @click="markAllRead" />

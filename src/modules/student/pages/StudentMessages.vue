@@ -4,7 +4,6 @@
     <div v-if="!activeConversation" class="q-pa-md">
       <div class="row items-center justify-between">
         <div>
-          <div class="text-h4 text-weight-bold" style="letter-spacing: -0.5px">Messages</div>
           <div class="text-grey-6 q-mb-md">Landlord conversations</div>
         </div>
         <q-btn

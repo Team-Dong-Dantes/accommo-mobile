@@ -1,10 +1,6 @@
 <template>
   <q-page class="bg-grey-1 q-pb-xl">
     <div class="row justify-between items-center q-pa-md">
-      <div>
-        <div class="text-h5 text-weight-bold">Payments</div>
-        <div class="text-subtitle2 text-grey-6">Track your rent & deposit</div>
-      </div>
       <q-btn
         unelevated color="teal-8" icon="payment" label="Pay"
         class="rounded-borders text-weight-bold" no-caps @click="openPaymentMethod()"

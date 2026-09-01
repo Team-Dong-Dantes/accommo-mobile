@@ -1,5 +1,24 @@
 <template>
-  <q-page class="bg-grey-1 q-pb-xl">
+  <q-page class="profile-page">
+    <header class="profile-page-bar" aria-label="Profile navigation">
+      <button type="button" class="profile-back-button" aria-label="Back to student home" @click="goBack">
+        <IconifyIcon icon="lucide:arrow-left" width="21" />
+      </button>
+    </header>
+
+    <main class="profile-content">
+    <div v-if="loading" class="profile-state" role="status" aria-live="polite">
+      <q-spinner color="primary" size="32px" />
+      <span>Loading profile…</span>
+    </div>
+    <div v-else-if="error" class="profile-state profile-state--error" role="alert">
+      <IconifyIcon icon="lucide:circle-alert" width="24" />
+      <strong>We couldn’t load your profile.</strong>
+      <span>{{ error }}</span>
+      <q-btn outline no-caps color="primary" label="Try again" class="profile-state-action" @click="loadProfile" />
+    </div>
+    <template v-else>
+
     <!-- Unverified Banner -->
     <q-banner v-if="!osasVerified" class="q-mx-md q-mb-md border-radius-24 q-pa-md" style="background: #FFF8E1; border: 1px solid #FFE082;">
       <div class="row items-center no-wrap">
@@ -15,16 +34,19 @@
     <!-- Profile Header Card -->
     <q-card flat class="q-mx-md q-mb-lg border-radius-24 overflow-hidden shadow-soft">
       <div class="profile-gradient relative-position" style="height: 110px;">
-        <q-btn round flat icon="edit" class="absolute-top-right q-ma-sm text-white bg-white-20" size="sm" @click="openEditProfile" />
+        <q-btn round flat class="absolute-top-right q-ma-sm text-white bg-white-20 shell-icon-button" aria-label="Edit profile" @click="openEditProfile">
+          <IconifyIcon icon="lucide:pencil" width="19" />
+        </q-btn>
       </div>
 
       <div class="q-px-md relative-position bg-white" style="padding-top: 50px; padding-bottom: 24px;">
         <!-- Avatar -->
         <div class="absolute" style="top: -48px; left: 16px;">
-          <q-avatar size="96px" class="profile-avatar shadow-2 bg-blue-8 text-white font-size-32 text-weight-bold" @click="openEditProfile">
-            {{ initials }}
+          <q-avatar size="96px" class="profile-avatar text-white font-size-32 text-weight-bold" @click="openEditProfile">
+            <img v-if="profileImageUrl" :src="profileImageUrl" :alt="`${fullName} profile photo`" />
+            <span v-else>{{ initials }}</span>
             <q-badge floating color="dark" class="camera-badge flex flex-center" rounded>
-              <q-icon name="camera_alt" size="12px" />
+              <IconifyIcon icon="lucide:camera" width="12" />
             </q-badge>
           </q-avatar>
         </div>
@@ -284,6 +306,8 @@
         </q-item>
       </q-list>
     </q-card>
+    </template>
+    </main>
     
     <!-- OSAS Verification Dialog -->
     <q-dialog v-model="verificationDialog" position="bottom" :persistent="submitting || verifiedSuccess">
@@ -476,7 +500,7 @@ interface LeaseRow {
   monthly_rent: number | null;
   room: {
     room_number: string | null;
-    property: { name: string | null; address: string | null; rating_avg: number | null } | null;
+    accommodation: { name: string | null; address: string | null; rating_avg: number | null } | null;
   } | null;
 }
 
@@ -500,6 +524,7 @@ const osasVerified = ref(false);
 const pendingReview = ref(false);
 const sex = ref<string | null>(null);
 const qrDataUrl = ref('');
+const profileImageUrl = ref<string | null>(null);
 const stayLabel = ref('—');
 const yearLevel = ref('3rd Year'); // Default fallback
 
@@ -571,13 +596,18 @@ async function loadProfile() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { void router.push('/login'); return; }
+    const metadata = user.user_metadata as Record<string, unknown> | undefined;
+    const picture = typeof metadata?.avatar_url === 'string'
+      ? metadata.avatar_url
+      : (typeof metadata?.picture === 'string' ? metadata.picture : '');
+    profileImageUrl.value = picture || null;
 
     // Fetch user + student profile + active lease in parallel
     const [userResult, profileResult, leaseResult] = await Promise.all([
       supabase.from('users').select('full_name, initials, email, phone, status, avatar_color, sex').eq('id', user.id).maybeSingle(),
       supabase.from('student_profiles').select('student_id, program, college, year_level, emergency_contact_json, osas_verified_at, school_id_url, assessment_of_fees_url').eq('user_id', user.id).maybeSingle(),
-      supabase.from('leases')
-        .select('id, status, start_date, end_date, monthly_rent, room:rooms(room_number, property:properties(name, address, rating_avg))')
+      (supabase as any).from('leases')
+        .select('id, status, start_date, end_date, monthly_rent, room:rooms(room_number, accommodation:accommodations(name, address, rating_avg))')
         .eq('student_id', user.id).eq('status', 'active').maybeSingle(),
     ]);
 
@@ -621,9 +651,9 @@ async function loadProfile() {
     if (leaseResult.data) {
       const l = leaseResult.data as unknown as LeaseRow;
       accommodation.value = {
-        name: l.room?.property?.name ?? 'Active lease',
-        address: l.room?.property?.address ?? '—',
-        rating: l.room?.property?.rating_avg ?? 0,
+        name: l.room?.accommodation?.name ?? 'Active lease',
+        address: l.room?.accommodation?.address ?? '—',
+        rating: l.room?.accommodation?.rating_avg ?? 0,
         monthlyRent: formatPeso(l.monthly_rent ?? 0),
         checkIn: l.start_date ? new Date(l.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : '—',
         roomUnit: l.room?.room_number ? `Unit ${l.room.room_number}` : '—',
@@ -668,14 +698,14 @@ async function loadProfile() {
     };
 
     // Boarding history (real)
-    const { data: bh } = await supabase
+    const { data: bh } = await (supabase as any)
       .from('boarding_history')
-      .select('id, property_name, period_start, period_end, room_type, end_reason')
+      .select('id, accommodation_name, period_start, period_end, room_type, end_reason')
       .eq('student_id', user.id)
       .order('period_start', { ascending: false });
 
     const rows = (bh ?? []) as unknown as Array<{
-      id: string; property_name: string | null; period_start: string; period_end: string; room_type: string | null; end_reason: string | null;
+      id: string; accommodation_name: string | null; period_start: string; period_end: string; room_type: string | null; end_reason: string | null;
     }>;
 
     history.value = rows.map((h, i) => {
@@ -684,7 +714,7 @@ async function loadProfile() {
       const active = !h.end_reason;
       return {
         id: i + 1,
-        name: h.property_name ?? 'Boarding House',
+        name: h.accommodation_name ?? 'Boarding House',
         address: h.room_type ? `${h.room_type} room` : '—',
         dateRange: `${start} – ${end}`,
         status: active ? 'Current' : h.end_reason === 'evicted' ? 'Evicted' : 'Moved Out',
@@ -787,6 +817,15 @@ async function saveEmergency() {
 
 function goNotifications() {
   void router.push('/student/notifications');
+}
+
+function goBack() {
+  const hasUsefulHistory = window.history.length > 1 && Boolean(window.history.state?.back);
+  if (hasUsefulHistory) {
+    router.back();
+    return;
+  }
+  void router.replace('/student/home');
 }
 
 async function generateQr() {
@@ -902,40 +941,86 @@ onMounted(loadProfile);
 </script>
 
 <style scoped>
+.profile-page {
+  min-height: 100vh;
+  background: var(--m-bg);
+  color: var(--m-text);
+}
+
+.profile-page-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  min-height: 56px;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: var(--m-space-2);
+  padding: 0 var(--m-space-4);
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+
+.profile-content {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: var(--m-space-3) 0 var(--m-space-8);
+}
+
+.profile-back-button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--m-ink);
+  cursor: pointer;
+}
+
 .profile-gradient {
-  background: linear-gradient(135deg, #00897b 0%, #5e35b1 100%);
+  background: linear-gradient(135deg, var(--m-primary-dark), var(--m-primary));
 }
 
 .profile-avatar {
-  border: 4px solid white;
+  border: 4px solid var(--m-surface);
+  background: var(--m-primary-dark);
+  box-shadow: var(--m-shadow);
+  cursor: pointer;
 }
 
 .camera-badge {
   bottom: 0px !important;
   right: 0px !important;
   top: auto !important;
-  border: 2px solid white;
+  border: 2px solid var(--m-surface);
   width: 24px;
   height: 24px;
   border-radius: 50%;
 }
 
 .detail-box {
-  border-radius: 12px;
-  background: #F8F9FA;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
   height: 100%;
 }
 
 .stat-card {
-  border-radius: 20px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
 }
 
-.border-radius-24 { border-radius: 24px; }
-.border-radius-24-top { border-radius: 24px 24px 0 0; }
-.border-radius-16 { border-radius: 16px; }
+.border-radius-24 { border-radius: var(--m-radius-lg); }
+.border-radius-24-top { border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; }
+.border-radius-16 { border-radius: var(--m-radius); }
 
 .shadow-soft {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--m-border);
+  box-shadow: var(--m-shadow);
 }
 
 .icon-circle {
@@ -950,14 +1035,15 @@ onMounted(loadProfile);
 .qr-placeholder {
   width: 140px;
   height: 140px;
-  border: 2px dashed #e0e0e0;
-  border-radius: 20px;
-  background: #fafafa;
+  border: 2px dashed var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
 }
 
 .emergency-box {
-  background: #FFF3E0;
-  border-radius: 16px;
+  border: 1px solid var(--m-border);
+  background: var(--m-warning-soft);
+  border-radius: var(--m-radius);
 }
 
 .bg-white-20 {
@@ -993,7 +1079,7 @@ onMounted(loadProfile);
 .timeline-line {
   width: 1px;
   flex: 1;
-  background: #e0e0e0;
+  background: var(--m-border);
   margin: 4px 0;
 }
 
@@ -1010,12 +1096,42 @@ onMounted(loadProfile);
   background-color: #fcfcfc;
 }
 .border-grey {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--m-border);
 }
 .border-teal {
-  border-color: #00897b !important;
+  border-color: var(--m-primary) !important;
 }
 .transition-all {
   transition: all 0.2s ease-in-out;
+}
+
+.profile-state {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  align-content: center;
+  gap: var(--m-space-3);
+  padding: var(--m-space-6);
+  color: var(--m-muted);
+  text-align: center;
+}
+.profile-state--error { color: var(--m-danger); }
+.profile-state-action { min-height: 44px; border-radius: var(--m-radius-sm); }
+.shell-icon-button { min-width: 44px; min-height: 44px; }
+.profile-back-button:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+
+:deep(.q-card) { color: var(--m-text); }
+:deep(.q-item) { min-height: 60px; }
+:deep(.q-btn:not(.q-btn--dense)) { min-height: 44px; }
+
+@media (max-width: 420px) {
+  .profile-content { padding-top: var(--m-space-3); }
+  .stat-card :deep(.q-card__section) { padding: var(--m-space-3); }
+  .emergency-box { align-items: flex-start; flex-wrap: wrap; gap: var(--m-space-3); }
+  .emergency-box .q-btn { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-card, .transition-all { transition: none; }
 }
 </style>

@@ -62,6 +62,11 @@ const routes: RouteRecordRaw[] = [
   },
 
   {
+    path: '/ui-bible',
+    component: () => import('@/shared/pages/UIBible.vue'),
+  },
+
+  {
     path: '/:catchAll(.*)*',
     component: () => import('@/shared/pages/ErrorNotFound.vue'),
   },

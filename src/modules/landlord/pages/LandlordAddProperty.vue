@@ -2,12 +2,6 @@
   <q-page class="dashboard-page bg-grey-1">
     <div class="header-section text-white">
       <div class="row justify-between items-center q-pa-md">
-        <div>
-          <h4 class="q-my-none text-weight-bold">Add Boarding House</h4>
-          <p class="text-subtitle1 text-white-7 q-mb-none">
-            Register a new boarding house for accreditation
-          </p>
-        </div>
         <q-btn flat round dense icon="close" @click="handleCancel" />
       </div>
     </div>

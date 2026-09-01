@@ -2,10 +2,9 @@
   <q-page class="properties-list-page bg-grey-1">
     <div class="list-view">
       <!-- Header -->
-      <div class="header-section q-pa-lg">
+      <div class="header-section q-px-lg q-pt-md q-pb-sm">
         <div class="row items-center justify-between q-gutter-md">
           <div class="col">
-            <div class="page-title">Boarding Houses</div>
             <div class="page-subtitle">
               {{ totalProperties }} properties · {{ totalAvailableRooms }} rooms available
             </div>
