@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/shared/utils/supabase'
+import { uploadDocument } from '@/shared/utils/upload'
 import type { LandlordProfile, ComplianceItem, ScannedStudent, TenancyRecord, ChatMessage, TenantBillingState, PaymentRecord } from '@/shared/types/app-types'
 
 export const useLandlordStore = defineStore('landlord', {
@@ -236,21 +237,30 @@ export const useLandlordStore = defineStore('landlord', {
 
       if (!user) return false
 
-      // 1) Base accommodation row — uses only existing columns (no invented ones).
+      const rooms = (propertyData.rooms || []).filter((room: any) => room?.label?.trim())
+      if (!rooms.length) throw new Error('Add at least one room before creating the accommodation.')
+
+      const totalCapacity = rooms.reduce(
+        (sum: number, room: any) => sum + Math.max(Number(room.capacity) || 0, 0),
+        0,
+      )
+
+      // 1) The accommodation holds building information. Rent, capacity, and
+      // room type belong to individual rooms, so totals are derived below.
       const { data: inserted, error: insertError } = await supabase
         .from('accommodations' as any)
         .insert({
           accommodation_manager_id: user.id,
           name: propertyData.name,
-          accommodation_type: propertyData.propertyType || null, // free-text category
-          room_type: propertyData.roomType, // enum: solo|duo|triple|bedspace|studio
+          accommodation_type: propertyData.accommodationType || null,
+          room_type: null,
           status: 'pending',
           address: propertyData.address || null,
           city: propertyData.city || null,
           description: propertyData.description || null,
-          total_rooms: propertyData.totalRooms ? Number(propertyData.totalRooms) : null,
+          total_rooms: rooms.length,
           total_floors: propertyData.totalFloors ? Number(propertyData.totalFloors) : null,
-          capacity: propertyData.capacity ? Number(propertyData.capacity) : null,
+          capacity: totalCapacity || null,
           barangay: propertyData.barangay || null,
           lat: propertyData.latitude ?? null,
           lng: propertyData.longitude ?? null,
@@ -281,16 +291,120 @@ export const useLandlordStore = defineStore('landlord', {
         .insert({ accommodation_id: accommodationId, house_rules_json: policyJson } as any)
       if (polError) throw polError
 
-      // 4) Photos -> accommodation_images (data URLs in `url`).
-      const photos = ((propertyData.images as any[]) || []).filter((img) => img && img.dataUrl)
+      // 4) Exterior photos belong to the accommodation.
+      const photos: File[] = ((propertyData.exteriorImages as unknown[]) || []).filter(
+        (file): file is File => file instanceof File,
+      )
       for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i]
+        if (!photo) continue
+        const url = await uploadDocument(photo, user.id, `accommodation_exterior_${i + 1}`)
         const { error: imgErr } = await supabase
           .from('accommodation_images' as any)
-          .insert({ accommodation_id: accommodationId, url: photos[i].dataUrl, sort_order: i } as any)
+          .insert({ accommodation_id: accommodationId, url, sort_order: i } as any)
         if (imgErr) throw imgErr
       }
 
+      // 5) Rooms own their type, capacity, rent, and interior photos.
+      for (let i = 0; i < rooms.length; i++) {
+        const room = rooms[i]
+        const { data: roomRow, error: roomError } = await (supabase as any)
+          .from('rooms')
+          .insert({
+            accommodation_id: accommodationId,
+            label: room.label.trim(),
+            room_number: room.label.trim(),
+            floor: room.floor ? Number(room.floor) : null,
+            capacity: Number(room.capacity),
+            current_pax: 0,
+            monthly_rent: Number(room.monthlyRent),
+            status: room.status,
+            room_type: room.roomType,
+            custom_room_type: room.roomType === 'custom' ? room.customRoomType?.trim() || null : null,
+          })
+          .select('id')
+          .single()
+        if (roomError) throw roomError
+        const roomId = roomRow?.id
+        if (!roomId) throw new Error('Failed to create a room.')
+
+        const roomPhotos: File[] = (room.images || []).filter(
+          (file: unknown): file is File => file instanceof File,
+        )
+        for (let photoIndex = 0; photoIndex < roomPhotos.length; photoIndex++) {
+          const photo = roomPhotos[photoIndex]
+          if (!photo) continue
+          const url = await uploadDocument(photo, user.id, `room_${i + 1}_${photoIndex + 1}`)
+          const { error: imageError } = await (supabase as any)
+            .from('room_images')
+            .insert({ room_id: roomId, url, sort_order: photoIndex })
+          if (imageError) throw imageError
+        }
+
+        await this.createAccommodationFacilities(
+          accommodationId,
+          room.privateFacilities || [],
+          user.id,
+          roomId,
+          'private',
+        )
+      }
+
+      // 6) Shared facilities describe accommodation-wide areas, such as a
+      // shared kitchen or bathroom. Private facilities are written per room.
+      await this.createAccommodationFacilities(
+        accommodationId,
+        propertyData.sharedFacilities || [],
+        user.id,
+        null,
+        'shared',
+      )
+
       return true
+    },
+
+    async createAccommodationFacilities(
+      accommodationId: string,
+      facilities: any[],
+      userId: string,
+      roomId: string | null,
+      accessScope: 'shared' | 'private',
+    ) {
+      for (let index = 0; index < facilities.length; index++) {
+        const facility = facilities[index]
+        if (!facility?.type) continue
+        const { data: facilityRow, error: facilityError } = await (supabase as any)
+          .from('accommodation_facilities')
+          .insert({
+            accommodation_id: accommodationId,
+            room_id: roomId,
+            facility_type: facility.type,
+            access_scope: accessScope,
+            label: facility.label?.trim() || null,
+            description: facility.description?.trim() || null,
+            sort_order: index,
+          })
+          .select('id')
+          .single()
+        if (facilityError) throw facilityError
+
+        const photos: File[] = (facility.images || []).filter(
+          (file: unknown): file is File => file instanceof File,
+        )
+        for (let photoIndex = 0; photoIndex < photos.length; photoIndex++) {
+          const photo = photos[photoIndex]
+          if (!photo) continue
+          const url = await uploadDocument(
+            photo,
+            userId,
+            `${accessScope}_facility_${index + 1}_${photoIndex + 1}`,
+          )
+          const { error: imageError } = await (supabase as any)
+            .from('accommodation_facility_images')
+            .insert({ facility_id: facilityRow.id, url, sort_order: photoIndex })
+          if (imageError) throw imageError
+        }
+      }
     },
 
     async fetchComplianceItems() {
