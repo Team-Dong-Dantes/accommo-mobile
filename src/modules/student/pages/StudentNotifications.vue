@@ -3,7 +3,6 @@
     <div class="q-pa-md">
       <div class="row justify-between items-end q-mb-md">
         <div>
-          <div class="text-h4 text-weight-bold" style="letter-spacing: -0.5px">Notifications</div>
           <div class="text-grey-6 text-caption">{{ unreadCount }} unread</div>
         </div>
         <q-btn

@@ -1,10 +1,9 @@
 <template>
   <q-page class="properties-page bg-grey-1">
     <div class="page-shell q-pb-xl">
-      <div class="header-block q-px-md q-pt-lg q-pb-sm">
+      <div class="header-block q-px-md q-pt-md q-pb-sm">
         <div class="row justify-between items-center">
           <div>
-            <div class="page-title">Boarding Houses</div>
             <div class="page-subtitle">3 properties - 7 rooms available</div>
           </div>
           <q-btn unelevated rounded color="teal-8" text-color="white" label="Add" icon-right="add" @click="goToAddProperty" class="add-property-btn" />

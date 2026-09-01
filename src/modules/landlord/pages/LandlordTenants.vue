@@ -1,7 +1,6 @@
 <template>
   <q-page class="tenants-page bg-grey-1">
-    <div class="header-shell q-px-md q-pt-lg q-pb-md">
-      <div class="page-title">Tenants</div>
+    <div class="header-shell q-px-md q-pt-md q-pb-sm">
       <div class="page-subtitle">{{ activeCount }} active · {{ overdueCount }} with pending payments</div>
     </div>
 

@@ -1,9 +1,6 @@
 <template>
   <q-page class="bg-grey-1 q-pb-md">
     <div class="q-pa-md">
-      <div class="text-h5 text-weight-bold">My Stay</div>
-      <div class="text-subtitle2 text-grey-6 q-mb-lg">Your current boarding house details</div>
-
       <template v-if="loading">
         <q-skeleton height="120px" square class="q-mb-md" style="border-radius:16px" />
         <q-skeleton height="200px" square style="border-radius:16px" />

@@ -3,7 +3,6 @@
     <div class="messages-shell">
       <!-- HEADER + SEARCH -->
       <div class="msgs-header q-px-md">
-        <div class="msgs-title">Messages</div>
         <div class="msgs-subtitle">{{ pendingInquiries }} pending inquiries</div>
 
         <q-input

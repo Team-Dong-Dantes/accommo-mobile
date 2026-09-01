@@ -11,7 +11,6 @@
             class="back-button"
             @click="goBack"
           />
-          <div class="page-title">Settings</div>
         </div>
       </div>
 

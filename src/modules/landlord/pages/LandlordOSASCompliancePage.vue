@@ -1,8 +1,7 @@
 <template>
   <q-page class="osas-page bg-grey-1">
     <div class="page-shell q-pb-xl">
-      <div class="header-block q-px-md q-pt-lg q-pb-sm">
-        <div class="page-title">OSAS Compliance</div>
+      <div class="header-block q-px-md q-pt-md q-pb-sm">
         <div class="page-subtitle">Accreditation - Requirements</div>
       </div>
 
