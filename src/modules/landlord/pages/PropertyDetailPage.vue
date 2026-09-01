@@ -1,455 +1,53 @@
 <template>
-  <q-page class="property-detail-page">
-    <div class="page-wrapper">
-      <div class="detail-container">
-        <!-- Header -->
-        <div class="detail-header">
-          <q-btn flat round dense icon="arrow_back" color="teal-8" @click="goBack" />
-          <div class="header-text">
-            <div class="detail-title">{{ property?.name || 'Property' }}</div>
-            <div class="detail-subtitle">Property Details</div>
-          </div>
-          <q-badge
-            v-if="property"
-            :color="property.status === 'active' ? 'teal-8' : 'orange-6'"
-            text-color="white"
-            class="status-badge"
-          >
-            {{ property.status === 'active' ? 'Active' : 'Pending' }}
-          </q-badge>
-        </div>
-
-        <div v-if="isLoading" class="text-center q-pa-lg">
-          <q-spinner size="50px" color="teal-8" />
-          <div class="text-grey-7 q-mt-md">Loading property…</div>
-        </div>
-
-        <div v-else-if="loadError" class="q-pa-lg">
-          <q-banner class="bg-red-1 text-red-8 rounded-borders">
-            <template #avatar>
-              <q-icon name="error_outline" />
-            </template>
-            {{ loadError }}
-          </q-banner>
-        </div>
-
-        <div v-else-if="property" class="detail-content">
-          <!-- Photo Gallery -->
-          <div v-if="images.length" class="gallery-section">
-            <img :src="images[activeImageIndex]" class="gallery-main" alt="Property photo" />
-            <div v-if="images.length > 1" class="gallery-thumbs">
-              <img
-                v-for="(src, i) in images"
-                :key="i"
-                :src="src"
-                class="gallery-thumb"
-                :class="{ active: i === activeImageIndex }"
-                @click="activeImageIndex = i"
-                alt="Property thumbnail"
-              />
-            </div>
-          </div>
-
-          <!-- Location Map -->
-          <div
-            v-if="mapAvailable"
-            id="detail-map"
-            ref="detailMapContainer"
-            class="detail-map"
-          />
-          <q-banner v-else class="bg-grey-2 text-grey-8 rounded-borders">
-            <template #avatar>
-              <q-icon name="map" />
-            </template>
-            Map preview is not available on this deployment.
-          </q-banner>
-
-          <!-- Basic Info -->
-          <div class="info-section">
-            <div class="info-row">
-              <span class="info-label">Type</span>
-              <span class="info-value">{{ property.room_type || '—' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Who can stay</span>
-              <span class="info-value">{{ genderPolicyLabel }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Address</span>
-              <span class="info-value">{{ property.address || '—' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Contact No</span>
-              <span class="info-value">{{ property.landlord_phone || '—' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Email</span>
-              <span class="info-value">{{ property.landlord_email || '—' }}</span>
-            </div>
-          </div>
-
-          <!-- Description -->
-          <div v-if="property.description" class="info-block">
-            <div class="section-title">Description</div>
-            <div class="description-text">{{ property.description }}</div>
-          </div>
-
-          <!-- Amenities -->
-          <div class="info-block">
-            <div class="section-title">Amenities</div>
-            <div v-if="amenitiesList.length" class="chips-row">
-              <q-badge
-                v-for="a in amenitiesList"
-                :key="a"
-                color="teal-1"
-                text-color="teal-8"
-                class="info-chip"
-              >
-                {{ a }}
-              </q-badge>
-            </div>
-            <div v-else class="muted-text">No amenities listed</div>
-          </div>
-
-          <!-- House Rules -->
-          <div class="info-block">
-            <div class="section-title">House Rules</div>
-            <ul v-if="rulesList.length" class="rules-ul">
-              <li v-for="(r, i) in rulesList" :key="i">{{ r }}</li>
-            </ul>
-            <div v-else class="muted-text">No house rules listed</div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <q-page class="property-page">
+    <main class="property-shell">
+      <header class="page-header"><button type="button" class="back-button" aria-label="Back to accommodations" @click="goBack"><IconifyIcon icon="lucide:arrow-left" width="20" aria-hidden="true" /></button><div><h1>{{ property?.name || 'Accommodation' }}</h1><p v-if="property">{{ property.address || 'Address not set' }}</p></div><span v-if="property" class="status-badge" :class="`status-badge--${property.statusTone}`">{{ property.statusLabel }}</span></header>
+      <section v-if="loading" class="surface loading-card" aria-busy="true"><div v-for="index in 5" :key="index" class="skeleton" /><span class="sr-only">Loading property</span></section>
+      <section v-else-if="error" class="surface state-panel state-panel--error" role="alert"><span class="state-icon"><IconifyIcon icon="lucide:cloud-alert" width="24" aria-hidden="true" /></span><h2>Unable to load this accommodation</h2><p>{{ error }}</p><button type="button" class="primary-action" @click="loadProperty"><IconifyIcon icon="lucide:refresh-cw" width="17" aria-hidden="true" /> Retry</button></section>
+      <template v-else-if="property">
+        <nav class="tab-bar" aria-label="Accommodation sections"><button v-for="tab in tabs" :key="tab.value" type="button" :class="{ active: activeTab === tab.value }" :aria-pressed="activeTab === tab.value" @click="activeTab = tab.value">{{ tab.label }}<span v-if="tab.value === 'rooms'">{{ rooms.length }}</span></button></nav>
+        <section v-if="activeTab === 'overview'" class="content-stack">
+          <div v-if="images.length" class="gallery surface"><img :src="images[activeImageIndex]" :alt="`${property.name} photo`" /><div v-if="images.length > 1" class="gallery-controls"><button v-for="(_, index) in images" :key="index" type="button" :class="{ active: index === activeImageIndex }" :aria-label="`Show photo ${index + 1}`" @click="activeImageIndex = index" /></div></div>
+          <section class="surface stats-grid" aria-label="Property occupancy"><div><span>Occupancy</span><strong>{{ occupiedSpaces }} of {{ totalCapacity }}</strong><small>spaces occupied</small></div><div><span>Available</span><strong>{{ availableSpaces }}</strong><small>{{ availableSpaces === 1 ? 'space' : 'spaces' }} remaining</small></div><div><span>Rooms</span><strong>{{ rooms.length }}</strong><small>{{ rooms.length ? 'configured' : 'not configured' }}</small></div></section>
+          <section v-if="rooms.length === 0" class="setup-callout"><IconifyIcon icon="lucide:circle-alert" width="19" aria-hidden="true" /><div><strong>Complete room setup</strong><span>Students can only apply after rooms are added and made available.</span></div><button type="button" @click="openRoomDialog()">Add room</button></section>
+          <section class="surface info-list"><div><span>Accommodation type</span><strong>{{ property.accommodationType || 'Not set' }}</strong></div><div><span>Who can stay</span><strong>{{ property.genderPolicy || 'Not set' }}</strong></div><div><span>Accreditation</span><strong>{{ property.statusLabel }}</strong></div></section>
+          <section v-if="property.description" class="surface content-card"><h2>Description</h2><p>{{ property.description }}</p></section>
+          <section class="surface content-card"><h2>Amenities</h2><div v-if="property.amenities.length" class="chip-list"><span v-for="amenity in property.amenities" :key="amenity">{{ amenity }}</span></div><p v-else class="empty-copy">No amenities listed.</p></section>
+          <section class="surface content-card"><h2>House rules</h2><ul v-if="property.rules.length"><li v-for="rule in property.rules" :key="rule">{{ rule }}</li></ul><p v-else class="empty-copy">No house rules listed.</p></section>
+          <section class="surface content-card"><h2>Shared facilities</h2><div v-if="sharedFacilities.length" class="facility-list"><article v-for="facility in sharedFacilities" :key="facility.id"><strong>{{ facilityLabel(facility) }}</strong><span v-if="facility.description">{{ facility.description }}</span><small>{{ facility.images.length }} {{ facility.images.length === 1 ? 'photo' : 'photos' }}</small></article></div><p v-else class="empty-copy">No shared facilities listed.</p></section>
+        </section>
+        <section v-else-if="activeTab === 'rooms'" class="content-stack"><div class="section-heading"><div><h2>Rooms</h2><p>Availability, room type, and occupancy by room.</p></div><button type="button" class="primary-action" @click="openRoomDialog()"><IconifyIcon icon="lucide:plus" width="17" aria-hidden="true" /> Add room</button></div><div v-if="rooms.length" class="surface room-list"><article v-for="room in rooms" :key="room.id" class="room-row"><span class="room-icon" :class="`room-icon--${roomTone(room)}`"><IconifyIcon icon="lucide:door-open" width="20" aria-hidden="true" /></span><div class="room-copy"><strong>{{ roomName(room) }}</strong><span>{{ roomTypeLabel(room) }} · {{ room.currentPax }} of {{ room.capacity }} spaces occupied</span><small>{{ room.monthlyRent === null ? 'Rent not set' : formatPeso(room.monthlyRent) + ' / month' }}<template v-if="roomFacilities(room.id).length"> · {{ roomFacilities(room.id).map(facilityLabel).join(', ') }}</template></small></div><div class="room-side"><span class="status-badge" :class="`status-badge--${roomTone(room)}`">{{ roomStatus(room) }}</span><button type="button" :aria-label="`Edit ${roomName(room)}`" @click="openRoomDialog(room)"><IconifyIcon icon="lucide:pencil" width="16" aria-hidden="true" /> Edit</button></div></article></div><section v-else class="surface state-panel"><span class="state-icon"><IconifyIcon icon="lucide:door-open" width="24" aria-hidden="true" /></span><h2>No rooms configured</h2><p>Add rooms with their capacity, rent, and availability before accepting tenants.</p><button type="button" class="primary-action" @click="openRoomDialog()"><IconifyIcon icon="lucide:plus" width="17" aria-hidden="true" /> Add room</button></section></section>
+        <section v-else class="content-stack"><div class="section-heading"><div><h2>Accommodation settings</h2><p>Edit the information students see.</p></div><button type="button" class="primary-action" @click="openSettingsDialog"><IconifyIcon icon="lucide:pencil" width="17" aria-hidden="true" /> Edit</button></div><section class="surface info-list"><div><span>Accommodation name</span><strong>{{ property.name }}</strong></div><div><span>Address</span><strong>{{ property.address || 'Not set' }}</strong></div><div><span>Accommodation type</span><strong>{{ property.accommodationType || 'Not set' }}</strong></div><div><span>Who can stay</span><strong>{{ property.genderPolicy || 'Not set' }}</strong></div></section><section class="surface content-card"><h2>Published details</h2><p>Use Edit to update the accommodation description, amenities, and house rules. Accreditation is managed through OSAS.</p></section></section>
+      </template>
+    </main>
+    <q-dialog v-model="roomDialog" position="bottom"><q-card class="sheet-card"><q-card-section class="sheet-heading"><div><h2>{{ editingRoomId ? 'Edit room' : 'Add room' }}</h2><p>Set availability and capacity for this room.</p></div><q-btn flat round dense icon="close" aria-label="Close room form" @click="roomDialog = false" /></q-card-section><q-card-section><label>Room name <span>*</span><q-input v-model="roomForm.label" outlined dense placeholder="e.g. Room 101" :error="!!roomError" :error-message="roomError" /></label><div class="form-grid"><label>Capacity <span>*</span><q-input v-model.number="roomForm.capacity" type="number" min="1" outlined dense /></label><label>Monthly rent <span>*</span><q-input v-model.number="roomForm.monthlyRent" type="number" min="0" prefix="₱" outlined dense /></label></div><label>Status <span>*</span><q-select v-model="roomForm.status" :options="roomStatusOptions" outlined dense emit-value map-options /></label></q-card-section><q-card-actions align="right"><q-btn flat no-caps label="Cancel" @click="roomDialog = false" /><q-btn no-caps unelevated class="primary-action" :loading="savingRoom" :label="editingRoomId ? 'Save room' : 'Add room'" @click="saveRoom" /></q-card-actions></q-card></q-dialog>
+    <q-dialog v-model="settingsDialog" position="bottom"><q-card class="sheet-card"><q-card-section class="sheet-heading"><div><h2>Edit accommodation</h2><p>Update core listing details.</p></div><q-btn flat round dense icon="close" aria-label="Close accommodation form" @click="settingsDialog = false" /></q-card-section><q-card-section><label>Accommodation name <span>*</span><q-input v-model="settingsForm.name" outlined dense /></label><label>Address <q-input v-model="settingsForm.address" outlined dense placeholder="Full accommodation address" /></label><label>Description <q-input v-model="settingsForm.description" type="textarea" rows="3" outlined /></label><label>Accommodation type <q-select v-model="settingsForm.accommodationType" :options="accommodationTypeOptions" outlined dense /></label><label>Who can stay <q-select v-model="settingsForm.genderPolicy" :options="genderOptions" outlined dense /></label></q-card-section><q-card-actions align="right"><q-btn flat no-caps label="Cancel" @click="settingsDialog = false" /><q-btn no-caps unelevated class="primary-action" :loading="savingSettings" label="Save changes" @click="saveSettings" /></q-card-actions></q-card></q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
+import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
-
-interface PropertyDetail {
-  id: string
-  name: string
-  property_type: string | null
-  room_type: string | null
-  address: string | null
-  status: string
-  gender_policy: string | null
-  description: string | null
-  landlord_phone: string | null
-  landlord_email: string | null
-  amenities: string[]
-  rules: string[]
-  images: string[]
-  lat: number | null
-  lng: number | null
-}
-
-const route = useRoute()
-const router = useRouter()
-
-const property = ref<PropertyDetail | null>(null)
-const isLoading = ref(false)
-const loadError = ref<string | null>(null)
-const detailMapContainer = ref<HTMLElement | null>(null)
-let map: any = null
-let marker: any = null
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
-const mapAvailable = true
-
-const amenitiesList = computed<string[]>(() => {
-  const a = property.value?.amenities
-  if (Array.isArray(a)) return a.map((x: any) => String(x))
-  if (typeof a === 'string' && a) return [a]
-  return []
-})
-
-const rulesList = computed<string[]>(() => {
-  const r = property.value?.rules
-  if (Array.isArray(r)) return r.map((x: any) => String(x))
-  if (typeof r === 'string' && r) return [r]
-  return []
-})
-
-const genderPolicyLabel = computed<string>(() => {
-  const v = property.value?.gender_policy
-  if (v === 'boys') return 'Boys only'
-  if (v === 'girls') return 'Girls only'
-  if (v === 'coed') return 'Co-ed'
-  return '—'
-})
-
-const images = computed<string[]>(() => property.value?.images || [])
-const activeImageIndex = ref(0)
-
-async function fetchProperty() {
-  isLoading.value = true
-  loadError.value = null
-  try {
-    const id = route.params.id as string
-
-    const { data: p, error } = await supabase
-      .from('accommodations' as any)
-      .select('id, name, accommodation_type, room_type, address, description, lat, lng, status, accommodation_manager_id')
-      .eq('id', id)
-      .single()
-    if (error) throw error
-
-    const [amenRes, polRes, usrRes, imgRes] = await Promise.all([
-      supabase.from('accommodation_amenities' as any).select('amenity').eq('accommodation_id', id),
-      supabase.from('accommodation_policies' as any).select('house_rules_json').eq('accommodation_id', id).maybeSingle(),
-      supabase.from('users').select('phone, email').eq('id', (p as any).accommodation_manager_id).maybeSingle(),
-      supabase
-        .from('accommodation_images' as any)
-        .select('url, sort_order')
-        .eq('accommodation_id', id)
-        .order('sort_order', { ascending: true }),
-    ])
-
-    const imageList = (imgRes.data || []).map((row: any) => row.url as string)
-    activeImageIndex.value = 0
-
-    // "Who can stay" is stored inside property_policies.house_rules_json (no new column).
-    // The jsonb may be a plain rules array (older data) or an object with rules + gender_policy.
-    const policyRaw: any = (polRes as any)?.data?.house_rules_json
-    let rules: string[] = []
-    let genderPolicy: string | null = null
-    if (Array.isArray(policyRaw)) {
-      rules = policyRaw
-    } else if (policyRaw && typeof policyRaw === 'object') {
-      rules = (policyRaw.rules as string[]) || []
-      genderPolicy = policyRaw.gender_policy ?? null
-    }
-
-    property.value = {
-      ...(p as any),
-      gender_policy: genderPolicy,
-      landlord_phone: usrRes.data?.phone ?? null,
-      landlord_email: usrRes.data?.email ?? null,
-      amenities: (amenRes.data || []).map((a: any) => a.amenity),
-      rules,
-      images: imageList,
-    } as PropertyDetail
-  } catch (e: any) {
-    loadError.value = e?.message || 'Failed to load property'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-function initMap(tries = 0) {
-  if (!mapAvailable) return
-  const mapboxgl = (window as any).mapboxgl
-  if (!mapboxgl) {
-    if (tries < 20) setTimeout(() => initMap(tries + 1), 300)
-    return
-  }
-  if (!detailMapContainer.value || !property.value) return
-  if (!MAPBOX_TOKEN) return
-  try {
-    mapboxgl.accessToken = MAPBOX_TOKEN
-    const hasCoords = !!property.value.lat && !!property.value.lng
-    const center: [number, number] = hasCoords
-      ? [property.value.lng as number, property.value.lat as number]
-      : [123.8854, 10.3157]
-    map = new mapboxgl.Map({
-      container: detailMapContainer.value,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center,
-      zoom: hasCoords ? 15 : 12,
-    })
-    if (hasCoords) {
-      marker = new mapboxgl.Marker()
-        .setLngLat([property.value.lng as number, property.value.lat as number])
-        .addTo(map)
-    }
-    setTimeout(() => map && map.resize(), 200)
-  } catch (e) {
-    // Map is non-critical on the detail view; ignore init errors.
-  }
-}
-
-function goBack() {
-  void router.push('/landlord/properties')
-}
-
-onMounted(() => {
-  void fetchProperty().then(() => initMap())
-})
+import { formatPeso } from '@/shared/utils/format'
+type Tab = 'overview' | 'rooms' | 'settings'; type Tone = 'success' | 'warning' | 'danger' | 'neutral'
+interface Room { id: string; roomNumber: string | null; label: string | null; roomType: string | null; customRoomType: string | null; capacity: number; currentPax: number; monthlyRent: number | null; status: string }
+interface Facility { id: string; roomId: string | null; type: string; label: string | null; description: string | null; images: string[] }
+interface Property { id: string; name: string; address: string; description: string; accommodationType: string; genderPolicy: string; amenities: string[]; rules: string[]; statusLabel: string; statusTone: Tone }
+const $q = useQuasar(); const route = useRoute(); const router = useRouter(); const loading = ref(true); const error = ref<string | null>(null); const property = ref<Property | null>(null); const rooms = ref<Room[]>([]); const facilities = ref<Facility[]>([]); const images = ref<string[]>([]); const activeImageIndex = ref(0); const activeTab = ref<Tab>('overview'); const roomDialog = ref(false); const settingsDialog = ref(false); const savingRoom = ref(false); const savingSettings = ref(false); const editingRoomId = ref<string | null>(null); const roomError = ref(''); const roomForm = ref({ label: '', roomType: '', customRoomType: '', capacity: 1, monthlyRent: 0, status: 'available' }); const settingsForm = ref({ name: '', address: '', description: '', accommodationType: '', genderPolicy: '' }); const tabs: { label: string; value: Tab }[] = [{ label: 'Overview', value: 'overview' }, { label: 'Rooms', value: 'rooms' }, { label: 'Settings', value: 'settings' }]; const roomStatusOptions = [{ label: 'Available', value: 'available' }, { label: 'Occupied', value: 'occupied' }, { label: 'Maintenance', value: 'maintenance' }]; const roomTypeOptions = [{ label: 'Solo room', value: 'solo' }, { label: 'Duo room', value: 'duo' }, { label: 'Triple room', value: 'triple' }, { label: 'Bedspace', value: 'bedspace' }, { label: 'Studio', value: 'studio' }, { label: 'Other', value: 'custom' }]; const accommodationTypeOptions = ['boarding_house', 'residence_hall', 'apartment_building', 'apartment_unit', 'house', 'condominium_unit', 'bedspace_facility']; const genderOptions = ['Boys only', 'Girls only', 'Co-ed']
+const totalCapacity = computed(() => rooms.value.reduce((total, room) => total + room.capacity, 0)); const occupiedSpaces = computed(() => rooms.value.reduce((total, room) => total + room.currentPax, 0)); const availableSpaces = computed(() => Math.max(totalCapacity.value - occupiedSpaces.value, 0))
+function statusPresentation(status: string | null, accreditation: string | null) { const value = (accreditation || '').toLowerCase(); if (['rejected', 'delisted', 'expired'].includes(value)) return { label: value === 'delisted' ? 'Delisted' : value[0]!.toUpperCase() + value.slice(1), tone: 'danger' as Tone }; if (['pending', 'reviewing', 'submitted'].includes(value) || status === 'pending') return { label: value === 'reviewing' ? 'In review' : 'Pending', tone: 'warning' as Tone }; if (['accredited', 'approved', 'active'].includes(value) || status === 'active') return { label: 'Active', tone: 'success' as Tone }; return { label: 'Not set', tone: 'neutral' as Tone } }
+const sharedFacilities = computed(() => facilities.value.filter((facility) => !facility.roomId)); function roomFacilities(roomId: string) { return facilities.value.filter((facility) => facility.roomId === roomId) }; function facilityLabel(facility: Facility) { return facility.label || facility.type.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) }; function roomTypeLabel(room: Room) { if (room.roomType === 'custom') return room.customRoomType || 'Other room'; return room.roomType ? room.roomType.replace(/\b\w/g, (letter) => letter.toUpperCase()) + (room.roomType === 'bedspace' ? '' : ' room') : 'Type not set' }; function roomName(room: Room) { return room.label || (room.roomNumber ? `Room ${room.roomNumber}` : 'Unnamed room') }; function roomTone(room: Room): Tone { if (room.status === 'maintenance') return 'danger'; if (room.status === 'available' && room.currentPax < room.capacity) return 'success'; if (room.status === 'occupied' || room.currentPax >= room.capacity) return 'warning'; return 'neutral' }; function roomStatus(room: Room) { if (room.status === 'maintenance') return 'Maintenance'; if (room.currentPax >= room.capacity && room.capacity > 0) return 'Full'; if (room.status === 'available') return 'Available'; return room.status ? room.status[0]!.toUpperCase() + room.status.slice(1) : 'Not set' }
+async function loadProperty() { loading.value = true; error.value = null; try { const id = String(route.params.id); const { data: auth, error: authError } = await supabase.auth.getUser(); if (authError) throw authError; if (!auth.user) { void router.push('/login'); return }; const { data: propertyRow, error: propertyError } = await (supabase as any).from('accommodations').select('id, name, business_name, address, description, accommodation_type, status, accreditation_status').eq('id', id).eq('accommodation_manager_id', auth.user.id).maybeSingle(); if (propertyError) throw propertyError; if (!propertyRow) throw new Error('Accommodation not found or you do not have access to it.'); const [roomResult, amenityResult, policyResult, imageResult, facilityResult] = await Promise.all([(supabase as any).from('rooms').select('id, room_number, label, room_type, custom_room_type, capacity, current_pax, monthly_rent, status').eq('accommodation_id', id).order('room_number'), (supabase as any).from('accommodation_amenities').select('amenity').eq('accommodation_id', id), (supabase as any).from('accommodation_policies').select('house_rules_json').eq('accommodation_id', id).maybeSingle(), (supabase as any).from('accommodation_images').select('url, sort_order').eq('accommodation_id', id).order('sort_order'), (supabase as any).from('accommodation_facilities').select('id, room_id, facility_type, label, description').eq('accommodation_id', id)]); if (roomResult.error) throw roomResult.error; if (amenityResult.error) throw amenityResult.error; if (policyResult.error) throw policyResult.error; if (imageResult.error) throw imageResult.error; if (facilityResult.error) throw facilityResult.error; const facilityRows = facilityResult.data ?? []; const facilityIds = facilityRows.map((facility: any) => facility.id); const { data: facilityImageRows, error: facilityImageError } = facilityIds.length ? await (supabase as any).from('accommodation_facility_images').select('facility_id, url').in('facility_id', facilityIds) : { data: [], error: null }; if (facilityImageError) throw facilityImageError; const policy = policyResult.data?.house_rules_json; const rules = Array.isArray(policy) ? policy : policy && typeof policy === 'object' && Array.isArray((policy as any).rules) ? (policy as any).rules : []; const genderPolicy = policy && typeof policy === 'object' && !Array.isArray(policy) ? (policy as any).gender_policy || '' : ''; const status = statusPresentation(propertyRow.status, propertyRow.accreditation_status); property.value = { id: propertyRow.id, name: propertyRow.business_name || propertyRow.name || 'Unnamed accommodation', address: propertyRow.address || '', description: propertyRow.description || '', accommodationType: propertyRow.accommodation_type || '', genderPolicy, amenities: (amenityResult.data ?? []).map((item: any) => String(item.amenity)), rules, statusLabel: status.label, statusTone: status.tone }; rooms.value = (roomResult.data ?? []).map((room: any) => ({ id: room.id, roomNumber: room.room_number, label: room.label, roomType: room.room_type, customRoomType: room.custom_room_type, capacity: Math.max(Number(room.capacity) || 0, 0), currentPax: Math.max(Number(room.current_pax) || 0, 0), monthlyRent: room.monthly_rent === null ? null : Number(room.monthly_rent || 0), status: room.status || '' })); facilities.value = facilityRows.map((facility: any) => ({ id: facility.id, roomId: facility.room_id, type: facility.facility_type, label: facility.label, description: facility.description, images: (facilityImageRows ?? []).filter((image: any) => image.facility_id === facility.id).map((image: any) => image.url) })); images.value = (imageResult.data ?? []).map((item: any) => item.url).filter(Boolean); activeImageIndex.value = 0 } catch (reason) { error.value = reason instanceof Error ? reason.message : 'We could not retrieve this accommodation.' } finally { loading.value = false } }
+function openRoomDialog(room?: Room) { roomError.value = ''; editingRoomId.value = room?.id || null; roomForm.value = room ? { label: room.label || room.roomNumber || '', roomType: room.roomType || '', customRoomType: room.customRoomType || '', capacity: room.capacity || 1, monthlyRent: room.monthlyRent || 0, status: room.status || 'available' } : { label: '', roomType: '', customRoomType: '', capacity: 1, monthlyRent: 0, status: 'available' }; roomDialog.value = true }
+async function saveRoom() { if (!property.value) return; if (!roomForm.value.label.trim() || !roomForm.value.roomType || (roomForm.value.roomType === 'custom' && !roomForm.value.customRoomType.trim()) || !Number.isFinite(roomForm.value.capacity) || roomForm.value.capacity < 1 || !Number.isFinite(roomForm.value.monthlyRent) || roomForm.value.monthlyRent < 0) { roomError.value = 'Enter a room name, type, capacity of at least 1, and a valid monthly rent.'; return }; savingRoom.value = true; roomError.value = ''; try { const payload = { label: roomForm.value.label.trim(), room_number: roomForm.value.label.trim(), room_type: roomForm.value.roomType, custom_room_type: roomForm.value.roomType === 'custom' ? roomForm.value.customRoomType.trim() : null, capacity: Number(roomForm.value.capacity), monthly_rent: Number(roomForm.value.monthlyRent), status: roomForm.value.status }; const result = editingRoomId.value ? await (supabase as any).from('rooms').update(payload).eq('id', editingRoomId.value) : await (supabase as any).from('rooms').insert({ ...payload, accommodation_id: property.value.id, current_pax: 0 }); if (result.error) throw result.error; roomDialog.value = false; $q.notify({ type: 'positive', message: editingRoomId.value ? 'Room updated.' : 'Room added.', position: 'top' }); await loadProperty() } catch (reason) { roomError.value = reason instanceof Error ? reason.message : 'Unable to save room.' } finally { savingRoom.value = false } }
+function openSettingsDialog() { if (!property.value) return; settingsForm.value = { name: property.value.name, address: property.value.address, description: property.value.description, accommodationType: property.value.accommodationType, genderPolicy: property.value.genderPolicy }; settingsDialog.value = true }
+async function saveSettings() { if (!property.value || !settingsForm.value.name.trim()) return; savingSettings.value = true; try { const { error: propertyError } = await (supabase as any).from('accommodations').update({ name: settingsForm.value.name.trim(), address: settingsForm.value.address.trim() || null, description: settingsForm.value.description.trim() || null, accommodation_type: settingsForm.value.accommodationType || null }).eq('id', property.value.id); if (propertyError) throw propertyError; const { data: existingPolicy, error: policyReadError } = await (supabase as any).from('accommodation_policies').select('house_rules_json').eq('accommodation_id', property.value.id).maybeSingle(); if (policyReadError) throw policyReadError; const raw = existingPolicy?.house_rules_json; const nextPolicy = { ...(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}), rules: property.value.rules, gender_policy: settingsForm.value.genderPolicy || null }; const policyResult = existingPolicy ? await (supabase as any).from('accommodation_policies').update({ house_rules_json: nextPolicy }).eq('accommodation_id', property.value.id) : await (supabase as any).from('accommodation_policies').insert({ accommodation_id: property.value.id, house_rules_json: nextPolicy }); if (policyResult.error) throw policyResult.error; settingsDialog.value = false; $q.notify({ type: 'positive', message: 'Accommodation settings saved.', position: 'top' }); await loadProperty() } catch (reason) { $q.notify({ type: 'negative', message: reason instanceof Error ? reason.message : 'Unable to save accommodation settings.', position: 'top' }) } finally { savingSettings.value = false } }
+function goBack() { void router.push('/landlord/properties') }; onMounted(() => { void loadProperty() })
 </script>
 
 <style scoped>
-.property-detail-page {
-  background: #f4f5f7;
-  min-height: 100vh;
-  padding: 20px;
-}
-
-.page-wrapper {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.detail-container {
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.detail-header {
-  background: white;
-  padding: 20px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-text {
-  flex: 1;
-}
-
-.detail-title {
-  color: #111827;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.detail-subtitle {
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 2px;
-}
-
-.status-badge {
-  border-radius: 20px;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 5px 10px;
-}
-
-.detail-map {
-  width: 100%;
-  height: 220px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  position: relative;
-  z-index: 1;
-}
-
-.gallery-section {
-  background: #000;
-}
-
-.gallery-main {
-  width: 100%;
-  height: 280px;
-  object-fit: cover;
-  display: block;
-}
-
-.gallery-thumbs {
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-  overflow-x: auto;
-  background: #f4f5f7;
-}
-
-.gallery-thumb {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 2px solid transparent;
-  flex-shrink: 0;
-}
-
-.gallery-thumb.active {
-  border-color: #00897b;
-}
-
-.detail-content {
-  padding: 20px;
-}
-
-.info-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-  padding-bottom: 10px;
-}
-
-.info-label {
-  color: #6b7280;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.info-value {
-  color: #111827;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: right;
-  word-break: break-word;
-}
-
-.info-block {
-  margin-bottom: 20px;
-}
-
-.section-title {
-  color: #111827;
-  font-size: 14px;
-  font-weight: 800;
-  margin-bottom: 10px;
-}
-
-.description-text {
-  color: #374151;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.chips-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.info-chip {
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 5px 10px;
-}
-
-.rules-ul {
-  margin: 0;
-  padding-left: 18px;
-  color: #374151;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.muted-text {
-  color: #9ca3af;
-  font-size: 13px;
-  font-style: italic;
-}
+.property-page { min-height: 100%; background: var(--m-bg); color: var(--m-text); }.property-shell { width: 100%; max-width: 760px; margin: 0 auto; padding: max(var(--m-space-3), env(safe-area-inset-top)) var(--m-page-gutter) max(112px, calc(var(--m-space-8) + env(safe-area-inset-bottom))); }.page-header { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; align-items: center; gap: 10px; margin-bottom: 16px; }.back-button { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--m-border); border-radius: 8px; background: var(--m-surface); color: var(--m-primary-dark); }.page-header h1 { overflow: hidden; margin: 0; color: var(--m-ink); font-size: 18px; font-weight: 800; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }.page-header p { overflow: hidden; margin: 3px 0 0; color: var(--m-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.tab-bar { display: flex; margin: 0 -12px 20px; padding: 0 12px; overflow-x: auto; border-bottom: 1px solid var(--m-border); background: var(--m-surface); scrollbar-width: none; }.tab-bar button { display: flex; min-width: 94px; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--m-muted); font-size: 12px; font-weight: 800; }.tab-bar button.active { border-color: var(--m-primary); color: var(--m-primary-dark); }.tab-bar span { min-width: 18px; padding: 2px 5px; border-radius: 999px; background: var(--m-bg); font-size: 10px; }.content-stack { display: grid; gap: 16px; }.surface { overflow: hidden; border: 1px solid var(--m-border); border-radius: 12px; background: var(--m-surface); }.gallery { position: relative; }.gallery img { display: block; width: 100%; height: 240px; object-fit: cover; }.gallery-controls { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 5px; padding: 7px; border-radius: 999px; background: rgba(23,32,42,.58); }.gallery-controls button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.56); }.gallery-controls button.active { background: #fff; }.stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); }.stats-grid div { display: grid; gap: 4px; padding: 14px 12px; border-right: 1px solid var(--m-border); }.stats-grid div:last-child { border-right: 0; }.stats-grid span,.stats-grid small { color: var(--m-muted); font-size: 10px; line-height: 1.25; }.stats-grid strong { overflow: hidden; color: var(--m-ink); font-size: 15px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }.setup-callout { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 12px; border: 1px solid #fed7aa; border-radius: 12px; background: var(--m-warning-soft); color: var(--m-warning); }.setup-callout div { display: grid; gap: 2px; }.setup-callout strong { font-size: 12px; font-weight: 800; }.setup-callout span { color: var(--m-text); font-size: 11px; line-height: 1.35; }.setup-callout button { min-height: 36px; padding: 0 9px; border: 0; border-radius: 7px; background: var(--m-warning); color: #fff; font-size: 11px; font-weight: 800; }.info-list > div { display: flex; justify-content: space-between; gap: 16px; padding: 13px 14px; border-bottom: 1px solid var(--m-border); }.info-list > div:last-child { border-bottom: 0; }.info-list span { color: var(--m-muted); font-size: 12px; }.info-list strong { max-width: 60%; color: var(--m-ink); font-size: 12px; font-weight: 750; text-align: right; }.content-card { padding: 16px; }.content-card h2,.section-heading h2,.sheet-heading h2,.state-panel h2 { margin: 0; color: var(--m-ink); font-size: 17px; font-weight: 800; }.content-card p,.section-heading p,.sheet-heading p,.state-panel p { margin: 7px 0 0; color: var(--m-muted); font-size: 13px; line-height: 1.5; }.content-card ul { display: grid; gap: 8px; margin: 12px 0 0; padding-left: 19px; color: var(--m-text); font-size: 13px; line-height: 1.45; }.empty-copy { font-style: italic; }.chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }.chip-list span { padding: 5px 8px; border: 1px solid var(--m-border); border-radius: 999px; color: var(--m-text); font-size: 11px; font-weight: 700; }.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.primary-action { min-height: 40px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--m-primary-dark); color: #fff; font-size: 12px; font-weight: 800; white-space: nowrap; }.primary-action svg { margin-right: 5px; vertical-align: -3px; }.room-row { display: grid; min-height: 88px; grid-template-columns: 40px minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid var(--m-border); }.room-row:last-child { border-bottom: 0; }.room-icon,.state-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; }.room-icon--success { background: var(--m-success-soft); color: var(--m-success); }.room-icon--warning { background: var(--m-warning-soft); color: var(--m-warning); }.room-icon--danger,.state-panel--error .state-icon { background: var(--m-danger-soft); color: var(--m-danger); }.room-icon--neutral,.state-icon { background: var(--m-bg); color: var(--m-text); }.room-copy { display: grid; min-width: 0; gap: 2px; }.room-copy strong { overflow: hidden; color: var(--m-ink); font-size: 14px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }.room-copy span,.room-copy small { overflow: hidden; color: var(--m-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.room-side { display: grid; justify-items: end; gap: 6px; }.room-side button { min-height: 30px; padding: 0 4px; border: 0; background: transparent; color: var(--m-primary-dark); font-size: 11px; font-weight: 800; }.room-side button svg { margin-right: 3px; vertical-align: -3px; }.status-badge { min-height: 23px; padding: 4px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }.status-badge--success { background: var(--m-success-soft); color: var(--m-success); }.status-badge--warning { background: var(--m-warning-soft); color: var(--m-warning); }.status-badge--danger { background: var(--m-danger-soft); color: var(--m-danger); }.status-badge--neutral { background: var(--m-bg); color: var(--m-text); }.state-panel { display: flex; min-height: 260px; flex-direction: column; align-items: flex-start; justify-content: center; padding: 24px; }.state-icon { margin-bottom: 16px; }.sheet-card { width: 100%; max-width: 760px; margin: 0 auto; border-radius: 16px 16px 0 0; }.sheet-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.sheet-card label { display: grid; gap: 6px; margin-bottom: 14px; color: var(--m-text); font-size: 12px; font-weight: 750; }.sheet-card label > span { color: var(--m-danger); }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.loading-card { padding: 12px; }.skeleton { height: 56px; margin-bottom: 12px; border-radius: 8px; background: #edf0f2; animation: pulse 1.4s ease infinite; }.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; } @keyframes pulse { 50% { opacity: .48; } } @media (max-width:390px) { .page-header { grid-template-columns: 44px minmax(0,1fr); }.page-header .status-badge { display: none; }.setup-callout { grid-template-columns: 20px minmax(0,1fr); }.setup-callout button { grid-column: 2; justify-self: start; }.stats-grid strong { font-size: 13px; } }
 </style>

@@ -1,427 +1,406 @@
 <template>
-  <q-page class="tenants-page bg-grey-1">
-    <div class="header-shell q-px-md q-pt-md q-pb-sm">
-      <div class="page-subtitle">{{ activeCount }} active · {{ overdueCount }} with pending payments</div>
-    </div>
+  <q-page class="tenants-page">
+    <main id="tenant-list" class="tenant-content">
+      <header class="page-header">
+        <h1 class="sr-only">Tenants</h1>
+        <p class="page-summary">
+          {{ activeCount }} active {{ activeCount === 1 ? 'tenant' : 'tenants' }}
+          <span v-if="pendingApplications.length">and {{ pendingApplications.length }} application{{ pendingApplications.length === 1 ? '' : 's' }} to review</span>
+        </p>
+      </header>
 
-    <div class="q-px-md q-mt-md">
-      <q-input
-        v-model="searchText"
-        outlined
-        dense
-        rounded
-        class="tenant-search"
-        placeholder="Search tenants, rooms or properties..."
-      >
-        <template #prepend>
-          <q-icon name="search" color="grey-7" />
-        </template>
-      </q-input>
-    </div>
-
-    <div v-if="pendingApplications.length" class="q-px-md q-mt-md">
-      <div class="row items-center no-wrap q-mb-sm">
-        <q-icon name="pending_actions" size="20px" color="purple-7" class="q-mr-sm" />
-        <span class="pending-title">Pending Applications</span>
-      </div>
-      <q-card flat bordered class="pending-card">
-        <q-list separator>
-          <q-item v-for="app in pendingApplications" :key="app.id" class="pending-item">
-            <q-item-section avatar>
-              <q-avatar :color="app.avatarColor" text-color="white" size="38px">{{ app.initials }}</q-avatar>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="pending-name">{{ app.name }}</q-item-label>
-              <q-item-label caption class="pending-meta">{{ app.room }} · {{ app.property }}</q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <div class="row q-col-gutter-xs no-wrap">
-                <q-btn unelevated color="green-6" size="sm" label="Accept" @click="acceptApplication(app.id)" />
-                <q-btn flat color="grey-7" size="sm" label="Decline" @click="declineApplication(app.id)" />
-              </div>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
-    </div>
-
-    <div v-if="isLoading" class="center-state">
-      <q-spinner size="42px" color="teal-8" />
-    </div>
-
-    <div v-else-if="loadError" class="q-px-md q-pb-xl">
-      <q-banner class="bg-red-1 text-red-8 rounded-borders">
-        <template #avatar><q-icon name="error_outline" /></template>
-        {{ loadError }}
-      </q-banner>
-    </div>
-
-    <div v-else-if="!propertyGroups.length" class="center-state text-grey-7">
-      No tenants yet. Tenants appear here once a lease is created for your property.
-    </div>
-
-    <div v-else class="tenant-groups q-px-md q-pb-xl">
-      <div v-for="propertyGroup in filteredGroups" :key="propertyGroup.id" class="property-group">
-        <div class="group-header row items-center no-wrap">
-          <div class="group-icon">
-            <q-icon name="apartment" size="20px" color="teal-8" />
-          </div>
-
-          <div class="group-copy col">
-            <div class="group-name">{{ propertyGroup.name }}</div>
-            <div class="group-address">{{ propertyGroup.address }}</div>
-          </div>
-
-          <q-badge color="teal-1" text-color="teal-8" class="tenant-count-badge">
-            {{ propertyGroup.tenantCount }} tenants
-          </q-badge>
+      <section class="search-section" aria-label="Find tenants">
+        <label class="sr-only" for="tenant-search">Search tenants, properties, or rooms</label>
+        <div class="search-control">
+          <IconifyIcon icon="lucide:search" width="19" aria-hidden="true" />
+          <input
+            id="tenant-search"
+            v-model="searchText"
+            type="search"
+            autocomplete="off"
+            placeholder="Search tenants, properties, or rooms"
+          />
+          <button v-if="searchText" type="button" class="search-clear" aria-label="Clear search" @click="searchText = ''">
+            <IconifyIcon icon="lucide:x" width="18" aria-hidden="true" />
+          </button>
         </div>
 
-        <div class="room-groups">
-          <div v-for="room in propertyGroup.rooms" :key="room.id" class="room-section">
-            <div class="room-header row items-center no-wrap">
-              <div class="room-icon" :class="room.iconColor">
-                <q-icon :name="room.icon" size="18px" />
-              </div>
+        <nav class="filter-bar" aria-label="Tenant status filters">
+          <button
+            v-for="filter in filters"
+            :key="filter.value"
+            type="button"
+            class="filter-button"
+            :class="{ 'filter-button--active': statusFilter === filter.value }"
+            :aria-pressed="statusFilter === filter.value"
+            @click="statusFilter = filter.value"
+          >
+            {{ filter.label }}
+          </button>
+        </nav>
 
-              <div class="room-copy col">
-                <div class="room-title">{{ room.title }}</div>
-                <div class="room-subtitle" :class="room.subtextColor">{{ room.subtitle }}</div>
-              </div>
-
-              <div class="room-dots row items-center no-wrap">
-                <span
-                  v-for="dot in room.dotList"
-                  :key="`${room.id}-${dot.id}`"
-                  class="room-dot"
-                  :class="dot.filled ? room.dotColor : 'dot-muted'"
-                />
-              </div>
-            </div>
-
-            <div class="tenant-list">
-              <div
-                v-for="tenant in room.tenants"
-                :key="tenant.id"
-                class="tenant-row row items-center no-wrap cursor-pointer"
-                @click="openTenant(tenant.studentId)"
-              >
-                <q-avatar :color="tenant.avatarColor" text-color="white" size="38px" class="tenant-avatar">
-                  {{ tenant.initials }}
-                </q-avatar>
-
-                <div class="tenant-copy col">
-                  <div class="tenant-name">{{ tenant.name }}</div>
-                  <div class="tenant-course">{{ tenant.course }}</div>
-                </div>
-
-                <q-badge :color="tenant.statusColor" :text-color="tenant.statusTextColor" class="tenant-status-badge">
-                  {{ tenant.status }}
-                </q-badge>
-              </div>
-            </div>
-          </div>
+        <div class="results-bar" aria-live="polite">
+          <span>{{ resultCount }} {{ resultCount === 1 ? 'result' : 'results' }}</span>
+          <button v-if="hasActiveFilters" type="button" class="clear-filters" @click="clearFilters">
+            Clear filters
+          </button>
         </div>
-      </div>
-    </div>
+      </section>
 
+      <section v-if="isLoading" class="state-panel" aria-busy="true" aria-label="Loading tenants">
+        <div v-for="index in 5" :key="index" class="skeleton-row" aria-hidden="true">
+          <span class="skeleton-avatar" />
+          <span class="skeleton-copy"><i /><i /></span>
+          <span class="skeleton-badge" />
+        </div>
+        <span class="sr-only">Loading tenants</span>
+      </section>
+
+      <section v-else-if="loadError" class="state-panel state-panel--error" role="alert" aria-live="assertive">
+        <span class="state-icon"><IconifyIcon icon="lucide:cloud-alert" width="24" aria-hidden="true" /></span>
+        <h2>Unable to load tenants</h2>
+        <p>{{ loadError }}</p>
+        <button type="button" class="retry-button" @click="loadTenants">
+          <IconifyIcon icon="lucide:refresh-cw" width="17" aria-hidden="true" />
+          Retry
+        </button>
+      </section>
+
+      <template v-else>
+        <section v-if="visiblePendingApplications.length" class="applications-section" aria-labelledby="applications-heading">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">Needs a decision</p>
+              <h2 id="applications-heading">Pending applications</h2>
+            </div>
+            <span class="section-count">{{ visiblePendingApplications.length }}</span>
+          </div>
+
+          <div class="application-list">
+            <article v-for="application in visiblePendingApplications" :key="application.id" class="application-row">
+              <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ application.initials }}</q-avatar>
+              <div class="row-copy">
+                <strong :title="application.name">{{ application.name }}</strong>
+                <span :title="`${application.property} · ${application.room}`">{{ application.property }} · {{ application.room }}</span>
+              </div>
+              <div class="application-actions">
+                <button
+                  type="button"
+                  class="application-action application-action--accept"
+                  :disabled="applicationAction === application.id"
+                  @click="acceptApplication(application.id)"
+                >
+                  <IconifyIcon icon="lucide:check" width="16" aria-hidden="true" />
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  class="application-action application-action--decline"
+                  :disabled="applicationAction === application.id"
+                  @click="declineApplication(application.id)"
+                >
+                  <IconifyIcon icon="lucide:x" width="16" aria-hidden="true" />
+                  Decline
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section v-if="visibleTenants.length" class="roster-section" aria-labelledby="roster-heading">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">Current roster</p>
+              <h2 id="roster-heading">Tenant list</h2>
+            </div>
+            <span class="section-count">{{ visibleTenants.length }}</span>
+          </div>
+
+          <div class="tenant-list">
+            <button
+              v-for="tenant in visibleTenants"
+              :key="tenant.id"
+              type="button"
+              class="tenant-row"
+              :aria-label="`View ${tenant.name}, ${tenant.property}, ${tenant.room}, ${tenant.status}`"
+              @click="openTenant(tenant.studentId)"
+            >
+              <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ tenant.initials }}</q-avatar>
+              <span class="row-copy">
+                <strong :title="tenant.name">{{ tenant.name }}</strong>
+                <span :title="`${tenant.property} · ${tenant.room}`">{{ tenant.property }} · {{ tenant.room }}</span>
+              </span>
+              <span class="status-badge" :class="`status-badge--${tenant.statusKey}`">
+                <IconifyIcon :icon="tenant.statusIcon" width="14" aria-hidden="true" />
+                {{ tenant.status }}
+              </span>
+              <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="20" aria-hidden="true" />
+            </button>
+          </div>
+        </section>
+
+        <section v-if="!hasEntries" class="state-panel" aria-labelledby="empty-heading">
+          <span class="state-icon"><IconifyIcon icon="lucide:users-round" width="24" aria-hidden="true" /></span>
+          <h2 id="empty-heading">No tenants yet</h2>
+          <p>Tenants appear here after a lease is created for one of your properties.</p>
+        </section>
+
+        <section v-else-if="!visibleTenants.length && !visiblePendingApplications.length" class="state-panel" aria-labelledby="no-results-heading">
+          <span class="state-icon"><IconifyIcon icon="lucide:search-x" width="24" aria-hidden="true" /></span>
+          <h2 id="no-results-heading">No matching tenants</h2>
+          <p>Try another search or clear the active filters.</p>
+          <button type="button" class="retry-button" @click="clearFilters">Clear filters</button>
+        </section>
+      </template>
+    </main>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
 import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
 
-const $q = useQuasar()
+type TenantFilter = 'all' | 'active' | 'pending' | 'payment-due' | 'leaving'
+type TenantStatusKey = Exclude<TenantFilter, 'all' | 'pending'> | 'ended' | 'unknown'
 
+interface Tenant {
+  id: string
+  studentId: string
+  name: string
+  initials: string
+  property: string
+  room: string
+  status: string
+  statusKey: TenantStatusKey
+  statusIcon: string
+}
+
+interface PendingApplication {
+  id: string
+  name: string
+  initials: string
+  property: string
+  room: string
+}
+
+const $q = useQuasar()
 const router = useRouter()
 const searchText = ref('')
-
+const statusFilter = ref<TenantFilter>('all')
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
-const propertyGroups = ref<any[]>([])
-const pendingApplications = ref<any[]>([])
+const applicationAction = ref<string | null>(null)
+const tenants = ref<Tenant[]>([])
+const pendingApplications = ref<PendingApplication[]>([])
 
-const AVATAR_PALETTE = ['teal-8', 'purple-6', 'pink-5', 'orange-5', 'blue-6', 'green-6']
-
-function hashIndex(id: string, mod: number): number {
-  let sum = 0
-  for (const ch of id) sum += ch.charCodeAt(0)
-  return sum % mod
-}
+const filters: { label: string; value: TenantFilter }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Active', value: 'active' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Payment due', value: 'payment-due' },
+  { label: 'Leaving', value: 'leaving' },
+]
 
 function initialsOf(name: string): string {
   return (name || '?')
     .trim()
     .split(/\s+/)
-    .map((p) => p[0])
+    .map((part) => part[0])
     .filter(Boolean)
     .slice(0, 2)
     .join('')
     .toUpperCase()
 }
 
-interface LeaseStatusInfo {
-  label: string
-  color: string
-  textColor: string
-  dotColor: string
-  icon: string
-  iconColor: string
-  subtextColor: string
+function displayName(user: any, studentId: string): string {
+  return user?.full_name?.trim() || `Tenant ${(studentId || '').slice(0, 4)}`
 }
 
-function leaseStatusInfo(status: string, leaveRequested: boolean | null): LeaseStatusInfo {
-  if (leaveRequested) {
-    return { label: 'Leaving', color: 'amber-1', textColor: 'amber-8', dotColor: 'dot-orange', icon: 'exit_to_app', iconColor: 'icon-orange', subtextColor: 'text-orange' }
-  }
-  switch (status) {
-    case 'active':
-      return { label: 'Current', color: 'teal-1', textColor: 'teal-8', dotColor: 'dot-teal', icon: 'person_outline', iconColor: 'icon-teal', subtextColor: 'text-teal' }
-    case 'pending':
-      return { label: 'Pending', color: 'blue-1', textColor: 'blue-8', dotColor: 'dot-teal', icon: 'schedule', iconColor: 'icon-teal', subtextColor: 'text-teal' }
-    case 'terminated':
-    case 'ended':
-    case 'expired':
-      return { label: 'Ended', color: 'grey-3', textColor: 'grey-8', dotColor: 'dot-muted', icon: 'block', iconColor: 'icon-purple', subtextColor: 'text-purple' }
-    default:
-      return { label: (status || 'Unknown').replace('_', ' '), color: 'grey-3', textColor: 'grey-8', dotColor: 'dot-muted', icon: 'help', iconColor: 'icon-purple', subtextColor: 'text-purple' }
-  }
+function roomName(room: any): string {
+  return room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Unassigned room')
+}
+
+function matchesSearch(entry: { name: string; property: string; room: string }, term: string): boolean {
+  return [entry.name, entry.property, entry.room].some((value) => value.toLowerCase().includes(term))
+}
+
+function tenantStatus(status: string, leaveRequested: boolean, paymentDue: boolean): Pick<Tenant, 'status' | 'statusKey' | 'statusIcon'> {
+  if (paymentDue) return { status: 'Payment due', statusKey: 'payment-due', statusIcon: 'lucide:receipt-text' }
+  if (leaveRequested) return { status: 'Leaving', statusKey: 'leaving', statusIcon: 'lucide:log-out' }
+  if (status === 'active') return { status: 'Active', statusKey: 'active', statusIcon: 'lucide:circle-check' }
+  if (['ended', 'expired', 'terminated'].includes(status)) return { status: 'Ended', statusKey: 'ended', statusIcon: 'lucide:circle-x' }
+  return { status: status ? status.replace(/_/g, ' ') : 'Unknown', statusKey: 'unknown', statusIcon: 'lucide:circle-help' }
 }
 
 async function loadTenants() {
   isLoading.value = true
   loadError.value = null
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
 
-    // 1) Boarding houses (accommodations) this landlord manages
-    const { data: props, error: pErr } = await supabase
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError) throw userError
+    if (!user) {
+      tenants.value = []
+      pendingApplications.value = []
+      return
+    }
+
+    // Data is deliberately loaded through the tenant relationship: accommodations -> rooms -> leases -> payments -> users.
+    const { data: accommodations, error: accommodationError } = await supabase
       .from('accommodations' as any)
       .select('id, name, address')
       .eq('accommodation_manager_id', user.id)
-    if (pErr) throw pErr
+    if (accommodationError) throw accommodationError
 
-    const propertyList = (props || []) as any[]
-    const propIds = propertyList.map((p) => p.id)
+    const propertyRows = (accommodations || []) as any[]
+    const propertyIds = propertyRows.map((property) => property.id)
+    const propertyById = new Map(propertyRows.map((property) => [property.id, property]))
 
-    // 2) Rooms for those accommodations (rooms link via accommodation_id)
     let roomRows: any[] = []
-    if (propIds.length) {
-      const { data: rooms, error: rErr } = await supabase
+    if (propertyIds.length) {
+      const { data: rooms, error: roomError } = await supabase
         .from('rooms')
         .select('id, accommodation_id, room_number, label, floor, capacity, current_pax, status')
-        .in('accommodation_id', propIds)
-      if (rErr) throw rErr
+        .in('accommodation_id', propertyIds)
+      if (roomError) throw roomError
       roomRows = (rooms || []) as any[]
     }
+    const roomById = new Map(roomRows.map((room) => [room.id, room]))
 
-    const roomIds = roomRows.map((r) => r.id)
-
-    // 3) Leases (tenants) for those rooms
     let leaseRows: any[] = []
+    const roomIds = roomRows.map((room) => room.id)
     if (roomIds.length) {
-      const { data: leases, error: lErr } = await supabase
+      const { data: leases, error: leaseError } = await supabase
         .from('leases')
         .select('id, student_id, status, leave_requested_at, room_id')
         .in('room_id', roomIds)
-      if (lErr) throw lErr
+      if (leaseError) throw leaseError
       leaseRows = (leases || []) as any[]
     }
 
-    // 4) Payment status to flag due/overdue tenants
-    const leaseIds = leaseRows.map((l) => l.id)
-    const payPending = new Set<string>()
+    const paymentDueLeaseIds = new Set<string>()
+    const leaseIds = leaseRows.map((lease) => lease.id)
     if (leaseIds.length) {
-      const { data: pays } = await supabase
+      const { data: payments, error: paymentError } = await supabase
         .from('payments')
         .select('lease_id, status')
         .in('lease_id', leaseIds)
         .in('status', ['due', 'overdue', 'pending_verification'])
-      ;(pays || []).forEach((p: any) => payPending.add(p.lease_id))
+      if (paymentError) throw paymentError
+      ;(payments || []).forEach((payment: any) => paymentDueLeaseIds.add(payment.lease_id))
     }
 
-    // 5) Student profiles for the tenants
-    const studentIds = Array.from(new Set(leaseRows.map((l) => l.student_id)))
-    const studentMap = new Map<string, any>()
+    const userById = new Map<string, any>()
+    const studentIds = Array.from(new Set(leaseRows.map((lease) => lease.student_id).filter(Boolean)))
     if (studentIds.length) {
-      const { data: users } = await supabase
+      const { data: users, error: usersError } = await supabase
         .from('users')
         .select('id, full_name, avatar_color')
         .in('id', studentIds)
-      ;(users || []).forEach((u: any) => studentMap.set(u.id, u))
+      if (usersError) throw usersError
+      ;(users || []).forEach((student: any) => userById.set(student.id, student))
     }
 
-    // Pending applications (leases not yet accepted) — shown separately for accept/decline.
-    pendingApplications.value = leaseRows
-      .filter((l) => l.status === 'pending')
-      .map((l) => {
-        const roomRec = roomRows.find((r) => r.id === l.room_id)
-        const propRec = propertyList.find((p) => p.id === roomRec?.accommodation_id)
-        const userRec = studentMap.get(l.student_id)
-        const name = userRec?.full_name || `Tenant ${(l.student_id || '').slice(0, 4)}`
-        return {
-          id: l.id,
-          studentId: l.student_id,
+    const nextTenants: Tenant[] = []
+    const nextPendingApplications: PendingApplication[] = []
+
+    for (const lease of leaseRows) {
+      const room = roomById.get(lease.room_id)
+      const property = propertyById.get(room?.accommodation_id)
+      const userRecord = userById.get(lease.student_id)
+      const name = displayName(userRecord, lease.student_id)
+      const tenantLocation = {
+        property: property?.name || 'Unnamed property',
+        room: roomName(room),
+      }
+
+      if (lease.status === 'pending') {
+        nextPendingApplications.push({
+          id: lease.id,
           name,
           initials: initialsOf(name),
-          avatarColor: userRec?.avatar_color || AVATAR_PALETTE[hashIndex(l.student_id, AVATAR_PALETTE.length)],
-          room: roomRec?.label || (roomRec?.room_number ? `Room ${roomRec.room_number}` : 'Room'),
-          property: propRec?.name || 'Boarding House',
-        }
-      })
+          ...tenantLocation,
+        })
+        continue
+      }
 
-    // Build groups keyed by property -> room
-    const propMap = new Map<string, any>()
-    for (const p of propertyList) {
-      propMap.set(p.id, {
-        id: p.id,
-        name: p.name,
-        address: p.address,
-        tenantCount: 0,
-        rooms: new Map<string, any>(),
-      })
-    }
-
-    for (const room of roomRows) {
-      const pg = propMap.get(room.accommodation_id)
-      if (!pg) continue
-      const capacity = room.capacity ?? 0
-      const currentPax = room.current_pax ?? 0
-      const title = room.label || (room.room_number ? `Room ${room.room_number}` : 'Room')
-      const dotCount = Math.max(capacity, 1)
-      const dots: any[] = []
-      for (let i = 0; i < dotCount; i++) dots.push({ id: String(i), filled: i < currentPax })
-      pg.rooms.set(room.id, {
-        id: room.id,
-        title,
-        icon: 'meeting_room',
-        iconColor: 'icon-teal',
-        subtitle: `${Math.max(capacity - currentPax, 0)} available`,
-        subtextColor: 'text-teal',
-        dotColor: 'dot-teal',
-        dotList: dots,
-        tenants: [],
-      })
-    }
-
-    for (const l of leaseRows) {
-      if (l.status === 'pending') continue // handled in pendingApplications
-      const roomRec = roomRows.find((r) => r.id === l.room_id)
-      const pg = propMap.get(roomRec?.accommodation_id || '')
-      if (!pg) continue
-      const roomGroup = pg.rooms.get(l.room_id)
-      if (!roomGroup) continue
-
-      const statusInfo = leaseStatusInfo(l.status, !!l.leave_requested_at)
-      const userRec = studentMap.get(l.student_id)
-      const name = userRec?.full_name || `Tenant ${(l.student_id || '').slice(0, 4)}`
-      const isPayDue = payPending.has(l.id)
-      const tenant = {
-        id: l.id,
-        studentId: l.student_id,
+      const status = tenantStatus(
+        String(lease.status || '').toLowerCase(),
+        Boolean(lease.leave_requested_at),
+        paymentDueLeaseIds.has(lease.id),
+      )
+      nextTenants.push({
+        id: lease.id,
+        studentId: lease.student_id,
         name,
         initials: initialsOf(name),
-        course: `${roomGroup.title}${roomRec?.floor ? ` · Floor ${roomRec.floor}` : ''}`,
-        status: isPayDue ? 'Payment due' : statusInfo.label,
-        avatarColor: userRec?.avatar_color || AVATAR_PALETTE[hashIndex(l.student_id, AVATAR_PALETTE.length)],
-        statusColor: isPayDue ? 'red-1' : statusInfo.color,
-        statusTextColor: isPayDue ? 'red-7' : statusInfo.textColor,
-      }
-      roomGroup.tenants.push(tenant)
-      roomGroup.icon = 'person_outline'
-      pg.tenantCount++
+        ...tenantLocation,
+        ...status,
+      })
     }
 
-    propertyGroups.value = propertyList.map((p) => {
-      const pg = propMap.get(p.id)!
-      return {
-        id: pg.id,
-        name: pg.name,
-        address: pg.address,
-        tenantCount: pg.tenantCount,
-        rooms: Array.from(pg.rooms.values()),
-      }
-    })
-  } catch (e: any) {
-    loadError.value = e?.message || 'Failed to load tenants'
+    tenants.value = nextTenants
+    pendingApplications.value = nextPendingApplications
+  } catch (error: any) {
+    loadError.value = error?.message || 'Failed to load tenants'
   } finally {
     isLoading.value = false
   }
 }
 
 async function acceptApplication(leaseId: string) {
+  applicationAction.value = leaseId
   const { error } = await supabase.from('leases').update({ status: 'active' } as any).eq('id', leaseId)
   if (error) {
     $q.notify({ type: 'negative', message: error.message })
+    applicationAction.value = null
     return
   }
   $q.notify({ type: 'positive', message: 'Application accepted' })
   await loadTenants()
+  applicationAction.value = null
 }
 
 async function declineApplication(leaseId: string) {
+  applicationAction.value = leaseId
   const { error } = await supabase.from('leases').update({ status: 'ended' } as any).eq('id', leaseId)
   if (error) {
     $q.notify({ type: 'negative', message: error.message })
+    applicationAction.value = null
     return
   }
   $q.notify({ type: 'positive', message: 'Application declined' })
   await loadTenants()
+  applicationAction.value = null
 }
 
-const activeCount = computed(() => {
-  // count leases with status active from loaded groups
-  let n = 0
-  propertyGroups.value.forEach((pg) =>
-    pg.rooms.forEach((r: any) => r.tenants.forEach((t: any) => {
-      if (t.status === 'Current') n++
-    })),
-  )
-  return n
+const activeCount = computed(() => tenants.value.filter((tenant) => tenant.statusKey === 'active').length)
+const hasEntries = computed(() => tenants.value.length > 0 || pendingApplications.value.length > 0)
+const searchTerm = computed(() => searchText.value.trim().toLowerCase())
+const hasActiveFilters = computed(() => statusFilter.value !== 'all' || Boolean(searchTerm.value))
+
+const visiblePendingApplications = computed(() => {
+  if (statusFilter.value !== 'all' && statusFilter.value !== 'pending') return []
+  return pendingApplications.value.filter((application) => matchesSearch(application, searchTerm.value))
 })
 
-const overdueCount = computed(() => {
-  let n = 0
-  propertyGroups.value.forEach((pg) =>
-    pg.rooms.forEach((r: any) => r.tenants.forEach((t: any) => {
-      if (t.status === 'Payment due') n++
-    })),
-  )
-  return n
+const visibleTenants = computed(() => {
+  if (statusFilter.value === 'pending') return []
+  return tenants.value.filter((tenant) => {
+    const matchesFilter = statusFilter.value === 'all' || tenant.statusKey === statusFilter.value
+    return matchesFilter && matchesSearch(tenant, searchTerm.value)
+  })
 })
 
-const filteredGroups = computed(() => {
-  const term = searchText.value.trim().toLowerCase()
-  if (!term) return propertyGroups.value
+const resultCount = computed(() => visibleTenants.value.length + visiblePendingApplications.value.length)
 
-  return propertyGroups.value
-    .map((pg) => {
-      const rooms = pg.rooms
-        .map((room: any) => ({
-          ...room,
-          tenants: room.tenants.filter(
-            (t: any) =>
-              t.name.toLowerCase().includes(term) ||
-              t.course.toLowerCase().includes(term),
-          ),
-        }))
-        .filter((room: any) => room.tenants.length > 0)
-      const matchProperty = pg.name.toLowerCase().includes(term)
-      if (matchProperty) {
-        // when searching the property name, keep all its tenants
-        const allRooms = pg.rooms
-        return { ...pg, rooms: allRooms }
-      }
-      return rooms.length ? { ...pg, rooms } : null
-    })
-    .filter(Boolean) as any[]
-})
+function clearFilters() {
+  searchText.value = ''
+  statusFilter.value = 'all'
+}
 
 function openTenant(studentId: string) {
   void router.push(`/landlord/tenant/${studentId}`)
@@ -434,256 +413,89 @@ onMounted(() => {
 
 <style scoped>
 .tenants-page {
-  background: #f4f5f7;
-  padding-bottom: 96px;
+  min-height: 100%;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  background: var(--m-bg);
+  color: var(--m-text);
 }
 
-.center-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-  color: #6b7280;
+.tenant-content {
+  width: min(100%, 680px);
+  margin: 0 auto;
+  padding: var(--m-space-5) var(--m-space-4) var(--m-space-8);
 }
 
-.header-shell {
-  background: #f4f5f7;
-}
+.page-header { margin-bottom: var(--m-space-3); }
+.eyebrow, .section-kicker { margin: 0; color: var(--m-primary); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.page-summary { margin: 0; color: var(--m-muted); font-size: 13px; line-height: 1.45; }
+.page-summary span::before { content: ' '; }
 
-.page-title {
-  color: #111827;
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-}
+.search-section { display: grid; gap: var(--m-space-3); margin-bottom: var(--m-space-6); }
+.search-control { display: grid; min-height: 48px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--m-space-2); padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); }
+.search-control:focus-within { border-color: var(--m-primary); box-shadow: 0 0 0 2px var(--m-primary-soft); color: var(--m-primary-dark); }
+.search-control input { min-width: 0; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; font-size: 15px; }
+.search-control input::placeholder { color: var(--m-muted); opacity: 1; }
+.search-clear { display: grid; width: 36px; height: 36px; margin-right: -6px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-muted); cursor: pointer; }
+.search-clear:hover { background: var(--m-bg); color: var(--m-ink); }
 
-.page-subtitle {
-  color: #6b7280;
-  font-size: 13px;
-  font-weight: 600;
-  margin-top: 4px;
-}
+.filter-bar { display: flex; flex-wrap: wrap; gap: var(--m-space-2); }
+.filter-button { min-height: 36px; padding: 0 12px; border: 1px solid var(--m-border); border-radius: 999px; background: var(--m-surface); color: var(--m-muted); cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+.filter-button:hover { border-color: var(--m-primary); color: var(--m-primary-dark); }
+.filter-button--active { border-color: var(--m-primary-dark); background: var(--m-primary-dark); color: var(--m-surface); }
+.filter-button--active:hover { color: var(--m-surface); }
+.results-bar { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: var(--m-space-3); color: var(--m-muted); font-size: 12px; font-weight: 700; }
+.clear-filters { min-height: 36px; margin: -6px 0; padding: 0 4px; border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }
 
-.tenant-search :deep(.q-field__control) {
-  height: 48px;
-  border-radius: 14px;
-}
+.applications-section, .roster-section { margin-top: var(--m-space-6); }
+.applications-section:first-of-type { margin-top: 0; }
+.section-heading { display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-2); }
+.section-heading h2 { margin: 2px 0 0; color: var(--m-ink); font-size: 17px; line-height: 1.2; letter-spacing: -.02em; }
+.section-count { display: grid; min-width: 28px; height: 28px; padding: 0 var(--m-space-2); place-items: center; border-radius: 999px; background: var(--m-primary-soft); color: var(--m-primary-dark); font-size: 12px; font-weight: 800; }
 
-.tenant-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
+.application-list, .tenant-list { overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); box-shadow: var(--m-shadow); }
+.application-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--m-space-3); padding: var(--m-space-3); border-bottom: 1px solid var(--m-border); }
+.application-row:last-child, .tenant-row:last-child { border-bottom: 0; }
+.tenant-avatar { background: var(--m-primary-soft); color: var(--m-primary-dark); font-size: 12px; font-weight: 800; }
+.row-copy { display: grid; min-width: 0; align-content: center; gap: 3px; text-align: left; }
+.row-copy strong, .row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-copy strong { color: var(--m-ink); font-size: 14px; line-height: 1.25; }
+.row-copy > span { color: var(--m-muted); font-size: 12px; line-height: 1.25; }
+.application-actions { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: var(--m-space-2); }
+.application-action, .retry-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border-radius: var(--m-radius-sm); cursor: pointer; font: inherit; font-size: 13px; font-weight: 800; }
+.application-action--accept { border: 1px solid var(--m-success); background: var(--m-success); color: var(--m-surface); }
+.application-action--decline { border: 1px solid var(--m-border); background: var(--m-surface); color: var(--m-danger); }
+.application-action:disabled { opacity: .6; cursor: wait; }
 
-.property-group {
-  background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 22px;
-  overflow: hidden;
-}
+.tenant-row { display: grid; width: 100%; min-height: 66px; grid-template-columns: 40px minmax(0, 1fr) auto 20px; align-items: center; gap: var(--m-space-3); padding: var(--m-space-3); border: 0; border-bottom: 1px solid var(--m-border); background: var(--m-surface); color: inherit; cursor: pointer; font: inherit; }
+.tenant-row:hover { background: var(--m-bg); }
+.status-badge { display: inline-flex; max-width: 96px; min-height: 28px; align-items: center; gap: 4px; padding: 0 var(--m-space-2); border-radius: 999px; font-size: 10px; font-weight: 800; line-height: 1; white-space: nowrap; }
+.status-badge--active { background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.status-badge--payment-due { background: var(--m-danger-soft); color: var(--m-danger); }
+.status-badge--leaving { background: var(--m-warning-soft); color: var(--m-warning); }
+.status-badge--ended, .status-badge--unknown { background: var(--m-bg); color: var(--m-muted); }
+.row-chevron { color: var(--m-muted); }
 
-.group-header {
-  padding: 16px 14px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-}
+.state-panel { display: grid; justify-items: center; gap: var(--m-space-2); padding: var(--m-space-8) var(--m-space-5); border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); color: var(--m-muted); text-align: center; }
+.state-panel h2 { margin: var(--m-space-2) 0 0; color: var(--m-ink); font-size: 17px; }
+.state-panel p { max-width: 340px; margin: 0; font-size: 13px; line-height: 1.5; }
+.state-panel--error { border-color: var(--m-danger); }
+.state-panel--error .state-icon { background: var(--m-danger-soft); color: var(--m-danger); }
+.state-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.retry-button { min-width: 108px; margin-top: var(--m-space-2); padding: 0 var(--m-space-3); border: 1px solid var(--m-primary-dark); background: var(--m-primary-dark); color: var(--m-surface); }
 
-.group-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: rgba(13, 148, 136, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.skeleton-row { display: grid; width: 100%; grid-template-columns: 40px minmax(0, 1fr) 76px; align-items: center; gap: var(--m-space-3); }
+.skeleton-row + .skeleton-row { padding-top: var(--m-space-3); border-top: 1px solid var(--m-border); }
+.skeleton-avatar, .skeleton-copy i, .skeleton-badge { display: block; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); animation: pulse 1.2s ease-in-out infinite alternate; }
+.skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; }
+.skeleton-copy { display: grid; gap: 7px; }
+.skeleton-copy i { width: 72%; height: 11px; }
+.skeleton-copy i:last-child { width: 48%; height: 9px; }
+.skeleton-badge { width: 76px; height: 28px; }
 
-.group-copy {
-  margin-left: 12px;
-}
+button:focus-visible, input:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-.group-name {
-  color: #111827;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.group-address {
-  color: #6b7280;
-  font-size: 11px;
-  margin-top: 3px;
-}
-
-.tenant-count-badge {
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 6px 10px;
-}
-
-.room-groups {
-  background: #ffffff;
-}
-
-.room-section {
-  padding: 14px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
-}
-
-.room-section:last-child {
-  border-bottom: none;
-}
-
-.room-header {
-  gap: 10px;
-}
-
-.room-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.icon-orange {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
-}
-
-.icon-teal {
-  background: rgba(13, 148, 136, 0.1);
-  color: #0f766e;
-}
-
-.icon-purple {
-  background: rgba(124, 58, 237, 0.1);
-  color: #7c3aed;
-}
-
-.room-copy {
-  min-width: 0;
-}
-
-.room-title {
-  color: #111827;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.room-subtitle {
-  font-size: 11px;
-  font-weight: 700;
-  margin-top: 3px;
-}
-
-.text-orange {
-  color: #d97706;
-}
-
-.text-teal {
-  color: #0f766e;
-}
-
-.text-purple {
-  color: #7c3aed;
-}
-
-.room-dots {
-  gap: 6px;
-}
-
-.room-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.dot-orange {
-  background: #f59e0b;
-}
-
-.dot-teal {
-  background: #0f766e;
-}
-
-.dot-purple {
-  background: #8b5cf6;
-}
-
-.dot-muted {
-  background: #d1d5db;
-}
-
-.tenant-list {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.tenant-row {
-  gap: 12px;
-  padding: 2px 0;
-}
-
-.tenant-avatar {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.tenant-copy {
-  min-width: 0;
-}
-
-.tenant-name {
-  color: #111827;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.tenant-course {
-  color: #6b7280;
-  font-size: 12px;
-  margin-top: 3px;
-}
-
-.tenant-status-badge {
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 5px 10px;
-}
-
-.pending-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: #111827;
-}
-
-.pending-card {
-  background: #FFFFFF;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 18px;
-  overflow: hidden;
-}
-
-.pending-item {
-  padding: 12px 14px;
-}
-
-.pending-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.pending-meta {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 2px;
-}
+@keyframes pulse { to { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .skeleton-avatar, .skeleton-copy i, .skeleton-badge { animation: none; } }
+@media (max-width: 360px) { .tenant-row { grid-template-columns: 40px minmax(0, 1fr) 20px; gap: var(--m-space-2); } .status-badge { grid-column: 2; justify-self: start; } .row-chevron { grid-column: 3; grid-row: 1 / span 2; } }
 </style>
