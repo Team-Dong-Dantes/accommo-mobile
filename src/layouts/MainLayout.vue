@@ -2,7 +2,8 @@
   <q-layout view="hHh Lpr fFf">
     <q-header v-if="!isProfilePage" class="bg-white text-grey-9 app-header">
       <div class="header-row q-px-md">
-        <div class="app-title text-black text-weight-bold">accommo</div>
+        <template v-if="isAccommodationSetup || isAccommodationDetail"><q-btn flat round dense class="setup-back-button" aria-label="Back to accommodations" @click="goToAccommodations"><IconifyIcon icon="lucide:arrow-left" width="20" /></q-btn><div class="setup-page-title text-black text-weight-bold">{{ isAccommodationDetail ? 'Accommodation Details' : 'New Accommodation' }}</div></template>
+        <template v-else><div class="app-title text-black text-weight-bold">accommo</div>
         <q-btn
           flat
           round
@@ -14,7 +15,7 @@
             <q-img v-if="profileImageUrl" :src="profileImageUrl" alt="Profile photo" />
             <span v-else>{{ userInitials }}</span>
           </q-avatar>
-        </q-btn>
+        </q-btn></template>
       </div>
     </q-header>
 
@@ -87,8 +88,10 @@ const activeBottomTab = ref<BottomTabName>('home')
 const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
 const isProfilePage = computed(() => route.path === '/landlord/profile')
+const isAccommodationSetup = computed(() => route.path === '/landlord/properties/new')
+const isAccommodationDetail = computed(() => /^\/landlord\/properties\/[^/]+$/.test(route.path))
 const quickActionsOpen = ref(false)
-const showQuickActions = computed(() => !isProfilePage.value && !route.path.startsWith('/landlord/notifications'))
+const showQuickActions = computed(() => !isProfilePage.value && !isAccommodationSetup.value && !isAccommodationDetail.value && !route.path.startsWith('/landlord/notifications'))
 
 const bottomTabs = [
   { name: 'home', route: '/landlord/dashboard' },
@@ -110,6 +113,10 @@ const goToProfile = () => {
   void router.push('/landlord/profile')
 }
 
+const goToAccommodations = () => {
+  void router.push('/landlord/properties')
+}
+
 function navigateQuickAction(path: string) {
   quickActionsOpen.value = false
   void router.push(path)
@@ -118,7 +125,7 @@ function navigateQuickAction(path: string) {
 watch(
   () => route.path,
   value => {
-    if (value.startsWith('/landlord/notifications') || value === '/landlord/profile') quickActionsOpen.value = false
+    if (value.startsWith('/landlord/notifications') || value === '/landlord/profile' || value === '/landlord/properties/new' || /^\/landlord\/properties\/[^/]+$/.test(value)) quickActionsOpen.value = false
     if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
     else if (value.startsWith('/landlord/tenants')) activeBottomTab.value = 'tenants'
     else if (value.startsWith('/landlord/messages')) activeBottomTab.value = 'messages'
@@ -174,6 +181,17 @@ onMounted(async () => {
 .app-title {
   font-size: 28px;
   letter-spacing: -0.04em;
+}
+.setup-page-title {
+  flex: 1 1 auto;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.setup-back-button {
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: -8px;
+  color: #111827;
 }
 .avatar-button {
   min-width: 36px;

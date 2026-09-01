@@ -237,8 +237,25 @@ export const useLandlordStore = defineStore('landlord', {
 
       if (!user) return false
 
-      const rooms = (propertyData.rooms || []).filter((room: any) => room?.label?.trim())
-      if (!rooms.length) throw new Error('Add at least one room before creating the accommodation.')
+      const roomTypeCapacities: Record<string, number> = {
+        solo: 1,
+        duo: 2,
+        triple: 3,
+      }
+      const rooms = (propertyData.rooms || [])
+        .filter((room: any) => room?.label?.trim())
+        .map((room: any) => ({
+          ...room,
+          // Only named occupancy types have a fixed capacity; others remain manager-defined.
+          capacity: roomTypeCapacities[room.roomType] ?? Number(room.capacity),
+        }))
+      const requiredPermitTypes = ['sanitary_permit', 'fire_safety', 'business_permit', 'building_permit']
+      const permits = (propertyData.permits || []).filter((permit: any) =>
+        requiredPermitTypes.includes(permit?.type) && permit.file instanceof File,
+      )
+      if (permits.length !== requiredPermitTypes.length) {
+        throw new Error('Submit the sanitary, fire safety, business, and building permits before requesting accreditation.')
+      }
 
       const totalCapacity = rooms.reduce(
         (sum: number, room: any) => sum + Math.max(Number(room.capacity) || 0, 0),
@@ -305,7 +322,23 @@ export const useLandlordStore = defineStore('landlord', {
         if (imgErr) throw imgErr
       }
 
-      // 5) Rooms own their type, capacity, rent, and interior photos.
+      // 5) Accommodation permits are required before OSAS can accredit the
+      // listing. Rooms are intentionally not created until that approval.
+      for (const permit of permits) {
+        const url = await uploadDocument(permit.file, user.id, permit.type)
+        const { error: permitError } = await (supabase as any)
+          .from('accommodation_documents')
+          .insert({
+            accommodation_id: accommodationId,
+            doc_type: permit.type,
+            file_url: url,
+            version: 1,
+          })
+        if (permitError) throw permitError
+      }
+
+      // 6) Retain room persistence for approved accommodations edited through
+      // trusted flows. The initial accreditation submission supplies no rooms.
       for (let i = 0; i < rooms.length; i++) {
         const room = rooms[i]
         const { data: roomRow, error: roomError } = await (supabase as any)
@@ -350,7 +383,7 @@ export const useLandlordStore = defineStore('landlord', {
         )
       }
 
-      // 6) Shared facilities describe accommodation-wide areas, such as a
+      // 7) Shared facilities describe accommodation-wide areas, such as a
       // shared kitchen or bathroom. Private facilities are written per room.
       await this.createAccommodationFacilities(
         accommodationId,

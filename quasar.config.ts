@@ -62,6 +62,7 @@ export default defineConfig((/* ctx */) => {
         'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
         'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
         'import.meta.env.VITE_DEMO_MODE': JSON.stringify(env.VITE_DEMO_MODE),
+        'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify(env.VITE_MAPBOX_TOKEN),
       },
       // ignorePublicFolder: true,
       // minify: false,
