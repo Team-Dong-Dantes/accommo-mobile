@@ -1,1187 +1,138 @@
 <template>
-  <q-page class="bg-grey-1 q-pb-xl">
-    <!-- PROPERTY LIST VIEW -->
-    <div v-if="!selectedProperty && !selectedLandlord" class="q-pa-md">
-      <div class="row q-col-gutter-sm q-mb-md">
-        <div class="col">
-          <q-input v-model="searchQuery" outlined rounded dense placeholder="Search rooms, barangay, type..." bg-color="white" color="dark" class="search-input">
-            <template v-slot:prepend>
-              <q-icon name="search" size="20px" class="q-ml-sm text-grey-5" />
-            </template>
-          </q-input>
-        </div>
-        <div class="col-auto">
-          <q-btn outline rounded color="grey-4" text-color="dark" icon="tune" label="Filter" no-caps class="bg-white q-px-sm" @click="filterDialog = true" />
-        </div>
+  <q-page class="discover-page">
+    <main v-if="view === 'browse'" class="discover-content" aria-labelledby="discover-title">
+      <h1 id="discover-title" class="sr-only">Discover accommodation</h1>
+      <nav class="browse-tabs" role="tablist" aria-label="Discover options">
+        <button v-for="tab in browseTabs" :id="`discover-${tab.id}`" :key="tab.id" type="button" role="tab" :aria-selected="browseMode === tab.id" :tabindex="browseMode === tab.id ? 0 : -1" :class="{ active: browseMode === tab.id }" @click="browseMode = tab.id">
+          <IconifyIcon :icon="tab.icon" width="17" aria-hidden="true" /> {{ tab.label }}
+        </button>
+      </nav>
+
+      <div class="browse-meta" aria-live="polite">
+        <span>{{ resultCount }} {{ resultNoun }}</span>
       </div>
 
-      <template v-if="loading">
-        <q-skeleton height="280px" square class="q-mb-md border-radius-24" />
-        <q-skeleton height="280px" square class="q-mb-md border-radius-24" />
-      </template>
+      <section v-if="loading" class="result-stack" aria-label="Loading results" aria-busy="true">
+        <article v-for="index in 3" :key="index" class="result-card"><q-skeleton type="rect" height="86px" /><div class="skeleton-copy"><q-skeleton type="text" width="64%" /><q-skeleton type="text" width="88%" /></div></article>
+      </section>
+      <section v-else-if="error" class="page-state" role="alert"><span class="state-icon"><IconifyIcon icon="lucide:cloud-alert" width="25" /></span><p>{{ error }}</p><q-btn unelevated no-caps class="primary-button" @click="loadData"><IconifyIcon icon="lucide:refresh-cw" width="18" /> Retry</q-btn></section>
+      <section v-else-if="activeResults.length === 0" class="page-state"><span class="state-icon"><IconifyIcon icon="lucide:search-x" width="25" /></span><p>{{ searchQuery || hasFilters ? 'No results match your search or filters.' : `No ${resultNoun} are available right now.` }}</p><q-btn v-if="searchQuery || hasFilters" flat no-caps class="text-button" @click="clearFilters">Clear filters</q-btn></section>
 
-      <template v-else-if="error">
-        <div class="text-negative text-center q-py-xl">{{ error }}</div>
-      </template>
+      <section v-else-if="browseMode === 'properties'" id="discover-properties-panel" class="result-stack" role="tabpanel" aria-labelledby="discover-properties">
+        <article v-for="property in filteredProperties" :key="property.id" class="result-card property-card">
+          <q-carousel v-if="property.images.length" v-model="property.activePhoto" animated swipeable navigation infinite control-color="white" class="photo-carousel" :aria-label="`${property.name} photos`">
+            <q-carousel-slide v-for="(image, index) in property.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${property.name}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide>
+          </q-carousel>
+          <div v-else class="card-placeholder" aria-hidden="true"><IconifyIcon icon="lucide:building-2" width="28" /></div>
+          <div class="card-content">
+            <div class="card-title-row"><h2>{{ property.name }}</h2><span class="verified"><IconifyIcon icon="lucide:badge-check" width="15" /> Verified</span></div>
+            <p class="location"><IconifyIcon icon="lucide:map-pin" width="15" /> {{ property.address }}</p>
+            <div class="facts"><span><IconifyIcon icon="lucide:bed-double" width="16" /> {{ property.availableRooms }} rooms available</span><span><IconifyIcon icon="lucide:door-open" width="16" /> {{ property.typeLabel }}</span></div>
+            <div class="card-footer"><span>View rooms and availability</span><button type="button" class="row-action" @click="openProperty(property)">View property <IconifyIcon icon="lucide:chevron-right" width="17" /></button></div>
+          </div>
+        </article>
+      </section>
 
-      <template v-else>
-        <div class="text-h6 text-weight-bold q-mb-md q-mt-sm" style="font-size: 1.1rem">
-          Available Rooms <span class="text-teal-8">({{ filteredProperties.length }})</span>
-        </div>
+      <section v-else-if="browseMode === 'rooms'" id="discover-rooms-panel" class="result-stack" role="tabpanel" aria-labelledby="discover-rooms">
+        <article v-for="room in filteredRooms" :key="room.id" class="result-card room-feed-card">
+          <q-carousel v-if="room.images.length" v-model="room.activePhoto" animated swipeable navigation infinite control-color="white" class="photo-carousel" :aria-label="`${room.label} photos`">
+            <q-carousel-slide v-for="(image, index) in room.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${room.label}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide>
+          </q-carousel>
+          <div v-else class="card-placeholder" aria-hidden="true"><IconifyIcon icon="lucide:bed-double" width="28" /></div>
+          <button type="button" class="room-feed-content" @click="openRoom(room)"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="21" /></span><span class="room-copy"><strong>{{ room.label }}</strong><span>{{ room.propertyName }}</span><small><IconifyIcon icon="lucide:map-pin" width="14" /> {{ room.address }}</small></span><span class="room-price">{{ priceLabel(room.rent) }}<IconifyIcon icon="lucide:chevron-right" width="18" /></span></button>
+        </article>
+      </section>
 
-        <div v-if="filteredProperties.length === 0" class="text-center text-grey-6 q-py-xl">
-          No properties match your filters.
-        </div>
+      <section v-else id="discover-managers-panel" class="result-stack" role="tabpanel" aria-labelledby="discover-managers">
+        <button v-for="manager in filteredManagers" :key="manager.id" type="button" class="manager-card" @click="openManager(manager)">
+          <span class="manager-avatar">{{ initialsOf(manager.name) }}</span><span class="manager-copy"><strong>{{ manager.name }}</strong><span>{{ manager.propertyCount }} {{ manager.propertyCount === 1 ? 'property' : 'properties' }} · {{ manager.availableRooms }} rooms available</span><small>{{ manager.propertyNames.join(' · ') }}</small></span><IconifyIcon icon="lucide:chevron-right" width="18" class="chevron" />
+        </button>
+      </section>
 
-        <q-card v-for="property in filteredProperties" :key="property.id" flat class="q-mb-lg custom-card overflow-hidden border-radius-24">
-          <q-img :src="property.image" height="200px">
-            <div class="absolute-top-left bg-transparent q-pa-sm">
-              <q-chip 
-                dense 
-                size="12px" 
-                class="text-weight-bold bg-white q-px-sm shadow-1" 
-                :text-color="getTypeColor(property.type)" 
-                :icon="getTypeIcon(property.type)">
-                {{ property.typeLabel }}
-              </q-chip>
-            </div>
-            <div class="absolute-top-right bg-transparent q-pa-sm">
-              <q-btn
-                round
-                unelevated
-                size="sm"
-                :icon="property.isFavorited ? 'favorite' : 'favorite_border'"
-                :color="property.isFavorited ? 'red-5' : 'grey-5'"
-                class="bg-white shadow-1"
-                @click.stop="toggleFavorite(property)"
-              />
-            </div>
-            <div class="absolute-bottom bg-transparent q-pa-md row justify-between items-end" style="background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%);">
-              <div>
-                <div class="text-h6 text-weight-bold text-white line-height-tight">{{ property.name }}</div>
-              </div>
-              <div class="bg-dark text-white q-px-sm q-py-xs text-weight-bold text-caption border-radius-12">
-                {{ property.rent ? formatPeso(property.rent) + '/mo' : 'Price on request' }}
-              </div>
-            </div>
-          </q-img>
-          <q-card-section class="q-pa-md bg-white">
-            <div class="text-caption text-grey-5 row items-center q-mb-sm">
-              <q-icon name="location_on" size="14px" class="q-mr-xs" />
-              {{ property.address }}
-            </div>
-            
-            <div class="row items-center justify-between q-mb-md">
-              <div class="row q-gutter-x-xs">
-                <div class="amenity-chip text-teal-8 bg-teal-1"><q-icon name="wifi" size="12px" class="q-mr-xs"/> WiFi</div>
-                <div class="amenity-chip text-blue-8 bg-blue-1"><q-icon name="water_drop" size="12px" class="q-mr-xs"/> Water</div>
-                <div class="amenity-chip text-orange-8 bg-orange-1"><q-icon name="bolt" size="12px" class="q-mr-xs"/> Electric</div>
-                <div v-if="property.type === 'solo'" class="amenity-chip text-purple-8 bg-purple-1"><q-icon name="ac_unit" size="12px" class="q-mr-xs"/> Aircon</div>
-              </div>
-              <div class="text-xs text-grey-5">Floor 1 · 1 slot left</div>
-            </div>
-            
-            <div class="row items-center justify-between q-pt-sm" style="border-top: 1px solid #f0f0f0">
-              <div class="row items-center">
-                <q-avatar size="28px" color="teal-8" text-color="white" class="text-weight-bold text-caption">{{ property.landlordInitials }}</q-avatar>
-                <span class="text-weight-bold text-caption text-dark q-ml-sm">{{ property.landlordName }}</span>
-              </div>
-              <q-btn unelevated color="dark" label="View Details" class="border-radius-16 text-caption text-weight-bold q-px-md" no-caps @click="openProperty(property)" />
-            </div>
-          </q-card-section>
-        </q-card>
-      </template>
-    </div>
-
-    <!-- PROPERTY DETAIL VIEW -->
-    <div v-else-if="selectedProperty" class="room-detail">
-      <div class="q-pa-sm q-pb-none">
-        <q-btn flat no-caps color="dark" icon="arrow_back" label="Back to listings" class="text-weight-medium q-px-xs" @click="closeProperty" />
+      <div class="discover-action-bar">
+        <button type="button" class="filter-icon-button" aria-label="Filter results" @click="filterDialog = true"><IconifyIcon icon="mdi:tune" width="21" aria-hidden="true" /></button>
+        <label class="search-field" for="discover-search">
+          <IconifyIcon icon="lucide:search" width="20" aria-hidden="true" />
+          <span class="sr-only">Search properties, rooms, or accommodation managers</span>
+          <input id="discover-search" v-model="searchQuery" type="search" autocomplete="off" placeholder="Search" />
+          <button v-if="searchQuery" type="button" class="clear-search" aria-label="Clear search" @click="searchQuery = ''"><IconifyIcon icon="lucide:x" width="18" /></button>
+        </label>
       </div>
+    </main>
 
-      <!-- Hero Image -->
-      <q-card flat class="q-ma-sm custom-card overflow-hidden border-radius-24">
-        <q-img :src="heroImage" height="220px">
-          <div class="absolute-top q-pa-sm row q-gutter-xs bg-transparent">
-            <q-chip dense size="12px" class="text-weight-bold bg-white shadow-1" :text-color="getTypeColor(selectedProperty.type)" :icon="getTypeIcon(selectedProperty.type)">
-              {{ selectedProperty.typeLabel }}
-            </q-chip>
-            <q-chip v-if="roomDetail?.status === 'accredited'" color="teal-8" text-color="white" dense icon="verified" size="12px" class="text-weight-bold shadow-1">OSAS Verified</q-chip>
-          </div>
-          <div class="absolute-top-right q-pa-sm bg-transparent">
-            <q-btn
-              round unelevated size="sm"
-              :icon="selectedProperty.isFavorited ? 'favorite' : 'favorite_border'"
-              :color="selectedProperty.isFavorited ? 'red-5' : 'grey-5'"
-              class="bg-white shadow-1"
-              @click="toggleFavorite(selectedProperty)"
-            />
-          </div>
-          <div class="absolute-bottom bg-transparent q-pa-md row justify-between items-end" style="background: linear-gradient(180deg, transparent, rgba(0,0,0,0.8));">
-            <div>
-              <div class="text-h6 text-weight-bold text-white line-height-tight">{{ selectedProperty.name }}</div>
-              <div class="text-caption text-grey-3">{{ selectedProperty.address }}</div>
-            </div>
-            <div class="bg-dark text-white q-px-sm q-py-xs text-weight-bold border-radius-12 text-caption">
-              {{ selectedProperty.rent ? formatPeso(selectedProperty.rent) + '/mo' : 'Price on request' }}
-            </div>
-          </div>
-        </q-img>
-      </q-card>
+    <main v-else-if="view === 'property' && selectedProperty" class="detail-content" :aria-label="`${selectedProperty.name} property details`">
+      <button type="button" class="back-button" @click="backToBrowse"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back</button>
+      <q-carousel v-if="selectedProperty.images.length" v-model="selectedProperty.activePhoto" animated swipeable navigation infinite control-color="white" class="detail-carousel" :aria-label="`${selectedProperty.name} photos`"><q-carousel-slide v-for="(image, index) in selectedProperty.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${selectedProperty.name}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide></q-carousel>
+      <div v-else class="detail-placeholder"><IconifyIcon icon="lucide:building-2" width="36" /></div>
+      <section class="detail-heading"><div class="title-with-badge"><h1>{{ selectedProperty.name }}</h1><span class="verified"><IconifyIcon icon="lucide:badge-check" width="15" /> Verified</span></div><p class="location"><IconifyIcon icon="lucide:map-pin" width="16" /> {{ selectedProperty.address }}</p></section>
+      <section class="detail-section"><h2>Available rooms</h2><p class="section-intro">Select a room to review it or start an application.</p><div class="room-list"><button v-for="room in selectedProperty.rooms" :key="room.id" type="button" class="detail-room-row" @click="openRoom(room)"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="19" /></span><span class="room-copy"><strong>{{ room.label }}</strong><span>{{ room.typeLabel }}</span></span><strong>{{ priceLabel(room.rent) }}</strong><IconifyIcon icon="lucide:chevron-right" width="18" /></button></div></section>
+      <section v-if="selectedProperty.description" class="detail-section"><h2>About this property</h2><p class="detail-copy">{{ selectedProperty.description }}</p></section>
+      <section v-if="selectedProperty.amenities.length" class="detail-section"><h2>Amenities</h2><div class="amenity-list"><span v-for="amenity in selectedProperty.amenities" :key="amenity"><IconifyIcon icon="lucide:check" width="15" /> {{ amenity }}</span></div></section>
+      <section v-if="selectedProperty.policyItems.length" class="detail-section"><h2>Policies</h2><div class="policy-list"><span v-for="item in selectedProperty.policyItems" :key="item"><IconifyIcon icon="lucide:info" width="15" /> {{ item }}</span></div></section>
+      <section class="detail-section"><h2>Accommodation manager</h2><button type="button" class="manager-link" @click="openManager(managerFor(selectedProperty.managerId))"><span class="manager-avatar">{{ initialsOf(selectedProperty.managerName) }}</span><span class="manager-copy"><strong>{{ selectedProperty.managerName }}</strong><span>{{ selectedProperty.managerPropertyCount }} {{ selectedProperty.managerPropertyCount === 1 ? 'property' : 'properties' }}</span></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button></section>
+    </main>
 
-      <!-- Type Card -->
-      <q-card flat bordered class="q-mx-sm q-my-sm rounded-borders" style="background:#FFF3E0; border-color: rgba(0,0,0,0.05)">
-        <q-card-section class="row items-center">
-          <q-icon name="apartment" color="orange-8" size="28px" class="q-mr-sm" />
-          <div>
-            <div class="text-subtitle1 text-weight-bold">{{ roomTypeLabel(selectedProperty.type) }}</div>
-            <div class="text-caption text-grey-7">{{ roomTypeDesc(selectedProperty.type) }}</div>
-          </div>
-        </q-card-section>
-      </q-card>
+    <main v-else-if="view === 'room' && selectedRoom" class="detail-content" :aria-label="`${selectedRoom.label} room details`">
+      <button type="button" class="back-button" @click="backFromRoom"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back</button>
+      <q-carousel v-if="selectedRoom.images.length" v-model="selectedRoom.activePhoto" animated swipeable navigation infinite control-color="white" class="detail-carousel" :aria-label="`${selectedRoom.label} photos`"><q-carousel-slide v-for="(image, index) in selectedRoom.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${selectedRoom.label}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide></q-carousel>
+      <section class="room-detail-hero"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="28" /></span><div><h1>{{ selectedRoom.label }}</h1><p>{{ selectedRoom.typeLabel }} at {{ selectedRoom.propertyName }}</p></div></section>
+      <section class="detail-section"><div class="room-detail-price"><span>Monthly rent</span><strong>{{ priceLabel(selectedRoom.rent) }}</strong></div><p class="location"><IconifyIcon icon="lucide:map-pin" width="16" /> {{ selectedRoom.address }}</p></section>
+      <section class="detail-section"><h2>Property</h2><button type="button" class="property-link" @click="openProperty(propertyById(selectedRoom.propertyId))"><span><strong>{{ selectedRoom.propertyName }}</strong><small>{{ selectedRoom.address }}</small></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button></section>
+      <section class="detail-section"><h2>Accommodation manager</h2><button type="button" class="manager-link" @click="openManager(managerFor(selectedRoom.managerId))"><span class="manager-avatar">{{ initialsOf(selectedRoom.managerName) }}</span><span class="manager-copy"><strong>{{ selectedRoom.managerName }}</strong><span>View manager profile</span></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button><q-btn outline no-caps class="message-button" :disable="!selectedRoom.managerId" @click="messageManager(selectedRoom.managerId)"><IconifyIcon icon="lucide:message-circle" width="18" /> Message manager</q-btn></section>
+      <div class="detail-actions"><q-btn unelevated no-caps class="primary-button full-width" :loading="applying" @click="applyToRoom(selectedRoom)">Apply to this room</q-btn></div>
+    </main>
 
-      <!-- Property Details -->
-      <div class="q-px-md q-mt-md">
-        <div class="text-subtitle1 text-weight-bold q-mb-sm">Property Details</div>
-        <div class="row q-col-gutter-sm">
-          <div class="col-6">
-            <q-card flat class="detail-box">
-              <q-card-section class="q-py-sm">
-                <div class="text-caption text-grey-6">Available Rooms</div>
-                <div class="text-subtitle2 text-weight-bold q-mt-xs">{{ selectedProperty.availableRooms }}</div>
-              </q-card-section>
-            </q-card>
-          </div>
-          <div class="col-6">
-            <q-card flat class="detail-box">
-              <q-card-section class="q-py-sm">
-                <div class="text-caption text-grey-6">Type</div>
-                <div class="text-subtitle2 text-weight-bold q-mt-xs">{{ selectedProperty.typeLabel }}</div>
-              </q-card-section>
-            </q-card>
-          </div>
-          <div class="col-6">
-            <q-card flat class="detail-box">
-              <q-card-section class="q-py-sm">
-                <div class="text-caption text-grey-6">Monthly</div>
-                <div class="text-subtitle2 text-weight-bold q-mt-xs">{{ selectedProperty.rent ? formatPeso(selectedProperty.rent) : 'Price on request' }}</div>
-              </q-card-section>
-            </q-card>
-          </div>
-          <div class="col-6">
-            <q-card flat class="detail-box">
-              <q-card-section class="q-py-sm">
-                <div class="text-caption text-grey-6">Listed By</div>
-                <div class="text-subtitle2 text-weight-bold q-mt-xs">{{ selectedProperty.landlordName }}</div>
-              </q-card-section>
-            </q-card>
-          </div>
-        </div>
-      </div>
+    <main v-else-if="view === 'manager' && selectedManager" class="detail-content" :aria-label="`${selectedManager.name} manager profile`">
+      <button type="button" class="back-button" @click="backToBrowse"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back</button>
+      <section class="manager-detail-hero"><span class="manager-avatar manager-avatar--large">{{ initialsOf(selectedManager.name) }}</span><div><h1>{{ selectedManager.name }}</h1><p>Accommodation manager</p></div></section>
+      <q-btn outline no-caps class="message-button" :disable="!selectedManager.id" @click="messageManager(selectedManager.id)"><IconifyIcon icon="lucide:message-circle" width="18" /> Message manager</q-btn>
+      <section class="detail-section"><h2>Properties</h2><p class="section-intro">{{ selectedManager.propertyCount }} {{ selectedManager.propertyCount === 1 ? 'verified property' : 'verified properties' }} · {{ selectedManager.availableRooms }} rooms available</p><div class="manager-properties"><button v-for="property in selectedManager.properties" :key="property.id" type="button" class="property-link" @click="openProperty(property)"><span><strong>{{ property.name }}</strong><small>{{ property.address }} · {{ property.availableRooms }} rooms available</small></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button></div></section>
+    </main>
 
-      <!-- Available Rooms list -->
-      <div class="q-px-md q-mt-md" v-if="selectedProperty.roomsList.length">
-        <div class="text-subtitle1 text-weight-bold q-mb-sm">Available Rooms</div>
-        <q-list bordered separator class="border-radius-16 overflow-hidden">
-          <q-item v-for="rm in selectedProperty.roomsList" :key="rm.id">
-            <q-item-section>
-              <div class="text-weight-bold">Room {{ rm.roomNumber }}</div>
-            </q-item-section>
-            <q-item-section side>
-              <div class="text-weight-bold text-dark">{{ rm.rent ? formatPeso(rm.rent) + '/mo' : 'Price on request' }}</div>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </div>
-
-      <!-- Amenities -->
-      <div class="q-px-md q-mt-lg">
-        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">AMENITIES INCLUDED</div>
-        <div v-if="detailLoading" class="text-caption text-grey-6">Loading…</div>
-        <div v-else-if="(roomDetail?.amenities?.length ?? 0) === 0" class="text-caption text-grey-6">No amenities listed.</div>
-        <div v-else class="row q-gutter-sm">
-          <q-chip
-            v-for="a in (roomDetail?.amenities ?? [])"
-            :key="a"
-            dense outline
-            :color="amenityMeta[a]?.color || 'teal'"
-            :icon="amenityMeta[a]?.icon || 'check_circle'"
-            size="13px"
-            class="bg-white"
-          >{{ amenityMeta[a]?.label || a }}</q-chip>
-        </div>
-      </div>
-
-      <!-- About the Property -->
-      <div class="q-px-md q-mt-lg">
-        <div class="text-subtitle1 text-weight-bold q-mb-sm">About the Property</div>
-        <div class="text-caption text-grey-7 row items-center q-mb-sm">
-          <q-icon name="place" color="grey-6" size="16px" class="q-mr-xs" /> {{ selectedProperty.address }}
-        </div>
-        <p v-if="roomDetail?.description" class="text-body2 text-grey-8">{{ roomDetail?.description }}</p>
-        <p v-else class="text-body2 text-grey-6">No description provided for this property.</p>
-      </div>
-
-      <!-- Move-in Cost Breakdown -->
-      <div class="q-px-md q-mt-lg">
-        <div class="text-subtitle1 text-weight-bold q-mb-sm">Move-in Cost Breakdown</div>
-        <q-card flat bordered class="border-radius-16 overflow-hidden border-grey-3">
-          <q-list dense separator>
-            <q-item class="q-py-md">
-              <q-item-section>{{ advanceMonths }} Month{{ advanceMonths === 1 ? '' : 's' }} Advance Payment</q-item-section>
-              <q-item-section side class="text-weight-bold text-dark">{{ formatPeso(selectedProperty.rent * advanceMonths) }}</q-item-section>
-            </q-item>
-            <q-item class="q-py-md">
-              <q-item-section>{{ depositMonths }} Month{{ depositMonths === 1 ? '' : 's' }} Security Deposit</q-item-section>
-              <q-item-section side class="text-weight-bold text-dark">{{ formatPeso(selectedProperty.rent * depositMonths) }}</q-item-section>
-            </q-item>
-          </q-list>
-          <div class="row items-center justify-between q-px-md q-py-md" style="background:#1d1d1d;">
-            <span class="text-white text-weight-medium">Total Due at Signing</span>
-            <span class="text-white text-weight-bold text-subtitle1">{{ formatPeso(selectedProperty.rent * (advanceMonths + depositMonths)) }}</span>
-          </div>
-        </q-card>
-        <q-banner inline-actions rounded class="q-mt-sm" style="background:#E8F5E9;">
-          <template #avatar><q-icon name="info" color="green-8" /></template>
-          <span class="text-caption text-green-9">Minimum stay of {{ minStay }} semester{{ minStay === 1 ? '' : 's' }}. Refundable deposit upon contract completion with no damages.</span>
-        </q-banner>
-      </div>
-
-      <!-- House Policies -->
-      <div class="q-px-md q-mt-lg">
-        <div class="text-subtitle1 text-weight-bold q-mb-sm">House Policies</div>
-        <div v-if="detailLoading" class="text-caption text-grey-6">Loading…</div>
-        <div v-else-if="policyCards.length === 0" class="text-caption text-grey-6">No policies listed.</div>
-        <div v-else class="row q-col-gutter-sm">
-          <div v-for="p in policyCards" :key="p.label" class="col-6">
-            <q-card flat class="policy-box q-pa-md" :style="{ background: p.bg }">
-              <q-icon :name="p.icon" :color="p.color" size="24px" />
-              <div class="text-subtitle2 text-weight-bold q-mt-xs">{{ p.label }}</div>
-              <div class="text-caption text-grey-7">{{ p.desc }}</div>
-            </q-card>
-          </div>
-        </div>
-      </div>
-
-      <!-- House Rules -->
-      <div class="q-px-md q-mt-lg">
-        <div v-if="houseRulesList.length" class="q-banner inline-actions rounded q-mb-md" style="background:#FFEBEE;">
-          <q-icon name="block" color="red-8" class="q-mr-xs" />
-          <span class="text-caption text-red-8 text-weight-medium">{{ houseRulesList.join(' · ') }}</span>
-        </div>
-        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">HOUSE RULES</div>
-        <div v-if="positiveRules.length === 0" class="text-caption text-grey-6">No specific house rules listed.</div>
-        <div v-for="rule in positiveRules" :key="rule" class="row items-center q-mb-xs">
-          <q-icon name="check_circle" color="green-7" size="18px" class="q-mr-sm" />
-          <span class="text-body2 text-grey-8">{{ rule }}</span>
-        </div>
-      </div>
-
-      <!-- Listed By & CTA -->
-      <div class="q-px-md q-mt-lg q-pb-xl">
-        <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">LISTED BY</div>
-        <q-card flat bordered class="border-radius-16 q-mb-md cursor-pointer border-grey-3" @click="openLandlord(selectedProperty)">
-          <q-card-section class="row items-center">
-            <q-avatar size="48px" color="teal-8" text-color="white" class="text-weight-bold">{{ selectedProperty.landlordInitials }}</q-avatar>
-            <div class="q-ml-md col">
-              <div class="text-subtitle2 text-weight-bold line-height-tight">{{ roomDetail?.landlord.name ?? selectedProperty.landlordName }}</div>
-              <div class="text-caption text-grey-6">{{ landlordResponseLabel }}</div>
-            </div>
-            <q-btn flat color="teal-8" label="View" no-caps dense class="text-weight-bold" />
-          </q-card-section>
-        </q-card>
-        <q-btn unelevated color="dark" icon="chat_bubble_outline" label="Message to Inquire" class="full-width border-radius-16 text-weight-bold q-py-sm" size="16px" no-caps @click="inquire(selectedProperty)" />
-        <q-btn unelevated color="teal-8" icon="assignment_turned_in" label="Apply to Stay" class="full-width border-radius-16 text-weight-bold q-py-sm q-mt-sm" size="16px" no-caps :loading="applying" @click="applyToStay(selectedProperty)" />
-      </div>
-    </div>
-
-    <!-- LANDLORD PROFILE VIEW -->
-    <div v-else-if="selectedLandlord" class="landlord-profile">
-      <div class="q-pa-sm q-pb-none">
-        <q-btn flat no-caps color="dark" icon="arrow_back" label="Back to listings" class="text-weight-medium q-px-xs" @click="selectedLandlord = null" />
-      </div>
-
-      <div class="q-pa-md">
-        <!-- Landlord Info -->
-        <div class="row items-center q-mb-lg">
-          <q-avatar size="72px" color="teal-8" text-color="white" class="text-weight-bold" style="font-size:28px">{{ selectedLandlord.initials }}</q-avatar>
-          <div class="q-ml-md">
-            <div class="row items-center">
-              <div class="text-h5 text-weight-bold line-height-tight">{{ selectedLandlord.name }}</div>
-              <q-icon name="verified" color="green-7" size="22px" class="q-ml-sm" />
-            </div>
-            <div class="text-body2 text-grey-6">Business Owner</div>
-          </div>
-        </div>
-
-        <!-- Stats Row -->
-        <div class="row q-col-gutter-sm q-mb-lg">
-          <div class="col-4">
-            <q-card flat class="stat-box">
-              <q-card-section class="text-center q-py-sm">
-                <div class="text-h6 text-weight-bold">{{ landlordStats.responseRate != null ? Math.round(landlordStats.responseRate * 100) + '%' : '—' }}</div>
-                <div class="text-caption text-grey-6" style="font-size: 10px">RESPONSE</div>
-              </q-card-section>
-            </q-card>
-          </div>
-          <div class="col-4">
-            <q-card flat class="stat-box">
-              <q-card-section class="text-center q-py-sm">
-                <div class="text-h6 text-weight-bold">{{ landlordStats.avgMin != null ? '~' + landlordStats.avgMin + 'm' : '—' }}</div>
-                <div class="text-caption text-grey-6" style="font-size: 10px">RESP. TIME</div>
-              </q-card-section>
-            </q-card>
-          </div>
-          <div class="col-4">
-            <q-card flat class="stat-box">
-              <q-card-section class="text-center q-py-sm">
-                <div class="text-h6 text-weight-bold">{{ landlordStats.propertyCount }}</div>
-                <div class="text-caption text-grey-6" style="font-size: 10px">PROPERTIES</div>
-              </q-card-section>
-            </q-card>
-          </div>
-        </div>
-
-        <!-- Availability Banner -->
-        <q-banner inline-actions rounded class="q-mb-lg" style="background:#E8F5E9;border:1px solid #c8e6c9;">
-          <template #avatar><q-icon name="check_circle" color="green-8" /></template>
-          <span class="text-body2 text-green-9 text-weight-medium">{{ selectedLandlord.availableRooms }} of {{ selectedLandlord.totalRooms }} rooms available</span>
-        </q-banner>
-
-        <!-- Action Button -->
-        <q-btn unelevated color="dark" icon="chat_bubble_outline" :label="'Message ' + selectedLandlord.firstName" class="full-width border-radius-16 text-weight-bold q-py-sm q-mb-xl" size="16px" no-caps @click="inquireLandlord(selectedLandlord)" />
-
-        <!-- Property List -->
-        <div class="text-subtitle1 text-weight-bold q-mb-sm">Properties</div>
-        <q-card flat bordered class="border-radius-24 overflow-hidden border-grey-3">
-          <q-img :src="selectedLandlord.propertyImage" height="160px" />
-          <q-card-section class="q-py-md">
-            <div class="text-subtitle1 text-weight-bold">{{ selectedLandlord.propertyName }}</div>
-          </q-card-section>
-          <q-separator />
-          <q-list dense>
-            <q-item v-for="room in selectedLandlord.rooms" :key="room.id" class="q-py-sm">
-              <q-item-section>
-                <div class="row items-center q-gutter-x-sm">
-                  <span class="text-weight-bold">{{ room.roomNumber }}</span>
-                  <q-chip dense size="11px" :color="room.typeColor" text-color="white" :label="room.type" />
-                </div>
-              </q-item-section>
-              <q-item-section side>
-                <div class="text-weight-bold text-dark">{{ formatPeso(room.price) }}</div>
-                <div :class="room.open > 0 ? 'text-green-7' : 'text-grey-6'" class="text-caption text-weight-medium">
-                  {{ room.open > 0 ? room.open + ' open' : 'Occupied' }}
-                </div>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card>
-      </div>
-    </div>
-
-    <!-- Filter Properties Dialog (bottom sheet) -->
-    <q-dialog v-model="filterDialog" position="bottom">
-      <q-card class="filter-card full-width">
-        <q-card-section class="q-pt-sm q-pb-none">
-          <div class="row justify-center q-mb-md">
-            <div class="drag-handle" />
-          </div>
-          <div class="row items-center justify-between">
-            <div class="text-h6 text-weight-bold">Filter Properties</div>
-            <q-btn flat round dense icon="close" @click="filterDialog = false" />
-          </div>
-        </q-card-section>
-
-        <q-card-section>
-          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">PROPERTY TYPE</div>
-          <div class="row q-gutter-sm q-mb-lg">
-            <div v-for="t in roomTypes" :key="t.value" class="col" @click="selectRoomType(t.value)">
-              <div
-                class="type-box column items-center justify-center q-pa-sm cursor-pointer transition-active"
-                :class="selectedRoomType === t.value ? 'bg-grey-2 border-dark' : 'border-grey-3'"
-              >
-                <q-icon :name="t.icon" :color="t.color" size="24px" />
-                <div class="text-caption q-mt-xs text-weight-medium" style="font-size: 11px">{{ t.label }}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">MAX MONTHLY PRICE</div>
-          <div class="row q-gutter-sm q-mb-lg">
-            <q-btn
-              v-for="p in priceOptions"
-              :key="p.value"
-              :label="p.label"
-              no-caps dense size="13px"
-              :unelevated="selectedPrice === p.value"
-              :outline="selectedPrice !== p.value"
-              :color="selectedPrice === p.value ? 'dark' : 'grey-4'"
-              :text-color="selectedPrice === p.value ? 'white' : 'dark'"
-              class="price-pill text-weight-medium"
-              @click="selectPrice(p.value)"
-            />
-          </div>
-
-          <div class="text-caption text-grey-6 text-weight-bold q-mb-sm letter-spacing-1">MUST HAVE</div>
-          <div class="row q-gutter-sm q-mb-lg">
-            <q-chip
-              v-for="a in amenities"
-              :key="a.value"
-              :outline="!selectedAmenities.includes(a.value)"
-              :color="a.color" :icon="a.icon" :label="a.label"
-              clickable @click="toggleAmenity(a.value)"
-              class="text-weight-medium"
-            />
-          </div>
-
-          <div class="osas-card row items-center q-px-md q-py-sm q-mb-md">
-            <q-icon name="verified" color="green-7" size="22px" class="q-mr-sm" />
-            <span class="text-body2 text-weight-medium">OSAS Verified only</span>
-            <q-space />
-            <q-toggle v-model="osasVerified" color="green-7" />
-          </div>
-        </q-card-section>
-
-        <q-card-section class="row q-col-gutter-sm q-pt-none q-pb-xl">
-          <div class="col-6">
-            <q-btn outline color="grey-4" text-color="dark" label="Clear All" no-caps class="full-width border-radius-16 text-weight-bold q-py-sm" @click="clearAll" />
-          </div>
-          <div class="col-6">
-            <q-btn unelevated color="dark" label="Apply Filters" no-caps class="full-width border-radius-16 text-weight-bold q-py-sm" @click="applyFilters" />
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Apply Dialog -->
-    <q-dialog v-model="applyDialog" persistent>
-      <q-card class="border-radius-24" style="width: 320px; max-width: 90vw;">
-        <q-card-section class="row items-center q-pb-sm">
-          <div class="q-mr-sm" style="width:40px;height:40px;border-radius:50%;background:#e0f2f1;display:flex;align-items:center;justify-content:center;">
-            <q-icon name="fact_check" color="teal-8" size="22px" />
-          </div>
-          <div class="text-subtitle1 text-weight-bold">Apply to this Boarding House?</div>
-        </q-card-section>
-        <q-card-section class="q-pt-sm">
-          <div class="text-body2 text-grey-7">
-            Your application will be sent to the landlord as a message. They'll reach out to you to continue the process.
-          </div>
-        </q-card-section>
-        <q-card-actions align="right" class="q-pa-md q-pt-none">
-          <q-btn flat label="Cancel" no-caps color="grey-7" v-close-popup />
-          <q-btn unelevated color="teal-8" label="Send Application" no-caps :loading="applying" @click="confirmApply" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <q-dialog v-model="filterDialog" position="bottom"><q-card class="filter-sheet"><q-card-section class="filter-heading"><div><h2>Filter results</h2><p>Applies to properties and rooms.</p></div><q-btn flat round aria-label="Close filters" @click="filterDialog = false"><IconifyIcon icon="lucide:x" width="20" /></q-btn></q-card-section><q-card-section><h3>Room type</h3><div class="filter-options"><q-btn v-for="type in roomTypes" :key="type.value" outline no-caps :class="{ active: selectedRoomType === type.value }" @click="selectedRoomType = selectedRoomType === type.value ? null : type.value">{{ type.label }}</q-btn></div><h3>Maximum monthly price</h3><div class="filter-options"><q-btn v-for="price in priceOptions" :key="price.value" outline no-caps :class="{ active: selectedPrice === price.value }" @click="selectedPrice = price.value">{{ price.label }}</q-btn></div></q-card-section><q-card-actions class="filter-actions"><q-btn flat no-caps @click="clearFilters">Clear</q-btn><q-btn unelevated no-caps class="primary-button" @click="filterDialog = false">Show results</q-btn></q-card-actions></q-card></q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { formatPeso, initialsOf } from '@/shared/utils/format';
 
-interface DiscoverProperty {
-  id: string;
-  name: string;
-  address: string;
-  type: string;
-  typeLabel: string;
-  rent: number;
-  image: string;
-  isFavorited: boolean;
-  landlordName: string;
-  landlordInitials: string;
-  landlordId: string | null;
-  description: string | null;
-  availableRooms: number;
-  roomsList: Array<{ id: string; roomNumber: string; rent: number | null; type: string }>;
-  propertyId: string | null;
-}
-
-interface LandlordProfile {
-  name: string;
-  firstName: string;
-  initials: string;
-  availableRooms: number;
-  totalRooms: number;
-  propertyName: string;
-  propertyImage: string;
-  landlordId: string | null;
-  rooms: Array<{ id: string; roomNumber: string; type: string; typeColor: string; price: number; open: number }>;
-}
-
-interface RoomPolicy {
-  cooking: boolean | null;
-  curfew_time: string | null;
-  deposit_months: number | null;
-  advance_months: number | null;
-  pets: boolean | null;
-  visitor_policy: string | null;
-  laundry: boolean | null;
-  quiet_hours: string | null;
-  smoking: boolean | null;
-  min_stay: number | null;
-}
-
-interface RoomDetail {
-  description: string | null;
-  status: string | null;
-  ratingAvg: number | null;
-  reviewsCount: number | null;
-  policy: RoomPolicy | null;
-  houseRules: string[];
-  amenities: string[];
-  images: string[];
-  landlord: { name: string; responseRate: number | null; avgResponseMinutes: number | null; propertyCount: number };
-}
-
-const router = useRouter();
-const $q = useQuasar();
-
-const searchQuery = ref('');
-const loading = ref(true);
-const error = ref<string | null>(null);
-const properties = ref<DiscoverProperty[]>([]);
-const selectedProperty = ref<DiscoverProperty | null>(null);
-const selectedLandlord = ref<LandlordProfile | null>(null);
-const detailLoading = ref(false);
-const roomDetail = ref<RoomDetail | null>(null);
-const landlordStats = ref<{ responseRate: number | null; avgMin: number | null; propertyCount: number }>({
-  responseRate: null,
-  avgMin: null,
-  propertyCount: 0,
-});
-
-const filterDialog = ref(false);
-const selectedRoomType = ref<string | null>(null);
-const selectedPrice = ref<string>('any');
-const selectedAmenities = ref<string[]>([]);
-const osasVerified = ref(false);
-
-const applyDialog = ref(false);
-const applying = ref(false);
-
-const roomTypes = [
-  { value: 'solo', label: 'Solo', icon: 'person', color: '#00897b' },
-  { value: 'duo', label: 'Duo', icon: 'group', color: '#8e24aa' },
-  { value: 'triple', label: 'Triple', icon: 'groups', color: '#1e88e5' },
-  { value: 'bedspace', label: 'Bedspacer', icon: 'single_bed', color: '#f57c00' },
-  { value: 'studio', label: 'Studio', icon: 'apartment', color: '#6d4c41' },
-];
-
-const priceOptions = [
-  { value: '2k', label: '≤₱2k' },
-  { value: '3k', label: '≤₱3k' },
-  { value: '4k', label: '≤₱4k' },
-  { value: 'any', label: 'Any' },
-];
-
-const amenities = [
-  { value: 'wifi', label: 'WiFi', icon: 'wifi', color: 'teal' },
-  { value: 'water', label: 'Water', icon: 'water_drop', color: 'blue' },
-  { value: 'electric', label: 'Electric', icon: 'bolt', color: 'orange' },
-  { value: 'aircon', label: 'Aircon', icon: 'ac_unit', color: 'purple' },
-];
-
-const ROOM_TYPE_META: Record<string, { label: string; desc: string }> = {
-  solo: { label: 'Solo', desc: 'Private room for one occupant' },
-  duo: { label: 'Double', desc: 'Shared room for two occupants' },
-  triple: { label: 'Triple', desc: 'Shared room for three occupants' },
-  bedspace: { label: 'Bedspacer', desc: 'Shared bunk / open bed in a multi-pax room' },
-  studio: { label: 'Studio', desc: 'Self-contained private studio' },
-};
-
-const AMENITY_META: Record<string, { label: string; icon: string; color: string }> = {
-  wifi: { label: 'WiFi', icon: 'wifi', color: 'teal' },
-  water: { label: 'Water', icon: 'water_drop', color: 'blue' },
-  electric: { label: 'Electric', icon: 'bolt', color: 'orange' },
-  aircon: { label: 'Aircon', icon: 'ac_unit', color: 'purple' },
-  kitchen: { label: 'Kitchen', icon: 'restaurant', color: 'green' },
-  laundry: { label: 'Laundry', icon: 'local_laundry_service', color: 'teal' },
-  cctv: { label: 'CCTV', icon: 'videocam', color: 'grey' },
-  parking: { label: 'Parking', icon: 'local_parking', color: 'indigo' },
-};
-
-const amenityMeta = AMENITY_META;
-
-function roomTypeLabel(t: string): string {
-  return ROOM_TYPE_META[t]?.label ?? (t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Room');
-}
-function roomTypeDesc(t: string): string {
-  return ROOM_TYPE_META[t]?.desc ?? '';
-}
-
-function getTypeIcon(t: string): string {
-  if (t === 'solo') return 'person_outline';
-  if (t === 'duo') return 'people_outline';
-  if (t === 'bedspace') return 'single_bed';
-  return 'apartment';
-}
-
-function getTypeColor(t: string): string {
-  if (t === 'bedspace') return 'orange-8';
-  if (t === 'solo') return 'teal-7';
-  if (t === 'duo') return 'purple-7';
-  return 'dark';
-}
-
-function deriveRoomType(capacity: number | null, label: string | null): string {
-  const l = (label ?? '').toLowerCase();
-  if (l.includes('studio')) return 'studio';
-  const cap = capacity ?? 1;
-  if (cap <= 1) return 'solo';
-  if (cap === 2) return 'duo';
-  if (cap === 3) return 'triple';
-  return 'bedspace';
-}
-
-const filteredProperties = computed(() => {
-  let result = properties.value;
-
-  const q = searchQuery.value.trim().toLowerCase();
-  if (q) {
-    result = result.filter((p) =>
-      p.name.toLowerCase().includes(q) ||
-      p.address.toLowerCase().includes(q) ||
-      p.landlordName.toLowerCase().includes(q),
-    );
-  }
-
-  if (selectedRoomType.value) {
-    result = result.filter((p) => p.type === selectedRoomType.value);
-  }
-
-  if (selectedPrice.value !== 'any') {
-    const max = { '2k': 2000, '3k': 3000, '4k': 4000 }[selectedPrice.value] ?? Infinity;
-    result = result.filter((p) => p.rent <= max);
-  }
-
-  if (osasVerified.value) {
-    result = result.filter((p) => p.propertyId != null);
-  }
-
-  return result;
-});
-
-const advanceMonths = computed(() => roomDetail.value?.policy?.advance_months ?? 1);
-const depositMonths = computed(() => roomDetail.value?.policy?.deposit_months ?? 1);
-const minStay = computed(() => roomDetail.value?.policy?.min_stay ?? 1);
-
-const policyCards = computed(() => {
-  const p = roomDetail.value?.policy;
-  if (!p) return [];
-  const cards: Array<{ label: string; icon: string; color: string; bg: string; desc: string }> = [];
-  if (p.cooking !== null) cards.push({ label: 'Cooking', icon: 'restaurant', color: 'green-8', bg: '#e8f5e9', desc: p.cooking ? 'Common kitchen' : 'Not allowed' });
-  if (p.pets !== null) cards.push({ label: 'Pets', icon: 'pets', color: 'purple-8', bg: '#f3e5f5', desc: p.pets ? 'Allowed' : 'Not allowed' });
-  if (p.visitor_policy !== null || p.visitor_policy) cards.push({ label: 'Visitors', icon: 'people', color: 'blue-8', bg: '#e3f2fd', desc: p.visitor_policy || 'Check with the business' });
-  if (p.curfew_time !== null) cards.push({ label: 'Curfew', icon: 'schedule', color: 'orange-8', bg: '#fff3e0', desc: p.curfew_time ? `Gate ${p.curfew_time}` : 'No curfew' });
-  if (p.laundry !== null) cards.push({ label: 'Laundry', icon: 'local_laundry_service', color: 'teal-8', bg: '#e0f2f1', desc: p.laundry ? 'Available' : 'Not available' });
-  if (p.quiet_hours !== null) cards.push({ label: 'Quiet Hours', icon: 'bedtime', color: 'indigo-8', bg: '#e8eaf6', desc: p.quiet_hours || 'Respect neighbors' });
-  return cards;
-});
-
-const houseRulesList = computed(() => {
-  const p = roomDetail.value?.policy;
-  if (!p) return [];
-  const rules: string[] = [];
-  if (p.smoking === false) rules.push('No smoking inside the property');
-  if (p.pets === false) rules.push('No pets');
-  return rules;
-});
-
-const positiveRules = computed(() => {
-  const p = roomDetail.value?.policy;
-  const rules: string[] = [];
-  if (p?.cooking) rules.push('Cooking allowed in common kitchen');
-  if (p?.laundry) rules.push('Laundry facilities available');
-  for (const r of roomDetail.value?.houseRules ?? []) {
-    if (r && !rules.includes(r)) rules.push(r);
-  }
-  return rules;
-});
-
-const landlordResponseLabel = computed(() => {
-  const l = roomDetail.value?.landlord;
-  if (!l) return 'Owner';
-  if (l.responseRate != null) return `${Math.round(l.responseRate * 100)}% response`;
-  if (l.avgResponseMinutes != null) return `Responds in ~${l.avgResponseMinutes} min`;
-  return 'Owner';
-});
-
-const heroImage = computed(() => {
-  const imgs = roomDetail.value?.images;
-  if (imgs && imgs.length > 0) return imgs[0];
-  return selectedProperty.value?.image ?? 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=300&fit=crop';
-});
-
-function openProperty(property: DiscoverProperty) {
-  selectedLandlord.value = null;
-  selectedProperty.value = property;
-  void loadPropertyDetail(property);
-}
-
-function closeProperty() {
-  selectedProperty.value = null;
-  roomDetail.value = null;
-}
-
-function toggleFavorite(property: DiscoverProperty) {
-  property.isFavorited = !property.isFavorited;
-}
-
-function inquire(property: DiscoverProperty) {
-  if (property.landlordId) {
-    void router.push({ path: '/student/messages', query: { landlord: property.landlordId } });
-  }
-}
-
-async function applyToStay(property: DiscoverProperty) {
-  const room = property.roomsList?.[0]
-  if (!room?.id) {
-    $q.notify({ type: 'negative', message: 'No available rooms to apply for.' })
-    return
-  }
-  applying.value = true
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { void router.push('/login'); return }
-    const { error } = await supabase.from('leases').insert({
-      id: crypto.randomUUID(),
-      student_id: user.id,
-      room_id: room.id,
-      status: 'pending',
-    } as any)
-    if (error) throw error
-    $q.notify({ type: 'positive', message: 'Application submitted! Wait for the landlord to accept.' })
-  } catch (e: any) {
-    $q.notify({ type: 'negative', message: e?.message || 'Failed to apply' })
-  } finally {
-    applying.value = false
-  }
-}
-
-function inquireLandlord(landlord: LandlordProfile) {
-  if (landlord.landlordId) {
-    void router.push({ path: '/student/messages', query: { landlord: landlord.landlordId } });
-  }
-}
-
-function openLandlord(property: DiscoverProperty) {
-  selectedProperty.value = null;
-  roomDetail.value = null;
-  void loadLandlordData(property.landlordId, {
-    name: property.landlordName,
-    initials: property.landlordInitials,
-    propertyName: property.name,
-    propertyImage: property.image,
-  });
-}
-
-function openApply() {
-  if (!selectedProperty.value?.landlordId) {
-    $q.notify({ message: 'This property has no landlord to contact.', color: 'warning', position: 'top' });
-    return;
-  }
-  applyDialog.value = true;
-}
-
-async function confirmApply() {
-  const p = selectedProperty.value;
-  if (!p?.landlordId) return;
-  applying.value = true;
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { void router.push('/login'); return; }
-    const me = user.id;
-    const other = p.landlordId;
-
-    let convoId: string | null = null;
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('id')
-      .or(`and(user_a_id.eq.${me},user_b_id.eq.${other}),and(user_a_id.eq.${other},user_b_id.eq.${me})`)
-      .limit(1);
-    const ex = (existing ?? []) as unknown as Array<{ id: string }>;
-    if (ex.length > 0) {
-      convoId = ex[0]?.id ?? null;
-    } else {
-      const { data: created, error: createErr } = await supabase
-        .from('conversations')
-        .insert({ user_a_id: me, user_b_id: other, last_message: null, last_time: new Date().toISOString(), unread_a: 0, unread_b: 0 })
-        .select('id')
-        .single();
-      if (createErr) throw createErr;
-      convoId = (created as { id: string }).id;
-    }
-
-    if (!convoId) throw new Error('Could not start a conversation');
-
-    const body = `Hello! I'd like to apply for a room at "${p.name}". Please let me know the next steps.`;
-    const { error: msgErr } = await supabase.from('messages').insert({ conversation_id: convoId, sender_id: me, body });
-    if (msgErr) throw msgErr;
-
-    applyDialog.value = false;
-    $q.notify({ message: 'Application sent! Check your messages.', color: 'teal-8', position: 'top' });
-  } catch (e) {
-    $q.notify({ message: e instanceof Error ? e.message : 'Failed to apply', color: 'negative', position: 'top' });
-  } finally {
-    applying.value = false;
-  }
-}
-
-function selectRoomType(value: string) {
-  selectedRoomType.value = selectedRoomType.value === value ? null : value;
-}
-
-function selectPrice(value: string) {
-  selectedPrice.value = value;
-}
-
-function toggleAmenity(value: string) {
-  const idx = selectedAmenities.value.indexOf(value);
-  if (idx === -1) selectedAmenities.value.push(value);
-  else selectedAmenities.value.splice(idx, 1);
-}
-
-function clearAll() {
-  selectedRoomType.value = null;
-  selectedPrice.value = 'any';
-  selectedAmenities.value = [];
-  osasVerified.value = false;
-  filterDialog.value = false;
-}
-
-function applyFilters() {
-  filterDialog.value = false;
-}
-
-async function loadPropertyDetail(property: DiscoverProperty) {
-  detailLoading.value = true;
-  try {
-    const { data, error: pe } = await supabase
-      .from('accommodations' as any)
-      .select('description, status, rating_avg, reviews_count, accommodation_manager_id, accommodation_policies(house_rules_json), accommodation_amenities(amenity), accommodation_images(url, sort_order), rooms(id, room_number, monthly_rent, status)')
-      .eq('id', property.id)
-      .eq('rooms.status', 'available')
-      .maybeSingle();
-
-    if (pe) throw pe;
-
-    const prop = data as unknown as {
-      description: string | null;
-      status: string | null;
-      rating_avg: number | null;
-      reviews_count: number | null;
-      accommodation_manager_id: string | null;
-      rooms: Array<{ id: string; room_number: string | null; monthly_rent: number | null; status: string | null }> | null;
-      accommodation_amenities: Array<{ amenity: string }> | null;
-      accommodation_images: Array<{ url: string | null; sort_order: number | null }> | null;
-      accommodation_policies: Array<{ house_rules_json: unknown }> | null;
-    } | null;
-
-    let landlord = { name: property.landlordName, responseRate: null as number | null, avgResponseMinutes: null as number | null, propertyCount: 0 };
-    if (prop?.accommodation_manager_id) {
-      const [pc, usr] = await Promise.all([
-        supabase.from('accommodations' as any).select('*', { count: 'exact', head: true }).eq('accommodation_manager_id', prop.accommodation_manager_id),
-        supabase.from('users').select('full_name').eq('id', prop.accommodation_manager_id).maybeSingle(),
-      ]);
-      const userName = (usr.data as { full_name: string | null } | null)?.full_name ?? null;
-      // Prefer the property's business_name (carried on property.landlordName); fall back to users.full_name.
-      const detailName = property.landlordName !== 'Property Owner' ? property.landlordName : (userName ?? 'Property Owner');
-      landlord = { name: detailName, responseRate: null, avgResponseMinutes: null, propertyCount: pc.count ?? 0 };
-    }
-
-    const availableRooms = (prop?.rooms ?? []).filter((x) => x.status === 'available');
-    const amenitiesRaw = (prop?.accommodation_amenities ?? []) as Array<{ amenity: string }>;
-    const imagesRaw = (prop?.accommodation_images ?? []) as Array<{ url: string | null; sort_order: number | null }>;
-    const imgs = imagesRaw.filter((i) => i.url).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-
-    const policyRaw = (prop?.accommodation_policies ?? []) as Array<{ house_rules_json: unknown }> | null;
-    const houseRulesJson = policyRaw?.[0]?.house_rules_json as { rules?: string[] } | null;
-    const houseRules = houseRulesJson?.rules ?? [];
-
-    roomDetail.value = {
-      description: prop?.description ?? null,
-      status: prop?.status ?? null,
-      ratingAvg: prop?.rating_avg ?? null,
-      reviewsCount: prop?.reviews_count ?? null,
-      policy: null,
-      houseRules,
-      amenities: amenitiesRaw.map((a) => a.amenity),
-      images: imgs.map((i) => i.url).filter((u): u is string => !!u),
-      landlord,
-    };
-
-    const sp = selectedProperty.value;
-    if (sp) {
-      sp.image = imgs[0]?.url ?? sp.image;
-      sp.availableRooms = availableRooms.length;
-      sp.roomsList = availableRooms.map((x) => ({
-        id: x.id,
-        roomNumber: x.room_number ?? 'Room',
-        rent: x.monthly_rent ?? null,
-        type: sp.type,
-      }));
-    }
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load details';
-    roomDetail.value = null;
-  } finally {
-    detailLoading.value = false;
-  }
-}
-
-async function loadLandlordData(
-  landlordId: string | null,
-  ctx: { name: string; initials: string; propertyName: string; propertyImage: string },
-) {
-  if (!landlordId) return;
-  detailLoading.value = true;
-  try {
-    const [propsRes, usrRes] = await Promise.all([
-      supabase.from('accommodations' as any).select('id, name').eq('accommodation_manager_id', landlordId),
-      supabase.from('users').select('full_name').eq('id', landlordId).maybeSingle(),
-    ]);
-
-    const userName = (usrRes.data as { full_name: string | null } | null)?.full_name ?? null;
-    // Prefer the property's business_name (carried on ctx.name); fall back to users.full_name.
-    const businessName = ctx.name !== 'Property Owner' ? ctx.name : (userName ?? 'Property Owner');
-    const propertyRows = (propsRes.data ?? []) as unknown as Array<{ id: string; name: string | null }>;
-
-    let roomRows: Array<{ id: string; room_number: string | null; label: string | null; monthly_rent: number | null; capacity: number | null; current_pax: number | null; status: string | null }> = [];
-    if (propertyRows.length > 0) {
-      const { data: rm } = await supabase
-        .from('rooms')
-        .select('id, room_number, label, monthly_rent, capacity, current_pax, status')
-        .in('accommodation_id', propertyRows.map((p) => p.id));
-      roomRows = (rm ?? []) as typeof roomRows;
-    }
-
-    const typeColorMap: Record<string, string> = { solo: 'teal', duo: 'purple', triple: 'blue', bedspace: 'orange', studio: 'green' };
-    const roomsList = roomRows.map((r) => {
-      const type = deriveRoomType(r.capacity, r.label);
-      return {
-        id: r.id,
-        roomNumber: r.room_number ?? 'Room',
-        type,
-        typeColor: typeColorMap[type] ?? 'teal',
-        price: r.monthly_rent ?? 0,
-        open: (r.capacity ?? 0) - (r.current_pax ?? 0),
-      };
-    });
-
-    landlordStats.value = {
-      responseRate: null,
-      avgMin: null,
-      propertyCount: propertyRows.length,
-    };
-
-    const primary = propertyRows[0];
-    selectedLandlord.value = {
-      name: businessName,
-      firstName: businessName.split(' ')[0] ?? businessName,
-      initials: ctx.initials,
-      availableRooms: roomRows.filter((r) => r.status === 'available').length,
-      totalRooms: roomRows.length,
-      propertyName: primary?.name ?? ctx.propertyName,
-      propertyImage: ctx.propertyImage,
-      landlordId: landlordId,
-      rooms: roomsList,
-    };
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load landlord';
-  } finally {
-    detailLoading.value = false;
-  }
-}
-
-async function loadProperties() {
-  loading.value = true;
-  error.value = null;
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { void router.push('/login'); return; }
-
-    const { data, error: queryError } = await supabase
-      .from('accommodations' as any)
-      .select('id, name, address, room_type, accommodation_manager_id, description, business_name')
-      .eq('status', 'accredited')
-      .order('name', { ascending: true });
-
-    if (queryError) throw queryError;
-
-    const accs = (data ?? []) as unknown as Array<{
-      id: string;
-      name: string | null;
-      address: string | null;
-      room_type: string | null;
-      accommodation_manager_id: string | null;
-      description: string | null;
-      business_name: string | null;
-    }>;
-    const accIds = accs.map((a) => a.id);
-
-    // Rooms + images via column-based queries (no fragile relation joins).
-    const [roomsRes, imgsRes] = await Promise.all([
-      accIds.length
-        ? supabase.from('rooms').select('id, accommodation_id, room_number, monthly_rent, status').in('accommodation_id', accIds)
-        : Promise.resolve({ data: [], error: null }),
-      accIds.length
-        ? supabase.from('accommodation_images' as any).select('accommodation_id, url, sort_order').in('accommodation_id', accIds)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-    if (roomsRes.error) throw roomsRes.error;
-    if (imgsRes.error) throw imgsRes.error;
-    const roomRows = (roomsRes.data ?? []) as Array<{ id: string; accommodation_id: string; room_number: string | null; monthly_rent: number | null; status: string | null }>;
-    const imgRows = (imgsRes.data ?? []) as Array<{ accommodation_id: string; url: string | null; sort_order: number | null }>;
-
-    const landlordIds = Array.from(
-      new Set(accs.map((r) => r.accommodation_manager_id).filter((id): id is string => !!id)),
-    );
-
-    const userNames = new Map<string, string>();
-    if (landlordIds.length > 0) {
-      // Display name = business_name (on the accommodation row), falling back to
-      // the manager's users.full_name, then "Property Owner".
-      const { data: userData, error: userErr } = await supabase
-        .from('users').select('id, full_name').in('id', landlordIds);
-      for (const u of (userData ?? []) as unknown as Array<{ id: string; full_name: string | null }>) {
-        if (u.full_name) userNames.set(u.id, u.full_name);
-      }
-      if (userErr) console.warn('[discover] users fetch failed:', userErr.message);
-    }
-
-    properties.value = accs.map((r) => {
-      const type = r.room_type ?? 'room';
-      const accRooms = roomRows.filter((x) => x.accommodation_id === r.id);
-      const available = accRooms.filter((x) => x.status === 'available');
-      const rent = available[0]?.monthly_rent ?? 0;
-      const imgs = imgRows
-        .filter((i) => i.accommodation_id === r.id && i.url)
-        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      const landlordName = r.name ?? (r.accommodation_manager_id ? userNames.get(r.accommodation_manager_id) : null) ?? 'Property Owner';
-      return {
-        id: r.id,
-        name: r.name ?? 'Boarding House',
-        address: r.address ?? '—',
-        type,
-        typeLabel: roomTypeLabel(type),
-        rent,
-        image: imgs[0]?.url ?? 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=300&fit=crop',
-        isFavorited: false,
-        landlordName,
-        landlordInitials: initialsOf(landlordName),
-        landlordId: r.accommodation_manager_id ?? null,
-        description: r.description ?? null,
-        availableRooms: available.length,
-        roomsList: available.map((x) => ({
-          id: x.id,
-          roomNumber: x.room_number ?? 'Room',
-          rent: (x.monthly_rent as number | null) ?? null,
-          type,
-        })),
-        propertyId: r.id,
-      };
-    });
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load properties';
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(loadProperties);
+type BrowseMode = 'properties' | 'rooms' | 'managers';
+type View = 'browse' | 'property' | 'room' | 'manager';
+interface DiscoverRoom { id: string; propertyId: string; propertyName: string; address: string; managerId: string; managerName: string; label: string; type: string; typeLabel: string; rent: number | null; images: string[]; activePhoto: number }
+interface DiscoverProperty { id: string; name: string; address: string; type: string; typeLabel: string; managerId: string; managerName: string; managerPropertyCount: number; description: string | null; availableRooms: number; rooms: DiscoverRoom[]; images: string[]; activePhoto: number; amenities: string[]; policyItems: string[] }
+interface DiscoverManager { id: string; name: string; propertyCount: number; availableRooms: number; propertyNames: string[]; properties: DiscoverProperty[] }
+interface AccommodationRecord { id: string; name: string | null; address: string | null; barangay: string | null; city: string | null; room_type: string | null; accommodation_manager_id: string; description: string | null; business_name: string | null }
+interface RoomRecord { id: string; accommodation_id: string; room_number: string | null; label: string | null; monthly_rent: number | null; capacity: number | null }
+interface PolicyRecord { accommodation_id: string; advance_months: number | null; deposit_months: number | null; min_stay: number | null; contract_type: string | null; curfew_time: string | null; visitor_policy: string | null }
+
+const router = useRouter(); const $q = useQuasar();
+const view = ref<View>('browse'); const browseMode = ref<BrowseMode>('rooms'); const searchQuery = ref(''); const filterDialog = ref(false); const selectedRoomType = ref<string | null>(null); const selectedPrice = ref('any'); const loading = ref(true); const error = ref<string | null>(null); const applying = ref(false);
+const properties = ref<DiscoverProperty[]>([]); const managers = ref<DiscoverManager[]>([]); const selectedProperty = ref<DiscoverProperty | null>(null); const selectedRoom = ref<DiscoverRoom | null>(null); const selectedManager = ref<DiscoverManager | null>(null);
+const browseTabs = [{ id: 'properties' as const, label: 'Properties', icon: 'lucide:building-2' }, { id: 'rooms' as const, label: 'Rooms', icon: 'lucide:bed-double' }, { id: 'managers' as const, label: 'Managers', icon: 'lucide:users' }];
+const roomTypes = [{ value: 'solo', label: 'Solo' }, { value: 'duo', label: 'Double' }, { value: 'triple', label: 'Triple' }, { value: 'bedspace', label: 'Bedspace' }, { value: 'studio', label: 'Studio' }];
+const priceOptions = [{ value: '2k', label: 'Up to P2,000' }, { value: '3k', label: 'Up to P3,000' }, { value: '4k', label: 'Up to P4,000' }, { value: 'any', label: 'Any price' }]; const priceLimits: Record<string, number> = { '2k': 2000, '3k': 3000, '4k': 4000 };
+function roomTypeLabel(type: string): string { return ({ solo: 'Solo room', duo: 'Shared room for two', triple: 'Shared room for three', bedspace: 'Bedspace', studio: 'Studio' } as Record<string, string>)[type] ?? 'Room'; }
+function deriveRoomType(capacity: number | null, label: string | null): string { const value = (label ?? '').toLowerCase(); if (value.includes('studio')) return 'studio'; if ((capacity ?? 1) <= 1) return 'solo'; if (capacity === 2) return 'duo'; if (capacity === 3) return 'triple'; return 'bedspace'; }
+function priceLabel(value: number | null): string { return value === null ? 'Price on request' : `${formatPeso(value)} / month`; }
+const allRooms = computed(() => properties.value.flatMap((property) => property.rooms)); const query = computed(() => searchQuery.value.trim().toLowerCase()); const maxPrice = computed(() => priceLimits[selectedPrice.value] ?? Infinity); const hasFilters = computed(() => !!query.value || !!selectedRoomType.value || selectedPrice.value !== 'any');
+const filteredProperties = computed(() => properties.value.filter((property) => (!query.value || [property.name, property.address, property.managerName].some((value) => value.toLowerCase().includes(query.value))) && (!selectedRoomType.value || property.rooms.some((room) => room.type === selectedRoomType.value)) && property.rooms.some((room) => room.rent === null || room.rent <= maxPrice.value)));
+const filteredRooms = computed(() => allRooms.value.filter((room) => (!query.value || [room.label, room.propertyName, room.address, room.managerName].some((value) => value.toLowerCase().includes(query.value))) && (!selectedRoomType.value || room.type === selectedRoomType.value) && (room.rent === null || room.rent <= maxPrice.value)));
+const filteredManagers = computed(() => managers.value.filter((manager) => !query.value || [manager.name, ...manager.propertyNames].some((value) => value.toLowerCase().includes(query.value))));
+const activeResults = computed(() => browseMode.value === 'properties' ? filteredProperties.value : browseMode.value === 'rooms' ? filteredRooms.value : filteredManagers.value); const resultCount = computed(() => activeResults.value.length); const resultNoun = computed(() => browseMode.value === 'properties' ? (resultCount.value === 1 ? 'property' : 'properties') : browseMode.value === 'rooms' ? (resultCount.value === 1 ? 'room' : 'rooms') : (resultCount.value === 1 ? 'manager' : 'managers'));
+function clearFilters() { searchQuery.value = ''; selectedRoomType.value = null; selectedPrice.value = 'any'; filterDialog.value = false; }
+function propertyById(id: string): DiscoverProperty { return properties.value.find((property) => property.id === id) ?? selectedProperty.value!; } function managerFor(id: string): DiscoverManager { return managers.value.find((manager) => manager.id === id) ?? selectedManager.value!; }
+function openProperty(property: DiscoverProperty) { selectedProperty.value = property; selectedRoom.value = null; selectedManager.value = null; view.value = 'property'; } function openRoom(room: DiscoverRoom) { selectedRoom.value = room; selectedManager.value = null; view.value = 'room'; } function openManager(manager: DiscoverManager) { selectedManager.value = manager; selectedProperty.value = null; selectedRoom.value = null; view.value = 'manager'; } function backToBrowse() { view.value = 'browse'; selectedProperty.value = null; selectedRoom.value = null; selectedManager.value = null; } function backFromRoom() { if (selectedProperty.value) view.value = 'property'; else backToBrowse(); }
+function messageManager(managerId: string) { void router.push({ path: '/student/messages', query: { landlord: managerId } }); }
+async function applyToRoom(room: DiscoverRoom) { applying.value = true; try { const { data: { user } } = await supabase.auth.getUser(); if (!user) { void router.push('/login'); return; } const { error: insertError } = await supabase.from('leases').insert({ id: crypto.randomUUID(), student_id: user.id, room_id: room.id, status: 'pending' } as any); if (insertError) throw insertError; $q.notify({ type: 'positive', message: 'Application submitted. The manager will review it.' }); await loadData(); backToBrowse(); } catch (cause) { $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Could not submit your application.' }); } finally { applying.value = false; } }
+function policyItems(policy: PolicyRecord | undefined): string[] { if (!policy) return []; const items: string[] = []; if (policy.advance_months !== null) items.push(`${policy.advance_months} month${policy.advance_months === 1 ? '' : 's'} advance payment`); if (policy.deposit_months !== null) items.push(`${policy.deposit_months} month${policy.deposit_months === 1 ? '' : 's'} security deposit`); if (policy.min_stay !== null) items.push(`Minimum stay: ${policy.min_stay} month${policy.min_stay === 1 ? '' : 's'}`); if (policy.curfew_time) items.push(`Curfew: ${policy.curfew_time}`); if (policy.visitor_policy) items.push(`Visitors: ${policy.visitor_policy}`); if (policy.contract_type) items.push(`Contract: ${policy.contract_type}`); return items; }
+async function loadData() { loading.value = true; error.value = null; try { const { data: { user } } = await supabase.auth.getUser(); if (!user) { void router.push('/login'); return; } const { data: accommodationData, error: accommodationError } = await (supabase as any).from('accommodations').select('id, name, address, barangay, city, room_type, accommodation_manager_id, description, business_name').eq('status', 'accredited').order('name', { ascending: true }); if (accommodationError) throw accommodationError; const accommodationRecords = (accommodationData ?? []) as AccommodationRecord[]; const propertyIds = accommodationRecords.map((record) => record.id); const [roomResult, imageResult, roomImageResult, amenityResult, policyResult] = await Promise.all([propertyIds.length ? (supabase as any).from('rooms').select('id, accommodation_id, room_number, label, monthly_rent, capacity').in('accommodation_id', propertyIds).eq('status', 'available') : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('accommodation_images').select('accommodation_id, url, sort_order').in('accommodation_id', propertyIds) : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('room_images').select('room_id, url, sort_order') : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('accommodation_amenities').select('accommodation_id, amenity').in('accommodation_id', propertyIds) : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('accommodation_policies').select('accommodation_id, advance_months, deposit_months, min_stay, contract_type, curfew_time, visitor_policy').in('accommodation_id', propertyIds) : Promise.resolve({ data: [], error: null })]); if (roomResult.error) throw roomResult.error; if (imageResult.error) throw imageResult.error; if (roomImageResult.error) throw roomImageResult.error; if (amenityResult.error) throw amenityResult.error; if (policyResult.error) throw policyResult.error; const rooms = (roomResult.data ?? []) as RoomRecord[]; const images = (imageResult.data ?? []) as Array<{ accommodation_id: string; url: string | null; sort_order: number | null }>; const roomImages = (roomImageResult.data ?? []) as Array<{ room_id: string; url: string | null; sort_order: number | null }>; const amenities = (amenityResult.data ?? []) as Array<{ accommodation_id: string; amenity: string | null }>; const policies = (policyResult.data ?? []) as PolicyRecord[]; const managerIds = [...new Set(accommodationRecords.map((record) => record.accommodation_manager_id))]; const { data: userData, error: userError } = managerIds.length ? await supabase.from('users').select('id, full_name').in('id', managerIds) : { data: [], error: null }; if (userError) throw userError; const managerNames = new Map<string, string>(); ((userData ?? []) as Array<{ id: string; full_name: string | null }>).forEach((manager) => managerNames.set(manager.id, manager.full_name || 'Accommodation manager')); const propertyCountByManager = new Map<string, number>(); accommodationRecords.forEach((record) => propertyCountByManager.set(record.accommodation_manager_id, (propertyCountByManager.get(record.accommodation_manager_id) ?? 0) + 1)); properties.value = accommodationRecords.map((record) => { const address = [record.address, record.barangay, record.city].filter(Boolean).join(', ') || 'Address not provided'; const managerName = record.business_name || managerNames.get(record.accommodation_manager_id) || 'Accommodation manager'; const propertyRooms = rooms.filter((room) => room.accommodation_id === record.id).map((room) => ({ id: room.id, propertyId: record.id, propertyName: record.name || 'Accommodation', address, managerId: record.accommodation_manager_id, managerName, label: room.label || (room.room_number ? `Room ${room.room_number}` : 'Available room'), type: deriveRoomType(room.capacity, room.label), typeLabel: roomTypeLabel(deriveRoomType(room.capacity, room.label)), rent: room.monthly_rent, images: roomImages.filter((image) => image.room_id === room.id && image.url).sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0)).map((image) => image.url as string), activePhoto: 0 })); return { id: record.id, name: record.name || 'Accommodation', address, type: record.room_type || propertyRooms[0]?.type || 'room', typeLabel: roomTypeLabel(record.room_type || propertyRooms[0]?.type || 'room'), managerId: record.accommodation_manager_id, managerName, managerPropertyCount: propertyCountByManager.get(record.accommodation_manager_id) ?? 1, description: record.description, availableRooms: propertyRooms.length, rooms: propertyRooms, images: images.filter((image) => image.accommodation_id === record.id && image.url).sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0)).map((image) => image.url as string), activePhoto: 0, amenities: amenities.filter((item) => item.accommodation_id === record.id).map((item) => item.amenity).filter((item): item is string => !!item), policyItems: policyItems(policies.find((item) => item.accommodation_id === record.id)) }; }).filter((property) => property.availableRooms > 0); const byManager = new Map<string, DiscoverProperty[]>(); properties.value.forEach((property) => { const current = byManager.get(property.managerId) ?? []; current.push(property); byManager.set(property.managerId, current); }); managers.value = [...byManager.entries()].map(([id, managerProperties]) => ({ id, name: managerProperties[0]?.managerName ?? 'Accommodation manager', propertyCount: managerProperties.length, availableRooms: managerProperties.reduce((count, property) => count + property.availableRooms, 0), propertyNames: managerProperties.map((property) => property.name), properties: managerProperties })); } catch (cause) { properties.value = []; managers.value = []; error.value = cause instanceof Error ? cause.message : 'Could not load accommodation listings.'; } finally { loading.value = false; } }
+onMounted(loadData);
 </script>
 
 <style scoped>
-.custom-card {
-  background: white;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
-}
-
-.search-input :deep(.q-field__control) {
-  border: 1px solid #e0e0e0;
-}
-
-.search-input :deep(.q-field__control:before) {
-  border: none;
-}
-
-.room-detail,
-.landlord-profile {
-  animation: fadeIn 0.2s ease;
-}
-
-.border-radius-24 { border-radius: 24px; }
-.border-radius-16 { border-radius: 16px; }
-.border-radius-12 { border-radius: 12px; }
-
-.line-height-tight { line-height: 1.2; }
-.letter-spacing-1 { letter-spacing: 0.5px; }
-
-.amenity-chip {
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-}
-
-.stat-box {
-  border-radius: 16px;
-  background: #f8f9fa;
-  border: 1px solid #f0f0f0;
-}
-
-.detail-box {
-  border-radius: 16px;
-  background: #f8f9fa;
-}
-
-.policy-box {
-  border-radius: 16px;
-}
-
-.filter-card {
-  border-radius: 24px 24px 0 0;
-  padding-bottom: 24px;
-}
-
-.drag-handle {
-  width: 48px;
-  height: 5px;
-  border-radius: 3px;
-  background: #e0e0e0;
-}
-
-.type-box {
-  border: 1.5px solid;
-  border-radius: 16px;
-  min-height: 72px;
-}
-
-.border-dark { border-color: #212121 !important; }
-.border-grey-3 { border-color: #eeeeee !important; }
-
-.transition-active { transition: all 0.2s ease; }
-
-.price-pill {
-  border-radius: 24px;
-  padding: 0 20px;
-  min-height: 36px;
-}
-
-.osas-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 16px;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+.discover-page { min-height: 100vh; padding: var(--m-space-3) var(--m-page-gutter) calc(168px + env(safe-area-inset-bottom)); background: var(--m-bg); color: var(--m-ink); }.discover-action-bar { position: fixed; z-index: 59; right: 72px; bottom: 80px; left: var(--m-page-gutter); display: flex; gap: var(--m-space-2); align-items: center; }.search-field { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--m-space-2); min-height: 44px; padding: 0 var(--m-space-3); color: var(--m-muted); background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }.search-field input { min-width: 0; flex: 1; color: var(--m-ink); border: 0; outline: 0; background: transparent; font: inherit; }.clear-search, .filter-icon-button, .back-button, .row-action, .room-feed-content, .manager-card, .detail-room-row, .manager-link, .property-link { border: 0; background: transparent; font: inherit; }.clear-search, .filter-icon-button { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; color: var(--m-primary-dark); background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }.clear-search { width: 28px; height: 28px; color: var(--m-muted); border: 0; box-shadow: none; }.browse-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--m-border); }.browse-tabs button { display: inline-flex; justify-content: center; align-items: center; gap: 5px; min-height: 42px; color: var(--m-muted); border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 12px; font-weight: 700; }.browse-tabs button.active { color: var(--m-primary-dark); border-bottom-color: var(--m-primary); }.browse-meta { display: flex; justify-content: space-between; align-items: center; margin: var(--m-space-3) 0; color: var(--m-muted); font-size: 13px; }.filter-button, .primary-button, .message-button { min-height: 40px; border-radius: var(--m-radius-sm); font-weight: 700; letter-spacing: 0; }.filter-button { display: inline-flex; gap: 5px; color: var(--m-primary-dark); border-color: var(--m-primary); }.primary-button { color: #fff; background: var(--m-primary); }.result-stack, .room-list, .manager-properties { display: grid; gap: var(--m-space-3); }.result-card, .manager-card { overflow: hidden; color: var(--m-ink); background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius); text-align: left; }.skeleton-copy, .card-content { padding: var(--m-space-3); }.photo-carousel, .detail-carousel { height: 360px; background: var(--m-primary-soft); }.detail-carousel { height: 240px; border-radius: var(--m-radius); overflow: hidden; }.carousel-slide, .carousel-image { width: 100%; height: 100%; }.carousel-image { display: block; }.card-placeholder { display: grid; height: 300px; place-items: center; color: var(--m-primary-dark); background: var(--m-primary-soft); }.card-title-row, .card-footer, .title-with-badge { display: flex; justify-content: space-between; align-items: center; gap: var(--m-space-2); }.card-title-row h2 { max-width: 66%; margin: 0; font-size: 16px; line-height: 1.3; }.verified { display: inline-flex; align-items: center; gap: 4px; color: var(--m-success); font-size: 12px; font-weight: 700; white-space: nowrap; }.location { display: flex; align-items: center; gap: 5px; margin: 7px 0 0; color: var(--m-muted); font-size: 13px; }.facts { display: flex; flex-wrap: wrap; gap: var(--m-space-2); margin-top: var(--m-space-3); color: var(--m-text); font-size: 12px; }.facts span { display: inline-flex; align-items: center; gap: 4px; }.card-footer { margin-top: var(--m-space-3); padding-top: var(--m-space-3); border-top: 1px solid var(--m-border); color: var(--m-muted); font-size: 13px; }.row-action { display: inline-flex; align-items: center; gap: 2px; color: var(--m-primary-dark); font-weight: 700; white-space: nowrap; }.room-feed-content, .manager-card { display: flex; align-items: center; gap: var(--m-space-3); width: 100%; min-height: 78px; padding: var(--m-space-3); color: var(--m-ink); text-align: left; }.room-icon { display: grid; flex: 0 0 auto; place-items: center; width: 40px; height: 40px; color: var(--m-primary-dark); background: var(--m-primary-soft); border-radius: 12px; }.room-copy, .manager-copy { display: grid; min-width: 0; flex: 1; gap: 3px; }.room-copy > span, .manager-copy > span, .room-copy small, .manager-copy small { overflow: hidden; color: var(--m-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.room-copy small { display: flex; align-items: center; gap: 3px; }.room-price { display: grid; justify-items: end; gap: 4px; color: var(--m-ink); font-size: 12px; font-weight: 700; white-space: nowrap; }.manager-avatar { display: grid; flex: 0 0 auto; place-items: center; width: 42px; height: 42px; color: #fff; background: var(--m-primary); border-radius: 50%; font-size: 13px; font-weight: 800; }.chevron { color: var(--m-muted); }.page-state { display: grid; justify-items: center; gap: var(--m-space-3); padding: 56px var(--m-space-6); color: var(--m-muted); text-align: center; }.page-state p { margin: 0; line-height: 1.5; }.state-icon { display: grid; place-items: center; width: 52px; height: 52px; color: var(--m-primary-dark); background: var(--m-primary-soft); border-radius: 50%; }.text-button { color: var(--m-primary-dark); text-decoration: underline; }.detail-content { padding-bottom: var(--m-space-3); }.back-button { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; margin-bottom: var(--m-space-2); color: var(--m-text); font-weight: 700; }.detail-placeholder { display: grid; height: 170px; place-items: center; color: var(--m-primary-dark); background: var(--m-primary-soft); border-radius: var(--m-radius); }.detail-heading, .detail-section { padding: var(--m-space-4) 0; border-bottom: 1px solid var(--m-border); }.detail-heading h1, .room-detail-hero h1, .manager-detail-hero h1 { margin: 0; font-size: 22px; line-height: 1.2; }.detail-section h2 { margin: 0; font-size: 16px; }.section-intro { margin: 4px 0 var(--m-space-3); color: var(--m-muted); font-size: 13px; }.detail-room-row, .manager-link, .property-link { display: flex; align-items: center; gap: var(--m-space-2); width: 100%; min-height: 62px; padding: var(--m-space-2); color: var(--m-ink); text-align: left; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); }.detail-room-row > strong { margin-left: auto; font-size: 12px; white-space: nowrap; }.detail-copy { margin: var(--m-space-3) 0 0; color: var(--m-text); line-height: 1.55; }.amenity-list, .policy-list { display: grid; gap: var(--m-space-2); margin-top: var(--m-space-3); }.amenity-list { display: flex; flex-wrap: wrap; }.amenity-list span, .policy-list span { display: inline-flex; align-items: center; gap: 4px; color: var(--m-text); font-size: 13px; }.amenity-list span { padding: 6px 8px; background: var(--m-surface); border: 1px solid var(--m-border); border-radius: 999px; font-size: 12px; }.room-detail-hero, .manager-detail-hero { display: flex; align-items: center; gap: var(--m-space-3); padding: var(--m-space-4) 0; }.room-detail-hero p, .manager-detail-hero p { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }.room-detail-price { display: flex; justify-content: space-between; color: var(--m-muted); }.room-detail-price strong { color: var(--m-ink); }.property-link span { display: grid; min-width: 0; flex: 1; gap: 3px; }.property-link small { overflow: hidden; color: var(--m-muted); text-overflow: ellipsis; white-space: nowrap; }.message-button { width: 100%; margin-top: var(--m-space-3); color: var(--m-primary-dark); border-color: var(--m-primary); }.detail-actions { padding: var(--m-space-4) 0; }.full-width { width: 100%; min-height: 46px; }.manager-avatar--large { width: 58px; height: 58px; font-size: 17px; }.filter-sheet { border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; padding-bottom: max(var(--m-space-3), env(safe-area-inset-bottom)); }.filter-heading { display: flex; justify-content: space-between; align-items: flex-start; }.filter-heading h2 { margin: 0; font-size: 17px; }.filter-heading p { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }.filter-sheet h3 { margin: var(--m-space-3) 0 var(--m-space-2); color: var(--m-muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }.filter-options { display: flex; flex-wrap: wrap; gap: var(--m-space-2); }.filter-options .q-btn { min-height: 38px; border-radius: 999px; color: var(--m-text); border-color: var(--m-border); }.filter-options .q-btn.active { color: #fff; background: var(--m-primary); border-color: var(--m-primary); }.filter-actions { display: flex; justify-content: space-between; padding: var(--m-space-3) var(--m-space-4); }button:focus-visible, :deep(.q-btn:focus-visible) { outline: 3px solid var(--m-info); outline-offset: 2px; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 </style>
