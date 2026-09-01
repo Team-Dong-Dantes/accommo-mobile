@@ -77,8 +77,15 @@ export default defineRouter(() => {
 
     if (isAuthenticated) {
       if (to.path.startsWith('/register')) {
-        await supabase.auth.signOut();
-        return '/login?accountExists=true';
+        // Existing accounts shouldn't re-register — sign out and send them to
+        // login. But a brand-new Google signup has a session and NO users row
+        // yet; let it through so RegisterPage's profile-completion mode runs.
+        const role = await fetchUserRole(session);
+        if (role !== null) {
+          await supabase.auth.signOut();
+          return '/login?accountExists=true';
+        }
+        return true;
       }
 
       if (to.path === '/profile') {

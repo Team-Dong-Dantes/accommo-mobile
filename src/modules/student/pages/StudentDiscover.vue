@@ -291,11 +291,7 @@
           </q-card-section>
         </q-card>
         <q-btn unelevated color="dark" icon="chat_bubble_outline" label="Message to Inquire" class="full-width border-radius-16 text-weight-bold q-py-sm" size="16px" no-caps @click="inquire(selectedProperty)" />
-<<<<<<< HEAD
-        <q-btn outline color="teal-8" icon="fact_check" label="Apply Now" class="full-width border-radius-16 text-weight-bold q-py-sm q-mt-sm" size="16px" no-caps @click="openApply" />
-=======
         <q-btn unelevated color="teal-8" icon="assignment_turned_in" label="Apply to Stay" class="full-width border-radius-16 text-weight-bold q-py-sm q-mt-sm" size="16px" no-caps :loading="applying" @click="applyToStay(selectedProperty)" />
->>>>>>> bec7e553e1fe386ecca31959c683aac7c0edce8e
       </div>
     </div>
 
@@ -544,10 +540,6 @@ interface RoomDetail {
 
 const router = useRouter();
 const $q = useQuasar();
-<<<<<<< HEAD
-=======
-const applying = ref(false);
->>>>>>> bec7e553e1fe386ecca31959c683aac7c0edce8e
 
 const searchQuery = ref('');
 const loading = ref(true);
