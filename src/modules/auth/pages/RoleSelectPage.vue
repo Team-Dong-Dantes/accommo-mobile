@@ -4,38 +4,34 @@
       <h3 class="auth-title col-auto">Create Account</h3>
       <p class="auth-subtitle col-auto">Are you a student or a landlord?</p>
 
-      <div class="col column q-gutter-y-md">
-        <q-btn
-          unelevated
-          no-caps
-          class="role-card full-width"
-          @click="goStudent"
-        >
-          <div class="row items-center no-wrap full-width">
-            <q-avatar size="48px" color="teal-1" text-color="teal-8" icon="material-icons:school" />
-            <div class="col text-left q-ml-md">
-              <div class="role-title">Student</div>
-              <div class="role-desc">Find and rent a verified boarding house</div>
-            </div>
-            <IconifyIcon icon="material-icons:arrow_forward" class="text-grey-5" width="20" />
-          </div>
-        </q-btn>
+      <div class="col column q-gutter-y-md q-mt-sm">
+        <!-- Student — icon left, forward arrow right -->
+        <button type="button" class="role-card full-width" @click="goStudent">
+          <span class="role-icon role-icon--student">
+            <IconifyIcon icon="material-icons:school" width="24" height="24" />
+          </span>
+          <span class="col text-left q-ml-md">
+            <span class="role-title">Student</span>
+            <span class="role-desc">Find and rent a verified boarding house</span>
+          </span>
+          <span class="role-arrow">
+            <IconifyIcon icon="material-icons:arrow_forward" width="20" height="20" />
+          </span>
+        </button>
 
-        <q-btn
-          unelevated
-          no-caps
-          class="role-card full-width"
-          @click="goLandlord"
-        >
-          <div class="row items-center no-wrap full-width">
-            <q-avatar size="48px" color="teal-1" text-color="teal-8" icon="material-icons:apartment" />
-            <div class="col text-left q-ml-md">
-              <div class="role-title">Landlord</div>
-              <div class="role-desc">List your property and find tenants</div>
-            </div>
-            <IconifyIcon icon="material-icons:arrow_forward" class="text-grey-5" width="20" />
-          </div>
-        </q-btn>
+        <!-- Landlord — back arrow left, icon right -->
+        <button type="button" class="role-card role-card--landlord full-width" @click="goLandlord">
+          <span class="role-arrow">
+            <IconifyIcon icon="material-icons:arrow_back" width="20" height="20" />
+          </span>
+          <span class="col text-left q-ml-md">
+            <span class="role-title">Landlord</span>
+            <span class="role-desc">List your property and find tenants</span>
+          </span>
+          <span class="role-icon role-icon--landlord">
+            <IconifyIcon icon="material-icons:apartment" width="24" height="24" />
+          </span>
+        </button>
       </div>
 
       <div class="row justify-center items-center q-mt-lg">
@@ -56,14 +52,17 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
+import { transitionDir } from '@/shared/utils/transition';
 
 const router = useRouter();
 
 function goStudent() {
+  transitionDir.value = 'left';
   void router.push('/register');
 }
 
 function goLandlord() {
+  transitionDir.value = 'right';
   void router.push('/register/landlord');
 }
 </script>
@@ -86,35 +85,71 @@ function goLandlord() {
 
 .auth-subtitle {
   color: #8b8b8b;
-  margin: 6px 0 28px 12px;
+  margin: 6px 0 8px 12px;
 }
 
 .role-card {
-  background: #f5f5f5;
-  border-radius: 16px;
-  min-height: 88px;
-  padding: 16px 20px;
-  text-align: left;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1.5px solid var(--q-border, #e2e2e6);
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: #fafafa;
   color: #1d1d1d;
-  border: 1.5px solid transparent;
-  transition: all 0.2s ease;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .role-card:hover {
   border-color: #00897b;
+  background: #f0faf9;
+}
+
+.role-card:active {
+  transform: scale(0.985);
+}
+
+.role-icon {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+}
+
+.role-icon--student {
   background: #e0f2f1;
+  color: #00897b;
+}
+
+.role-icon--landlord {
+  background: #fff3e0;
+  color: #ef6c00;
 }
 
 .role-title {
+  display: block;
   font-size: 18px;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .role-desc {
+  display: block;
   font-size: 13px;
   color: #8b8b8b;
-  margin-top: 2px;
+  margin-top: 3px;
+}
+
+.role-arrow {
+  flex: 0 0 auto;
+  color: #9a9a9a;
+  display: inline-flex;
 }
 
 @keyframes slideDown {

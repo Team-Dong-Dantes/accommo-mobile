@@ -29,6 +29,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { EXTERNAL_URLS } from '@/shared/utils/config';
+import { transitionDir } from '@/shared/utils/transition';
 
 const route = useRoute();
 
@@ -45,9 +46,17 @@ const transitionName = ref('splash-to-login');
 watch(
   () => route.path,
   (to, from) => {
-    // CHANGED: Check if it starts with /register so landlords get the slide-down too
+    // CHANGED: Role picker sets a horizontal direction (Student=left, Landlord=right).
     if (to.startsWith('/register')) {
-      transitionName.value = 'slide-down';
+      const dir = transitionDir.value;
+      transitionDir.value = null;
+      if (dir === 'left') {
+        transitionName.value = 'slide-left';
+      } else if (dir === 'right') {
+        transitionName.value = 'slide-right';
+      } else {
+        transitionName.value = 'slide-down';
+      }
     } else if (from === '/' && to === '/login') {
       // The hybrid transition: Login slides up, Splash fades out
       transitionName.value = 'splash-to-login';
@@ -115,7 +124,11 @@ watch(
 }
 
 .hero-section.register-mode .hero-content {
-  top: 100px;
+  top: 125px;
+}
+
+.hero-section.register-mode .hero-subtitle {
+  margin-top: 0px;
 }
 
 .logo-text {
@@ -130,7 +143,7 @@ watch(
 }
 
 .hero-subtitle {
-  margin-top: 10px;
+
   font-size: 14px;
   opacity: 0.95;
 }
@@ -181,7 +194,11 @@ watch(
 .slide-up-enter-active,
 .slide-up-leave-active,
 .slide-down-enter-active,
-.slide-down-leave-active {
+.slide-down-leave-active,
+.slide-left-enter-active,
+.slide-left-leave-active,
+.slide-right-enter-active,
+.slide-right-leave-active {
   transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1);
   position: absolute;
   top: 0;
@@ -204,5 +221,19 @@ watch(
 
 .slide-down-leave-to {
   transform: translateY(100vh);
+}
+
+/* Horizontal pick from the role screen: Student slides LEFT, Landlord slides RIGHT. */
+.slide-left-enter-from {
+  transform: translateX(100%);
+}
+.slide-left-leave-to {
+  transform: translateX(-100%);
+}
+.slide-right-enter-from {
+  transform: translateX(-100%);
+}
+.slide-right-leave-to {
+  transform: translateX(100%);
 }
 </style>

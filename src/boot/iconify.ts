@@ -2,6 +2,7 @@ import { defineBoot } from '#q-app'
 import { Icon, addIcon } from '@iconify/vue'
 
 addIcon('material-icons:arrow_forward', { width: 24, height: 24, body: '<path fill="currentColor" d="m12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>' })
+addIcon('material-icons:arrow_back', { width: 24, height: 24, body: '<path fill="currentColor" d="m20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' })
 addIcon('material-icons:menu', { width: 24, height: 24, body: '<path fill="currentColor" d="M3 18h18v-2H3zm0-5h18v-2H3zm0-7v2h18V6z"/>' })
 addIcon('material-icons:logout', { width: 24, height: 24, body: '<path fill="currentColor" d="m17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4z"/>' })
 addIcon('material-icons:dashboard', { width: 24, height: 24, body: '<path fill="currentColor" d="M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z"/>' })
