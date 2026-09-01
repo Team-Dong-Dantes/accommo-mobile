@@ -394,13 +394,22 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async loginWithGoogle(redirectPath: string) {
-      // The app uses hash-based routing (/#/login), so the OAuth callback must
-      // include the hash; otherwise the redirect lands on the wrong route and
-      // the returned session is never picked up.
-      const redirectTo = window.location.origin + '/#/' + redirectPath.replace(/^\/+/, '');
+      // The app uses history-mode routing (see quasar.config vueRouterMode).
+      // Earlier this hardcoded "origin + '/#/' + path" from a hash-routing era,
+      // which broke OAuth: the callback tokens landed in a # fragment that
+      // history-mode vue-router ignored, so the redirect resolved to '/' (the
+      // Get Started page) and the session was never picked up.
+      //
+      // Use a plain path and PKCE flow so the callback returns a ?code= query
+      // param that @supabase/supabase-js exchanges for a session on load.
+      const base = window.location.origin;
+      const path = redirectPath.replace(/^\/+/, '');
+      const redirectTo = `${base}/${path}`;
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo },
+        options: {
+          redirectTo,
+        },
       });
       if (error) throw sanitizeError(error);
       return data;
