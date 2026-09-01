@@ -31,13 +31,27 @@
               <ConnectedGoogleBox :email="form.email" @cancel="cancelGoogle" />
             </template>
 
-            <AuthInput
-              v-model="form.fullName"
-              label="Full Name"
-              :rules="[(val: string) => !!val || 'Full Name is required']"
-            >
-              <template #prepend><IconifyIcon icon="material-icons:person_outline" /></template>
-            </AuthInput>
+            <div class="row q-col-gutter-sm">
+              <div class="col-6">
+                <AuthInput
+                  v-model="form.firstName"
+                  label="First Name"
+                  :rules="[(val: string) => !!val || 'First name is required']"
+                >
+                  <template #prepend><IconifyIcon icon="material-icons:person_outline" /></template>
+                </AuthInput>
+              </div>
+
+              <div class="col-6">
+                <AuthInput
+                  v-model="form.lastName"
+                  label="Last Name"
+                  :rules="[(val: string) => !!val || 'Last name is required']"
+                >
+                  <template #prepend><IconifyIcon icon="material-icons:badge" /></template>
+                </AuthInput>
+              </div>
+            </div>
 
             <AuthSelect
               v-model="form.sex"
@@ -51,14 +65,16 @@
 
             <AuthInput
               :model-value="form.phoneDigits"
-              @update:model-value="form.phoneDigits = phNationalDigits($event)"
+              @update:model-value="form.phoneDigits = phNationalDigits($event).slice(0, 10)"
               label="Phone Number"
               class="q-mt-md"
-              maxlength="12"
+              maxlength="10"
               inputmode="numeric"
+              placeholder="9123456789"
               :rules="[
                 (val: string) => !!val || 'Phone number is required',
-                (val: string) => phNationalDigits(val).length === 10 || 'Enter your 10-digit mobile number (leading 0 is optional, e.g. 9123456789)',
+                (val: string) => /^\d{10}$/.test(val) || 'Enter exactly 10 digits',
+                (val: string) => /^9\d{9}$/.test(val) || 'Must start with 9 (e.g. 9123456789)',
               ]"
             >
               <template #prepend>
@@ -119,6 +135,13 @@
                 />
               </template>
             </AuthInput>
+
+            <ul class="password-checklist q-mt-sm">
+              <li v-for="item in passwordChecks" :key="item.label" :class="{ ok: item.ok }">
+                <IconifyIcon :icon="item.ok ? 'material-icons:check_circle' : 'material-icons:radio_button_unchecked'" />
+                <span>{{ item.label }}</span>
+              </li>
+            </ul>
 
             <AuthInput
               v-model="form.confirmPassword"
@@ -205,31 +228,6 @@
             </AuthFileDropZone>
           </q-step>
 
-          <q-step :name="5" title="Phone" icon="smartphone">
-            <div class="text-subtitle2 text-grey-7 q-ml-sm">Verify your phone number</div>
-            <p class="text-caption text-grey-6 q-ml-sm q-mt-xs">
-              We will text a code to <b>+63{{ form.phoneDigits }}</b> to confirm you are a real person.
-            </p>
-
-            <q-input
-              v-if="phoneOtpSent"
-              v-model="phoneOtp"
-              label="6-digit code"
-              class="q-mt-md"
-              maxlength="6"
-              inputmode="numeric"
-              :rules="[(val: string) => /^\d{6}$/.test(val) || 'Enter the 6-digit code']"
-            >
-              <template #prepend><IconifyIcon icon="material-icons:pin" /></template>
-            </q-input>
-
-            <div v-if="phoneVerifyError" class="text-negative text-caption q-ml-sm q-mt-xs">{{ phoneVerifyError }}</div>
-
-            <div v-if="phoneVerified" class="row items-center q-mt-md text-teal-8">
-              <IconifyIcon icon="material-icons:check_circle" class="q-mr-xs" />
-              <span class="text-body2 text-weight-medium">Phone verified</span>
-            </div>
-          </q-step>
         </q-stepper>
 
         <div class="q-px-sm q-mt-md">
@@ -242,17 +240,6 @@
             {{ isGoogleMode ? 'FINISH PROFILE' : 'REGISTER' }}
             <IconifyIcon icon="material-icons:person_add" class="q-ml-sm" />
           </AuthButton>
-
-          <template v-if="step === 5">
-            <AuthButton v-if="!phoneVerified" type="button" :loading="phoneVerifying" @click="phoneOtpSent ? verifyPhoneCode() : sendPhoneCode()">
-              {{ phoneOtpSent ? 'Verify code' : 'Send code' }}
-              <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
-            </AuthButton>
-            <AuthButton v-else type="button" @click="finishRegistration">
-              Continue
-              <IconifyIcon icon="material-icons:check" class="q-ml-sm" />
-            </AuthButton>
-          </template>
 
           <div class="row justify-center items-center q-mt-md full-width" style="height: 32px">
             <template v-if="step === 1 && !isGoogleMode">
@@ -299,17 +286,6 @@
                   @click="handleRegister(true)"
                 />
               </div>
-            </template>
-            <template v-else-if="step === 5">
-              <q-btn
-                flat
-                dense
-                no-caps
-                label="Skip for now"
-                color="teal-9"
-                class="text-weight-bold"
-                @click="finishRegistration"
-              />
             </template>
           </div>
         </div>
@@ -409,12 +385,14 @@ const collegePrograms: Record<string, string[]> = {
 const collegeOptions = Object.keys(collegePrograms);
 
 const form = reactive({
+  firstName: '',
+  lastName: '',
   fullName: '',
   sex: '',
   phoneDigits: '',
   phone: '',
   emailUser: '',
-  emailDomain: '',
+  emailDomain: 'gmail.com',
   email: '',
   password: '',
   confirmPassword: '',
@@ -439,11 +417,28 @@ const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const loading = ref(false);
 
-const phoneOtpSent = ref(false);
-const phoneOtp = ref('');
-const phoneVerifying = ref(false);
-const phoneVerified = ref(false);
-const phoneVerifyError = ref('');
+const passwordChecks = computed(() => {
+  const pwd = form.password;
+  return [
+    { label: 'At least 8 characters', ok: pwd.length >= 8 },
+    { label: 'One lowercase letter', ok: /[a-z]/.test(pwd) },
+    { label: 'One uppercase letter', ok: /[A-Z]/.test(pwd) },
+    { label: 'One number', ok: /\d/.test(pwd) },
+    { label: 'One special character (!@#$%^&*)', ok: /[!@#$%^&*]/.test(pwd) },
+  ];
+});
+
+function splitFullName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? '',
+    lastName: parts.slice(1).join(' '),
+  };
+}
+
+function syncFullName() {
+  form.fullName = `${form.firstName} ${form.lastName}`.trim().replace(/\s+/g, ' ');
+}
 
 onMounted(async () => {
   if (route.query.newUser) {
@@ -464,7 +459,10 @@ onMounted(async () => {
     isGoogleMode.value = true;
     googleUserId.value = session.user.id;
     form.email = session.user.email || '';
-    form.fullName = session.user.user_metadata?.full_name || '';
+    const split = splitFullName(String(session.user.user_metadata?.full_name || ''));
+    form.firstName = split.firstName;
+    form.lastName = split.lastName;
+    syncFullName();
   }
 });
 
@@ -508,7 +506,9 @@ async function cancelGoogle() {
   googleUserId.value = '';
   form.email = '';
   form.emailUser = '';
-  form.emailDomain = '';
+  form.emailDomain = 'gmail.com';
+  form.firstName = '';
+  form.lastName = '';
   form.fullName = '';
   $q.notify({
     message: 'Google account unlinked.',
@@ -521,6 +521,7 @@ async function cancelGoogle() {
 }
 
 async function handleRegister(skipVerification: boolean = false) {
+  syncFullName();
   form.phone = normalizePhPhone(form.phoneDigits);
   if (!isGoogleMode.value) {
     form.email = `${form.emailUser}@${form.emailDomain}`;
@@ -570,19 +571,19 @@ async function handleRegister(skipVerification: boolean = false) {
          classes: 'custom-notify',
        });
      } else {
-       await authStore.register(form);
-       $q.notify({
-         message: 'Account created! Verify your phone to continue.',
-         position: 'top',
-         color: 'grey-9',
-         textColor: 'white',
+        await authStore.register(form);
+        $q.notify({
+          message: 'Account created successfully!',
+          position: 'top',
+          color: 'grey-9',
+          textColor: 'white',
          icon: 'check_circle',
          iconColor: 'teal-4',
         classes: 'custom-notify',
        });
      }
-     step.value = 5;
-   } catch (error: unknown) {
+      finishRegistration();
+    } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'An unexpected error occurred';
     $q.notify({
       message,
@@ -598,71 +599,9 @@ async function handleRegister(skipVerification: boolean = false) {
   }
 }
 
-  async function sendPhoneCode() {
-    phoneVerifyError.value = '';
-    phoneVerifying.value = true;
-    try {
-      await authStore.sendPhoneVerification(normalizePhPhone(form.phoneDigits));
-      phoneOtpSent.value = true;
-      $q.notify({
-        message: 'Verification code sent to +63' + form.phoneDigits,
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'check_circle',
-        iconColor: 'teal-4',
-        classes: 'custom-notify',
-      });
-    } catch (error: unknown) {
-      phoneVerifyError.value = error instanceof Error ? error.message : 'Could not send code.';
-      $q.notify({
-        message: phoneVerifyError.value,
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'error_outline',
-        iconColor: 'red-4',
-        classes: 'custom-notify',
-      });
-    } finally {
-      phoneVerifying.value = false;
-    }
-  }
-
-  async function verifyPhoneCode() {
-    phoneVerifyError.value = '';
-    phoneVerifying.value = true;
-    try {
-      await authStore.verifyPhoneVerification(normalizePhPhone(form.phoneDigits), phoneOtp.value);
-      phoneVerified.value = true;
-      $q.notify({
-        message: 'Phone verified!',
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'check_circle',
-        iconColor: 'teal-4',
-        classes: 'custom-notify',
-      });
-    } catch (error: unknown) {
-      phoneVerifyError.value = error instanceof Error ? error.message : 'Invalid code.';
-      $q.notify({
-        message: phoneVerifyError.value,
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'error_outline',
-        iconColor: 'red-4',
-        classes: 'custom-notify',
-      });
-    } finally {
-      phoneVerifying.value = false;
-    }
-  }
-
-  function finishRegistration() {
-    void router.push('/student/home');
-  }
+function finishRegistration() {
+  void router.push('/student/home');
+}
 </script>
 
 <style scoped>
@@ -707,6 +646,25 @@ async function handleRegister(skipVerification: boolean = false) {
 
 .phone-prefix {
   font-size: 16px;
+}
+
+.password-checklist {
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+}
+
+.password-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.password-checklist li.ok {
+  color: #15803d;
 }
 
 .email-domain-select :deep(.q-field__control) {
