@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'   # @quasar/app-vite requires >= 22.22
 
 jobs:
   # 1. Validate: install + web build (dev/feature checks; guards regressions)
