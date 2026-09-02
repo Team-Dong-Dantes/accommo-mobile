@@ -69,13 +69,19 @@
                   <div>
                     <span class="eyebrow">{{ property.accommodationType || 'Accommodation' }}</span>
                     <h2>{{ property.name }}</h2>
-                    <p>
-                      <IconifyIcon icon="lucide:map-pin" width="15" />
-                      {{ property.address || 'Address not set' }}
-                    </p>
-                  </div>
-                </div>
-              </section>
+                     <p>
+                       <IconifyIcon icon="lucide:map-pin" width="15" />
+                       {{ property.address || 'Address not set' }}
+                     </p>
+                     <img
+                       v-if="overviewMapUrl"
+                       class="overview-map"
+                       :src="overviewMapUrl"
+                       :alt="`Map showing ${property.name}`"
+                     >
+                   </div>
+                 </div>
+               </section>
 
               <section class="occupancy-card" aria-label="Occupancy overview">
                 <div class="occupancy-card__heading">
@@ -212,9 +218,6 @@
                   <span class="state-icon"><IconifyIcon icon="lucide:door-open" width="24" /></span>
                   <h2>No rooms configured</h2>
                   <p>Add the rooms students can rent, including photos and private facilities.</p>
-                  <button type="button" class="primary-action" @click="openRoomDialog()">
-                    <IconifyIcon icon="lucide:plus" width="17" /> Add room
-                  </button>
                 </section>
 
                 <section class="shared-spaces-section">
@@ -223,15 +226,30 @@
                       <h2>Shared spaces</h2>
                       <p>Facilities every resident can use.</p>
                     </div>
-                    <button type="button" class="secondary-action" @click="openSharedFacilitiesDialog">
-                      <IconifyIcon icon="lucide:lamp-desk" width="16" /> Manage
-                    </button>
                   </div>
                   <div v-if="sharedFacilities.length" class="shared-spaces-list">
-                    <span v-for="facility in sharedFacilities" :key="facility.id">{{ facilityLabel(facility) }}</span>
+                    <button
+                      v-for="facility in sharedFacilities"
+                      :key="facility.id"
+                      type="button"
+                      class="shared-space-row"
+                      @click="openSharedFacilitiesDialog"
+                    >
+                      <span class="shared-space-row__icon"><IconifyIcon :icon="facilityIcon(facility.type)" width="19" /></span>
+                      <span class="shared-space-row__copy">
+                        <strong>{{ facilityLabel(facility) }}</strong>
+                        <small>{{ facility.description || `${facility.images.length} ${facility.images.length === 1 ? 'photo' : 'photos'} added` }}</small>
+                      </span>
+                      <IconifyIcon class="shared-space-row__arrow" icon="lucide:chevron-right" width="18" />
+                    </button>
                   </div>
-                  <button v-else type="button" class="shared-spaces-empty" @click="openSharedFacilitiesDialog">
-                    <IconifyIcon icon="lucide:plus" width="17" /> Add shared facilities
+                  <button v-if="sharedFacilities.length" type="button" class="add-shared-space" @click="openNewSharedFacilityDialog">
+                    <IconifyIcon icon="lucide:plus" width="18" /> Add shared space
+                  </button>
+                  <button v-else type="button" class="shared-spaces-empty" @click="openNewSharedFacilityDialog">
+                    <span><IconifyIcon icon="lucide:armchair" width="20" /></span>
+                    <span><strong>Add shared spaces</strong><small>Kitchen, laundry area, study area, and more</small></span>
+                    <IconifyIcon icon="lucide:plus" width="18" />
                   </button>
                 </section>
               </template>
@@ -302,73 +320,82 @@
         <q-card-section class="sheet-heading">
           <div>
             <h2>{{ editingRoomId ? 'Edit room' : 'Add room' }}</h2>
-            <p>Set up everything students need to see for this room.</p>
+            <p>Set the room details students use to compare availability.</p>
           </div>
           <q-btn flat round dense icon="close" aria-label="Close room form" @click="closeRoomDialog" />
         </q-card-section>
 
-        <q-card-section class="sheet-form">
-          <label>
-            Room name <span>*</span>
-            <q-input
-              v-model="roomForm.label"
-              outlined
-              dense
-              placeholder="e.g. Room 101"
-              :error="!!roomError"
-              :error-message="roomError"
-            />
-          </label>
-
-          <label>
-            Room type <span>*</span>
-            <q-select
-              v-model="roomForm.roomType"
-              :options="roomTypeOptions"
-              outlined
-              dense
-              emit-value
-              map-options
-              @update:model-value="syncRoomCapacity"
-            />
-          </label>
-
-          <label v-if="roomForm.roomType === 'custom'">
-            Describe the room type <span>*</span>
-            <q-input v-model="roomForm.customRoomType" outlined dense placeholder="e.g. Loft room" />
-          </label>
-
-          <div class="form-grid">
-            <label v-if="needsManualCapacity(roomForm.roomType)">
-              Capacity <span>*</span>
-              <q-input v-model.number="roomForm.capacity" type="number" min="1" outlined dense />
+        <q-card-section class="sheet-form room-form">
+          <section class="room-form-section room-form-section--first" aria-labelledby="room-details-heading">
+            <div class="room-form-section__heading">
+              <span class="room-form-section__icon"><IconifyIcon icon="lucide:door-open" width="18" /></span>
+              <div><h3 id="room-details-heading">Room details</h3><p>Name the room and select its occupancy type.</p></div>
+            </div>
+            <label>
+              Room name <span>*</span>
+              <q-input
+                v-model="roomForm.label"
+                outlined
+                dense
+                placeholder="e.g. Room 101"
+                :error="!!roomError"
+                :error-message="roomError"
+              />
             </label>
 
-            <div v-else class="capacity-note">
-              <IconifyIcon icon="lucide:users-round" width="17" />
-              <span>
-                <strong>{{ roomForm.capacity }}</strong>
-                {{ roomForm.capacity === 1 ? 'tenant' : 'tenants' }} based on room type.
-              </span>
+            <label>
+              Room type <span>*</span>
+              <q-select
+                v-model="roomForm.roomType"
+                :options="roomTypeOptions"
+                outlined
+                dense
+                emit-value
+                map-options
+                @update:model-value="syncRoomCapacity"
+              />
+            </label>
+
+            <label v-if="roomForm.roomType === 'custom'">
+              Describe the room type <span>*</span>
+              <q-input v-model="roomForm.customRoomType" outlined dense placeholder="e.g. Loft room" />
+            </label>
+          </section>
+
+          <section class="room-form-section" aria-labelledby="room-availability-heading">
+            <div class="room-form-section__heading">
+              <span class="room-form-section__icon room-form-section__icon--availability"><IconifyIcon icon="lucide:badge-dollar-sign" width="18" /></span>
+              <div><h3 id="room-availability-heading">Availability and rent</h3><p>Set the capacity, monthly rent, and current listing status.</p></div>
+            </div>
+            <div class="room-facts-grid">
+              <label v-if="needsManualCapacity(roomForm.roomType)">
+                Capacity <span>*</span>
+                <q-input v-model.number="roomForm.capacity" type="number" min="1" outlined dense />
+              </label>
+
+              <div v-else class="capacity-note">
+                <IconifyIcon icon="lucide:users-round" width="17" />
+                <span><strong>{{ roomForm.capacity }}</strong> {{ roomForm.capacity === 1 ? 'tenant' : 'tenants' }}</span>
+              </div>
+
+              <label>
+                Monthly rent <span>*</span>
+                <q-input v-model.number="roomForm.monthlyRent" type="number" min="0" prefix="P" outlined dense inputmode="decimal" />
+              </label>
             </div>
 
             <label>
-              Monthly rent <span>*</span>
-              <q-input v-model.number="roomForm.monthlyRent" type="number" min="0" prefix="P" outlined dense />
+              Listing status <span>*</span>
+              <q-select
+                v-model="roomForm.status"
+                :options="roomStatusOptions"
+                outlined
+                dense
+                emit-value
+                map-options
+              />
             </label>
-          </div>
-
-          <label>
-            Status <span>*</span>
-            <q-select
-              v-model="roomForm.status"
-              :options="roomStatusOptions"
-              outlined
-              dense
-              emit-value
-              map-options
-            />
-          </label>
+          </section>
 
           <section class="form-subsection">
             <div>
@@ -390,9 +417,11 @@
                 <h3>Private facilities</h3>
                 <p>Only spaces exclusive to this room.</p>
               </div>
-              <button type="button" class="text-action" @click="addRoomFacility">
-                <IconifyIcon icon="lucide:plus" width="16" /> Add
-              </button>
+            </div>
+
+            <div v-if="!roomForm.privateFacilities.length" class="private-facilities-empty">
+              <IconifyIcon icon="lucide:door-closed" width="18" />
+              <span>No private facilities added.</span>
             </div>
 
             <article
@@ -442,6 +471,9 @@
                 @remove="removePhoto(facility.images, $event)"
               />
             </article>
+            <button type="button" class="add-facility-action" @click="addRoomFacility">
+              <IconifyIcon icon="lucide:plus" width="17" /> Add private facility
+            </button>
           </section>
         </q-card-section>
 
@@ -464,7 +496,7 @@
         <q-card-section class="sheet-heading">
           <div>
             <h2>Shared facilities</h2>
-            <p>List spaces available to every resident.</p>
+            <p>List the spaces every resident can use.</p>
           </div>
           <q-btn flat round dense icon="close" aria-label="Close shared facilities" @click="closeSharedFacilitiesDialog" />
         </q-card-section>
@@ -472,22 +504,30 @@
           <section class="form-subsection form-subsection--first">
             <div class="subsection-heading">
               <div>
-                <h3>Resident spaces</h3>
-                <p>Add photos and details that help students understand the property.</p>
+                <h3>Resident spaces <span class="space-count">{{ sharedFacilitiesForm.length }}</span></h3>
+                <p>Add enough detail for students to understand what is available.</p>
               </div>
-              <button type="button" class="text-action" @click="addSharedFacility"><IconifyIcon icon="lucide:plus" width="16" /> Add</button>
             </div>
-            <article v-for="(facility, index) in sharedFacilitiesForm" :key="facility.id" class="draft-facility">
-              <div class="subsection-heading">
-                <strong>Shared facility {{ index + 1 }}</strong>
-                <button type="button" class="remove-action" :aria-label="`Remove shared facility ${index + 1}`" @click="removeDraftFacility(sharedFacilitiesForm, index)"><IconifyIcon icon="lucide:trash-2" width="16" /></button>
-              </div>
-              <label>Facility type <span>*</span><q-select v-model="facility.type" :options="facilityTypes" outlined dense emit-value map-options /></label>
-              <label>Label <span class="optional">Optional</span><q-input v-model="facility.label" outlined dense placeholder="e.g. Ground-floor kitchen" /></label>
-              <label>Description <span class="optional">Optional</span><q-input v-model="facility.description" outlined dense type="textarea" rows="2" /></label>
-              <PhotoPicker label="Facility photos" hint="Photos are optional." :photos="facility.images" @select="selectPhotos($event, facility.images)" @remove="removePhoto(facility.images, $event)" />
-            </article>
-            <p v-if="!sharedFacilitiesForm.length" class="empty-copy">No shared facilities listed yet.</p>
+            <div v-if="sharedFacilitiesForm.length" class="shared-space-editor-list">
+              <article v-for="(facility, index) in sharedFacilitiesForm" :key="facility.id" class="draft-facility shared-space-editor">
+                <div class="shared-space-editor__heading">
+                  <span class="shared-space-editor__number">{{ index + 1 }}</span>
+                  <span class="shared-space-editor__icon"><IconifyIcon :icon="facilityIcon(facility.type)" width="18" /></span>
+                  <strong>{{ facilityLabel(facility) }}</strong>
+                  <button type="button" class="remove-action" :aria-label="`Remove shared facility ${index + 1}`" @click="removeDraftFacility(sharedFacilitiesForm, index)"><IconifyIcon icon="lucide:trash-2" width="16" /></button>
+                </div>
+                <label>Facility type <span>*</span><q-select v-model="facility.type" :options="facilityTypes" outlined dense emit-value map-options /></label>
+                <label>Label <span class="optional">Optional</span><q-input v-model="facility.label" outlined dense placeholder="e.g. Ground-floor kitchen" /></label>
+                <label>Description <span class="optional">Optional</span><q-input v-model="facility.description" outlined dense type="textarea" rows="2" placeholder="What should residents know?" /></label>
+                <PhotoPicker label="Space photos" hint="Optional, but helpful for students." :photos="facility.images" @select="selectPhotos($event, facility.images)" @remove="removePhoto(facility.images, $event)" />
+              </article>
+            </div>
+            <div v-else class="shared-space-editor-empty">
+              <span><IconifyIcon icon="lucide:armchair" width="23" /></span>
+              <strong>No shared spaces yet</strong>
+              <p>Add spaces residents can access beyond their room.</p>
+            </div>
+            <button type="button" class="add-shared-space" @click="addSharedFacility"><IconifyIcon icon="lucide:plus" width="18" /> Add shared space</button>
           </section>
         </q-card-section>
         <q-card-actions align="right"><q-btn flat no-caps label="Cancel" @click="closeSharedFacilitiesDialog" /><q-btn no-caps unelevated class="primary-action" :loading="savingSharedFacilities" label="Save facilities" @click="saveSharedFacilities" /></q-card-actions>
@@ -764,6 +804,14 @@ const availableSpaces = computed(() => Math.max(totalCapacity.value - occupiedSp
 const occupancyPercent = computed(() => totalCapacity.value ? Math.round((occupiedSpaces.value / totalCapacity.value) * 100) : 0)
 const sharedFacilities = computed(() => facilities.value.filter((facility) => !facility.roomId))
 const roomManagementUnlocked = computed(() => property.value?.roomManagementUnlocked === true)
+const overviewMapUrl = computed(() => {
+  const currentProperty = property.value
+  const token = import.meta.env.VITE_MAPBOX_TOKEN
+  if (!currentProperty || currentProperty.latitude == null || currentProperty.longitude == null || !token) return ''
+
+  const { longitude, latitude } = currentProperty
+  return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+00897b(${longitude},${latitude})/${longitude},${latitude},15/680x240@2x?access_token=${token}`
+})
 
 const listingRows = computed(() => [
   { label: 'Who can stay', value: genderLabel(property.value?.genderPolicy || ''), badgeTone: null as Tone | null },
@@ -815,6 +863,19 @@ function genderLabel(value: string): string {
 function facilityLabel(facility: Pick<Facility | DraftFacility, 'type' | 'label'>): string {
   return facility.label
     || facility.type.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function facilityIcon(type: string): string {
+  const icons: Record<string, string> = {
+    bathroom: 'lucide:bath',
+    kitchen: 'lucide:cooking-pot',
+    laundry: 'lucide:washing-machine',
+    balcony: 'lucide:trees',
+    common_area: 'lucide:armchair',
+    study_area: 'lucide:book-open-text',
+    parking: 'lucide:parking-circle',
+  }
+  return icons[type] || 'lucide:layout-grid'
 }
 
 function roomFacilities(roomId: string): Facility[] {
@@ -1376,6 +1437,11 @@ function openSharedFacilitiesDialog(): void {
   sharedFacilitiesDialog.value = true
 }
 
+function openNewSharedFacilityDialog(): void {
+  openSharedFacilitiesDialog()
+  sharedFacilitiesForm.value.push(newDraftFacility())
+}
+
 function setLocationPin(longitude: number, latitude: number, zoom = 16): void {
   settingsForm.value.longitude = longitude
   settingsForm.value.latitude = latitude
@@ -1906,6 +1972,18 @@ onBeforeUnmount(() => {
   font-weight: 850;
 }
 
+.overview-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 120px;
+  max-height: 200px;
+  margin-top: 14px;
+  border-radius: 12px;
+  background: var(--m-bg);
+  object-fit: cover;
+}
+
 .section-heading p,
 .form-subsection p {
   margin: 4px 0 0;
@@ -2068,43 +2146,234 @@ onBeforeUnmount(() => {
 
 .shared-spaces-section {
   padding-top: 16px;
-  border-top: 1px solid var(--m-border);
 }
 
 .shared-spaces-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+  display: grid;
+  overflow: hidden;
+  margin-top: 12px;
+  border: 1px solid var(--m-border);
+  border-radius: 12px;
+  background: var(--m-surface);
+}
+
+.shared-spaces-list + .add-shared-space {
+  width: 100%;
   margin-top: 12px;
 }
 
-.shared-spaces-list span {
-  padding: 6px 9px;
-  border-radius: 999px;
+.shared-space-row {
+  display: grid;
+  width: 100%;
+  min-height: 64px;
+  grid-template-columns: 36px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--m-border);
+  background: transparent;
+  color: var(--m-ink);
+  text-align: left;
+}
+
+.shared-space-row:last-child {
+  border-bottom: 0;
+}
+
+.shared-space-row:active {
+  background: var(--m-bg);
+}
+
+.shared-space-row__icon,
+.shared-space-editor__icon {
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
+}
+
+.shared-space-row__icon {
+  width: 36px;
+  height: 36px;
+}
+
+.shared-space-row__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.shared-space-row__copy strong,
+.shared-space-row__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-space-row__copy strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.shared-space-row__copy small {
+  color: var(--m-muted);
   font-size: 11px;
-  font-weight: 750;
+}
+
+.shared-space-row__arrow {
+  color: var(--m-muted);
 }
 
 .shared-spaces-empty {
-  display: flex;
+  display: grid;
   width: 100%;
-  min-height: 48px;
+  min-height: 84px;
+  grid-template-columns: 40px minmax(0, 1fr) 18px;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
+  gap: 10px;
   margin-top: 12px;
+  padding: 12px;
   border: 1px dashed var(--m-border);
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--m-surface);
   color: var(--m-primary-dark);
-  font-size: 12px;
-  font-weight: 800;
+  text-align: left;
+}
+
+.shared-spaces-empty > span:first-child,
+.shared-space-editor-empty > span {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--m-primary-soft);
+}
+
+.shared-spaces-empty > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.shared-spaces-empty strong {
+  color: var(--m-ink);
+  font-size: 13px;
+}
+
+.shared-spaces-empty small {
+  color: var(--m-muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .form-subsection--first {
   margin-top: 0;
+}
+
+.space-count {
+  display: inline-flex;
+  min-width: 20px;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 800;
+  vertical-align: 1px;
+}
+
+.shared-space-editor-list {
+  display: grid;
+  gap: 12px;
+}
+
+.shared-space-editor {
+  border: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+
+.shared-space-editor__heading {
+  display: grid;
+  grid-template-columns: 24px 34px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+}
+
+.shared-space-editor__number {
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.shared-space-editor__icon {
+  width: 34px;
+  height: 34px;
+}
+
+.shared-space-editor__heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-space-editor .remove-action {
+  display: grid;
+  width: 32px;
+  min-height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.shared-space-editor .remove-action:active {
+  background: var(--m-danger-soft);
+}
+
+.shared-space-editor-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--m-border);
+  border-radius: 12px;
+  background: var(--m-bg);
+}
+
+.shared-space-editor-empty strong {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.shared-space-editor-empty p {
+  margin: -4px 0 0;
+}
+
+.add-shared-space {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--m-primary-dark);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--m-primary-dark);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.add-shared-space:active {
+  background: var(--m-primary-soft);
 }
 
 .location-results {
@@ -2405,6 +2674,66 @@ onBeforeUnmount(() => {
   overflow: auto;
 }
 
+.room-form {
+  gap: 0;
+  margin: 0 -16px;
+}
+
+.room-form-section {
+  display: grid;
+  gap: 12px;
+  padding: 20px 16px;
+  border-top: 1px solid var(--m-border);
+}
+
+.room-form-section--first {
+  padding-top: 4px;
+  border-top: 0;
+}
+
+.room-form-section__heading {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+.room-form-section__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+
+.room-form-section__icon--availability {
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+}
+
+.room-form-section__heading h3 {
+  margin: 0;
+  color: var(--m-ink);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.room-form-section__heading p {
+  margin: 3px 0 0;
+  color: var(--m-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.room-facts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .sheet-form > label,
 .draft-facility label {
   display: grid;
@@ -2447,6 +2776,39 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding-top: 16px;
   border-top: 1px solid var(--m-border);
+}
+
+.room-form .form-subsection {
+  padding: 20px 16px;
+}
+
+.private-facilities-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 12px;
+}
+
+.add-facility-action {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--m-primary-dark);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--m-primary-dark);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.add-facility-action:active {
+  background: var(--m-primary-soft);
 }
 
 .draft-facility {

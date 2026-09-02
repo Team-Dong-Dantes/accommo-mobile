@@ -41,13 +41,7 @@
         <q-btn no-caps unelevated class="retry-button" label="Retry" @click="loadNotifications" />
       </section>
 
-      <section v-else-if="notifications.length === 0" class="feedback-state">
-        <span class="feedback-icon" aria-hidden="true">
-          <IconifyIcon icon="lucide:bell" width="24" />
-        </span>
-        <h2>You are all caught up</h2>
-        <p>Updates about your properties will appear here.</p>
-      </section>
+      <EmptyState v-else-if="notifications.length === 0" icon="lucide:bell" title="You are all caught up" message="Updates about your accommodations will appear here." />
 
       <div v-else class="notification-groups">
         <section v-for="group in groupedNotifications" :key="group.label" class="notification-group" :aria-labelledby="group.id">
@@ -91,6 +85,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/shared/utils/supabase';
+import EmptyState from '@/shared/components/EmptyState.vue';
 
 type NotificationTone = 'primary' | 'success' | 'warning' | 'danger' | 'info';
 

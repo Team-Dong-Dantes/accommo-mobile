@@ -1,11 +1,5 @@
 <template>
   <q-page class="profile-page">
-    <header class="profile-page-bar" aria-label="Profile navigation">
-      <button type="button" class="profile-back-button" aria-label="Back to student home" @click="goBack">
-        <IconifyIcon icon="lucide:arrow-left" width="21" />
-      </button>
-    </header>
-
     <main class="profile-content">
     <div v-if="loading" class="profile-state" role="status" aria-live="polite">
       <q-spinner color="primary" size="32px" />
@@ -819,15 +813,6 @@ function goNotifications() {
   void router.push('/student/notifications');
 }
 
-function goBack() {
-  const hasUsefulHistory = window.history.length > 1 && Boolean(window.history.state?.back);
-  if (hasUsefulHistory) {
-    router.back();
-    return;
-  }
-  void router.replace('/student/home');
-}
-
 async function generateQr() {
   const id = studentId.value;
   if (!id || id === '—') {
@@ -947,37 +932,10 @@ onMounted(loadProfile);
   color: var(--m-text);
 }
 
-.profile-page-bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: grid;
-  min-height: 56px;
-  grid-template-columns: 44px 1fr 44px;
-  align-items: center;
-  gap: var(--m-space-2);
-  padding: 0 var(--m-space-4);
-  border-bottom: 1px solid var(--m-border);
-  background: var(--m-surface);
-}
-
 .profile-content {
   width: min(100%, 760px);
   margin: 0 auto;
   padding: var(--m-space-3) 0 var(--m-space-8);
-}
-
-.profile-back-button {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--m-ink);
-  cursor: pointer;
 }
 
 .profile-gradient {
@@ -1118,7 +1076,6 @@ onMounted(loadProfile);
 .profile-state--error { color: var(--m-danger); }
 .profile-state-action { min-height: 44px; border-radius: var(--m-radius-sm); }
 .shell-icon-button { min-width: 44px; min-height: 44px; }
-.profile-back-button:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 2px; }
 
 :deep(.q-card) { color: var(--m-text); }
 :deep(.q-item) { min-height: 60px; }

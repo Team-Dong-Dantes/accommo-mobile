@@ -54,11 +54,36 @@
       </section>
 
       <div v-else class="dashboard-content">
+        <section class="manager-briefing" aria-labelledby="dashboard-title">
+          <div class="dashboard-intro">
+            <div>
+              <h1 id="dashboard-title">{{ greeting }}, {{ managerFirstName }}.</h1>
+              <p>{{ propertyCountLabel }} · {{ totalRoomCount }} {{ totalRoomCount === 1 ? 'room' : 'rooms' }} under management</p>
+            </div>
+          </div>
+
+          <div class="portfolio-pulse" aria-labelledby="portfolio-pulse-title">
+            <div class="portfolio-pulse__main">
+              <span class="portfolio-pulse__eyebrow">Portfolio occupancy</span>
+              <strong id="portfolio-pulse-title">{{ totalOccupiedSpaces }}<small> / {{ totalCapacity }} residents</small></strong>
+              <div class="portfolio-pulse__meter" aria-hidden="true"><span :style="{ width: `${portfolioOccupancyPercent}%` }" /></div>
+              <p>{{ availableSpaces }} spaces currently open</p>
+            </div>
+            <div class="portfolio-pulse__payments">
+              <span>Collected this month</span>
+              <strong>{{ peso(paidThisMonth) }}</strong>
+              <small :class="{ 'portfolio-pulse__warning': outstandingAmount > 0 }">
+                {{ outstandingAmount > 0 ? `${peso(outstandingAmount)} outstanding` : 'No outstanding balance' }}
+              </small>
+            </div>
+          </div>
+        </section>
+
         <section class="section-block attention-section" aria-labelledby="attention-title">
           <div class="section-heading">
             <div>
-              <p class="section-kicker">Priority workspace</p>
-              <h2 id="attention-title">Needs attention</h2>
+              <p class="section-kicker">Action queue</p>
+              <h2 id="attention-title">Needs your attention</h2>
             </div>
             <span v-if="attentionItems.length" class="attention-total">
               {{ totalAttentionCount }} {{ totalAttentionCount === 1 ? 'item' : 'items' }}
@@ -106,18 +131,18 @@
         <section class="section-block" aria-labelledby="operations-title">
           <div class="section-heading compact-heading">
             <div>
-              <h2 id="operations-title">Operations summary</h2>
-              <p class="section-description">Live totals across {{ propertyCountLabel }}</p>
+              <h2 id="operations-title">At a glance</h2>
+              <p class="section-description">Room and collection totals across your portfolio.</p>
             </div>
           </div>
 
           <div class="operations-grid">
-            <article v-for="metric in operationMetrics" :key="metric.id" class="surface operation-card">
-              <span class="metric-icon" aria-hidden="true">
-                <IconifyIcon :icon="metric.icon" />
-              </span>
+            <article v-for="metric in operationMetrics" :key="metric.id" class="operation-card" :class="`operation-card--${metric.id}`">
+              <div class="operation-card__top">
+                <span class="metric-icon" aria-hidden="true"><IconifyIcon :icon="metric.icon" /></span>
+                <span class="operation-card__label">{{ metric.label }}</span>
+              </div>
               <strong>{{ metric.value }}</strong>
-              <span>{{ metric.label }}</span>
               <small>{{ metric.detail }}</small>
             </article>
           </div>
@@ -311,6 +336,15 @@ const leases = ref<LeaseRecord[]>([])
 const tickets = ref<TicketRecord[]>([])
 const payments = ref<PaymentRecord[]>([])
 const studentNames = ref<Map<string, string>>(new Map())
+const managerName = ref('Manager')
+
+const managerFirstName = computed(() => managerName.value.trim().split(/\s+/)[0] || 'Manager')
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+})
 
 const propertyCountLabel = computed(() =>
   `${accommodations.value.length} ${accommodations.value.length === 1 ? 'property' : 'properties'}`,
@@ -363,6 +397,12 @@ const totalRoomCount = computed(() => {
   return Math.max(declared, rooms.value.length)
 })
 const availableRoomCount = computed(() => Math.max(totalRoomCount.value - occupiedRoomCount.value, 0))
+const totalCapacity = computed(() => rooms.value.reduce((sum, room) => sum + Math.max(Number(room.capacity) || 0, 0), 0))
+const totalOccupiedSpaces = computed(() => rooms.value.reduce((sum, room) => sum + roomPax(room), 0))
+const availableSpaces = computed(() => Math.max(totalCapacity.value - totalOccupiedSpaces.value, 0))
+const portfolioOccupancyPercent = computed(() => totalCapacity.value
+  ? Math.min(Math.round((totalOccupiedSpaces.value / totalCapacity.value) * 100), 100)
+  : 0)
 
 const operationMetrics = computed(() => [
   {
@@ -672,6 +712,8 @@ async function loadDashboard() {
     if (profileResult.error) throw profileResult.error
     if (accommodationResult.error) throw accommodationResult.error
 
+    managerName.value = profileResult.data?.full_name || 'Manager'
+
     accommodations.value = (accommodationResult.data || []) as AccommodationRecord[]
 
     if (!accommodations.value.length) {
@@ -798,6 +840,118 @@ onMounted(() => {
   gap: var(--m-space-6);
 }
 
+.manager-briefing {
+  overflow: hidden;
+  border-radius: 14px;
+  background: #0e2e2a;
+  color: #eaf4f1;
+}
+
+.dashboard-intro {
+  padding: var(--m-space-4);
+}
+
+.dashboard-intro h1 {
+  margin: 0;
+  color: #eaf4f1;
+  font-family: var(--m-font-display);
+  font-size: clamp(24px, 7vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.dashboard-intro > div > p:last-child {
+  margin: var(--m-space-2) 0 0;
+  color: rgba(234, 244, 241, .7);
+  font-family: var(--m-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .025em;
+}
+
+.portfolio-pulse {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(128px, .7fr);
+  border-top: 1px solid rgba(234, 244, 241, .14);
+  background: #0b2421;
+  color: #eaf4f1;
+}
+
+.portfolio-pulse__main,
+.portfolio-pulse__payments {
+  display: grid;
+  align-content: center;
+  padding: var(--m-space-4);
+}
+
+.portfolio-pulse__main {
+  gap: 6px;
+}
+
+.portfolio-pulse__eyebrow,
+.portfolio-pulse__payments span {
+  color: color-mix(in srgb, #fff 70%, transparent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.portfolio-pulse__main strong {
+  font-family: var(--m-font-display);
+  font-size: clamp(24px, 7vw, 32px);
+  font-weight: 700;
+  letter-spacing: -.045em;
+  line-height: 1;
+}
+
+.portfolio-pulse__main strong small {
+  color: color-mix(in srgb, #fff 72%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.portfolio-pulse__main p,
+.portfolio-pulse__payments small {
+  margin: 0;
+  color: color-mix(in srgb, #fff 75%, transparent);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.portfolio-pulse__meter {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, #fff 20%, transparent);
+}
+
+.portfolio-pulse__meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+}
+
+.portfolio-pulse__payments {
+  gap: 6px;
+  border-left: 1px solid color-mix(in srgb, #fff 22%, transparent);
+}
+
+.portfolio-pulse__payments strong {
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
+
+.portfolio-pulse__payments .portfolio-pulse__warning {
+  color: #fde68a;
+}
+
 .surface {
   overflow: hidden;
   border: 1px solid var(--m-border);
@@ -816,8 +970,9 @@ onMounted(() => {
 .page-state h2 {
   margin: 0;
   color: var(--m-ink);
+  font-family: var(--m-font-display);
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.025em;
 }
@@ -861,8 +1016,9 @@ onMounted(() => {
 
 .row-title {
   color: var(--m-ink);
+  font-family: var(--m-font-display);
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 700;
   line-height: 1.35;
 }
 
@@ -959,27 +1115,57 @@ onMounted(() => {
 }
 
 .operation-card {
+  position: relative;
   display: grid;
-  min-height: 132px;
-  align-content: start;
-  padding: var(--m-space-3);
+  min-height: 126px;
+  align-content: space-between;
+  overflow: hidden;
+  padding: var(--m-space-4);
+  border: 1px solid var(--m-border);
+  border-radius: 10px;
+  background: var(--m-surface);
+}
+
+.operation-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m-space-2);
 }
 
 .metric-icon {
   width: 32px;
   height: 32px;
-  margin-bottom: var(--m-space-3);
   border-radius: 8px;
   background: var(--m-bg);
   color: var(--m-text);
   font-size: 17px;
 }
 
+.operation-card--collected .metric-icon { background: var(--m-success-soft); color: var(--m-success); }
+.operation-card--outstanding .metric-icon { background: var(--m-danger-soft); color: var(--m-danger); }
+.operation-card--available .metric-icon { background: var(--m-info-soft); color: var(--m-info); }
+
+.operation-card__label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--m-muted);
+  font-family: var(--m-font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .045em;
+  text-align: right;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .operation-card strong {
   overflow: hidden;
   color: var(--m-ink);
+  font-family: var(--m-font-display);
   font-size: clamp(19px, 5vw, 24px);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.035em;
   text-overflow: ellipsis;
@@ -994,8 +1180,8 @@ onMounted(() => {
 }
 
 .operation-card small {
-  margin-top: 2px;
   color: var(--m-muted);
+  font-family: var(--m-font-body);
   font-size: 10px;
   line-height: 1.35;
 }
@@ -1208,16 +1394,6 @@ onMounted(() => {
 
   .operation-card {
     min-height: 122px;
-    grid-template-columns: 36px 1fr;
-    column-gap: var(--m-space-3);
-  }
-
-  .metric-icon {
-    grid-row: 1 / 4;
-  }
-
-  .operation-card > span:not(.metric-icon) {
-    margin-top: 0;
   }
 
   .detail-grid {

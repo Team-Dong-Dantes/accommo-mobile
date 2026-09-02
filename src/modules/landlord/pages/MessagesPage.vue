@@ -8,15 +8,6 @@
         </div>
       </header>
 
-      <label class="search-field" for="landlord-message-search">
-        <IconifyIcon icon="lucide:search" width="19" aria-hidden="true" />
-        <span class="sr-only">Search conversations</span>
-        <input id="landlord-message-search" v-model="searchText" type="search" placeholder="Search messages" autocomplete="off" />
-        <button v-if="searchText" type="button" class="clear-search" aria-label="Clear conversation search" @click="searchText = ''">
-          <IconifyIcon icon="lucide:x" width="17" aria-hidden="true" />
-        </button>
-      </label>
-
       <section v-if="loading" class="list-state" role="status" aria-live="polite">
         <q-spinner color="primary" size="28px" />
         <span>Loading conversations...</span>
@@ -54,12 +45,49 @@
           <IconifyIcon v-else icon="lucide:chevron-right" class="row-chevron" width="18" aria-hidden="true" />
         </button>
       </section>
-      <section v-else class="list-state" aria-live="polite">
-        <IconifyIcon icon="lucide:message-circle" width="28" aria-hidden="true" />
-        <strong>{{ searchText ? 'No conversations match your search.' : 'No conversations yet.' }}</strong>
-        <span v-if="!searchText">Messages from students will appear here.</span>
-      </section>
+      <EmptyState icon="lucide:message-circle" :title="searchText ? 'No conversations match your search.' : 'No conversations yet.'" :message="searchText ? '' : 'Messages from students will appear here.'" />
     </main>
+
+    <!-- Fixed bottom search + filter (discover-style) -->
+    <div class="messages-action-bar">
+      <button type="button" class="messages-filter-button" :class="{ 'has-active': activeFilter !== 'all' }" aria-label="Filter conversations" @click="filterDialog = true">
+        <IconifyIcon icon="mdi:tune" width="21" aria-hidden="true" />
+      </button>
+      <label class="messages-search-field" for="landlord-message-search">
+        <IconifyIcon icon="lucide:search" width="20" aria-hidden="true" />
+        <span class="sr-only">Search conversations</span>
+        <input id="landlord-message-search" v-model="searchText" type="search" placeholder="Search messages" autocomplete="off" />
+        <button v-if="searchText" type="button" class="messages-clear-search" aria-label="Clear conversation search" @click="searchText = ''">
+          <IconifyIcon icon="lucide:x" width="18" aria-hidden="true" />
+        </button>
+      </label>
+    </div>
+
+    <!-- Filter bottom sheet -->
+    <q-dialog v-model="filterDialog" position="bottom">
+      <q-card class="messages-filter-sheet">
+        <q-card-section class="messages-filter-heading">
+          <div>
+            <h2>Filter conversations</h2>
+            <p>Show only the messages you want.</p>
+          </div>
+          <q-btn flat round aria-label="Close filters" @click="filterDialog = false"><IconifyIcon icon="lucide:x" width="20" /></q-btn>
+        </q-card-section>
+        <q-card-section>
+          <h3>Who</h3>
+          <div class="messages-filter-options">
+            <button v-for="opt in filterOptions" :key="opt.value" type="button" class="f-chip"
+              :class="{ active: activeFilter === opt.value }" @click="activeFilter = opt.value">
+              {{ opt.label }}
+            </button>
+          </div>
+        </q-card-section>
+        <q-card-actions class="messages-filter-actions">
+          <q-btn flat no-caps @click="activeFilter = 'all'; filterDialog = false">Clear</q-btn>
+          <q-btn unelevated no-caps class="primary-button" @click="filterDialog = false">Show messages</q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -67,6 +95,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
+import EmptyState from '@/shared/components/EmptyState.vue'
 
 interface ConversationRow { id: string; user_a_id: string; user_b_id: string; last_message: string | null; last_time: string | null; unread_a: number | null; unread_b: number | null }
 interface UserRow { id: string; full_name: string | null; email: string | null; role: string | null }
@@ -74,15 +103,25 @@ interface ConversationItem { id: string; initials: string; name: string; role: s
 
 const router = useRouter()
 const searchText = ref('')
+const filterDialog = ref(false)
+const activeFilter = ref<'all' | 'students' | 'landlords'>('all')
+const filterOptions: { value: 'all' | 'students' | 'landlords'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'students', label: 'Students' },
+  { value: 'landlords', label: 'Landlords' },
+]
 const loading = ref(true)
 const error = ref<string | null>(null)
 const conversations = ref<ConversationItem[]>([])
 
 const unreadCount = computed(() => conversations.value.reduce((total, conversation) => total + conversation.unread, 0))
 const filteredConversations = computed(() => {
+  let list = conversations.value
+  if (activeFilter.value === 'students') list = list.filter((conversation) => conversation.role === 'Student')
+  else if (activeFilter.value === 'landlords') list = list.filter((conversation) => conversation.role === 'Landlord')
   const term = searchText.value.trim().toLowerCase()
-  if (!term) return conversations.value
-  return conversations.value.filter((conversation) => [conversation.name, conversation.role, conversation.lastMessage].some((field) => field.toLowerCase().includes(term)))
+  if (!term) return list
+  return list.filter((conversation) => [conversation.name, conversation.role, conversation.lastMessage].some((field) => field.toLowerCase().includes(term)))
 })
 
 function initialsOf(name: string): string { const parts = name.trim().split(/\s+/).filter(Boolean); return parts.length > 1 ? `${parts[0]?.[0] ?? ''}${parts[parts.length - 1]?.[0] ?? ''}`.toUpperCase() : (parts[0] ?? 'U').slice(0, 2).toUpperCase() }
@@ -142,10 +181,25 @@ onMounted(() => { void loadConversations() })
 
 <style scoped>
 .messages-page { min-height: 100vh; background: var(--m-bg); color: var(--m-text); }
-.conversation-list { min-height: 100vh; max-width: 720px; margin: 0 auto; padding: var(--m-space-5) var(--m-page-gutter) calc(var(--m-space-8) + 72px); }
+.conversation-list { min-height: 100vh; max-width: 720px; margin: 0 auto; padding: var(--m-space-5) var(--m-page-gutter) calc(168px + env(safe-area-inset-bottom)); }
 .list-header { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-4); }.list-summary { margin: 0; color: var(--m-muted); font-size: 13px; }
-.search-field { display: flex; align-items: center; gap: var(--m-space-2); min-height: 48px; padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); }.search-field input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; }.search-field input::placeholder { color: var(--m-muted); }.clear-search { display: grid; width: 32px; height: 32px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-muted); cursor: pointer; }
+
+/* Fixed bottom search (discover-style) */
+.messages-action-bar { position: fixed; z-index: 59; right: 12px; bottom: 80px; left: 12px; display: flex; gap: var(--m-space-2); align-items: center; }
+.messages-search-field { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--m-space-2); min-height: 48px; padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }.messages-search-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; }.messages-search-field input::placeholder { color: var(--m-muted); }.messages-clear-search { display: grid; width: 32px; height: 32px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-muted); cursor: pointer; }
+.messages-filter-button { display: grid; width: 48px; height: 48px; flex: 0 0 48px; padding: 0; place-items: center; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-primary-dark); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); cursor: pointer; }
+.messages-filter-button.has-active { border-color: var(--m-primary); background: color-mix(in srgb, var(--m-primary-soft) 60%, var(--m-surface)); }
+.messages-filter-sheet { border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; padding-bottom: env(safe-area-inset-bottom); }
+.messages-filter-heading { display: flex; justify-content: space-between; align-items: flex-start; }
+.messages-filter-heading h2 { margin: 0; font-size: 17px; }
+.messages-filter-heading p { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
+.messages-filter-sheet h3 { margin: 4px 0 10px; color: var(--m-muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.messages-filter-options { display: flex; flex-wrap: wrap; gap: var(--m-space-2); }
+.f-chip { min-height: 38px; padding: 0 16px; border: 1px solid var(--m-border); border-radius: 999px; background: var(--m-surface); color: var(--m-text); font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; }
+.f-chip.active { color: #fff; background: var(--m-primary); border-color: var(--m-primary); }
+.messages-filter-actions { display: flex; justify-content: space-between; padding: 12px 16px; }
+.primary-button { color: #fff; background: var(--m-primary); border-radius: var(--m-radius-sm); font-weight: 700; }
 .thread-list { margin-top: var(--m-space-4); overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }.thread-row { display: flex; width: 100%; align-items: center; gap: var(--m-space-3); padding: var(--m-space-3); border: 0; border-bottom: 1px solid var(--m-border); background: var(--m-surface); color: inherit; text-align: left; cursor: pointer; }.thread-row:last-child { border-bottom: 0; }.thread-row--unread { background: var(--m-primary-soft); }.thread-avatar { flex: 0 0 auto; background: var(--m-primary-dark); color: var(--m-surface); font-size: 13px; font-weight: 800; }.thread-copy { display: grid; min-width: 0; flex: 1; gap: 2px; }.thread-topline { display: flex; min-width: 0; align-items: baseline; gap: var(--m-space-2); }.thread-name { overflow: hidden; color: var(--m-ink); font-size: 14px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }.thread-time { margin-left: auto; flex: 0 0 auto; color: var(--m-muted); font-size: 11px; }.thread-subtitle { color: var(--m-muted); font-size: 12px; }.thread-preview { overflow: hidden; color: var(--m-text); font-size: 13px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }.thread-row--unread .thread-preview { color: var(--m-ink); font-weight: 650; }.unread-indicator { display: grid; min-width: 20px; height: 20px; padding: 0 var(--m-space-1); place-items: center; border-radius: 999px; background: var(--m-primary); color: var(--m-surface); font-size: 10px; font-weight: 800; }.row-chevron { flex: 0 0 auto; color: var(--m-muted); }
 .list-state { display: grid; min-height: 180px; place-items: center; align-content: center; gap: var(--m-space-2); padding: var(--m-space-6); color: var(--m-muted); text-align: center; }.list-state strong { color: var(--m-ink); }.list-state--error { color: var(--m-danger); }.list-state--error strong { color: var(--m-danger); }.retry-button { display: inline-flex; min-height: 40px; align-items: center; gap: var(--m-space-2); padding: 0 var(--m-space-3); border: 1px solid currentColor; border-radius: var(--m-radius-sm); background: transparent; color: var(--m-danger); font: inherit; font-weight: 700; cursor: pointer; }
-.clear-search:focus-visible, .thread-row:focus-visible, .retry-button:focus-visible, .search-field:focus-within { outline: 2px solid var(--m-primary-dark); outline-offset: 2px; }.thread-row:hover { background: var(--m-primary-soft); }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }@media (prefers-reduced-motion: no-preference) { .thread-row { transition: background .15s ease; } }
+.messages-clear-search:focus-visible, .thread-row:focus-visible, .retry-button:focus-visible, .messages-search-field:focus-within { outline: 2px solid var(--m-primary-dark); outline-offset: 2px; }.thread-row:hover { background: var(--m-primary-soft); }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }@media (prefers-reduced-motion: no-preference) { .thread-row { transition: background .15s ease; } }
 </style>

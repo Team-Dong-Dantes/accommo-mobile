@@ -30,6 +30,20 @@
   --m-radius: 16px;
   --m-radius-lg: 24px;
   --m-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --m-font-body: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --m-font-display: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --m-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body {
+  font-family: var(--m-font-body);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--m-font-display);
 }
 
 .q-field__prepend svg.iconify,

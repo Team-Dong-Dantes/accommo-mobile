@@ -16,7 +16,7 @@
         <article v-for="index in 3" :key="index" class="result-card"><q-skeleton type="rect" height="86px" /><div class="skeleton-copy"><q-skeleton type="text" width="64%" /><q-skeleton type="text" width="88%" /></div></article>
       </section>
       <section v-else-if="error" class="page-state" role="alert"><span class="state-icon"><IconifyIcon icon="lucide:cloud-alert" width="25" /></span><p>{{ error }}</p><q-btn unelevated no-caps class="primary-button" @click="loadData"><IconifyIcon icon="lucide:refresh-cw" width="18" /> Retry</q-btn></section>
-      <section v-else-if="activeResults.length === 0" class="page-state"><span class="state-icon"><IconifyIcon icon="lucide:search-x" width="25" /></span><p>{{ searchQuery || hasFilters ? 'No results match your search or filters.' : `No ${resultNoun} are available right now.` }}</p><q-btn v-if="searchQuery || hasFilters" flat no-caps class="text-button" @click="clearFilters">Clear filters</q-btn></section>
+      <EmptyState v-else-if="activeResults.length === 0" icon="lucide:search-x" :title="searchQuery || hasFilters ? 'No results match your search or filters.' : `No ${resultNoun} available right now.`"><q-btn v-if="searchQuery || hasFilters" flat no-caps class="text-button" @click="clearFilters">Clear filters</q-btn></EmptyState>
 
       <section v-else-if="browseMode === 'properties'" id="discover-properties-panel" class="result-stack" role="tabpanel" aria-labelledby="discover-properties">
         <article v-for="property in filteredProperties" :key="property.id" class="result-card property-card">
@@ -99,6 +99,7 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { formatPeso, initialsOf } from '@/shared/utils/format';
+import EmptyState from '@/shared/components/EmptyState.vue';
 
 type BrowseMode = 'properties' | 'rooms' | 'managers';
 type View = 'browse' | 'property' | 'room' | 'manager';
