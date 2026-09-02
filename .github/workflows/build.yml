@@ -37,10 +37,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'   # Android compileSdk 36 / capacitor needs Java 21 (not 17)
       - name: Install dependencies
         run: npm ci
       - name: Build web assets
