@@ -112,15 +112,17 @@ const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
 const unreadNotifCount = ref(0)
 const isProfilePage = computed(() => route.path === '/landlord/profile')
+const isQrScanner = computed(() => route.path === '/landlord/profile/qr-scanner')
 const isNotificationsPage = computed(() => route.path === '/landlord/notifications')
-const isSecondaryPage = computed(() => isProfilePage.value || isNotificationsPage.value)
+const isTenantDetail = computed(() => /^\/landlord\/tenant\/[^/]+$/.test(route.path))
+const isSecondaryPage = computed(() => isProfilePage.value || isQrScanner.value || isNotificationsPage.value || isTenantDetail.value)
 const isAccommodationSetup = computed(() => route.path === '/landlord/properties/new')
 const isAccommodationDetail = computed(() => /^\/landlord\/properties\/[^/]+$/.test(route.path))
 const quickActionsOpen = ref(false)
 const scrolled = ref(false)
 const showQuickActions = computed(() => !isSecondaryPage.value && !isAccommodationSetup.value && !isAccommodationDetail.value)
-const secondaryTitle = computed(() => isNotificationsPage.value ? 'Notifications' : 'Profile')
-const secondaryBackLabel = computed(() => 'dashboard')
+const secondaryTitle = computed(() => (isNotificationsPage.value ? 'Notifications' : isQrScanner.value ? 'QR scanner' : isTenantDetail.value ? 'Tenant' : 'Profile'))
+const secondaryBackLabel = computed(() => (isQrScanner.value ? 'profile' : isTenantDetail.value ? 'tenants' : 'dashboard'))
 const pageTransition = ref('page-fade')
 
 const bottomTabs = [
@@ -144,7 +146,7 @@ const goToNotifications = () => {
 }
 
 const goBack = () => {
-  void router.push('/landlord/dashboard')
+  void router.push(isQrScanner.value ? '/landlord/profile' : isTenantDetail.value ? '/landlord/tenants' : '/landlord/dashboard')
 }
 
 const goToAccommodations = () => {
@@ -159,8 +161,8 @@ function navigateQuickAction(path: string) {
 watch(
   () => route.path,
   (value, previousValue) => {
-    const enteringSecondaryPage = value === '/landlord/profile' || value === '/landlord/notifications'
-    const leavingSecondaryPage = previousValue === '/landlord/profile' || previousValue === '/landlord/notifications'
+    const enteringSecondaryPage = value === '/landlord/profile' || value === '/landlord/notifications' || value === '/landlord/profile/qr-scanner'
+    const leavingSecondaryPage = previousValue === '/landlord/profile' || previousValue === '/landlord/notifications' || previousValue === '/landlord/profile/qr-scanner'
     pageTransition.value = enteringSecondaryPage && !leavingSecondaryPage ? 'page-slide-left' : leavingSecondaryPage && !enteringSecondaryPage ? 'page-slide-right' : 'page-fade'
     if (value.startsWith('/landlord/notifications') || value === '/landlord/profile' || value === '/landlord/properties/new' || /^\/landlord\/properties\/[^/]+$/.test(value)) quickActionsOpen.value = false
     if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
@@ -173,6 +175,7 @@ watch(
 
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, true)
+  window.addEventListener('accommo:avatar-change', onAvatarChange)
   document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
   onScroll()
   try {
@@ -214,8 +217,14 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('scroll', onScroll, true)
+  window.removeEventListener('accommo:avatar-change', onAvatarChange)
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
 })
+
+function onAvatarChange(event: Event) {
+  const url = (event as CustomEvent<{ url: string }>).detail?.url
+  if (url) profileImageUrl.value = url
+}
 
 function onScroll() {
   const container = document.querySelector('.q-page-container') as HTMLElement | null
