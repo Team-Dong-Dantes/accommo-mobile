@@ -96,6 +96,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
 import { initialsOf } from '@/shared/utils/format'
 import { chatFullscreen } from '@/shared/utils/chatFullscreen'
+import { resolveAsset } from '@/shared/utils/cloudinaryUrl'
 
 const router = useRouter()
 const route = useRoute()
@@ -133,7 +134,7 @@ onMounted(async () => {
     const picture = typeof metadata?.avatar_url === 'string'
       ? metadata.avatar_url
       : (typeof metadata?.picture === 'string' ? metadata.picture : '')
-    profileImageUrl.value = picture || null
+    profileImageUrl.value = picture ? resolveAsset(picture) : null
 
     const { data } = await supabase
       .from('users')

@@ -165,17 +165,119 @@
       </div>
     </main>
 
-    <!-- Property Detail View -->
-    <main v-else-if="view === 'property' && selectedProperty" class="detail-content">
-      <button type="button" class="back-button" @click="backToBrowse"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back to listings</button>
-      <q-carousel v-if="selectedProperty.images.length" v-model="selectedProperty.activePhoto" animated swipeable navigation infinite control-color="white" class="detail-carousel">
-        <q-carousel-slide v-for="(image, index) in selectedProperty.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" fit="cover" class="carousel-image" /></q-carousel-slide>
-      </q-carousel>
-      <div v-else class="detail-placeholder"><IconifyIcon icon="lucide:building-2" width="36" /></div>
-      <section class="detail-heading"><div class="title-with-badge"><h1>{{ selectedProperty.name }}</h1><span class="verified"><IconifyIcon icon="lucide:badge-check" width="15" /> OSAS Accredited</span></div><p class="location"><IconifyIcon icon="lucide:map-pin" width="16" /> {{ selectedProperty.address }}</p></section>
-      <section class="detail-section"><h2>Available Rooms</h2><div class="room-list"><button v-for="room in selectedProperty.rooms" :key="room.id" type="button" class="detail-room-row" @click="openRoom(room)"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="19" /></span><span class="room-copy"><strong>{{ room.label }}</strong><span>{{ room.typeLabel }}</span></span><strong>{{ priceLabel(room.rent) }}</strong><IconifyIcon icon="lucide:chevron-right" width="18" /></button></div></section>
-      <section v-if="selectedProperty.description" class="detail-section"><h2>About this property</h2><p class="detail-copy">{{ selectedProperty.description }}</p></section>
-      <section v-if="selectedProperty.amenities.length" class="detail-section"><h2>Amenities</h2><div class="amenity-list"><span v-for="amenity in selectedProperty.amenities" :key="amenity"><IconifyIcon icon="lucide:check" width="15" /> {{ amenity }}</span></div></section>
+    <!-- Property Detail View (full-screen, mirrors the room flow) -->
+    <main v-else-if="view === 'property' && selectedProperty" class="property-workspace">
+      <!-- Full-bleed hero carousel -->
+      <div class="room-hero-gallery property-hero">
+        <q-carousel
+          v-if="selectedProperty.images.length"
+          v-model="selectedProperty.activePhoto"
+          animated swipeable navigation infinite control-color="white"
+          class="room-carousel"
+        >
+          <q-carousel-slide v-for="(image, index) in selectedProperty.images" :key="image" :name="index" class="carousel-slide q-pa-none">
+            <q-img :src="image" fit="cover" class="carousel-image" />
+          </q-carousel-slide>
+        </q-carousel>
+        <div v-else class="room-hero-placeholder">
+          <IconifyIcon icon="lucide:building-2" width="54" />
+          <span>No exterior photos uploaded yet</span>
+        </div>
+        <div class="gallery-overlay-top">
+          <button type="button" class="gallery-round-btn" aria-label="Back to listings" @click="backToBrowse"><IconifyIcon icon="lucide:arrow-left" width="20" /></button>
+          <button type="button" class="gallery-round-btn" aria-label="View manager profile" @click="openManagerById(selectedProperty.managerId)"><IconifyIcon icon="lucide:user" width="19" /></button>
+        </div>
+        <div v-if="selectedProperty.images.length > 1" class="photo-counter-badge font-mono">
+          {{ selectedProperty.activePhoto + 1 }} / {{ selectedProperty.images.length }}
+        </div>
+      </div>
+
+      <!-- Continuous divider-separated flow -->
+      <div class="room-flow-container">
+        <!-- Header -->
+        <header class="flow-section room-header-block property-header">
+          <div class="header-left">
+            <span class="room-type-tag">{{ selectedProperty.typeLabel }}</span>
+            <h1 class="room-name property-name">{{ selectedProperty.name }}</h1>
+            <span class="property-accredited"><IconifyIcon icon="lucide:badge-check" width="14" /> OSAS Accredited</span>
+            <p class="room-prop-link property-addr">
+              <IconifyIcon icon="lucide:map-pin" width="15" />
+              <span>{{ selectedProperty.address || 'Echague, Isabela' }}</span>
+            </p>
+          </div>
+          <div class="header-right property-occupancy font-mono">
+            <strong>{{ selectedProperty.availableRooms }}</strong>
+            <small>{{ selectedProperty.availableRooms === 1 ? 'room open' : 'rooms open' }}</small>
+          </div>
+        </header>
+
+        <!-- Available rooms -->
+        <section v-if="selectedProperty.rooms.length" class="flow-section">
+          <h2 class="section-title">Available Rooms</h2>
+          <div class="property-room-list">
+            <button
+              v-for="room in selectedProperty.rooms"
+              :key="room.id"
+              type="button"
+              class="property-room-row"
+              @click="openRoom(room)"
+            >
+              <span class="property-room-icon"><IconifyIcon icon="lucide:bed-double" width="19" /></span>
+              <span class="property-room-copy">
+                <strong>{{ room.label }}</strong>
+                <small>{{ room.typeLabel }}{{ room.capacity ? ` · ${room.capacity} ${room.capacity === 1 ? 'person' : 'persons'}` : '' }}</small>
+              </span>
+              <strong class="font-mono property-room-price">{{ priceLabel(room.rent) }}</strong>
+              <IconifyIcon icon="lucide:chevron-right" width="18" class="property-room-chevron" />
+            </button>
+          </div>
+        </section>
+
+        <!-- About -->
+        <section v-if="selectedProperty.description" class="flow-section">
+          <h2 class="section-title">About this property</h2>
+          <p class="property-bio">{{ selectedProperty.description }}</p>
+        </section>
+
+        <!-- Amenities -->
+        <section v-if="selectedProperty.amenities.length" class="flow-section">
+          <h2 class="section-title">Amenities</h2>
+          <div class="inclusions-grid">
+            <div v-for="amenity in selectedProperty.amenities" :key="amenity" class="inclusion-item">
+              <IconifyIcon icon="lucide:check" width="16" class="text-teal" />
+              <span>{{ amenity }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Policies & lease terms -->
+        <section v-if="selectedProperty.policyItems.length" class="flow-section">
+          <h2 class="section-title">House Policies &amp; Lease Terms</h2>
+          <div class="property-policy-list">
+            <div v-for="policy in selectedProperty.policyItems" :key="policy" class="property-policy-item">
+              <IconifyIcon icon="lucide:shield-check" width="16" class="text-teal" />
+              <span>{{ policy }}</span>
+            </div>
+          </div>
+          <p class="cost-terms">Minimum stay and contract terms are agreed with the manager when you apply.</p>
+        </section>
+
+        <!-- Listed by -->
+        <section class="flow-section">
+          <h2 class="section-title">Listed by</h2>
+          <div class="manager-profile-row">
+            <q-avatar size="48px" class="manager-avatar">{{ initialsOf(selectedProperty.managerName) }}</q-avatar>
+            <div class="manager-info">
+              <strong class="manager-name">{{ selectedProperty.managerName }}</strong>
+              <span class="manager-rating">{{ selectedProperty.managerPropertyCount }} managed accommodation{{ selectedProperty.managerPropertyCount === 1 ? '' : 's' }}</span>
+            </div>
+          </div>
+          <button type="button" class="btn-chat-manager" @click="openManagerById(selectedProperty.managerId)">
+            <IconifyIcon icon="lucide:user" width="18" />
+            <span>View Manager Profile</span>
+          </button>
+        </section>
+      </div>
     </main>
 
     <!-- ==============================================================
@@ -379,10 +481,35 @@
               <span class="manager-rating font-mono">98% response rate · Typically replies in 15 mins</span>
             </div>
           </div>
-          <button type="button" class="btn-chat-manager" @click="messageManager(selectedRoom.managerId)">
-            <IconifyIcon icon="lucide:message-circle" width="18" />
-            <span>Message Manager</span>
+          <button type="button" class="btn-chat-manager" @click="openManagerById(selectedRoom.managerId)">
+            <IconifyIcon icon="lucide:user" width="18" />
+            <span>View Profile</span>
           </button>
+        </section>
+
+        <!-- 8. Other rooms in this property -->
+        <section v-if="siblingRooms.length" class="flow-section">
+          <div class="section-title-row">
+            <h2 class="section-title">Other rooms in this property</h2>
+            <button type="button" class="view-all-link" @click="openProperty(propertyById(selectedRoom.propertyId))">View all</button>
+          </div>
+          <div class="property-room-list">
+            <button
+              v-for="room in siblingRooms"
+              :key="room.id"
+              type="button"
+              class="property-room-row"
+              @click="openRoom(room)"
+            >
+              <span class="property-room-icon"><IconifyIcon icon="lucide:bed-double" width="19" /></span>
+              <span class="property-room-copy">
+                <strong>{{ room.label }}</strong>
+                <small>{{ room.typeLabel }}{{ room.capacity ? ` · ${room.capacity} ${room.capacity === 1 ? 'person' : 'persons'}` : '' }}</small>
+              </span>
+              <strong class="font-mono property-room-price">{{ priceLabel(room.rent) }}</strong>
+              <IconifyIcon icon="lucide:chevron-right" width="18" class="property-room-chevron" />
+            </button>
+          </div>
         </section>
       </div>
 
@@ -395,14 +522,10 @@
         <button
           type="button"
           class="btn-apply-booking"
-          :disabled="applying"
-          @click="applyToRoom(selectedRoom)"
+          @click="messageManager(selectedRoom.managerId)"
         >
-          <q-spinner v-if="applying" size="18px" />
-          <template v-else>
-            <span>Apply to this Room</span>
-            <IconifyIcon icon="lucide:arrow-right" width="18" />
-          </template>
+          <span>Message Manager</span>
+          <IconifyIcon icon="lucide:message-circle" width="18" />
         </button>
       </footer>
     </main>
@@ -637,6 +760,15 @@ function propertyById(id: string): DiscoverProperty {
   return properties.value.find((p) => p.id === id) ?? selectedProperty.value!;
 }
 
+// Rooms in the same property as the currently-viewed room (excluding it), so
+// the student can browse and switch to a sibling room without leaving.
+const siblingRooms = computed<DiscoverRoom[]>(() => {
+  if (!selectedRoom.value) return []
+  const prop = propertyById(selectedRoom.value.propertyId)
+  if (!prop) return []
+  return prop.rooms.filter((r) => r.id !== selectedRoom.value!.id)
+})
+
 function openProperty(property: DiscoverProperty) {
   selectedProperty.value = property;
   selectedRoom.value = null;
@@ -653,6 +785,25 @@ function openManager(manager: DiscoverManager) {
   selectedProperty.value = null;
   selectedRoom.value = null;
   view.value = 'manager';
+}
+function openManagerById(managerId: string) {
+  const mgr = managers.value.find((m) => m.id === managerId);
+  if (mgr) {
+    openManager(mgr);
+  } else {
+    // Fallback construct manager object
+    selectedManager.value = {
+      id: managerId,
+      name: selectedRoom.value?.managerName || 'Accommodation Manager',
+      propertyCount: 1,
+      availableRooms: 1,
+      propertyNames: selectedRoom.value?.propertyName ? [selectedRoom.value.propertyName] : [],
+      properties: selectedProperty.value ? [selectedProperty.value] : [],
+    };
+    selectedProperty.value = null;
+    selectedRoom.value = null;
+    view.value = 'manager';
+  }
 }
 function backToBrowse() {
   view.value = 'browse';
@@ -1177,6 +1328,76 @@ onMounted(loadData);
   background: #ffffff;
 }
 
+/* Property detail (full-screen, mirrors the room flow) */
+.property-workspace {
+  margin: -8px -12px calc(140px + env(safe-area-inset-bottom));
+  padding: 0;
+  background: #ffffff;
+}
+.property-hero { height: 300px; }
+.property-occupancy { justify-content: center; }
+.property-header .header-left { flex: 1 1 auto; min-width: 0; }
+.property-name { font-size: 23px; }
+.property-accredited {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 6px;
+  font-size: 10.5px;
+  font-weight: 750;
+  color: #15803d;
+}
+.property-addr { margin-top: 0; }
+
+.property-room-list { display: flex; flex-direction: column; border: 1px solid var(--m-border, #e5e7eb); border-radius: 8px; overflow: hidden; }
+.property-room-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-bottom: 1px solid #f0f2f5;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+.property-room-row:last-child { border-bottom: 0; }
+.property-room-row:active { background: #f8fafc; }
+.property-room-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--m-primary-soft, #e6f5f3);
+  color: var(--m-primary-dark, #00695c);
+}
+.property-room-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.property-room-copy strong { font-size: 13.5px; color: var(--m-ink, #17202a); }
+.property-room-copy small { font-size: 11px; color: var(--m-muted, #6b7280); }
+.property-room-price { font-size: 13px; font-weight: 750; color: var(--m-primary-dark, #00695c); white-space: nowrap; }
+.property-room-chevron { flex: 0 0 auto; color: var(--m-muted, #6b7280); }
+.property-rooms-empty {
+  padding: 12px;
+  border: 1px dashed var(--m-border, #e5e7eb);
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 12px;
+  color: var(--m-muted, #6b7280);
+  line-height: 1.45;
+}
+.property-policy-list { display: flex; flex-direction: column; gap: 8px; }
+.property-policy-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--m-ink, #17202a);
+}
+
 .room-hero-gallery {
   position: relative;
   width: 100%;
@@ -1247,6 +1468,25 @@ onMounted(loadData);
   font-size: 14px;
   font-weight: 800;
   color: var(--m-ink, #17202a);
+}
+
+.section-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.section-title-row .section-title { margin: 0; }
+.view-all-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--m-primary, #0f766e);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .room-header-block {
@@ -1387,6 +1627,9 @@ onMounted(loadData);
 .btn-apply-booking {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  line-height: 1;
   gap: 8px;
   height: 42px;
   padding: 0 18px;
@@ -1397,6 +1640,14 @@ onMounted(loadData);
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
+}
+.btn-apply-booking span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+.btn-apply-booking :deep(svg) {
+  display: block;
 }
 
 /* ==============================================================

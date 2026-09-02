@@ -3,6 +3,15 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.accommo.app"
     compileSdk = rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        release {
+            // Config values are filled below if a keystore.properties exists
+            // (written by CI from the KEYSTORE_* secrets). Local builds without
+            // a keystore remain unsigned, the original behavior.
+        }
+    }
+
     defaultConfig {
         applicationId "com.accommo.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -16,12 +25,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+// Sign the release only when this module has a keystore.properties (written by
+// CI from the KEYSTORE_BASE64 / password secrets). Absent ⇒ unsigned, as before.
+File ksPropsFile = file("${projectDir}/keystore.properties")
+if (ksPropsFile.exists()) {
+    def ks = new Properties()
+    ks.load(new FileInputStream(ksPropsFile))
+    android.signingConfigs.release.storeFile = file(ks['storeFile'])
+    android.signingConfigs.release.storePassword = ks['storePassword']
+    android.signingConfigs.release.keyAlias = ks['keyAlias']
+    android.signingConfigs.release.keyPassword = ks['keyPassword']
+    android.buildTypes.release.signingConfig = android.signingConfigs.release
 }
 
 repositories {
