@@ -71,12 +71,13 @@ watch(
 .auth-layout-bg {
   background: #f5f5f5;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   position: relative;
 }
 
 .hero-section {
-  position: absolute;
+  position: fixed;
   top: -80px;
   left: 0;
   width: 100%;
@@ -85,18 +86,23 @@ watch(
   background-size: cover;
   background-position: 46% center;
   z-index: 1;
+  pointer-events: none;
   transition: all 0.7s cubic-bezier(0.25, 1, 0.3, 1);
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .hero-section.splash-mode {
   top: 0;
   height: 100vh;
-  min-height: 100vh;
-  max-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  pointer-events: auto;
 }
 
 .hero-section.register-mode {
-  top: calc(100vh - 220px);
+  top: calc(100dvh - 220px);
   height: 400px;
   min-height: 200px;
 }
@@ -143,7 +149,6 @@ watch(
 }
 
 .hero-subtitle {
-
   font-size: 14px;
   opacity: 0.95;
 }
@@ -158,10 +163,16 @@ watch(
 }
 
 .content-wrapper {
-  position: relative;
+  position: fixed;
+  inset: 0;
   z-index: 10;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* =======================================================
@@ -174,12 +185,12 @@ watch(
   top: 0;
   left: 0;
   width: 100%;
-  height: 100vh;
+  height: 100%;
 }
 
 /* Login card slides UP from the bottom at 100% opacity */
 .splash-to-login-enter-from {
-  transform: translateY(100vh);
+  transform: translateY(100dvh);
 }
 
 /* Splash screen fades out and STAYS in place (doesn't slide up) */
@@ -204,23 +215,23 @@ watch(
   top: 0;
   left: 0;
   width: 100%;
-  height: 100vh;
+  height: 100%;
 }
 
 .slide-up-enter-from {
-  transform: translateY(100vh);
+  transform: translateY(100dvh);
 }
 
 .slide-up-leave-to {
-  transform: translateY(-100vh);
+  transform: translateY(-100dvh);
 }
 
 .slide-down-enter-from {
-  transform: translateY(-100vh);
+  transform: translateY(-100dvh);
 }
 
 .slide-down-leave-to {
-  transform: translateY(100vh);
+  transform: translateY(100dvh);
 }
 
 /* Horizontal pick from the role screen: Student slides LEFT, Landlord slides RIGHT. */
