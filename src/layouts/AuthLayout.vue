@@ -77,7 +77,7 @@ watch(
 }
 
 .hero-section {
-  position: fixed;
+  position: absolute;
   top: -80px;
   left: 0;
   width: 100%;
@@ -87,9 +87,8 @@ watch(
   background-position: 46% center;
   z-index: 1;
   pointer-events: none;
-  transition: all 0.7s cubic-bezier(0.25, 1, 0.3, 1);
+  transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1), font-size 0.7s cubic-bezier(0.25, 1, 0.3, 1);
   transform: translateZ(0);
-  will-change: transform;
 }
 
 .hero-section.splash-mode {
@@ -102,7 +101,8 @@ watch(
 }
 
 .hero-section.register-mode {
-  top: calc(100dvh - 220px);
+  top: auto;
+  bottom: -180px;
   height: 400px;
   min-height: 200px;
 }

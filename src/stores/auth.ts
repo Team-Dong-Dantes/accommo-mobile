@@ -417,6 +417,9 @@ export const useAuthStore = defineStore('auth', {
         provider: 'google',
         options: {
           redirectTo,
+          queryParams: {
+            prompt: 'select_account',
+          },
         },
       });
       if (error) throw sanitizeError(error);
