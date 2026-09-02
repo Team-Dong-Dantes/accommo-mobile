@@ -1,16 +1,28 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <q-header class="bg-transparent text-grey-9 app-header" :class="{ 'is-scrolled': scrolled, 'app-header--subpage': isSecondaryPage }">
+    <q-header v-if="!chatFullscreen" class="bg-transparent text-grey-9 app-header" :class="{ 'is-scrolled': scrolled, 'app-header--subpage': isSecondaryPage }">
       <div class="header-row q-px-md">
-        <template v-if="isSecondaryPage"><q-btn flat round dense class="setup-back-button" :aria-label="`Back to ${secondaryBackLabel}`" @click="goBack"><IconifyIcon icon="lucide:arrow-left" width="20" /></q-btn><h1 class="setup-page-title text-black text-weight-bold">{{ secondaryTitle }}</h1><span class="header-balance" aria-hidden="true" /></template>
+        <template v-if="isSecondaryPage">
+          <q-btn flat round dense class="setup-back-button" :aria-label="`Back to ${secondaryBackLabel}`" @click="goBack">
+            <IconifyIcon icon="lucide:arrow-left" width="20" />
+          </q-btn>
+          <h1 class="setup-page-title text-black text-weight-bold">{{ secondaryTitle }}</h1>
+          <span class="header-balance" aria-hidden="true" />
+        </template>
         <template v-else>
-        <div class="app-title text-black text-weight-bold">accommo</div>
-        <q-btn flat round dense class="avatar-button" @click="goToProfile">
-          <q-avatar size="36px" class="profile-avatar-shell text-weight-bold" text-color="white">
-            <q-img v-if="profileImageUrl" :src="profileImageUrl" alt="Profile photo" />
-            <span v-else>{{ userInitials }}</span>
-          </q-avatar>
-        </q-btn>
+          <div class="app-title text-black text-weight-bold">accommo</div>
+          <!-- Header Bell Icon -> Opens Notifications -->
+          <q-btn
+            flat
+            round
+            dense
+            class="header-notif-button"
+            aria-label="Notifications"
+            @click="goToNotifications"
+          >
+            <IconifyIcon icon="lucide:bell" width="22" />
+            <span v-if="unreadNotifCount > 0" class="header-notif-dot" />
+          </q-btn>
         </template>
       </div>
     </q-header>
@@ -25,23 +37,23 @@
       </div>
     </q-page-container>
 
-    <q-footer v-if="!isSecondaryPage" bordered class="bg-white text-grey-8 bottom-footer">
+    <q-footer v-if="!isSecondaryPage && !chatFullscreen" bordered class="bg-white text-grey-8 bottom-footer">
       <div class="bottom-nav">
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'home' }" @click="goToTab('home')">
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'home' }" aria-label="Home" @click="goToTab('home')">
           <IconifyIcon icon="lucide:house" width="22" />
-          <span class="bottom-nav-label">Home</span>
         </button>
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'discover' }" @click="goToTab('discover')">
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'discover' }" aria-label="Discover" @click="goToTab('discover')">
           <IconifyIcon icon="lucide:search" width="22" />
-          <span class="bottom-nav-label">Discover</span>
         </button>
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'messages' }" @click="goToTab('messages')">
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'messages' }" aria-label="Messages" @click="goToTab('messages')">
           <IconifyIcon icon="lucide:message-circle" width="22" />
-          <span class="bottom-nav-label">Messages</span>
         </button>
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'alerts' }" @click="goToTab('alerts')">
-          <IconifyIcon icon="lucide:bell" width="22" />
-          <span class="bottom-nav-label">Alerts</span>
+        <!-- Bottom Tab: Profile (Icon-only) -->
+        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'profile' }" aria-label="Profile" @click="goToTab('profile')">
+          <q-avatar size="26px" class="profile-avatar-mini" text-color="white">
+            <q-img v-if="profileImageUrl" :src="profileImageUrl" alt="Profile" />
+            <span v-else>{{ userInitials }}</span>
+          </q-avatar>
         </button>
       </div>
     </q-footer>
@@ -79,89 +91,70 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { supabase } from '@/shared/utils/supabase';
-import { initialsOf } from '@/shared/utils/format';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { supabase } from '@/shared/utils/supabase'
+import { initialsOf } from '@/shared/utils/format'
+import { chatFullscreen } from '@/shared/utils/chatFullscreen'
 
-const router = useRouter();
-const route = useRoute();
-const userInitials = ref('U');
-const profileImageUrl = ref<string | null>(null);
-const fabOpen = ref(false);
-const activeBottomTab = ref<StudentBottomTab>('home');
-const isProfilePage = computed(() => route.path === '/student/profile');
-const isNotificationsPage = computed(() => route.path === '/student/notifications');
-const isSecondaryPage = computed(() => isProfilePage.value || isNotificationsPage.value);
-const showFab = computed(() => !isSecondaryPage.value);
-const secondaryTitle = computed(() => isNotificationsPage.value ? 'Notifications' : 'Profile');
-const secondaryBackLabel = computed(() => isNotificationsPage.value ? 'home' : 'home');
-const pageTransition = ref('page-fade');
-const scrolled = ref(false);
+const router = useRouter()
+const route = useRoute()
+const userInitials = ref('U')
+const profileImageUrl = ref<string | null>(null)
+const unreadNotifCount = ref(0)
+const fabOpen = ref(false)
+const scrolled = ref(false)
+const activeBottomTab = ref<StudentBottomTab>('home')
+const isProfilePage = computed(() => route.path === '/student/profile')
+const isNotificationsPage = computed(() => route.path === '/student/notifications')
+const isSecondaryPage = computed(() => isProfilePage.value || isNotificationsPage.value)
+const showFab = computed(() => !isSecondaryPage.value)
+const secondaryTitle = computed(() => isNotificationsPage.value ? 'Notifications' : 'Profile')
+const secondaryBackLabel = computed(() => 'home')
+const pageTransition = ref('page-fade')
 
-type StudentBottomTab = 'home' | 'discover' | 'messages' | 'alerts';
+type StudentBottomTab = 'home' | 'discover' | 'messages' | 'profile'
 
 const bottomTabs = [
   { name: 'home', route: '/student/home' },
   { name: 'discover', route: '/student/discover' },
   { name: 'messages', route: '/student/messages' },
-  { name: 'alerts', route: '/student/notifications' },
-] as const;
+  { name: 'profile', route: '/student/profile' },
+] as const
 
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, true)
   document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
   onScroll()
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  const metadata = user.user_metadata as Record<string, unknown> | undefined;
-  const picture = typeof metadata?.avatar_url === 'string'
-    ? metadata.avatar_url
-    : (typeof metadata?.picture === 'string' ? metadata.picture : '');
-  profileImageUrl.value = picture || null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const metadata = user.user_metadata as Record<string, unknown> | undefined
+    const picture = typeof metadata?.avatar_url === 'string'
+      ? metadata.avatar_url
+      : (typeof metadata?.picture === 'string' ? metadata.picture : '')
+    profileImageUrl.value = picture || null
 
-  const { data } = await supabase
-    .from('users')
-    .select('initials, full_name')
-    .eq('id', user.id)
-    .maybeSingle();
+    const { data } = await supabase
+      .from('users')
+      .select('initials, full_name')
+      .eq('id', user.id)
+      .maybeSingle()
 
-  const row = data as { initials: string | null; full_name: string | null } | null;
-  userInitials.value = row?.initials || initialsOf(String(row?.full_name || user.email || 'User'));
-});
+    const row = data as { initials: string | null; full_name: string | null } | null
+    userInitials.value = row?.initials || initialsOf(String(row?.full_name || user.email || 'User'))
 
-function navigateTo(path: string) {
-  fabOpen.value = false;
-  void router.push(path);
-}
-
-function goToTab(tabName: StudentBottomTab) {
-  const selectedTab = bottomTabs.find((item) => item.name === tabName);
-  if (selectedTab) void router.push(selectedTab.route);
-}
-
-watch(
-  () => route.path,
-  (path, previousPath) => {
-    const enteringSecondaryPage = path === '/student/profile' || path === '/student/notifications';
-    const leavingSecondaryPage = previousPath === '/student/profile' || previousPath === '/student/notifications';
-    pageTransition.value = enteringSecondaryPage && !leavingSecondaryPage ? 'page-slide-left' : leavingSecondaryPage && !enteringSecondaryPage ? 'page-slide-right' : 'page-fade';
-    if (path === '/student/profile' || path === '/student/home') fabOpen.value = false;
-    if (path.startsWith('/student/discover')) activeBottomTab.value = 'discover';
-    else if (path.startsWith('/student/messages')) activeBottomTab.value = 'messages';
-    else if (path.startsWith('/student/notifications')) activeBottomTab.value = 'alerts';
-    else activeBottomTab.value = 'home';
-  },
-  { immediate: true },
-);
-
-function goToProfile() {
-  void router.push('/student/profile');
-}
-
-function goBack() {
-  void router.push('/student/home');
-}
+    // Check unread notifications count
+    const { count } = await (supabase as any)
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .is('read_at', null)
+    unreadNotifCount.value = count || 0
+  } catch {
+    userInitials.value = 'U'
+  }
+})
 
 onUnmounted(() => {
   window.removeEventListener('scroll', onScroll, true)
@@ -171,6 +164,39 @@ onUnmounted(() => {
 function onScroll() {
   const container = document.querySelector('.q-page-container') as HTMLElement | null
   scrolled.value = Math.max(window.scrollY || 0, container?.scrollTop || 0) > 8
+}
+
+function navigateTo(path: string) {
+  fabOpen.value = false
+  void router.push(path)
+}
+
+function goToTab(tabName: StudentBottomTab) {
+  const selectedTab = bottomTabs.find((item) => item.name === tabName)
+  if (selectedTab) void router.push(selectedTab.route)
+}
+
+watch(
+  () => route.path,
+  (path, previousPath) => {
+    const enteringSecondaryPage = path === '/student/profile' || path === '/student/notifications'
+    const leavingSecondaryPage = previousPath === '/student/profile' || previousPath === '/student/notifications'
+    pageTransition.value = enteringSecondaryPage && !leavingSecondaryPage ? 'page-slide-left' : leavingSecondaryPage && !enteringSecondaryPage ? 'page-slide-right' : 'page-fade'
+    if (path === '/student/profile' || path === '/student/home') fabOpen.value = false
+    if (path.startsWith('/student/discover')) activeBottomTab.value = 'discover'
+    else if (path.startsWith('/student/messages')) activeBottomTab.value = 'messages'
+    else if (path.startsWith('/student/profile')) activeBottomTab.value = 'profile'
+    else activeBottomTab.value = 'home'
+  },
+  { immediate: true },
+)
+
+function goToNotifications() {
+  void router.push('/student/notifications')
+}
+
+function goBack() {
+  void router.push('/student/home')
 }
 </script>
 
@@ -226,43 +252,48 @@ function onScroll() {
   display: flex;
   height: 44px;
   align-items: center;
-  font-family: var(--m-font-display);
   font-size: 18px;
   line-height: 1;
   letter-spacing: -0.02em;
 }
 
-.setup-back-button,
-.header-balance {
+.header-balance { width: 44px; height: 44px; }
+.setup-back-button {
   height: 44px;
-  width: 44px;
   min-width: 44px;
   min-height: 44px;
-}
-
-.setup-back-button { margin-left: -8px; color: #111827; }
-
-.avatar-button {
-  min-width: 36px;
-  min-height: 36px;
-  padding: 0;
+  margin-left: -8px;
   color: #111827;
 }
 
-.profile-avatar-shell {
-  width: 36px;
-  height: 36px;
-  background: #e6f5f3;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+.header-notif-button {
+  position: relative;
+  min-width: 40px;
+  min-height: 40px;
+  color: #111827;
+}
+.header-notif-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--m-danger, #b42318);
+  border: 1.5px solid #ffffff;
 }
 
-.profile-avatar-shell span {
-  color: #0f766e;
+.profile-avatar-mini {
+  width: 24px;
+  height: 24px;
+  background: #00897b;
+  font-size: 10.5px;
+  font-weight: 800;
 }
 
 .bottom-footer {
-  min-height: 64px;
-  height: calc(64px + env(safe-area-inset-bottom, 0px));
+  min-height: 52px;
+  height: calc(52px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   position: fixed;
   right: 0;
@@ -315,7 +346,7 @@ function onScroll() {
 .bottom-fab {
   position: fixed;
   right: 16px;
-  bottom: 80px;
+  bottom: 68px;
   z-index: 60;
   display: grid;
   width: 44px;
@@ -341,33 +372,23 @@ function onScroll() {
 .quick-action-menu button { display: flex; min-height: 44px; align-items: center; gap: var(--m-space-2); padding: var(--m-space-1) var(--m-space-2) var(--m-space-1) var(--m-space-1); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); color: var(--m-ink); cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; text-align: left; }
 .quick-action-menu button:hover { background: var(--m-primary-soft); }
 .quick-action-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); color: var(--m-primary-dark); }
-.page-stage { position: relative; min-height: 100%; overflow-x: clip; }
 
-/* Horizontal cover transition for notifs/profile:
-   - OPEN (page-slide-left): the incoming page slides in from the RIGHT and
-     moves left (right → left); the base page nudges slightly left.
-   - CLOSE (page-slide-right): the page slides back out to the RIGHT while the
-     base page re-enters from the LEFT (left → right). */
+.page-stage { position: relative; min-height: 100%; overflow-x: clip; }
 .page-slide-left-enter-active,
-.page-slide-left-leave-active,
-.page-slide-right-enter-active,
 .page-slide-right-leave-active {
   position: absolute;
+  z-index: 1;
   inset: 0;
   width: 100%;
   background: var(--m-bg);
-  transition: transform 300ms cubic-bezier(.25, 1, .3, 1);
-}
-.page-slide-left-enter-active {
-  z-index: 1;
   box-shadow: -10px 0 24px rgba(15, 23, 42, .14);
+  transition: transform 260ms cubic-bezier(.22, .61, .36, 1), box-shadow 260ms ease-out;
 }
 .page-slide-left-enter-from { transform: translateX(100%); }
 .page-slide-left-enter-to { transform: translateX(0); }
-.page-slide-left-leave-to { transform: translateX(-30%); }
+.page-slide-left-leave-active { transition: opacity 260ms linear; }
+.page-slide-left-leave-to { opacity: .99; }
 .page-slide-right-leave-to { transform: translateX(100%); }
-.page-slide-right-enter-from { transform: translateX(-100%); }
-.page-slide-right-enter-to { transform: translateX(0); }
 .page-fade-enter-active,
 .page-fade-leave-active { transition: opacity 120ms ease-out; }
 .page-fade-enter-from,

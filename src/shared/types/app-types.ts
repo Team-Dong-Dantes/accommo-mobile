@@ -46,6 +46,7 @@ export interface ChatMessage {
   senderId: string
   timestamp: string
   isLandlord: boolean
+  status: 'sent' | 'delivered' | 'read'
 }
 
 export interface TenantBillingState {
