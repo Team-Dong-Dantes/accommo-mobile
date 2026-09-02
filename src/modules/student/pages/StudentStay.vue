@@ -70,8 +70,23 @@
             <q-btn unelevated color="teal-8" icon="payments" label="Payments" class="full-width rounded-borders text-weight-bold" no-caps @click="goPayments" />
           </div>
         </div>
+
+        <q-btn flat color="red-6" icon="logout" label="Request to leave" no-caps class="q-mt-md text-weight-bold full-width" @click="leaveDialog = true" />
       </template>
     </div>
+
+    <q-dialog v-model="leaveDialog">
+      <q-card class="rounded-borders" style="min-width:300px; max-width:90vw">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-bold">Request to leave?</div>
+          <div class="text-grey-7 q-mt-xs">Your landlord will be notified. Your stay stays active until they confirm your request.</div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn unelevated color="red-6" label="Request leave" :loading="leaving" @click="requestLeave" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -79,9 +94,11 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/shared/utils/supabase';
+import { createNotification } from '@/boot/notify';
 import { LEASE_STATUS, statusText, statusColor, formatPeso, initialsOf } from '@/shared/utils/format';
 
 interface StayLease {
+  id: string;
   propertyName: string;
   address: string;
   roomUnit: string;
@@ -101,6 +118,8 @@ const router = useRouter();
 const loading = ref(true);
 const error = ref<string | null>(null);
 const lease = ref<StayLease | null>(null);
+const leaveDialog = ref(false);
+const leaving = ref(false);
 
 async function loadStay() {
   loading.value = true;
@@ -111,7 +130,7 @@ async function loadStay() {
 
     const { data, error: qErr } = await supabase
       .from('leases')
-      .select('id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, landlord_id, room:rooms(room_number, property:properties(name, address, landlord_id, business_name))')
+      .select('id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, accommodation_manager_id, room:rooms(room_number, property:properties(name, address, accommodation_manager_id, business_name))')
       .eq('student_id', user.id)
       .eq('status', 'active')
       .maybeSingle();
@@ -123,10 +142,11 @@ async function loadStay() {
       id: string; status: string; start_date: string | null; end_date: string | null;
       monthly_rent: number | null; advance_paid: number | null; deposit_paid: number | null;
       landlord_id: string | null;
-      room: { room_number: string | null; property: { name: string | null; address: string | null; landlord_id: string | null; business_name: string | null } | null } | null;
+      accommodation_manager_id: string | null;
+      room: { room_number: string | null; property: { name: string | null; address: string | null; accommodation_manager_id: string | null; business_name: string | null } | null } | null;
     };
 
-    const landlordId = row.landlord_id ?? row.room?.property?.landlord_id ?? null;
+    const landlordId = row.accommodation_manager_id ?? row.room?.property?.accommodation_manager_id ?? null;
     const propBiz = row.room?.property?.business_name ?? null;
     let landlordName = 'Landlord';
     if (landlordId) {
@@ -140,6 +160,7 @@ async function loadStay() {
 
 
     lease.value = {
+      id: row.id,
       propertyName: row.room?.property?.name ?? 'Boarding House',
       address: row.room?.property?.address ?? '—',
       roomUnit: row.room?.room_number ? `Room ${row.room.room_number}` : '—',
@@ -158,6 +179,31 @@ async function loadStay() {
     error.value = e instanceof Error ? e.message : 'Failed to load stay';
   } finally {
     loading.value = false;
+  }
+}
+
+async function requestLeave() {
+  if (!lease.value || leaving.value) return;
+  leaving.value = true;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { void router.push('/login'); return; }
+    const { error } = await (supabase as any)
+      .from('leases')
+      .update({ status: 'leave_requested', leave_requested_at: new Date().toISOString() })
+      .eq('id', lease.value.id);
+    if (error) throw error;
+    if (lease.value.landlordId) {
+      try {
+        await createNotification(lease.value.landlordId, 'Leave requested', `${lease.value.propertyName || 'Your tenant'} asked to leave (${lease.value.roomUnit}). Review it from Tenants.`, 'leave', '/landlord/tenants');
+      } catch { /* non-critical */ }
+    }
+    leaveDialog.value = false;
+    await loadStay();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Could not request leave';
+  } finally {
+    leaving.value = false;
   }
 }
 

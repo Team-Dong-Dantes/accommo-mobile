@@ -13,16 +13,16 @@
           <q-tab name="accreditation" class="folder-tab" no-caps>
             <div class="row items-center no-wrap q-gutter-xs">
               <IconifyIcon icon="lucide:shield-check" width="16" aria-hidden="true" />
-              <span>Clearances & Renewals</span>
-              <span v-if="pendingClearancesTotal > 0" class="tab-badge-warn">{{ pendingClearancesTotal }}</span>
+              <span>Requirements</span>
+              <span class="tab-badge-neutral">{{ pendingClearancesTotal }}</span>
             </div>
           </q-tab>
 
           <q-tab name="tickets" class="folder-tab" no-caps>
             <div class="row items-center no-wrap q-gutter-xs">
               <IconifyIcon icon="lucide:life-buoy" width="16" aria-hidden="true" />
-              <span>Support & Bugs</span>
-              <span v-if="tickets.length > 0" class="tab-badge-neutral">{{ tickets.length }}</span>
+              <span>Support tickets</span>
+              <span v-if="tickets.length > 0" class="tab-badge-warn">{{ tickets.length }}</span>
             </div>
           </q-tab>
         </q-tabs>
@@ -30,7 +30,7 @@
         <!-- Main Tab Workspace Card -->
         <div class="tab-card">
           <!-- ==============================================================
-               TAB 1: PROPERTY CLEARANCES & RENEWALS
+               TAB 1: REQUIREMENTS
                ============================================================== -->
           <div v-if="activeTab === 'accreditation'" class="tab-content-panel">
             <!-- No Properties State -->
@@ -38,7 +38,7 @@
               v-if="!loadingProps && properties.length === 0"
               icon="lucide:building-2"
               title="No Accommodations Added"
-              message="Register your accommodation to submit mandatory statutory clearances and annual renewals."
+              message="Register your accommodation to submit the required statutory documents and annual renewals."
             >
               <q-btn unelevated no-caps to="/landlord/properties/new" label="Upload Document" class="add-prop-btn q-mt-sm" />
             </EmptyState>
