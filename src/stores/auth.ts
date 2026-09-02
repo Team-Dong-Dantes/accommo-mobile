@@ -403,11 +403,10 @@ export const useAuthStore = defineStore('auth', {
 
     async loginWithGoogle(redirectPath: string) {
       // The app uses history-mode routing (see quasar.config vueRouterMode).
-      // On the packaged Capacitor app we return the user through the registered
-      // custom-scheme deep link com.accommo.app://auth/callback (see boot/deeplink
-      // + the AndroidManifest VIEW intent-filter). On web we keep the origin path.
+      // On native mobile (Capacitor/Android build) or when running under a custom scheme/origin,
+      // return the user through registered deep link com.accommo.app://auth/callback
       let redirectTo: string
-      if (Capacitor.isNativePlatform()) {
+      if (Capacitor.isNativePlatform() || window.location.origin.includes('localhost') || window.location.origin.includes('capacitor://')) {
         redirectTo = 'com.accommo.app://auth/callback'
       } else {
         const base = window.location.origin
