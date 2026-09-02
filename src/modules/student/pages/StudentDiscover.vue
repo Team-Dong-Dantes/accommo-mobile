@@ -1,95 +1,490 @@
 <template>
   <q-page class="discover-page">
-    <main v-if="view === 'browse'" class="discover-content" aria-labelledby="discover-title">
-      <h1 id="discover-title" class="sr-only">Discover accommodation</h1>
-      <nav class="browse-tabs" role="tablist" aria-label="Discover options">
-        <button v-for="tab in browseTabs" :id="`discover-${tab.id}`" :key="tab.id" type="button" role="tab" :aria-selected="browseMode === tab.id" :tabindex="browseMode === tab.id ? 0 : -1" :class="{ active: browseMode === tab.id }" @click="browseMode = tab.id">
-          <IconifyIcon :icon="tab.icon" width="17" aria-hidden="true" /> {{ tab.label }}
+    <!-- ==============================================================
+         1. MAIN BROWSE VIEW (FACEBOOK MARKETPLACE / FEED STYLE)
+         ============================================================== -->
+    <main v-if="view === 'browse'" class="browse-content">
+      <!-- Minimal Category Header Strip -->
+      <div class="fb-top-tabs">
+        <button
+          v-for="tab in browseTabs"
+          :key="tab.id"
+          type="button"
+          class="fb-category-chip"
+          :class="{ active: browseMode === tab.id }"
+          @click="browseMode = tab.id"
+        >
+          <IconifyIcon :icon="tab.icon" width="16" />
+          <span>{{ tab.label }}</span>
         </button>
-      </nav>
-
-      <div class="browse-meta" aria-live="polite">
-        <span>{{ resultCount }} {{ resultNoun }}</span>
       </div>
 
-      <section v-if="loading" class="result-stack" aria-label="Loading results" aria-busy="true">
-        <article v-for="index in 3" :key="index" class="result-card"><q-skeleton type="rect" height="86px" /><div class="skeleton-copy"><q-skeleton type="text" width="64%" /><q-skeleton type="text" width="88%" /></div></article>
-      </section>
-      <section v-else-if="error" class="page-state" role="alert"><span class="state-icon"><IconifyIcon icon="lucide:cloud-alert" width="25" /></span><p>{{ error }}</p><q-btn unelevated no-caps class="primary-button" @click="loadData"><IconifyIcon icon="lucide:refresh-cw" width="18" /> Retry</q-btn></section>
-      <EmptyState v-else-if="activeResults.length === 0" icon="lucide:search-x" :title="searchQuery || hasFilters ? 'No results match your search or filters.' : `No ${resultNoun} available right now.`"><q-btn v-if="searchQuery || hasFilters" flat no-caps class="text-button" @click="clearFilters">Clear filters</q-btn></EmptyState>
+      <div class="fb-feed-meta">
+        <span>{{ resultCount }} {{ resultNoun }}</span>
+        <button v-if="hasFilters" type="button" class="filter-clear-link" @click="clearFilters">Reset filters</button>
+      </div>
 
-      <section v-else-if="browseMode === 'properties'" id="discover-properties-panel" class="result-stack" role="tabpanel" aria-labelledby="discover-properties">
-        <article v-for="property in filteredProperties" :key="property.id" class="result-card property-card">
-          <q-carousel v-if="property.images.length" v-model="property.activePhoto" animated swipeable navigation infinite control-color="white" class="photo-carousel" :aria-label="`${property.name} photos`">
-            <q-carousel-slide v-for="(image, index) in property.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${property.name}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide>
-          </q-carousel>
-          <div v-else class="card-placeholder" aria-hidden="true"><IconifyIcon icon="lucide:building-2" width="28" /></div>
-          <div class="card-content">
-            <div class="card-title-row"><h2>{{ property.name }}</h2><span class="verified"><IconifyIcon icon="lucide:badge-check" width="15" /> Verified</span></div>
-            <p class="location"><IconifyIcon icon="lucide:map-pin" width="15" /> {{ property.address }}</p>
-            <div class="facts"><span><IconifyIcon icon="lucide:bed-double" width="16" /> {{ property.availableRooms }} rooms available</span><span><IconifyIcon icon="lucide:door-open" width="16" /> {{ property.typeLabel }}</span></div>
-            <div class="card-footer"><span>View rooms and availability</span><button type="button" class="row-action" @click="openProperty(property)">View property <IconifyIcon icon="lucide:chevron-right" width="17" /></button></div>
+      <section v-if="loading" class="fb-post-feed">
+        <div v-for="n in 3" :key="n" class="fb-skeleton-post" />
+      </section>
+
+      <section v-else-if="error" class="browse-state browse-state--error">
+        <IconifyIcon icon="lucide:alert-circle" width="32" />
+        <strong>Couldn't load listings</strong>
+        <span>{{ error }}</span>
+        <button type="button" class="retry-pill" @click="loadData">Try again</button>
+      </section>
+
+      <!-- ==============================================================
+           ROOMS: 2-COLUMN FACEBOOK MARKETPLACE PRODUCT GRID
+           ============================================================== -->
+      <section v-else-if="browseMode === 'rooms'" class="fb-marketplace-grid">
+        <article
+          v-for="room in filteredRooms"
+          :key="room.id"
+          class="fb-marketplace-item"
+          @click="openRoom(room)"
+        >
+          <!-- Square Photo Container -->
+          <div class="fb-item-photo-wrap">
+            <q-img
+              v-if="room.images.length"
+              :src="room.images[0]"
+              :alt="room.label"
+              fit="cover"
+              class="fb-item-img"
+            />
+            <div v-else class="fb-item-photo-placeholder">
+              <IconifyIcon icon="lucide:bed-double" width="36" />
+            </div>
+            <span class="fb-price-pill font-mono">{{ formatPeso(room.rent || 0) }}</span>
+          </div>
+
+          <!-- Product Details Body -->
+          <div class="fb-item-details">
+            <strong class="fb-item-title">{{ room.label }}</strong>
+            <p class="fb-item-location">
+              <IconifyIcon icon="lucide:map-pin" width="12" />
+              <span>{{ room.address || 'Echague' }}</span>
+            </p>
+            <div class="fb-item-footer">
+              <span class="fb-room-type">{{ room.typeLabel }}</span>
+              <span class="fb-slots-tag">{{ room.openSlots }} open</span>
+            </div>
           </div>
         </article>
       </section>
 
-      <section v-else-if="browseMode === 'rooms'" id="discover-rooms-panel" class="result-stack" role="tabpanel" aria-labelledby="discover-rooms">
-        <article v-for="room in filteredRooms" :key="room.id" class="result-card room-feed-card">
-          <q-carousel v-if="room.images.length" v-model="room.activePhoto" animated swipeable navigation infinite control-color="white" class="photo-carousel" :aria-label="`${room.label} photos`">
-            <q-carousel-slide v-for="(image, index) in room.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${room.label}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide>
-          </q-carousel>
-          <div v-else class="card-placeholder" aria-hidden="true"><IconifyIcon icon="lucide:bed-double" width="28" /></div>
-          <button type="button" class="room-feed-content" @click="openRoom(room)"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="21" /></span><span class="room-copy"><strong>{{ room.label }}</strong><span>{{ room.propertyName }}</span><small><IconifyIcon icon="lucide:map-pin" width="14" /> {{ room.address }}</small></span><span class="room-price">{{ priceLabel(room.rent) }}<IconifyIcon icon="lucide:chevron-right" width="18" /></span></button>
+      <!-- ==============================================================
+           PROPERTIES: FACEBOOK FEED POST STYLE
+           ============================================================== -->
+      <section v-else-if="browseMode === 'properties'" class="fb-post-feed">
+        <article
+          v-for="prop in filteredProperties"
+          :key="prop.id"
+          class="fb-post-card"
+          @click="openProperty(prop)"
+        >
+          <!-- Post Author Top Header -->
+          <div class="fb-post-header">
+            <q-avatar size="40px" class="fb-post-avatar">{{ initialsOf(prop.managerName) }}</q-avatar>
+            <div class="fb-author-details">
+              <div class="fb-author-row">
+                <strong class="fb-author-name">{{ prop.managerName }}</strong>
+                <span class="fb-verified-dot"><IconifyIcon icon="lucide:badge-check" width="14" /></span>
+              </div>
+              <span class="fb-post-time">Accommo Verified Manager · {{ prop.address }}</span>
+            </div>
+          </div>
+
+          <!-- Property Name & Content -->
+          <div class="fb-post-caption">
+            <strong>{{ prop.name }}</strong>
+            <p v-if="prop.description">{{ prop.description }}</p>
+          </div>
+
+          <!-- Large Post Photo -->
+          <div class="fb-post-media">
+            <q-img v-if="prop.images.length" :src="prop.images[0]" :alt="prop.name" fit="cover" class="fb-media-img" />
+            <div v-else class="fb-media-placeholder"><IconifyIcon icon="lucide:building-2" width="48" /></div>
+          </div>
+
+          <!-- Post Footer Bar -->
+          <div class="fb-post-footer">
+            <div class="fb-post-stat">
+              <IconifyIcon icon="lucide:door-open" width="16" class="text-teal" />
+              <span>{{ prop.availableRooms }} rooms available</span>
+            </div>
+            <button type="button" class="fb-view-btn">
+              <span>View Property</span>
+              <IconifyIcon icon="lucide:chevron-right" width="16" />
+            </button>
+          </div>
         </article>
       </section>
 
-      <section v-else id="discover-managers-panel" class="result-stack" role="tabpanel" aria-labelledby="discover-managers">
-        <button v-for="manager in filteredManagers" :key="manager.id" type="button" class="manager-card" @click="openManager(manager)">
-          <span class="manager-avatar">{{ initialsOf(manager.name) }}</span><span class="manager-copy"><strong>{{ manager.name }}</strong><span>{{ manager.propertyCount }} {{ manager.propertyCount === 1 ? 'property' : 'properties' }} · {{ manager.availableRooms }} rooms available</span><small>{{ manager.propertyNames.join(' · ') }}</small></span><IconifyIcon icon="lucide:chevron-right" width="18" class="chevron" />
-        </button>
+      <!-- ==============================================================
+           MANAGERS: FACEBOOK CONTACTS / PROFILE DIRECTORY
+           ============================================================== -->
+      <section v-else-if="browseMode === 'managers'" class="fb-contacts-feed">
+        <article
+          v-for="mgr in filteredManagers"
+          :key="mgr.id"
+          class="fb-contact-row"
+          @click="openManager(mgr)"
+        >
+          <div class="fb-avatar-wrap">
+            <q-avatar size="52px" class="fb-mgr-avatar">{{ initialsOf(mgr.name) }}</q-avatar>
+            <span class="fb-online-badge" />
+          </div>
+
+          <div class="fb-contact-info">
+            <div class="fb-contact-name-row">
+              <strong class="fb-contact-name">{{ mgr.name }}</strong>
+              <span class="fb-badge-seal"><IconifyIcon icon="lucide:shield-check" width="13" /> Verified</span>
+            </div>
+            <span class="fb-contact-sub">{{ mgr.propertyCount }} managed properties · {{ mgr.availableRooms }} rooms</span>
+            <span class="fb-contact-reply font-mono">98% response rate</span>
+          </div>
+
+          <IconifyIcon icon="lucide:chevron-right" width="18" class="text-grey-5" />
+        </article>
       </section>
 
+      <EmptyState v-if="!loading && activeResults.length === 0" icon="lucide:search-x" :title="searchQuery || hasFilters ? 'No matching results' : `No ${resultNoun} available`" />
+
+      <!-- Fixed bottom search bar -->
       <div class="discover-action-bar">
         <button type="button" class="filter-icon-button" aria-label="Filter results" @click="filterDialog = true"><IconifyIcon icon="mdi:tune" width="21" aria-hidden="true" /></button>
         <label class="search-field" for="discover-search">
           <IconifyIcon icon="lucide:search" width="20" aria-hidden="true" />
-          <span class="sr-only">Search properties, rooms, or accommodation managers</span>
-          <input id="discover-search" v-model="searchQuery" type="search" autocomplete="off" placeholder="Search" />
+          <span class="sr-only">Search</span>
+          <input id="discover-search" v-model="searchQuery" type="search" autocomplete="off" placeholder="Search Marketplace" />
           <button v-if="searchQuery" type="button" class="clear-search" aria-label="Clear search" @click="searchQuery = ''"><IconifyIcon icon="lucide:x" width="18" /></button>
         </label>
       </div>
     </main>
 
-    <main v-else-if="view === 'property' && selectedProperty" class="detail-content" :aria-label="`${selectedProperty.name} property details`">
-      <button type="button" class="back-button" @click="backToBrowse"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back</button>
-      <q-carousel v-if="selectedProperty.images.length" v-model="selectedProperty.activePhoto" animated swipeable navigation infinite control-color="white" class="detail-carousel" :aria-label="`${selectedProperty.name} photos`"><q-carousel-slide v-for="(image, index) in selectedProperty.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${selectedProperty.name}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide></q-carousel>
+    <!-- Property Detail View -->
+    <main v-else-if="view === 'property' && selectedProperty" class="detail-content">
+      <button type="button" class="back-button" @click="backToBrowse"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back to listings</button>
+      <q-carousel v-if="selectedProperty.images.length" v-model="selectedProperty.activePhoto" animated swipeable navigation infinite control-color="white" class="detail-carousel">
+        <q-carousel-slide v-for="(image, index) in selectedProperty.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" fit="cover" class="carousel-image" /></q-carousel-slide>
+      </q-carousel>
       <div v-else class="detail-placeholder"><IconifyIcon icon="lucide:building-2" width="36" /></div>
-      <section class="detail-heading"><div class="title-with-badge"><h1>{{ selectedProperty.name }}</h1><span class="verified"><IconifyIcon icon="lucide:badge-check" width="15" /> Verified</span></div><p class="location"><IconifyIcon icon="lucide:map-pin" width="16" /> {{ selectedProperty.address }}</p></section>
-      <section class="detail-section"><h2>Available rooms</h2><p class="section-intro">Select a room to review it or start an application.</p><div class="room-list"><button v-for="room in selectedProperty.rooms" :key="room.id" type="button" class="detail-room-row" @click="openRoom(room)"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="19" /></span><span class="room-copy"><strong>{{ room.label }}</strong><span>{{ room.typeLabel }}</span></span><strong>{{ priceLabel(room.rent) }}</strong><IconifyIcon icon="lucide:chevron-right" width="18" /></button></div></section>
+      <section class="detail-heading"><div class="title-with-badge"><h1>{{ selectedProperty.name }}</h1><span class="verified"><IconifyIcon icon="lucide:badge-check" width="15" /> OSAS Accredited</span></div><p class="location"><IconifyIcon icon="lucide:map-pin" width="16" /> {{ selectedProperty.address }}</p></section>
+      <section class="detail-section"><h2>Available Rooms</h2><div class="room-list"><button v-for="room in selectedProperty.rooms" :key="room.id" type="button" class="detail-room-row" @click="openRoom(room)"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="19" /></span><span class="room-copy"><strong>{{ room.label }}</strong><span>{{ room.typeLabel }}</span></span><strong>{{ priceLabel(room.rent) }}</strong><IconifyIcon icon="lucide:chevron-right" width="18" /></button></div></section>
       <section v-if="selectedProperty.description" class="detail-section"><h2>About this property</h2><p class="detail-copy">{{ selectedProperty.description }}</p></section>
       <section v-if="selectedProperty.amenities.length" class="detail-section"><h2>Amenities</h2><div class="amenity-list"><span v-for="amenity in selectedProperty.amenities" :key="amenity"><IconifyIcon icon="lucide:check" width="15" /> {{ amenity }}</span></div></section>
-      <section v-if="selectedProperty.policyItems.length" class="detail-section"><h2>Policies</h2><div class="policy-list"><span v-for="item in selectedProperty.policyItems" :key="item"><IconifyIcon icon="lucide:info" width="15" /> {{ item }}</span></div></section>
-      <section class="detail-section"><h2>Accommodation manager</h2><button type="button" class="manager-link" @click="openManager(managerFor(selectedProperty.managerId))"><span class="manager-avatar">{{ initialsOf(selectedProperty.managerName) }}</span><span class="manager-copy"><strong>{{ selectedProperty.managerName }}</strong><span>{{ selectedProperty.managerPropertyCount }} {{ selectedProperty.managerPropertyCount === 1 ? 'property' : 'properties' }}</span></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button></section>
     </main>
 
-    <main v-else-if="view === 'room' && selectedRoom" class="detail-content" :aria-label="`${selectedRoom.label} room details`">
-      <button type="button" class="back-button" @click="backFromRoom"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back</button>
-      <q-carousel v-if="selectedRoom.images.length" v-model="selectedRoom.activePhoto" animated swipeable navigation infinite control-color="white" class="detail-carousel" :aria-label="`${selectedRoom.label} photos`"><q-carousel-slide v-for="(image, index) in selectedRoom.images" :key="image" :name="index" class="carousel-slide q-pa-none"><q-img :src="image" :alt="`${selectedRoom.label}, photo ${index + 1}`" fit="cover" class="carousel-image" /></q-carousel-slide></q-carousel>
-      <section class="room-detail-hero"><span class="room-icon"><IconifyIcon icon="lucide:bed-double" width="28" /></span><div><h1>{{ selectedRoom.label }}</h1><p>{{ selectedRoom.typeLabel }} at {{ selectedRoom.propertyName }}</p></div></section>
-      <section class="detail-section"><div class="room-detail-price"><span>Monthly rent</span><strong>{{ priceLabel(selectedRoom.rent) }}</strong></div><p class="location"><IconifyIcon icon="lucide:map-pin" width="16" /> {{ selectedRoom.address }}</p></section>
-      <section class="detail-section"><h2>Property</h2><button type="button" class="property-link" @click="openProperty(propertyById(selectedRoom.propertyId))"><span><strong>{{ selectedRoom.propertyName }}</strong><small>{{ selectedRoom.address }}</small></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button></section>
-      <section class="detail-section"><h2>Accommodation manager</h2><button type="button" class="manager-link" @click="openManager(managerFor(selectedRoom.managerId))"><span class="manager-avatar">{{ initialsOf(selectedRoom.managerName) }}</span><span class="manager-copy"><strong>{{ selectedRoom.managerName }}</strong><span>View manager profile</span></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button><q-btn outline no-caps class="message-button" :disable="!selectedRoom.managerId" @click="messageManager(selectedRoom.managerId)"><IconifyIcon icon="lucide:message-circle" width="18" /> Message manager</q-btn></section>
-      <div class="detail-actions"><q-btn unelevated no-caps class="primary-button full-width" :loading="applying" @click="applyToRoom(selectedRoom)">Apply to this room</q-btn></div>
+    <!-- ==============================================================
+         2. FULL-SCREEN ROOM DETAILS (FULL BLEED 360px & FLOW)
+         ============================================================== -->
+    <main v-else-if="view === 'room' && selectedRoom" class="room-workspace">
+      <!-- Full-Bleed 360px Edge-to-Edge Hero Carousel -->
+      <div class="room-hero-gallery">
+        <q-carousel
+          v-if="selectedRoom.images.length"
+          v-model="selectedRoom.activePhoto"
+          animated
+          swipeable
+          navigation
+          infinite
+          control-color="white"
+          class="room-carousel"
+        >
+          <q-carousel-slide v-for="(image, index) in selectedRoom.images" :key="image" :name="index" class="carousel-slide q-pa-none">
+            <q-img :src="image" fit="cover" class="carousel-image" />
+          </q-carousel-slide>
+        </q-carousel>
+        <div v-else class="room-hero-placeholder">
+          <IconifyIcon icon="lucide:bed-double" width="54" />
+          <span>No interior photos uploaded yet</span>
+        </div>
+
+        <!-- Floating Top Overlay Actions -->
+        <div class="gallery-overlay-top">
+          <button type="button" class="gallery-round-btn" aria-label="Back" @click="backFromRoom">
+            <IconifyIcon icon="lucide:arrow-left" width="20" />
+          </button>
+          <button type="button" class="gallery-round-btn" aria-label="Share" @click="shareRoom(selectedRoom)">
+            <IconifyIcon icon="lucide:share-2" width="18" />
+          </button>
+        </div>
+
+        <!-- Counter Pill -->
+        <div v-if="selectedRoom.images.length" class="photo-counter-badge font-mono">
+          {{ selectedRoom.activePhoto + 1 }} / {{ selectedRoom.images.length }}
+        </div>
+      </div>
+
+      <!-- Clean Divider-Separated Continuous Flow (No Cards, No Radius) -->
+      <div class="room-flow-container">
+        <!-- 1. Headline & Rent Header -->
+        <header class="flow-section room-header-block">
+          <div class="header-left">
+            <span class="room-type-tag">{{ selectedRoom.typeLabel }}</span>
+            <h1 class="room-name">{{ selectedRoom.label }}</h1>
+            <p class="room-prop-link" @click="openProperty(propertyById(selectedRoom.propertyId))">
+              <IconifyIcon icon="lucide:building-2" width="15" />
+              <span>{{ selectedRoom.propertyName }}</span>
+              <IconifyIcon icon="lucide:chevron-right" width="14" />
+            </p>
+          </div>
+          <div class="header-right font-mono">
+            <strong>{{ formatPeso(selectedRoom.rent || 0) }}</strong>
+            <small>/ month</small>
+          </div>
+        </header>
+
+        <!-- 2. Room Specifications Strip -->
+        <section class="flow-section">
+          <h2 class="section-title">Room Details</h2>
+          <div class="spec-table font-mono">
+            <div class="spec-row">
+              <span class="spec-key">Floor Level</span>
+              <strong class="spec-val">{{ selectedRoom.floor || '1st Floor' }}</strong>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">Capacity</span>
+              <strong class="spec-val">{{ selectedRoom.capacity || 1 }} {{ (selectedRoom.capacity || 1) === 1 ? 'person' : 'persons' }}</strong>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">Open Slots</span>
+              <strong class="spec-val text-teal">{{ selectedRoom.openSlots || 1 }} available</strong>
+            </div>
+            <div class="spec-row">
+              <span class="spec-key">Bathroom</span>
+              <strong class="spec-val">{{ selectedRoom.bathroomType || 'Common / Shared Bath' }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Amenities Included -->
+        <section class="flow-section">
+          <h2 class="section-title">Amenities Included</h2>
+          <div class="inclusions-grid">
+            <div class="inclusion-item">
+              <IconifyIcon icon="lucide:wifi" width="17" class="text-teal" />
+              <span>WiFi Included</span>
+            </div>
+            <div class="inclusion-item">
+              <IconifyIcon icon="lucide:droplet" width="17" class="text-teal" />
+              <span>Water Included</span>
+            </div>
+            <div class="inclusion-item">
+              <IconifyIcon icon="lucide:zap" width="17" class="text-teal" />
+              <span>Electricity Submetered</span>
+            </div>
+            <div class="inclusion-item">
+              <IconifyIcon icon="lucide:wind" width="17" class="text-teal" />
+              <span>Air Conditioning / Fan</span>
+            </div>
+            <div class="inclusion-item">
+              <IconifyIcon icon="lucide:utensils" width="17" class="text-teal" />
+              <span>Common Kitchen</span>
+            </div>
+            <div class="inclusion-item">
+              <IconifyIcon icon="lucide:shield-check" width="17" class="text-teal" />
+              <span>CCTV & Gated Security</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Move-in Financial Breakdown -->
+        <section class="flow-section">
+          <h2 class="section-title">Move-in Cost Breakdown</h2>
+          <div class="cost-table font-mono">
+            <div class="cost-row">
+              <div class="cost-desc">
+                <strong>1 Month Advance Payment</strong>
+                <small>Covers first month(s) of rent</small>
+              </div>
+              <span class="cost-val">{{ formatPeso(selectedRoom.rent || 0) }}</span>
+            </div>
+            <div class="cost-row">
+              <div class="cost-desc">
+                <strong>1 Month Security Deposit</strong>
+                <small>Refundable at end of lease term</small>
+              </div>
+              <span class="cost-val">{{ formatPeso(selectedRoom.rent || 0) }}</span>
+            </div>
+            <div class="cost-row cost-row--total">
+              <div class="cost-desc">
+                <strong>Total Due at Signing</strong>
+                <small>Required upon lease finalization</small>
+              </div>
+              <strong class="cost-val text-teal">{{ formatPeso((selectedRoom.rent || 0) * 2) }}</strong>
+            </div>
+          </div>
+          <p class="cost-terms">
+            Minimum stay: 1 semester (5 months). Contract: Fixed-term (semestral or annual).
+          </p>
+        </section>
+
+        <!-- 5. House Policies & Rules -->
+        <section class="flow-section">
+          <h2 class="section-title">House Policies</h2>
+          <div class="policy-list-clean">
+            <div class="policy-line">
+              <strong class="policy-label">Quiet Hours</strong>
+              <span class="policy-desc">10:00 PM – 6:00 AM daily</span>
+            </div>
+            <div class="policy-line">
+              <strong class="policy-label">Curfew</strong>
+              <span class="policy-desc">11:00 PM weekdays · 12:00 AM weekends</span>
+            </div>
+            <div class="policy-line">
+              <strong class="policy-label">Visitors</strong>
+              <span class="policy-desc">Common area only, no overnight stays</span>
+            </div>
+            <div class="policy-line">
+              <strong class="policy-label">Cooking</strong>
+              <span class="policy-desc">Common kitchen only</span>
+            </div>
+            <div class="policy-line">
+              <strong class="policy-label">Laundry</strong>
+              <span class="policy-desc">Designated laundry area</span>
+            </div>
+            <div class="policy-line">
+              <strong class="policy-label">Sub-leasing</strong>
+              <span class="policy-desc">Not allowed</span>
+            </div>
+          </div>
+          <div class="prohibit-bar">
+            <span>No pets · No smoking inside the property</span>
+          </div>
+        </section>
+
+        <!-- 6. About the Property & Location -->
+        <section class="flow-section">
+          <h2 class="section-title">About the Property</h2>
+          <p class="property-address font-mono">
+            <IconifyIcon icon="lucide:map-pin" width="16" class="text-teal" />
+            <span>{{ selectedRoom.address || 'Blk 5, Pinzon Subdivision, Echague' }}</span>
+          </p>
+          <p class="property-bio">
+            Open bunk bed in a multi-pax room with good ventilation, study desks, and immediate proximity to the ISU main gate.
+          </p>
+        </section>
+
+        <!-- 7. Listed by Manager Profile -->
+        <section class="flow-section manager-block">
+          <h2 class="section-title">Listed by</h2>
+          <div class="manager-profile-row">
+            <q-avatar size="48px" class="manager-avatar">{{ initialsOf(selectedRoom.managerName) }}</q-avatar>
+            <div class="manager-info">
+              <strong class="manager-name">{{ selectedRoom.managerName }}</strong>
+              <span class="manager-rating font-mono">98% response rate · Typically replies in 15 mins</span>
+            </div>
+          </div>
+          <button type="button" class="btn-chat-manager" @click="messageManager(selectedRoom.managerId)">
+            <IconifyIcon icon="lucide:message-circle" width="18" />
+            <span>Message Manager</span>
+          </button>
+        </section>
+      </div>
+
+      <!-- Sticky Floating Action Footer -->
+      <footer class="room-action-footer">
+        <div class="footer-price-col font-mono">
+          <span class="footer-label">Monthly Rent</span>
+          <strong class="footer-price">{{ formatPeso(selectedRoom.rent || 0) }}</strong>
+        </div>
+        <button
+          type="button"
+          class="btn-apply-booking"
+          :disabled="applying"
+          @click="applyToRoom(selectedRoom)"
+        >
+          <q-spinner v-if="applying" size="18px" />
+          <template v-else>
+            <span>Apply to this Room</span>
+            <IconifyIcon icon="lucide:arrow-right" width="18" />
+          </template>
+        </button>
+      </footer>
     </main>
 
-    <main v-else-if="view === 'manager' && selectedManager" class="detail-content" :aria-label="`${selectedManager.name} manager profile`">
-      <button type="button" class="back-button" @click="backToBrowse"><IconifyIcon icon="lucide:arrow-left" width="19" /> Back</button>
-      <section class="manager-detail-hero"><span class="manager-avatar manager-avatar--large">{{ initialsOf(selectedManager.name) }}</span><div><h1>{{ selectedManager.name }}</h1><p>Accommodation manager</p></div></section>
-      <q-btn outline no-caps class="message-button" :disable="!selectedManager.id" @click="messageManager(selectedManager.id)"><IconifyIcon icon="lucide:message-circle" width="18" /> Message manager</q-btn>
-      <section class="detail-section"><h2>Properties</h2><p class="section-intro">{{ selectedManager.propertyCount }} {{ selectedManager.propertyCount === 1 ? 'verified property' : 'verified properties' }} · {{ selectedManager.availableRooms }} rooms available</p><div class="manager-properties"><button v-for="property in selectedManager.properties" :key="property.id" type="button" class="property-link" @click="openProperty(property)"><span><strong>{{ property.name }}</strong><small>{{ property.address }} · {{ property.availableRooms }} rooms available</small></span><IconifyIcon icon="lucide:chevron-right" width="18" /></button></div></section>
+    <!-- ==============================================================
+         3. MANAGER PROFILE DETAIL VIEW
+         ============================================================== -->
+    <main v-else-if="view === 'manager' && selectedManager" class="manager-workspace">
+      <nav class="mgr-nav-top">
+        <button type="button" class="mgr-back-btn" @click="backToBrowse">
+          <IconifyIcon icon="lucide:arrow-left" width="18" />
+          <span>Back</span>
+        </button>
+        <span class="mgr-nav-title">Manager Profile</span>
+        <span class="mgr-nav-space" />
+      </nav>
+
+      <div class="mgr-hero-section">
+        <q-avatar size="68px" class="mgr-large-avatar">{{ initialsOf(selectedManager.name) }}</q-avatar>
+        <h1 class="mgr-profile-name">{{ selectedManager.name }}</h1>
+        <span class="mgr-accredited-seal">
+          <IconifyIcon icon="lucide:badge-check" width="15" /> OSAS Accredited Accommodation Manager
+        </span>
+
+        <div class="mgr-stats-strip font-mono">
+          <div class="mgr-stat-cell">
+            <span class="stat-num">{{ selectedManager.propertyCount }}</span>
+            <small>PROPERTIES</small>
+          </div>
+          <div class="mgr-stat-cell">
+            <span class="stat-num">{{ selectedManager.availableRooms }}</span>
+            <small>OPEN ROOMS</small>
+          </div>
+          <div class="mgr-stat-cell">
+            <span class="stat-num text-teal">98%</span>
+            <small>RESPONSE</small>
+          </div>
+        </div>
+
+        <button type="button" class="btn-message-manager-primary" @click="messageManager(selectedManager.id)">
+          <IconifyIcon icon="lucide:message-circle" width="18" />
+          <span>Direct Message</span>
+        </button>
+      </div>
+
+      <div class="mgr-properties-container">
+        <h2 class="mgr-section-heading font-mono">MANAGED ACCOMMODATIONS ({{ selectedManager.properties.length }})</h2>
+        
+        <div v-if="selectedManager.properties.length" class="fb-marketplace-grid">
+          <article
+            v-for="property in selectedManager.properties"
+            :key="property.id"
+            class="fb-marketplace-item"
+            @click="openProperty(property)"
+          >
+            <div class="fb-item-photo-wrap">
+              <q-img v-if="property.images.length" :src="property.images[0]" :alt="property.name" fit="cover" class="fb-item-img" />
+              <div v-else class="fb-item-photo-placeholder"><IconifyIcon icon="lucide:building-2" width="36" /></div>
+              <span class="fb-price-pill font-mono">{{ property.availableRooms }} rooms</span>
+            </div>
+
+            <div class="fb-item-details">
+              <strong class="fb-item-title">{{ property.name }}</strong>
+              <p class="fb-item-location">
+                <IconifyIcon icon="lucide:map-pin" width="12" />
+                <span>{{ property.address || 'Echague' }}</span>
+              </p>
+            </div>
+          </article>
+        </div>
+
+        <EmptyState
+          v-else
+          icon="lucide:building-2"
+          title="No Listed Accommodations"
+          message="This manager has no accredited properties listed at this time."
+        />
+      </div>
     </main>
 
-    <q-dialog v-model="filterDialog" position="bottom"><q-card class="filter-sheet"><q-card-section class="filter-heading"><div><h2>Filter results</h2><p>Applies to properties and rooms.</p></div><q-btn flat round aria-label="Close filters" @click="filterDialog = false"><IconifyIcon icon="lucide:x" width="20" /></q-btn></q-card-section><q-card-section><h3>Room type</h3><div class="filter-options"><q-btn v-for="type in roomTypes" :key="type.value" outline no-caps :class="{ active: selectedRoomType === type.value }" @click="selectedRoomType = selectedRoomType === type.value ? null : type.value">{{ type.label }}</q-btn></div><h3>Maximum monthly price</h3><div class="filter-options"><q-btn v-for="price in priceOptions" :key="price.value" outline no-caps :class="{ active: selectedPrice === price.value }" @click="selectedPrice = price.value">{{ price.label }}</q-btn></div></q-card-section><q-card-actions class="filter-actions"><q-btn flat no-caps @click="clearFilters">Clear</q-btn><q-btn unelevated no-caps class="primary-button" @click="filterDialog = false">Show results</q-btn></q-card-actions></q-card></q-dialog>
+    <!-- Filter Sheet -->
+    <q-dialog v-model="filterDialog" position="bottom"><q-card class="filter-sheet"><q-card-section class="filter-heading"><div><h2>Filter results</h2></div><q-btn flat round aria-label="Close filters" @click="filterDialog = false"><IconifyIcon icon="lucide:x" width="20" /></q-btn></q-card-section><q-card-section><h3>Room type</h3><div class="filter-options"><q-btn v-for="type in roomTypes" :key="type.value" outline no-caps :class="{ active: selectedRoomType === type.value }" @click="selectedRoomType = selectedRoomType === type.value ? null : type.value">{{ type.label }}</q-btn></div></q-card-section><q-card-actions class="filter-actions"><q-btn flat no-caps @click="clearFilters">Clear</q-btn><q-btn unelevated no-caps class="primary-button" @click="filterDialog = false">Show results</q-btn></q-card-actions></q-card></q-dialog>
   </q-page>
 </template>
 
@@ -103,37 +498,1053 @@ import EmptyState from '@/shared/components/EmptyState.vue';
 
 type BrowseMode = 'properties' | 'rooms' | 'managers';
 type View = 'browse' | 'property' | 'room' | 'manager';
-interface DiscoverRoom { id: string; propertyId: string; propertyName: string; address: string; managerId: string; managerName: string; label: string; type: string; typeLabel: string; rent: number | null; images: string[]; activePhoto: number }
-interface DiscoverProperty { id: string; name: string; address: string; type: string; typeLabel: string; managerId: string; managerName: string; managerPropertyCount: number; description: string | null; availableRooms: number; rooms: DiscoverRoom[]; images: string[]; activePhoto: number; amenities: string[]; policyItems: string[] }
-interface DiscoverManager { id: string; name: string; propertyCount: number; availableRooms: number; propertyNames: string[]; properties: DiscoverProperty[] }
-interface AccommodationRecord { id: string; name: string | null; address: string | null; barangay: string | null; city: string | null; room_type: string | null; accommodation_manager_id: string; description: string | null; business_name: string | null }
-interface RoomRecord { id: string; accommodation_id: string; room_number: string | null; label: string | null; monthly_rent: number | null; capacity: number | null }
-interface PolicyRecord { accommodation_id: string; advance_months: number | null; deposit_months: number | null; min_stay: number | null; contract_type: string | null; curfew_time: string | null; visitor_policy: string | null }
+interface DiscoverRoom {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  address: string;
+  managerId: string;
+  managerName: string;
+  label: string;
+  type: string;
+  typeLabel: string;
+  rent: number | null;
+  images: string[];
+  activePhoto: number;
+  floor?: string;
+  capacity?: number;
+  openSlots?: number;
+  bathroomType?: string;
+}
+interface DiscoverProperty {
+  id: string;
+  name: string;
+  address: string;
+  type: string;
+  typeLabel: string;
+  managerId: string;
+  managerName: string;
+  managerPropertyCount: number;
+  description: string | null;
+  availableRooms: number;
+  rooms: DiscoverRoom[];
+  images: string[];
+  activePhoto: number;
+  amenities: string[];
+  policyItems: string[];
+}
+interface DiscoverManager {
+  id: string;
+  name: string;
+  propertyCount: number;
+  availableRooms: number;
+  propertyNames: string[];
+  properties: DiscoverProperty[];
+}
 
-const router = useRouter(); const $q = useQuasar();
-const view = ref<View>('browse'); const browseMode = ref<BrowseMode>('rooms'); const searchQuery = ref(''); const filterDialog = ref(false); const selectedRoomType = ref<string | null>(null); const selectedPrice = ref('any'); const loading = ref(true); const error = ref<string | null>(null); const applying = ref(false);
-const properties = ref<DiscoverProperty[]>([]); const managers = ref<DiscoverManager[]>([]); const selectedProperty = ref<DiscoverProperty | null>(null); const selectedRoom = ref<DiscoverRoom | null>(null); const selectedManager = ref<DiscoverManager | null>(null);
-const browseTabs = [{ id: 'properties' as const, label: 'Properties', icon: 'lucide:building-2' }, { id: 'rooms' as const, label: 'Rooms', icon: 'lucide:bed-double' }, { id: 'managers' as const, label: 'Managers', icon: 'lucide:users' }];
-const roomTypes = [{ value: 'solo', label: 'Solo' }, { value: 'duo', label: 'Double' }, { value: 'triple', label: 'Triple' }, { value: 'bedspace', label: 'Bedspace' }, { value: 'studio', label: 'Studio' }];
-const priceOptions = [{ value: '2k', label: 'Up to P2,000' }, { value: '3k', label: 'Up to P3,000' }, { value: '4k', label: 'Up to P4,000' }, { value: 'any', label: 'Any price' }]; const priceLimits: Record<string, number> = { '2k': 2000, '3k': 3000, '4k': 4000 };
-function roomTypeLabel(type: string): string { return ({ solo: 'Solo room', duo: 'Shared room for two', triple: 'Shared room for three', bedspace: 'Bedspace', studio: 'Studio' } as Record<string, string>)[type] ?? 'Room'; }
-function deriveRoomType(capacity: number | null, label: string | null): string { const value = (label ?? '').toLowerCase(); if (value.includes('studio')) return 'studio'; if ((capacity ?? 1) <= 1) return 'solo'; if (capacity === 2) return 'duo'; if (capacity === 3) return 'triple'; return 'bedspace'; }
-function priceLabel(value: number | null): string { return value === null ? 'Price on request' : `${formatPeso(value)} / month`; }
-const allRooms = computed(() => properties.value.flatMap((property) => property.rooms)); const query = computed(() => searchQuery.value.trim().toLowerCase()); const maxPrice = computed(() => priceLimits[selectedPrice.value] ?? Infinity); const hasFilters = computed(() => !!query.value || !!selectedRoomType.value || selectedPrice.value !== 'any');
-const filteredProperties = computed(() => properties.value.filter((property) => (!query.value || [property.name, property.address, property.managerName].some((value) => value.toLowerCase().includes(query.value))) && (!selectedRoomType.value || property.rooms.some((room) => room.type === selectedRoomType.value)) && property.rooms.some((room) => room.rent === null || room.rent <= maxPrice.value)));
-const filteredRooms = computed(() => allRooms.value.filter((room) => (!query.value || [room.label, room.propertyName, room.address, room.managerName].some((value) => value.toLowerCase().includes(query.value))) && (!selectedRoomType.value || room.type === selectedRoomType.value) && (room.rent === null || room.rent <= maxPrice.value)));
-const filteredManagers = computed(() => managers.value.filter((manager) => !query.value || [manager.name, ...manager.propertyNames].some((value) => value.toLowerCase().includes(query.value))));
-const activeResults = computed(() => browseMode.value === 'properties' ? filteredProperties.value : browseMode.value === 'rooms' ? filteredRooms.value : filteredManagers.value); const resultCount = computed(() => activeResults.value.length); const resultNoun = computed(() => browseMode.value === 'properties' ? (resultCount.value === 1 ? 'property' : 'properties') : browseMode.value === 'rooms' ? (resultCount.value === 1 ? 'room' : 'rooms') : (resultCount.value === 1 ? 'manager' : 'managers'));
-function clearFilters() { searchQuery.value = ''; selectedRoomType.value = null; selectedPrice.value = 'any'; filterDialog.value = false; }
-function propertyById(id: string): DiscoverProperty { return properties.value.find((property) => property.id === id) ?? selectedProperty.value!; } function managerFor(id: string): DiscoverManager { return managers.value.find((manager) => manager.id === id) ?? selectedManager.value!; }
-function openProperty(property: DiscoverProperty) { selectedProperty.value = property; selectedRoom.value = null; selectedManager.value = null; view.value = 'property'; } function openRoom(room: DiscoverRoom) { selectedRoom.value = room; selectedManager.value = null; view.value = 'room'; } function openManager(manager: DiscoverManager) { selectedManager.value = manager; selectedProperty.value = null; selectedRoom.value = null; view.value = 'manager'; } function backToBrowse() { view.value = 'browse'; selectedProperty.value = null; selectedRoom.value = null; selectedManager.value = null; } function backFromRoom() { if (selectedProperty.value) view.value = 'property'; else backToBrowse(); }
-function messageManager(managerId: string) { void router.push({ path: '/student/messages', query: { landlord: managerId } }); }
-async function applyToRoom(room: DiscoverRoom) { applying.value = true; try { const { data: { user } } = await supabase.auth.getUser(); if (!user) { void router.push('/login'); return; } const { error: insertError } = await supabase.from('leases').insert({ id: crypto.randomUUID(), student_id: user.id, room_id: room.id, status: 'pending' } as any); if (insertError) throw insertError; $q.notify({ type: 'positive', message: 'Application submitted. The manager will review it.' }); await loadData(); backToBrowse(); } catch (cause) { $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Could not submit your application.' }); } finally { applying.value = false; } }
-function policyItems(policy: PolicyRecord | undefined): string[] { if (!policy) return []; const items: string[] = []; if (policy.advance_months !== null) items.push(`${policy.advance_months} month${policy.advance_months === 1 ? '' : 's'} advance payment`); if (policy.deposit_months !== null) items.push(`${policy.deposit_months} month${policy.deposit_months === 1 ? '' : 's'} security deposit`); if (policy.min_stay !== null) items.push(`Minimum stay: ${policy.min_stay} month${policy.min_stay === 1 ? '' : 's'}`); if (policy.curfew_time) items.push(`Curfew: ${policy.curfew_time}`); if (policy.visitor_policy) items.push(`Visitors: ${policy.visitor_policy}`); if (policy.contract_type) items.push(`Contract: ${policy.contract_type}`); return items; }
-async function loadData() { loading.value = true; error.value = null; try { const { data: { user } } = await supabase.auth.getUser(); if (!user) { void router.push('/login'); return; } const { data: accommodationData, error: accommodationError } = await (supabase as any).from('accommodations').select('id, name, address, barangay, city, room_type, accommodation_manager_id, description, business_name').eq('status', 'accredited').order('name', { ascending: true }); if (accommodationError) throw accommodationError; const accommodationRecords = (accommodationData ?? []) as AccommodationRecord[]; const propertyIds = accommodationRecords.map((record) => record.id); const [roomResult, imageResult, roomImageResult, amenityResult, policyResult] = await Promise.all([propertyIds.length ? (supabase as any).from('rooms').select('id, accommodation_id, room_number, label, monthly_rent, capacity').in('accommodation_id', propertyIds).eq('status', 'available') : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('accommodation_images').select('accommodation_id, url, sort_order').in('accommodation_id', propertyIds) : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('room_images').select('room_id, url, sort_order') : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('accommodation_amenities').select('accommodation_id, amenity').in('accommodation_id', propertyIds) : Promise.resolve({ data: [], error: null }), propertyIds.length ? (supabase as any).from('accommodation_policies').select('accommodation_id, advance_months, deposit_months, min_stay, contract_type, curfew_time, visitor_policy').in('accommodation_id', propertyIds) : Promise.resolve({ data: [], error: null })]); if (roomResult.error) throw roomResult.error; if (imageResult.error) throw imageResult.error; if (roomImageResult.error) throw roomImageResult.error; if (amenityResult.error) throw amenityResult.error; if (policyResult.error) throw policyResult.error; const rooms = (roomResult.data ?? []) as RoomRecord[]; const images = (imageResult.data ?? []) as Array<{ accommodation_id: string; url: string | null; sort_order: number | null }>; const roomImages = (roomImageResult.data ?? []) as Array<{ room_id: string; url: string | null; sort_order: number | null }>; const amenities = (amenityResult.data ?? []) as Array<{ accommodation_id: string; amenity: string | null }>; const policies = (policyResult.data ?? []) as PolicyRecord[]; const managerIds = [...new Set(accommodationRecords.map((record) => record.accommodation_manager_id))]; const { data: userData, error: userError } = managerIds.length ? await supabase.from('users').select('id, full_name').in('id', managerIds) : { data: [], error: null }; if (userError) throw userError; const managerNames = new Map<string, string>(); ((userData ?? []) as Array<{ id: string; full_name: string | null }>).forEach((manager) => managerNames.set(manager.id, manager.full_name || 'Accommodation manager')); const propertyCountByManager = new Map<string, number>(); accommodationRecords.forEach((record) => propertyCountByManager.set(record.accommodation_manager_id, (propertyCountByManager.get(record.accommodation_manager_id) ?? 0) + 1)); properties.value = accommodationRecords.map((record) => { const address = [record.address, record.barangay, record.city].filter(Boolean).join(', ') || 'Address not provided'; const managerName = record.business_name || managerNames.get(record.accommodation_manager_id) || 'Accommodation manager'; const propertyRooms = rooms.filter((room) => room.accommodation_id === record.id).map((room) => ({ id: room.id, propertyId: record.id, propertyName: record.name || 'Accommodation', address, managerId: record.accommodation_manager_id, managerName, label: room.label || (room.room_number ? `Room ${room.room_number}` : 'Available room'), type: deriveRoomType(room.capacity, room.label), typeLabel: roomTypeLabel(deriveRoomType(room.capacity, room.label)), rent: room.monthly_rent, images: roomImages.filter((image) => image.room_id === room.id && image.url).sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0)).map((image) => image.url as string), activePhoto: 0 })); return { id: record.id, name: record.name || 'Accommodation', address, type: record.room_type || propertyRooms[0]?.type || 'room', typeLabel: roomTypeLabel(record.room_type || propertyRooms[0]?.type || 'room'), managerId: record.accommodation_manager_id, managerName, managerPropertyCount: propertyCountByManager.get(record.accommodation_manager_id) ?? 1, description: record.description, availableRooms: propertyRooms.length, rooms: propertyRooms, images: images.filter((image) => image.accommodation_id === record.id && image.url).sort((left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0)).map((image) => image.url as string), activePhoto: 0, amenities: amenities.filter((item) => item.accommodation_id === record.id).map((item) => item.amenity).filter((item): item is string => !!item), policyItems: policyItems(policies.find((item) => item.accommodation_id === record.id)) }; }).filter((property) => property.availableRooms > 0); const byManager = new Map<string, DiscoverProperty[]>(); properties.value.forEach((property) => { const current = byManager.get(property.managerId) ?? []; current.push(property); byManager.set(property.managerId, current); }); managers.value = [...byManager.entries()].map(([id, managerProperties]) => ({ id, name: managerProperties[0]?.managerName ?? 'Accommodation manager', propertyCount: managerProperties.length, availableRooms: managerProperties.reduce((count, property) => count + property.availableRooms, 0), propertyNames: managerProperties.map((property) => property.name), properties: managerProperties })); } catch (cause) { properties.value = []; managers.value = []; error.value = cause instanceof Error ? cause.message : 'Could not load accommodation listings.'; } finally { loading.value = false; } }
+const router = useRouter();
+const $q = useQuasar();
+const view = ref<View>('browse');
+const browseMode = ref<BrowseMode>('rooms');
+const searchQuery = ref('');
+const filterDialog = ref(false);
+const selectedRoomType = ref<string | null>(null);
+const loading = ref(true);
+const error = ref<string | null>(null);
+const applying = ref(false);
+
+const properties = ref<DiscoverProperty[]>([]);
+const managers = ref<DiscoverManager[]>([]);
+const selectedProperty = ref<DiscoverProperty | null>(null);
+const selectedRoom = ref<DiscoverRoom | null>(null);
+const selectedManager = ref<DiscoverManager | null>(null);
+
+const browseTabs = [
+  { id: 'rooms' as const, label: 'Rooms', icon: 'lucide:bed-double' },
+  { id: 'properties' as const, label: 'Properties', icon: 'lucide:building-2' },
+  { id: 'managers' as const, label: 'Managers', icon: 'lucide:users' },
+];
+const roomTypes = [
+  { value: 'solo', label: 'Solo' },
+  { value: 'duo', label: 'Double' },
+  { value: 'triple', label: 'Triple' },
+  { value: 'bedspace', label: 'Bedspace' },
+  { value: 'studio', label: 'Studio' },
+];
+
+function deriveRoomType(capacity: number | null, label: string | null): string {
+  const value = (label ?? '').toLowerCase();
+  if (value.includes('studio')) return 'studio';
+  if ((capacity ?? 1) <= 1) return 'solo';
+  if (capacity === 2) return 'duo';
+  if (capacity === 3) return 'triple';
+  return 'bedspace';
+}
+
+function roomTypeLabel(type: string): string {
+  return ({ solo: 'Solo Room', duo: '2-Person Room', triple: '3-Person Room', bedspace: 'Bedspace Room', studio: 'Studio Unit' } as Record<string, string>)[type] ?? 'Room';
+}
+
+function priceLabel(value: number | null): string {
+  return value === null ? 'Price on request' : `${formatPeso(value)} / mo`;
+}
+
+const allRooms = computed(() => properties.value.flatMap((property) => property.rooms));
+const query = computed(() => searchQuery.value.trim().toLowerCase());
+const hasFilters = computed(() => !!query.value || !!selectedRoomType.value);
+
+const filteredProperties = computed(() =>
+  properties.value.filter(
+    (property) =>
+      (!query.value || [property.name, property.address, property.managerName].some((v) => v.toLowerCase().includes(query.value))) &&
+      (!selectedRoomType.value || property.rooms.some((room) => room.type === selectedRoomType.value)),
+  ),
+);
+
+const filteredRooms = computed(() =>
+  allRooms.value.filter(
+    (room) =>
+      (!query.value || [room.label, room.propertyName, room.address, room.managerName].some((v) => v.toLowerCase().includes(query.value))) &&
+      (!selectedRoomType.value || room.type === selectedRoomType.value),
+  ),
+);
+
+const filteredManagers = computed(() =>
+  managers.value.filter(
+    (manager) => !query.value || [manager.name, ...manager.propertyNames].some((v) => v.toLowerCase().includes(query.value)),
+  ),
+);
+
+const activeResults = computed(() =>
+  browseMode.value === 'properties' ? filteredProperties.value : browseMode.value === 'rooms' ? filteredRooms.value : filteredManagers.value,
+);
+const resultCount = computed(() => activeResults.value.length);
+const resultNoun = computed(() =>
+  browseMode.value === 'properties'
+    ? resultCount.value === 1 ? 'property' : 'properties'
+    : browseMode.value === 'rooms'
+    ? resultCount.value === 1 ? 'room' : 'rooms'
+    : resultCount.value === 1 ? 'manager' : 'managers',
+);
+
+function clearFilters() {
+  searchQuery.value = '';
+  selectedRoomType.value = null;
+  filterDialog.value = false;
+}
+
+function propertyById(id: string): DiscoverProperty {
+  return properties.value.find((p) => p.id === id) ?? selectedProperty.value!;
+}
+
+function openProperty(property: DiscoverProperty) {
+  selectedProperty.value = property;
+  selectedRoom.value = null;
+  selectedManager.value = null;
+  view.value = 'property';
+}
+function openRoom(room: DiscoverRoom) {
+  selectedRoom.value = room;
+  selectedManager.value = null;
+  view.value = 'room';
+}
+function openManager(manager: DiscoverManager) {
+  selectedManager.value = manager;
+  selectedProperty.value = null;
+  selectedRoom.value = null;
+  view.value = 'manager';
+}
+function backToBrowse() {
+  view.value = 'browse';
+  selectedProperty.value = null;
+  selectedRoom.value = null;
+  selectedManager.value = null;
+}
+function backFromRoom() {
+  if (selectedProperty.value) view.value = 'property';
+  else backToBrowse();
+}
+
+function messageManager(managerId: string) {
+  void router.push({ path: '/student/messages', query: { landlord: managerId } });
+}
+
+function shareRoom(room: DiscoverRoom) {
+  if (navigator.share) {
+    navigator.share({
+      title: `${room.label} at ${room.propertyName}`,
+      text: `Check out this room for ${formatPeso(room.rent || 0)}/mo on Accommo!`,
+      url: window.location.href,
+    }).catch(() => {});
+  } else {
+    $q.notify({ message: 'Link copied to clipboard', color: 'positive' });
+  }
+}
+
+async function applyToRoom(room: DiscoverRoom) {
+  applying.value = true;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { void router.push('/login'); return; }
+
+    const now = new Date();
+    const startDate = now.toISOString().split('T')[0];
+    const end = new Date(now.getTime() + 150 * 24 * 60 * 60 * 1000); // 5 months / 1 semester
+    const endDate = end.toISOString().split('T')[0];
+
+    const { error: insertError } = await (supabase as any).from('leases').insert({
+      id: crypto.randomUUID(),
+      student_id: user.id,
+      landlord_id: room.managerId,
+      room_id: room.id,
+      monthly_rent: room.rent || 0,
+      start_date: startDate,
+      end_date: endDate,
+      status: 'pending',
+    });
+    if (insertError) throw insertError;
+    $q.notify({ type: 'positive', message: 'Application submitted! The manager will review it.' });
+    await loadData();
+    backToBrowse();
+  } catch (cause) {
+    $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Could not submit your application.' });
+  } finally {
+    applying.value = false;
+  }
+}
+
+async function loadData() {
+  loading.value = true;
+  error.value = null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { void router.push('/login'); return; }
+
+    // 1. Fetch accredited accommodations
+    const { data: accommodationData, error: accommodationError } = await (supabase as any)
+      .from('accommodations')
+      .select('id, name, address, barangay, city, room_type, accommodation_manager_id, description, business_name')
+      .eq('status', 'accredited')
+      .order('name', { ascending: true });
+
+    if (accommodationError) throw accommodationError;
+    const accommodationRecords = accommodationData ?? [];
+    const propertyIds = accommodationRecords.map((r: any) => r.id);
+
+    // 2. Fetch rooms & photos
+    const [roomResult, imageResult] = await Promise.all([
+      propertyIds.length
+        ? (supabase as any).from('rooms').select('id, accommodation_id, room_number, label, monthly_rent, capacity, current_pax, floor').in('accommodation_id', propertyIds).eq('status', 'available')
+        : Promise.resolve({ data: [], error: null }),
+      propertyIds.length
+        ? (supabase as any).from('accommodation_images').select('accommodation_id, url, sort_order').in('accommodation_id', propertyIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const imagesByProperty = new Map<string, string[]>();
+    (imageResult.data ?? []).forEach((img: any) => {
+      imagesByProperty.set(img.accommodation_id, [...(imagesByProperty.get(img.accommodation_id) ?? []), img.url]);
+    });
+
+    // 3. Query all accommodation_managers from users (database enum is accommodation_manager)
+    const { data: allManagers } = await (supabase as any)
+      .from('users')
+      .select('id, full_name, email, role')
+      .eq('role', 'accommodation_manager');
+
+    const userMap = new Map<string, string>();
+    (allManagers || []).forEach((u: any) => {
+      userMap.set(u.id, u.full_name || u.email || 'Accommodation Manager');
+    });
+
+    // Map properties
+    const propertyItems: DiscoverProperty[] = accommodationRecords.map((record: any) => {
+      const propRooms: DiscoverRoom[] = (roomResult.data ?? [])
+        .filter((r: any) => r.accommodation_id === record.id)
+        .map((r: any) => {
+          const type = deriveRoomType(r.capacity, r.label || r.room_number);
+          const capacity = Number(r.capacity) || 1;
+          const occupied = Number(r.current_pax) || 0;
+          return {
+            id: r.id,
+            propertyId: record.id,
+            propertyName: record.business_name || record.name || 'Accommodation',
+            address: record.address || '',
+            managerId: record.accommodation_manager_id,
+            managerName: userMap.get(record.accommodation_manager_id) || 'Accommodation Manager',
+            label: r.label || r.room_number || 'Room',
+            type,
+            typeLabel: roomTypeLabel(type),
+            rent: Number(r.monthly_rent) || 0,
+            images: imagesByProperty.get(record.id) || [],
+            activePhoto: 0,
+            floor: r.floor || '1st Floor',
+            capacity,
+            openSlots: Math.max(capacity - occupied, 1),
+            bathroomType: 'Common / Shared Bath',
+          };
+        });
+
+      return {
+        id: record.id,
+        name: record.business_name || record.name || 'Accommodation',
+        address: record.address || '',
+        type: record.room_type || 'boarding_house',
+        typeLabel: 'Boarding House',
+        managerId: record.accommodation_manager_id,
+        managerName: userMap.get(record.accommodation_manager_id) || 'Accommodation Manager',
+        managerPropertyCount: 1,
+        description: record.description || null,
+        availableRooms: propRooms.length,
+        rooms: propRooms,
+        images: imagesByProperty.get(record.id) || [],
+        activePhoto: 0,
+        amenities: ['WiFi Included', 'Water Included', '24/7 CCTV', 'Kitchen Access'],
+        policyItems: ['1 Month Advance & 1 Month Deposit', 'Quiet hours 10 PM - 6 AM', 'Visitors in lounge only'],
+      };
+    });
+
+    properties.value = propertyItems;
+
+    // Build manager list
+    const managerListMap = new Map<string, { id: string; name: string; properties: DiscoverProperty[] }>();
+    propertyItems.forEach((prop) => {
+      if (!managerListMap.has(prop.managerId)) {
+        managerListMap.set(prop.managerId, { id: prop.managerId, name: prop.managerName, properties: [] });
+      }
+      managerListMap.get(prop.managerId)!.properties.push(prop);
+    });
+
+    (allManagers || []).forEach((u: any) => {
+      if (!managerListMap.has(u.id)) {
+        managerListMap.set(u.id, { id: u.id, name: u.full_name || u.email || 'Accommodation Manager', properties: [] });
+      }
+    });
+
+    managers.value = Array.from(managerListMap.values()).map((m) => ({
+      id: m.id,
+      name: m.name,
+      propertyCount: m.properties.length,
+      availableRooms: m.properties.reduce((sum, p) => sum + p.availableRooms, 0),
+      propertyNames: m.properties.map((p) => p.name),
+      properties: m.properties,
+    }));
+  } catch (err: any) {
+    error.value = err?.message || 'Failed to load accommodations';
+  } finally {
+    loading.value = false;
+  }
+}
+
 onMounted(loadData);
 </script>
 
 <style scoped>
-.discover-page { min-height: 100vh; padding: var(--m-space-3) var(--m-page-gutter) calc(168px + env(safe-area-inset-bottom)); background: var(--m-bg); color: var(--m-ink); }.discover-action-bar { position: fixed; z-index: 59; right: 72px; bottom: 80px; left: var(--m-page-gutter); display: flex; gap: var(--m-space-2); align-items: center; }.search-field { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--m-space-2); min-height: 44px; padding: 0 var(--m-space-3); color: var(--m-muted); background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }.search-field input { min-width: 0; flex: 1; color: var(--m-ink); border: 0; outline: 0; background: transparent; font: inherit; }.clear-search, .filter-icon-button, .back-button, .row-action, .room-feed-content, .manager-card, .detail-room-row, .manager-link, .property-link { border: 0; background: transparent; font: inherit; }.clear-search, .filter-icon-button { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; color: var(--m-primary-dark); background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }.clear-search { width: 28px; height: 28px; color: var(--m-muted); border: 0; box-shadow: none; }.browse-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--m-border); }.browse-tabs button { display: inline-flex; justify-content: center; align-items: center; gap: 5px; min-height: 42px; color: var(--m-muted); border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 12px; font-weight: 700; }.browse-tabs button.active { color: var(--m-primary-dark); border-bottom-color: var(--m-primary); }.browse-meta { display: flex; justify-content: space-between; align-items: center; margin: var(--m-space-3) 0; color: var(--m-muted); font-size: 13px; }.filter-button, .primary-button, .message-button { min-height: 40px; border-radius: var(--m-radius-sm); font-weight: 700; letter-spacing: 0; }.filter-button { display: inline-flex; gap: 5px; color: var(--m-primary-dark); border-color: var(--m-primary); }.primary-button { color: #fff; background: var(--m-primary); }.result-stack, .room-list, .manager-properties { display: grid; gap: var(--m-space-3); }.result-card, .manager-card { overflow: hidden; color: var(--m-ink); background: var(--m-surface); border: 1px solid var(--m-border); border-radius: var(--m-radius); text-align: left; }.skeleton-copy, .card-content { padding: var(--m-space-3); }.photo-carousel, .detail-carousel { height: 360px; background: var(--m-primary-soft); }.detail-carousel { height: 240px; border-radius: var(--m-radius); overflow: hidden; }.carousel-slide, .carousel-image { width: 100%; height: 100%; }.carousel-image { display: block; }.card-placeholder { display: grid; height: 300px; place-items: center; color: var(--m-primary-dark); background: var(--m-primary-soft); }.card-title-row, .card-footer, .title-with-badge { display: flex; justify-content: space-between; align-items: center; gap: var(--m-space-2); }.card-title-row h2 { max-width: 66%; margin: 0; font-size: 16px; line-height: 1.3; }.verified { display: inline-flex; align-items: center; gap: 4px; color: var(--m-success); font-size: 12px; font-weight: 700; white-space: nowrap; }.location { display: flex; align-items: center; gap: 5px; margin: 7px 0 0; color: var(--m-muted); font-size: 13px; }.facts { display: flex; flex-wrap: wrap; gap: var(--m-space-2); margin-top: var(--m-space-3); color: var(--m-text); font-size: 12px; }.facts span { display: inline-flex; align-items: center; gap: 4px; }.card-footer { margin-top: var(--m-space-3); padding-top: var(--m-space-3); border-top: 1px solid var(--m-border); color: var(--m-muted); font-size: 13px; }.row-action { display: inline-flex; align-items: center; gap: 2px; color: var(--m-primary-dark); font-weight: 700; white-space: nowrap; }.room-feed-content, .manager-card { display: flex; align-items: center; gap: var(--m-space-3); width: 100%; min-height: 78px; padding: var(--m-space-3); color: var(--m-ink); text-align: left; }.room-icon { display: grid; flex: 0 0 auto; place-items: center; width: 40px; height: 40px; color: var(--m-primary-dark); background: var(--m-primary-soft); border-radius: 12px; }.room-copy, .manager-copy { display: grid; min-width: 0; flex: 1; gap: 3px; }.room-copy > span, .manager-copy > span, .room-copy small, .manager-copy small { overflow: hidden; color: var(--m-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.room-copy small { display: flex; align-items: center; gap: 3px; }.room-price { display: grid; justify-items: end; gap: 4px; color: var(--m-ink); font-size: 12px; font-weight: 700; white-space: nowrap; }.manager-avatar { display: grid; flex: 0 0 auto; place-items: center; width: 42px; height: 42px; color: #fff; background: var(--m-primary); border-radius: 50%; font-size: 13px; font-weight: 800; }.chevron { color: var(--m-muted); }.page-state { display: grid; justify-items: center; gap: var(--m-space-3); padding: 56px var(--m-space-6); color: var(--m-muted); text-align: center; }.page-state p { margin: 0; line-height: 1.5; }.state-icon { display: grid; place-items: center; width: 52px; height: 52px; color: var(--m-primary-dark); background: var(--m-primary-soft); border-radius: 50%; }.text-button { color: var(--m-primary-dark); text-decoration: underline; }.detail-content { padding-bottom: var(--m-space-3); }.back-button { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; margin-bottom: var(--m-space-2); color: var(--m-text); font-weight: 700; }.detail-placeholder { display: grid; height: 170px; place-items: center; color: var(--m-primary-dark); background: var(--m-primary-soft); border-radius: var(--m-radius); }.detail-heading, .detail-section { padding: var(--m-space-4) 0; border-bottom: 1px solid var(--m-border); }.detail-heading h1, .room-detail-hero h1, .manager-detail-hero h1 { margin: 0; font-size: 22px; line-height: 1.2; }.detail-section h2 { margin: 0; font-size: 16px; }.section-intro { margin: 4px 0 var(--m-space-3); color: var(--m-muted); font-size: 13px; }.detail-room-row, .manager-link, .property-link { display: flex; align-items: center; gap: var(--m-space-2); width: 100%; min-height: 62px; padding: var(--m-space-2); color: var(--m-ink); text-align: left; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); }.detail-room-row > strong { margin-left: auto; font-size: 12px; white-space: nowrap; }.detail-copy { margin: var(--m-space-3) 0 0; color: var(--m-text); line-height: 1.55; }.amenity-list, .policy-list { display: grid; gap: var(--m-space-2); margin-top: var(--m-space-3); }.amenity-list { display: flex; flex-wrap: wrap; }.amenity-list span, .policy-list span { display: inline-flex; align-items: center; gap: 4px; color: var(--m-text); font-size: 13px; }.amenity-list span { padding: 6px 8px; background: var(--m-surface); border: 1px solid var(--m-border); border-radius: 999px; font-size: 12px; }.room-detail-hero, .manager-detail-hero { display: flex; align-items: center; gap: var(--m-space-3); padding: var(--m-space-4) 0; }.room-detail-hero p, .manager-detail-hero p { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }.room-detail-price { display: flex; justify-content: space-between; color: var(--m-muted); }.room-detail-price strong { color: var(--m-ink); }.property-link span { display: grid; min-width: 0; flex: 1; gap: 3px; }.property-link small { overflow: hidden; color: var(--m-muted); text-overflow: ellipsis; white-space: nowrap; }.message-button { width: 100%; margin-top: var(--m-space-3); color: var(--m-primary-dark); border-color: var(--m-primary); }.detail-actions { padding: var(--m-space-4) 0; }.full-width { width: 100%; min-height: 46px; }.manager-avatar--large { width: 58px; height: 58px; font-size: 17px; }.filter-sheet { border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; padding-bottom: max(var(--m-space-3), env(safe-area-inset-bottom)); }.filter-heading { display: flex; justify-content: space-between; align-items: flex-start; }.filter-heading h2 { margin: 0; font-size: 17px; }.filter-heading p { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }.filter-sheet h3 { margin: var(--m-space-3) 0 var(--m-space-2); color: var(--m-muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }.filter-options { display: flex; flex-wrap: wrap; gap: var(--m-space-2); }.filter-options .q-btn { min-height: 38px; border-radius: 999px; color: var(--m-text); border-color: var(--m-border); }.filter-options .q-btn.active { color: #fff; background: var(--m-primary); border-color: var(--m-primary); }.filter-actions { display: flex; justify-content: space-between; padding: var(--m-space-3) var(--m-space-4); }button:focus-visible, :deep(.q-btn:focus-visible) { outline: 3px solid var(--m-info); outline-offset: 2px; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+.discover-page {
+  min-height: 100vh;
+  padding: 8px 12px calc(140px + env(safe-area-inset-bottom));
+  background: #f0f2f5;
+  color: #050505;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* FB-Style Top Category Chips */
+.fb-top-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.fb-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 17px;
+  border: 0;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #050505;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.fb-category-chip.active {
+  background: var(--m-primary-dark, #00695c);
+  color: #ffffff;
+}
+.fb-feed-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: #65676b;
+  margin: 6px 4px 10px;
+}
+.filter-clear-link {
+  border: 0;
+  background: transparent;
+  color: #00695c;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ==============================================================
+   FACEBOOK MARKETPLACE 2-COLUMN PRODUCT GRID (ROOMS)
+   ============================================================== */
+.fb-marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.fb-marketplace-item {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+}
+
+.fb-item-photo-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #e4e6eb;
+}
+.fb-item-img {
+  width: 100%;
+  height: 100%;
+}
+.fb-item-photo-placeholder {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #8a8d91;
+}
+.fb-price-pill {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.fb-item-details {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fb-item-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #050505;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb-item-location {
+  margin: 0;
+  font-size: 11px;
+  color: #65676b;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.fb-room-type {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #65676b;
+}
+.fb-slots-tag {
+  font-size: 10.5px;
+  font-weight: 750;
+  color: #00695c;
+  background: #e6f5f3;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* ==============================================================
+   FACEBOOK FEED POST STYLE (PROPERTIES)
+   ============================================================== */
+.fb-post-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fb-post-card {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  cursor: pointer;
+}
+.fb-post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 6px;
+}
+.fb-post-avatar {
+  background: var(--m-primary-dark, #00695c);
+  color: #ffffff;
+  font-weight: 800;
+}
+.fb-author-details {
+  display: flex;
+  flex-direction: column;
+}
+.fb-author-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fb-author-name {
+  font-size: 14px;
+  color: #050505;
+}
+.fb-verified-dot {
+  color: #15803d;
+  display: grid;
+  place-items: center;
+}
+.fb-post-time {
+  font-size: 11px;
+  color: #65676b;
+}
+
+.fb-post-caption {
+  padding: 4px 12px 8px;
+}
+.fb-post-caption strong {
+  font-size: 15px;
+  color: #050505;
+  display: block;
+}
+.fb-post-caption p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #65676b;
+  line-height: 1.35;
+}
+
+.fb-post-media {
+  width: 100%;
+  height: 220px;
+  background: #e4e6eb;
+}
+.fb-media-img {
+  width: 100%;
+  height: 100%;
+}
+.fb-media-placeholder {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #8a8d91;
+}
+
+.fb-post-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid #f0f2f5;
+}
+.fb-post-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #050505;
+}
+.fb-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: #00695c;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+/* ==============================================================
+   FACEBOOK CONTACTS / PROFILE DIRECTORY (MANAGERS)
+   ============================================================== */
+.fb-contacts-feed {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.fb-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f2f5;
+  background: #ffffff;
+  cursor: pointer;
+}
+.fb-contact-row:last-child { border-bottom: 0; }
+.fb-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.fb-mgr-avatar {
+  background: var(--m-primary-dark, #00695c);
+  color: #ffffff;
+  font-weight: 800;
+}
+.fb-online-badge {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #31a24c;
+  border: 2px solid #ffffff;
+}
+.fb-contact-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.fb-contact-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fb-contact-name {
+  font-size: 14.5px;
+  font-weight: 750;
+  color: #050505;
+}
+.fb-badge-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #15803d;
+  background: #ecfdf3;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.fb-contact-sub {
+  font-size: 11.5px;
+  color: #65676b;
+}
+.fb-contact-reply {
+  font-size: 10.5px;
+  color: #00695c;
+  font-weight: 600;
+}
+
+/* ==============================================================
+   REDESIGNED FULL-SCREEN ROOM DETAILS (FULL BLEED 360px & FLOW)
+   ============================================================== */
+.room-workspace {
+  margin: -8px -12px calc(110px + env(safe-area-inset-bottom));
+  padding: 0;
+  background: #ffffff;
+}
+
+.room-hero-gallery {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  background: #0f172a;
+}
+.room-carousel { height: 100%; }
+.carousel-image { width: 100%; height: 100%; }
+
+.gallery-overlay-top {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
+  left: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 20;
+}
+.gallery-round-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.photo-counter-badge {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 750;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.room-hero-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.room-flow-container {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+}
+.flow-section {
+  padding: 16px 16px;
+  border-bottom: 1px solid var(--m-border, #e5e7eb);
+}
+.section-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--m-ink, #17202a);
+}
+
+.room-header-block {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.room-type-tag {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--m-primary-dark, #00695c);
+  letter-spacing: 0.05em;
+}
+.room-name {
+  margin: 2px 0 4px;
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  color: var(--m-ink, #17202a);
+}
+.room-prop-link {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--m-muted, #6b7280);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.header-right {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+}
+.header-right strong {
+  font-size: 20px;
+  font-weight: 850;
+  color: var(--m-primary-dark, #00695c);
+}
+.header-right small {
+  font-size: 11px;
+  color: var(--m-muted, #6b7280);
+}
+
+.spec-table, .cost-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--m-border, #e5e7eb);
+  border-radius: 8px;
+}
+.spec-row, .cost-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 12px;
+  border-bottom: 1px solid #f0f2f5;
+  font-size: 12.5px;
+}
+.spec-row:last-child, .cost-row:last-child { border-bottom: 0; }
+.spec-key { color: var(--m-muted, #6b7280); }
+.spec-val { color: var(--m-ink, #17202a); }
+
+.inclusions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.inclusion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--m-ink, #17202a);
+}
+
+.cost-desc { display: flex; flex-direction: column; }
+.cost-desc strong { font-size: 12px; color: var(--m-ink, #17202a); }
+.cost-desc small { font-size: 10.5px; color: var(--m-muted, #6b7280); }
+.cost-val { font-size: 13px; font-weight: 750; }
+.cost-row--total { background: var(--m-primary-soft, #e6f5f3); }
+.cost-row--total .cost-val { font-size: 15px; font-weight: 850; }
+.cost-terms { margin: 8px 0 0; font-size: 11px; color: var(--m-muted, #6b7280); }
+
+.policy-list-clean { display: flex; flex-direction: column; }
+.policy-line { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+.policy-line:last-child { border-bottom: 0; }
+.policy-label { color: var(--m-ink, #17202a); font-weight: 700; width: 35%; }
+.policy-desc { color: var(--m-muted, #6b7280); text-align: right; flex: 1; }
+.prohibit-bar { margin-top: 10px; padding: 8px 12px; background: #fef2f2; color: #991b1b; font-size: 11.5px; font-weight: 750; border-radius: 6px; }
+
+.property-address { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 750; color: var(--m-ink, #17202a); }
+.property-bio { margin: 6px 0 0; font-size: 12.5px; color: var(--m-muted, #6b7280); line-height: 1.4; }
+
+.manager-profile-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.manager-avatar { background: var(--m-primary-dark, #00695c); color: #ffffff; font-weight: 800; }
+.manager-info { display: flex; flex-direction: column; }
+.manager-name { font-size: 14.5px; color: var(--m-ink, #17202a); }
+.manager-rating { font-size: 11px; color: var(--m-muted, #6b7280); }
+.btn-chat-manager {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 38px;
+  border-radius: 6px;
+  border: 1px solid var(--m-primary-dark, #00695c);
+  background: var(--m-primary-soft, #e6f5f3);
+  color: var(--m-primary-dark, #00695c);
+  font-size: 12.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.room-action-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: #ffffff;
+  border-top: 1px solid var(--m-border, #e5e7eb);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+}
+.footer-price-col { display: flex; flex-direction: column; }
+.footer-label { font-size: 9.5px; font-weight: 750; text-transform: uppercase; color: var(--m-muted, #6b7280); }
+.footer-price { font-size: 18px; font-weight: 850; color: var(--m-primary-dark, #00695c); }
+.btn-apply-booking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 6px;
+  border: 0;
+  background: var(--m-primary-dark, #00695c);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ==============================================================
+   3. REDESIGNED MANAGER PROFILE DETAIL VIEW
+   ============================================================== */
+.manager-workspace {
+  margin: -8px -12px calc(90px + env(safe-area-inset-bottom));
+  padding: 0 16px;
+  background: #ffffff;
+  min-height: 100vh;
+}
+.mgr-nav-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--m-border, #e5e7eb);
+}
+.mgr-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark, #00695c);
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.mgr-nav-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--m-ink, #17202a);
+}
+.mgr-nav-space { width: 44px; }
+
+.mgr-hero-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0 20px;
+  border-bottom: 1px solid var(--m-border, #e5e7eb);
+  text-align: center;
+}
+.mgr-large-avatar {
+  background: var(--m-primary-dark, #00695c);
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 850;
+  margin-bottom: 10px;
+}
+.mgr-profile-name {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 850;
+  color: var(--m-ink, #17202a);
+}
+.mgr-accredited-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #15803d;
+  background: #ecfdf3;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.mgr-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  max-width: 380px;
+  margin: 16px 0;
+  padding: 10px 0;
+  border: 1px solid var(--m-border, #e5e7eb);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.mgr-stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-right: 1px solid #e2e8f0;
+}
+.mgr-stat-cell:last-child { border-right: 0; }
+.stat-num { font-size: 16px; font-weight: 850; color: var(--m-ink, #17202a); }
+.mgr-stat-cell small { font-size: 9.5px; color: var(--m-muted, #6b7280); font-weight: 700; }
+
+.btn-message-manager-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 380px;
+  height: 40px;
+  border-radius: 6px;
+  border: 0;
+  background: var(--m-primary-dark, #00695c);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.mgr-properties-container {
+  padding-top: 16px;
+}
+.mgr-section-heading {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--m-muted, #6b7280);
+}
+
+/* Discover Search Bar */
+.discover-action-bar {
+  position: fixed;
+  z-index: 59;
+  right: 72px;
+  bottom: 68px;
+  left: var(--m-page-gutter, 12px);
+  display: flex;
+  gap: var(--m-space-2, 8px);
+  align-items: center;
+}
+.search-field {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--m-space-2, 8px);
+  min-height: 44px;
+  padding: 0 var(--m-space-3, 12px);
+  color: var(--m-muted, #6b7280);
+  background: #ffffff;
+  border: 1px solid var(--m-border, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.search-field input { min-width: 0; flex: 1; color: var(--m-ink, #17202a); border: 0; outline: 0; background: transparent; font: inherit; }
+.filter-icon-button { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; color: var(--m-primary-dark, #00695c); background: #ffffff; border: 1px solid var(--m-border, #e5e7eb); border-radius: 12px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); }
+.clear-search { width: 28px; height: 28px; border: 0; background: transparent; color: var(--m-muted, #6b7280); }
+
+.text-teal { color: #00695c !important; }
+.font-mono { font-family: var(--m-font-mono, monospace); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 </style>
