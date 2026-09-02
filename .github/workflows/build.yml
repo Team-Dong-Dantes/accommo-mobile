@@ -52,19 +52,25 @@ jobs:
           cp -r dist/spa/* src-capacitor/www/
       - name: Sync Capacitor Android
         run: npx cap sync android
-      # Optional signing — runs only when the keystore secrets exist.
+      # Optional signing — signs only when the keystore secret is present.
+      # (The secrets context can't be used in a step `if:`; guard it in bash.)
       - name: Decode keystore (if configured)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -e
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "No keystore configured — building unsigned APK"; exit 0; fi
           mkdir -p src-capacitor/android/app
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > src-capacitor/android/app/release.jks
+          echo "$KEYSTORE_BASE64" | base64 -d > src-capacitor/android/app/release.jks
           {
             echo 'storeFile=release.jks'
-            echo 'storePassword=${{ secrets.KEYSTORE_PASSWORD }}'
-            echo 'keyAlias=${{ secrets.KEY_ALIAS }}'
-            echo 'keyPassword=${{ secrets.KEY_PASSWORD }}'
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
           } > src-capacitor/android/app/keystore.properties
       - name: Build Android release
         run: |
