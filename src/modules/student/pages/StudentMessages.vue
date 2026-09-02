@@ -747,8 +747,30 @@ async function startChatWith(otherUserId: string, name: string) {
   }
 }
 
+async function openLandlordFromQuery() {
+  const landlordId = route.query.landlord as string | undefined
+  if (!landlordId || !currentUserId.value) return
+  // If a conversation with this manager already exists on this page, open it.
+  const existing = conversations.value.find((c) => c.otherUserId === landlordId)
+  if (existing) {
+    await openConversation(existing.id)
+    return
+  }
+  // Otherwise ensure one exists (creates if needed), then open it.
+  try {
+    const cid = await ensureConversation(landlordId)
+    if (cid) {
+      await loadConversations()
+      await openConversation(cid)
+    }
+  } catch (caught) {
+    $q.notify({ message: caught instanceof Error ? caught.message : 'Could not open that conversation', color: 'negative', position: 'top' })
+  }
+}
+
 onMounted(async () => {
   await loadConversations()
+  await openLandlordFromQuery()
 })
 onUnmounted(() => {
   unsubscribeMessages()
