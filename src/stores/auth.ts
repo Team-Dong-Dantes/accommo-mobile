@@ -20,27 +20,35 @@ function toAppRole(raw: string | null | undefined): string | null {
 }
 
 function sanitizeError(error: unknown): Error {
-  const raw = error instanceof Error ? error.message : String(error);
-  let friendly = 'An unexpected error occurred. Please try again.';
+  // Supabase auth/PostgREST errors are often plain objects (not Error
+  // instances) that carry a real `.message`/`.code`/`.status`. Reading those
+  // prevents `String(object)` → "[object Object]" from leaking to the UI.
+  let raw: string;
   if (error instanceof Error) {
-    const m = error.message;
-    if (
-      m.includes('23505') ||
-      m.includes('duplicate key') ||
-      m.includes('student_profiles_student_id_key')
-    ) {
-      friendly = 'This Student ID is already registered.';
-    } else if (m.includes('already registered') || m.includes('email_exists') || m.includes('User already')) {
-      friendly = 'This email is already registered. Try signing in instead.';
-    } else if (m.includes('PGRST116') || m.includes('0 rows')) {
-      friendly = 'Registration failed due to a database conflict. Please try again.';
-    } else if (m.includes('Invalid login credentials')) {
-      friendly = 'Invalid email or password.';
-    } else if (m.includes('Email not confirmed')) {
-      friendly = 'Please confirm your email address before signing in.';
-    } else if (m.includes('rate limit')) {
-      friendly = 'Too many attempts. Please try again later.';
-    }
+    raw = error.message;
+  } else if (error && typeof error === 'object' && 'message' in error) {
+    raw = String((error as { message: unknown }).message || 'Unknown error');
+  } else {
+    raw = String(error ?? 'Unknown error');
+  }
+  let friendly = 'An unexpected error occurred. Please try again.';
+  const m = (error instanceof Error ? error.message : '') || raw;
+  if (
+    m.includes('23505') ||
+    m.includes('duplicate key') ||
+    m.includes('student_profiles_student_id_key')
+  ) {
+    friendly = 'This Student ID is already registered.';
+  } else if (m.includes('already registered') || m.includes('email_exists') || m.includes('User already')) {
+    friendly = 'This email is already registered. Try signing in instead.';
+  } else if (m.includes('PGRST116') || m.includes('0 rows')) {
+    friendly = 'Registration failed due to a database conflict. Please try again.';
+  } else if (m.includes('Invalid login credentials')) {
+    friendly = 'Invalid email or password.';
+  } else if (m.includes('Email not confirmed')) {
+    friendly = 'Please confirm your email address before signing in.';
+  } else if (m.includes('rate limit')) {
+    friendly = 'Too many attempts. Please try again later.';
   }
   // Surface the raw backend message so failures are diagnosable on-device
   // instead of being collapsed into a generic string.
