@@ -13,16 +13,16 @@
           <q-tab name="verification" class="folder-tab" no-caps>
             <div class="row items-center no-wrap q-gutter-xs">
               <IconifyIcon icon="lucide:shield-check" width="16" aria-hidden="true" />
-              <span>Clearances & Renewals</span>
-              <span v-if="!osasVerified || hasExpiringStudentDocs" class="tab-badge-warn">Action</span>
+              <span>Requirements</span>
+              <span class="tab-badge-neutral" :class="{ 'tab-badge-warn': !osasVerified || hasExpiringStudentDocs }">2</span>
             </div>
           </q-tab>
 
           <q-tab name="tickets" class="folder-tab" no-caps>
             <div class="row items-center no-wrap q-gutter-xs">
               <IconifyIcon icon="lucide:life-buoy" width="16" aria-hidden="true" />
-              <span>Support & Bugs</span>
-              <span v-if="tickets.length > 0" class="tab-badge-neutral">{{ tickets.length }}</span>
+              <span>Support tickets</span>
+              <span v-if="tickets.length > 0" class="tab-badge-warn">{{ tickets.length }}</span>
             </div>
           </q-tab>
         </q-tabs>
@@ -30,13 +30,13 @@
         <!-- Main Tab Workspace Card -->
         <div class="tab-card">
           <!-- ==============================================================
-               TAB 1: STUDENT VERIFICATION & CLEARANCES MATRIX
+               TAB 1: STUDENT VERIFICATION & REQUIREMENTS
                ============================================================== -->
           <div v-if="activeTab === 'verification'" class="tab-content-panel">
             <!-- Student Header Spec Bar -->
             <header class="property-spec-bar">
               <div class="spec-left">
-                <span class="spec-label">Enrollment & Clearances</span>
+                <span class="spec-label">Enrollment & Requirements</span>
                 <strong class="spec-name">{{ studentIdNumber ? `ISU ID: ${studentIdNumber}` : 'Student Verification' }}</strong>
                 <span class="spec-location font-mono">Annual Semester Clearances</span>
               </div>

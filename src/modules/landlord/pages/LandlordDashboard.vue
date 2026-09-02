@@ -41,19 +41,20 @@
         </q-btn>
       </section>
 
-      <section v-else-if="properties.length === 0" class="page-state surface empty-property-state">
-        <span class="state-icon neutral-icon" aria-hidden="true">
-          <IconifyIcon icon="lucide:building-2" />
-        </span>
-        <h2>Add your first accommodation</h2>
-        <p>Set up a property to start tracking rooms, tenants, payments, and accreditation.</p>
-        <q-btn no-caps unelevated class="state-action" to="/landlord/properties/new">
-          <IconifyIcon icon="lucide:plus" class="button-icon" aria-hidden="true" />
-          Add first accommodation
-        </q-btn>
-      </section>
+      <template v-else>
+        <section v-if="accountBlocked" class="page-state surface account-locked" aria-labelledby="account-locked-title">
+          <span class="state-icon status-warning" aria-hidden="true">
+            <IconifyIcon icon="lucide:shield-alert" />
+          </span>
+          <h2 id="account-locked-title">Account awaiting OSAS verification</h2>
+          <p>Your accommodation manager account is not yet approved by OSAS. You can browse, but actions on Accommo are locked until your documents are verified. Check back after OSAS confirms your accreditation.</p>
+          <q-btn no-caps unelevated class="state-action" :loading="loading" @click="loadDashboard">
+            <IconifyIcon icon="lucide:refresh-cw" class="button-icon" aria-hidden="true" />
+            Refresh status
+          </q-btn>
+        </section>
+        <div v-else class="dashboard-content">
 
-      <div v-else class="dashboard-content">
         <section class="manager-briefing" aria-labelledby="dashboard-title">
           <div class="dashboard-intro">
             <div>
@@ -157,7 +158,7 @@
               </div>
             </div>
 
-            <q-list class="surface health-list" separator>
+            <q-list v-if="properties.length" class="surface health-list" separator>
               <q-item
                 v-for="property in properties"
                 :key="property.id"
@@ -192,6 +193,15 @@
                 </q-item-section>
               </q-item>
             </q-list>
+
+                        <div v-else class="surface section-empty health-empty">
+              <IconifyIcon icon="lucide:building-2" aria-hidden="true" />
+              <p>No properties yet. Add your first accommodation to see rooms, tenants and accreditation here.</p>
+              <q-btn no-caps unelevated dense class="health-add" to="/landlord/properties/new">
+                <IconifyIcon icon="lucide:plus" class="button-icon" aria-hidden="true" />
+                Add accommodation
+              </q-btn>
+            </div>
           </section>
 
           <section class="section-block" aria-labelledby="payments-title">
@@ -239,6 +249,7 @@
           </section>
         </div>
       </div>
+      </template>
     </main>
   </q-page>
 </template>
@@ -337,6 +348,7 @@ const tickets = ref<TicketRecord[]>([])
 const payments = ref<PaymentRecord[]>([])
 const studentNames = ref<Map<string, string>>(new Map())
 const managerName = ref('Manager')
+const accountBlocked = ref(false)
 
 const managerFirstName = computed(() => managerName.value.trim().split(/\s+/)[0] || 'Manager')
 const greeting = computed(() => {
@@ -701,7 +713,7 @@ async function loadDashboard() {
 
     const user = authData.user
     const [profileResult, accommodationResult] = await Promise.all([
-      supabase.from('users').select('id, full_name').eq('id', user.id).maybeSingle(),
+      supabase.from('users').select('id, full_name, status').eq('id', user.id).maybeSingle(),
       (supabase as any)
         .from('accommodations')
         .select('id, name, business_name, total_rooms, accreditation_status, accreditation_expires_at')
@@ -712,7 +724,21 @@ async function loadDashboard() {
     if (profileResult.error) throw profileResult.error
     if (accommodationResult.error) throw accommodationResult.error
 
+    const accountStatus = (profileResult.data as { status?: string | null } | null)?.status ?? 'unverified'
+    accountBlocked.value = accountStatus.toLowerCase() !== 'verified'
+
     managerName.value = profileResult.data?.full_name || 'Manager'
+
+    // OSAS must have verified the manager account (users.status='verified') before the
+    // account becomes usable. DB/RLS is the backstop; here we gate the landing surface.
+    if (accountBlocked.value) {
+      rooms.value = []
+      leases.value = []
+      tickets.value = []
+      payments.value = []
+      studentNames.value = new Map()
+      return
+    }
 
     accommodations.value = (accommodationResult.data || []) as AccommodationRecord[]
 
@@ -1410,4 +1436,11 @@ onMounted(() => {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Inline empty state for a manager with no properties ---- */
+.health-empty { display: flex; align-items: center; flex-direction: column; gap: var(--m-space-3); padding: var(--m-space-6); text-align: center; }
+.health-empty svg { color: var(--m-muted); opacity: .7; }
+.health-empty p { margin: 0; color: var(--m-muted); font-size: 13px; line-height: 1.5; }
+.health-add { min-height: 40px; border-radius: var(--m-radius-sm); font-weight: 750; }
+
 </style>
