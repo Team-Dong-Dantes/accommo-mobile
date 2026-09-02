@@ -1406,7 +1406,7 @@ function initializeLocationMap(): void {
       setLocationPin(settingsForm.value.longitude, settingsForm.value.latitude)
     }
   })
-  map.on('click', (event) => setLocationPin(event.lngLat.lng, event.lngLat.lat))
+  map.on('click', (event: mapboxgl.MapMouseEvent) => setLocationPin(event.lngLat.lng, event.lngLat.lat))
 }
 
 function searchLocation(): void {
