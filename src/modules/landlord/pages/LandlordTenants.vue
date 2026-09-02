@@ -1,19 +1,6 @@
 <template>
   <q-page class="tenants-page">
     <main id="tenant-list" class="tenant-content">
-      <header class="page-header">
-        <h1 class="sr-only">Tenants</h1>
-        <p class="page-summary">
-          {{ activeCount }} active {{ activeCount === 1 ? 'tenant' : 'tenants' }}
-          <span v-if="pendingApplications.length">and {{ pendingApplications.length }} application{{ pendingApplications.length === 1 ? '' : 's' }} to review</span>
-        </p>
-      </header>
-
-      <div class="results-bar" aria-live="polite">
-        <span>{{ resultCount }} {{ resultCount === 1 ? 'result' : 'results' }}</span>
-        <button v-if="hasActiveFilters" type="button" class="clear-filters" @click="clearFilters">Clear filters</button>
-      </div>
-
       <section v-if="isLoading" class="state-panel" aria-busy="true" aria-label="Loading tenants">
         <div v-for="index in 5" :key="index" class="skeleton-row" aria-hidden="true">
           <span class="skeleton-avatar" />
@@ -34,85 +21,64 @@
       </section>
 
       <template v-else>
-        <section v-if="visiblePendingApplications.length" class="applications-section" aria-labelledby="applications-heading">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">Needs a decision</p>
-              <h2 id="applications-heading">Pending applications</h2>
-            </div>
-            <span class="section-count">{{ visiblePendingApplications.length }}</span>
-          </div>
+        <section class="roster-section homes-section">
+          <div class="homes-list">
+            <article v-for="home in structuredHomes" :key="home.id" class="home-block">
+              <header class="home-heading">
+                <span class="home-icon" aria-hidden="true"><IconifyIcon icon="lucide:building-2" width="18" /></span>
+                <div class="home-heading-copy">
+                  <strong>{{ home.name }}</strong>
+                  <small>{{ home.rooms.length }} {{ home.rooms.length === 1 ? 'room' : 'rooms' }}</small>
+                </div>
+              </header>
 
-          <div class="application-list">
-            <article v-for="application in visiblePendingApplications" :key="application.id" class="application-row">
-              <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ application.initials }}</q-avatar>
-              <div class="row-copy">
-                <strong :title="application.name">{{ application.name }}</strong>
-                <span :title="`${application.property} · ${application.room}`">{{ application.property }} · {{ application.room }}</span>
-              </div>
-              <div class="application-actions">
+              <div v-if="!home.rooms.length" class="surface home-empty">No rooms added for this property yet.</div>
+
+              <template v-for="room in home.rooms" :key="room.id">
                 <button
+                  v-if="room.tenant"
                   type="button"
-                  class="application-action application-action--accept"
-                  :disabled="applicationAction === application.id"
-                  @click="acceptApplication(application.id)"
+                  class="room-row room-row--taken"
+                  @click="openTenant(room.tenant.studentId)"
                 >
-                  <IconifyIcon icon="lucide:check" width="16" aria-hidden="true" />
-                  Accept
+                  <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ room.tenant.initials }}</q-avatar>
+                  <span class="row-copy">
+                    <strong>{{ room.tenant.name }}</strong>
+                    <small>{{ room.label }}<template v-if="room.floor"> · {{ room.floor }}</template></small>
+                  </span>
+                  <span class="status-badge status-badge--active"><IconifyIcon icon="lucide:circle-check" width="13" /> Tenant</span>
+                  <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="18" aria-hidden="true" />
                 </button>
+
                 <button
+                  v-else-if="room.applicant"
                   type="button"
-                  class="application-action application-action--decline"
-                  :disabled="applicationAction === application.id"
-                  @click="declineApplication(application.id)"
+                  class="room-row room-row--pending"
+                  @click="openTenant(room.applicant.studentId)"
                 >
-                  <IconifyIcon icon="lucide:x" width="16" aria-hidden="true" />
-                  Decline
+                  <span class="room-open-icon room-open-icon--pending" aria-hidden="true"><IconifyIcon icon="lucide:clock-3" width="18" /></span>
+                  <span class="row-copy">
+                    <strong>{{ room.applicant.name }}</strong>
+                    <small>{{ room.label }}<template v-if="room.floor"> · {{ room.floor }}</template></small>
+                  </span>
+                  <span class="status-badge status-badge--warning"><IconifyIcon icon="lucide:clock-3" width="13" /> Pending</span>
+                  <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="18" aria-hidden="true" />
                 </button>
-              </div>
+
+                <div v-else class="room-row room-row--open">
+                  <span class="room-open-icon" aria-hidden="true"><IconifyIcon icon="lucide:door-open" width="18" /></span>
+                  <span class="row-copy">
+                    <strong>{{ room.label }}</strong>
+                    <small>Open room — no tenant yet</small>
+                  </span>
+                  <span class="status-badge status-badge--neutral">Available</span>
+                </div>
+              </template>
             </article>
           </div>
         </section>
 
-        <section v-if="visibleTenants.length" class="roster-section" aria-labelledby="roster-heading">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">Current roster</p>
-              <h2 id="roster-heading">Tenant list</h2>
-            </div>
-            <span class="section-count">{{ visibleTenants.length }}</span>
-          </div>
-
-          <div class="tenant-list">
-            <button
-              v-for="tenant in visibleTenants"
-              :key="tenant.id"
-              type="button"
-              class="tenant-row"
-              :aria-label="`View ${tenant.name}, ${tenant.property}, ${tenant.room}, ${tenant.status}`"
-              @click="openTenant(tenant.studentId)"
-            >
-              <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ tenant.initials }}</q-avatar>
-              <span class="row-copy">
-                <strong :title="tenant.name">{{ tenant.name }}</strong>
-                <span :title="`${tenant.property} · ${tenant.room}`">{{ tenant.property }} · {{ tenant.room }}</span>
-                <small v-if="tenant.payment" class="tenant-payment" :class="`tenant-payment--${tenant.payment.tone}`">
-                  <IconifyIcon :icon="tenant.payment.icon" width="13" aria-hidden="true" />
-                  {{ tenant.payment.label }} · {{ tenant.payment.amount }}
-                </small>
-              </span>
-              <span class="status-badge" :class="`status-badge--${tenant.statusKey}`">
-                <IconifyIcon :icon="tenant.statusIcon" width="14" aria-hidden="true" />
-                {{ tenant.status }}
-              </span>
-              <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="20" aria-hidden="true" />
-            </button>
-          </div>
-        </section>
-
-        <EmptyState v-if="!hasEntries" icon="lucide:users-round" title="No tenants yet" message="Tenants appear here after a lease is created for one of your properties." />
-
-        <EmptyState v-else-if="!visibleTenants.length && !visiblePendingApplications.length" icon="lucide:search-x" title="No matching tenants" message="Try another search or clear the active filters."><button type="button" class="retry-button" @click="clearFilters">Clear filters</button></EmptyState>
+        <EmptyState v-if="!structuredHomes.length && !visiblePendingApplications.length" icon="lucide:users-round" title="No tenants yet" message="Properties and rooms appear here once you add them." />
       </template>
 
       <div class="tenant-action-bar">
@@ -162,6 +128,7 @@ type TenantStatusKey = Exclude<TenantFilter, 'all' | 'pending'> | 'ended' | 'unk
 interface Tenant {
   id: string
   studentId: string
+  roomId: string
   name: string
   initials: string
   property: string
@@ -179,10 +146,12 @@ interface Tenant {
 
 interface PendingApplication {
   id: string
+  studentId: string
   name: string
   initials: string
   property: string
   room: string
+  roomId: string
 }
 
 const $q = useQuasar()
@@ -193,8 +162,11 @@ const filterDialog = ref(false)
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 const applicationAction = ref<string | null>(null)
+interface HomeRoom { id: string; label: string; floor: string | null; tenant: { studentId: string; name: string; initials: string } | null; applicant: { studentId: string; name: string; initials: string; leaseId: string } | null }
+interface HomeGroup { id: string; name: string; rooms: HomeRoom[] }
 const tenants = ref<Tenant[]>([])
 const pendingApplications = ref<PendingApplication[]>([])
+const structuredHomes = ref<HomeGroup[]>([])
 
 const filters: { label: string; value: TenantFilter }[] = [
   { label: 'All', value: 'all' },
@@ -341,11 +313,13 @@ async function loadTenants() {
       const tenantLocation = {
         property: property?.name || 'Unnamed property',
         room: roomName(room),
+        roomId: lease.room_id,
       }
 
       if (lease.status === 'pending') {
         nextPendingApplications.push({
           id: lease.id,
+          studentId: lease.student_id,
           name,
           initials: initialsOf(name),
           ...tenantLocation,
@@ -371,6 +345,37 @@ async function loadTenants() {
 
     tenants.value = nextTenants
     pendingApplications.value = nextPendingApplications
+
+    // Property -> room -> occupant (tenant or pending applicant). Keyed by room id
+    // so each student/applicant shows on their actual room.
+    // Only CURRENT tenants occupy a room in the tree. Ended/terminated leases
+    // (e.g. a declined application -> 'ended', or a moved-out tenant) must not
+    // keep showing as the room occupant.
+    const OCCUPYING = new Set(['active', 'payment-due', 'leaving'])
+    const tenantByRoomId = new Map<string, Tenant>()
+    for (const t of nextTenants) {
+      if (t.roomId && OCCUPYING.has(t.statusKey)) tenantByRoomId.set(t.roomId, t)
+    }
+    const applicantByRoomId = new Map<string, PendingApplication>()
+    for (const a of nextPendingApplications) if (a.roomId) applicantByRoomId.set(a.roomId, a)
+
+    structuredHomes.value = propertyRows.map((property: any) => ({
+      id: property.id,
+      name: property.name || 'Unnamed property',
+      rooms: roomRows
+        .filter((room) => room.accommodation_id === property.id)
+        .map((room) => {
+          const tenant = tenantByRoomId.get(room.id)
+          const applicant = applicantByRoomId.get(room.id)
+          return {
+            id: room.id,
+            label: roomName(room),
+            floor: room.floor || null,
+            tenant: tenant ? { studentId: tenant.studentId, name: tenant.name, initials: tenant.initials } : null,
+            applicant: applicant ? { studentId: applicant.studentId, name: applicant.name, initials: applicant.initials, leaseId: applicant.id } : null,
+          }
+        }),
+    }))
   } catch (error: any) {
     loadError.value = error?.message || 'Failed to load tenants'
   } finally {
@@ -536,4 +541,28 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--m-primary);
 @keyframes pulse { to { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .skeleton-avatar, .skeleton-copy i, .skeleton-badge { animation: none; } }
 @media (max-width: 360px) { .tenant-row { grid-template-columns: 40px minmax(0, 1fr) 20px; gap: var(--m-space-2); } .status-badge { grid-column: 2; justify-self: start; } .row-chevron { grid-column: 3; grid-row: 1 / span 2; } }
+
+/* Property -> room -> occupant tree */
+.homes-list { display: grid; gap: 16px; }
+.home-block { overflow: hidden; border: 1px solid var(--m-border); border-radius: 14px; background: var(--m-surface); }
+.home-heading { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--m-border); background: var(--m-bg); }
+.home-icon { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.home-heading-copy { display: flex; flex-direction: column; min-width: 0; }
+.home-heading-copy strong { color: var(--m-ink); font-size: 14px; font-weight: 700; }
+.home-heading-copy small { color: var(--m-muted); font-size: 11px; }
+.room-row { display: flex; width: 100%; min-height: 62px; align-items: center; gap: 12px; padding: 12px 16px; border: 0; background: var(--m-surface); text-align: left; font: inherit; }
+.room-row + .room-row, .room-row + .room-row--open { border-top: 1px solid var(--m-border); }
+.room-row--open { cursor: default; }
+.room-row--taken { cursor: pointer; }
+.room-row--taken:hover { background: color-mix(in srgb, var(--m-primary) 5%, var(--m-surface)); }
+.room-row--pending { background: color-mix(in srgb, var(--m-warning) 6%, var(--m-surface)); cursor: default; }
+.room-open-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--m-bg); color: var(--m-muted); }
+.room-open-icon--pending { background: var(--m-warning-soft); color: var(--m-warning); }
+.home-empty { margin: 12px; padding: 14px; border: 1px dashed var(--m-border); border-radius: 10px; color: var(--m-muted); font-size: 12px; text-align: center; }
+.room-row .row-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.room-row .row-copy strong { color: var(--m-ink); font-size: 14px; font-weight: 700; }
+.room-row .row-copy small { color: var(--m-muted); font-size: 12px; }
+.room-row--pending .application-actions { display: flex; gap: 8px; }
+.status-badge--neutral { background: var(--m-bg); color: var(--m-muted); }
+
 </style>

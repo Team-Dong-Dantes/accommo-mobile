@@ -100,7 +100,22 @@
                     'radius-top-left': !msg.isLandlord && isPrecededByTheirs(index),
                   }"
                 >
-                  <p class="bubble-text">{{ msg.text }}</p>
+                  <template v-if="!msg.isLandlord && applyPayload(msg)">
+                    <div class="apply-card">
+                      <div class="apply-card-head">
+                        <span class="apply-card-icon" aria-hidden="true"><IconifyIcon icon="lucide:door-open" width="16" /></span>
+                        <div>
+                          <strong>Room request</strong>
+                          <span>{{ (applyPayload(msg) || {}).label || 'Room' }}{{ (applyPayload(msg) || {}).propertyName ? ' · ' + (applyPayload(msg) || {}).propertyName : '' }}</span>
+                        </div>
+                      </div>
+                      <p class="apply-card-body">{{ (applyPayload(msg) || {}).rent ? `${formatPesoInline((applyPayload(msg) || {}).rent || 0)} / month` : 'Rent: to discuss' }} · move-in on request</p>
+                      <button type="button" class="apply-btn apply-btn--tenants" @click="goToTenants">
+                        <IconifyIcon icon="lucide:users" width="15" /> View in Tenants
+                      </button>
+                    </div>
+                  </template>
+                  <p v-else class="bubble-text">{{ msg.text }}</p>
                 </article>
 
                 <!-- Status Indicator below message -->
@@ -151,6 +166,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useChatStore } from '@/stores/chat'
+import { supabase } from '@/shared/utils/supabase'
 import { chatFullscreen } from '@/shared/utils/chatFullscreen'
 
 const router = useRouter()
@@ -291,6 +307,32 @@ onUnmounted(() => {
   chatFullscreen.value = false
   chat.clearActive()
 })
+
+// ---- Room application card (approve/decline in chat) ----
+interface ApplyPayload { kind?: string; studentId?: string; roomId?: string; label?: string; propertyName?: string; rent?: number; startDate?: string; endDate?: string }
+
+function applyPayload(msg: { text?: string }): ApplyPayload | null {
+  const text = msg?.text || ''
+  const marker = '@@apply@@\n'
+  const at = text.indexOf(marker)
+  if (at === -1) return null
+  try {
+    return JSON.parse(text.slice(at + marker.length).trim()) as ApplyPayload
+  } catch {
+    return null
+  }
+}
+
+function formatPesoInline(value: number): string {
+  return '₱' + (value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
+}
+
+function goToTenants() {
+  void router.push('/landlord/tenants')
+}
+
+
+
 </script>
 
 <style scoped>
@@ -613,4 +655,19 @@ onUnmounted(() => {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* Room application card inside the chat */
+.apply-card { min-width: 232px; max-width: 280px; }
+.apply-card-head { display: flex; align-items: center; gap: 8px; }
+.apply-card-icon { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.apply-card-head > div { display: flex; flex-direction: column; }
+.apply-card-head strong { color: var(--m-ink); font-size: 13px; line-height: 1.2; }
+.apply-card-head span { color: var(--m-muted); font-size: 11px; line-height: 1.3; }
+.apply-card-body { margin: 8px 0 10px; color: var(--m-text); font-size: 12px; }
+.apply-card-actions { display: flex; gap: 8px; }
+.apply-btn { display: inline-flex; min-height: 34px; align-items: center; gap: 5px; padding: 0 10px; border: 0; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; }
+.apply-btn--accept { background: var(--m-success, #15803d); color: #fff; }
+.apply-btn--decline { background: var(--m-surface); border: 1px solid var(--m-border); color: var(--m-danger); }
+.apply-card-outcome { margin: 0; color: var(--m-muted); font-size: 12px; font-weight: 600; }
+
 </style>

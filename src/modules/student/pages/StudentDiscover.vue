@@ -522,7 +522,7 @@
         <button
           type="button"
           class="btn-apply-booking"
-          @click="messageManager(selectedRoom.managerId)"
+          @click="openRoomChat(selectedRoom)"
         >
           <span>Message Manager</span>
           <IconifyIcon icon="lucide:message-circle" width="18" />
@@ -820,6 +820,12 @@ function messageManager(managerId: string) {
   void router.push({ path: '/student/messages', query: { landlord: managerId } });
 }
 
+// Open the convo with the manager, carrying the room context so the student can
+// apply from inside the conversation (not from the room details page).
+function openRoomChat(room: DiscoverRoom) {
+  void router.push({ path: '/student/messages', query: { landlord: room.managerId, room: room.id } });
+}
+
 function shareRoom(room: DiscoverRoom) {
   if (navigator.share) {
     navigator.share({
@@ -838,25 +844,80 @@ async function applyToRoom(room: DiscoverRoom) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { void router.push('/login'); return; }
 
-    const now = new Date();
-    const startDate = now.toISOString().split('T')[0];
-    const end = new Date(now.getTime() + 150 * 24 * 60 * 60 * 1000); // 5 months / 1 semester
-    const endDate = end.toISOString().split('T')[0];
+    // Policy: a student must be OSAS-verified before they can apply. Browsing is
+    // always allowed; the DB/RLS is the backstop, this only trips the friendly UI.
+    const { data: spResult } = await (supabase as any)
+      .from('student_profiles')
+      .select('osas_verified_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const osasVerifiedAt = spResult?.osas_verified_at ?? null;
+    if (!osasVerifiedAt) {
+      applying.value = false;
+      $q.notify({
+        type: 'warning',
+        message: 'Verify your enrollment with OSAS before you can apply for a room.',
+      });
+      void router.push('/student/support'); // Support opens on its OSAS/verification tab by default
+      return;
+    }
 
-    const { error: insertError } = await (supabase as any).from('leases').insert({
-      id: crypto.randomUUID(),
-      student_id: user.id,
-      landlord_id: room.managerId,
-      room_id: room.id,
-      monthly_rent: room.rent || 0,
-      start_date: startDate,
-      end_date: endDate,
-      status: 'pending',
+    // The application lives in the student <-> manager conversation. We post a
+    // room-request "card" (human text + an @@apply@@ JSON payload) and do NOT
+    // create a lease yet; only an Approve (manager side, next step) creates an
+    // active lease. This avoids a fake status:'pending' lease.
+    const nowIso = new Date().toISOString();
+    const endIso = new Date(Date.now() + 150 * 24 * 60 * 60 * 1000).toISOString(); // ~5 months / term
+
+    let convoId: string | null = null;
+    const { data: existingConvo } = await (supabase as any)
+      .from('conversations')
+      .select('id')
+      .or(`and(user_a_id.eq.${user.id},user_b_id.eq.${room.managerId}),and(user_a_id.eq.${room.managerId},user_b_id.eq.${user.id})`)
+      .maybeSingle();
+    if (existingConvo) {
+      convoId = existingConvo.id;
+    } else {
+      const { data: createdConvo, error: cvErr } = await (supabase as any)
+        .from('conversations')
+        .insert({
+          user_a_id: user.id,
+          user_b_id: room.managerId,
+          last_message: room.label ? `Room request: ${room.label}` : 'Room request',
+          last_time: nowIso,
+          unread_a: 0,
+          unread_b: 1,
+        })
+        .select('id')
+        .single();
+      if (cvErr) throw cvErr;
+      convoId = createdConvo.id;
+    }
+
+    const payload = JSON.stringify({
+      kind: 'apply',
+      studentId: user.id,
+      roomId: room.id,
+      label: room.label || '',
+      propertyName: room.propertyName || '',
+      rent: room.rent || 0,
+      startDate: nowIso,
+      endDate: endIso,
     });
-    if (insertError) throw insertError;
-    $q.notify({ type: 'positive', message: 'Application submitted! The manager will review it.' });
-    await loadData();
-    backToBrowse();
+    const labelled = room.label ? (room.propertyName ? `${room.label} at ${room.propertyName}` : room.label) : 'a room';
+    const body = `🎯 Room request — ${labelled}\nPlease review my application. I’m available to discuss the move-in and terms.\n\n@@apply@@\n${payload}`;
+
+    const { error: msgErr } = await (supabase as any).from('messages').insert({
+      conversation_id: convoId,
+      sender_id: user.id,
+      body,
+      sent_at: nowIso,
+      status: 'sent',
+    });
+    if (msgErr) throw msgErr;
+
+    $q.notify({ type: 'positive', message: 'Room request sent to the manager. They’ll reply in your chat.' });
+    void router.push({ path: '/student/messages', query: { landlord: room.managerId } });
   } catch (cause) {
     $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Could not submit your application.' });
   } finally {

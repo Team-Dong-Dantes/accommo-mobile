@@ -73,6 +73,19 @@
         </div>
       </header>
 
+      <!-- Apply-for-this-room banner (when arriving from a room) -->
+      <div v-if="roomContext && activeConversation" class="apply-banner">
+        <span class="apply-banner-icon" aria-hidden="true"><IconifyIcon icon="lucide:door-open" width="17" /></span>
+        <span class="apply-banner-copy">
+          <strong>Interested in this room?</strong>
+          <small>Send your application to {{ activeChat.name }} right here.</small>
+        </span>
+        <button type="button" class="apply-banner-btn" :disabled="applyingRoom" @click="sendRoomApply">
+          <q-spinner v-if="applyingRoom" size="15px" color="white" />
+          <span v-else>Apply</span>
+        </button>
+      </div>
+
       <!-- Scrollable Message Bubble Area -->
       <q-scroll-area ref="scrollArea" class="messenger-scroll">
         <div v-if="messagesLoading" class="chat-loading">
@@ -249,6 +262,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { supabase } from '@/shared/utils/supabase'
+import { createNotification } from '@/boot/notify'
 import { chatFullscreen } from '@/shared/utils/chatFullscreen'
 import EmptyState from '@/shared/components/EmptyState.vue'
 
@@ -274,6 +288,8 @@ const filterOptions = [
 const conversations = ref<ConversationItem[]>([])
 const currentUserId = ref<string | null>(null)
 const activeConversation = ref<string | null>(null)
+const roomContext = ref<{ roomId: string; managerId: string } | null>(null)
+const applyingRoom = ref(false)
 const activeChat = ref<ConversationItem>({ id: '', name: '', initials: '', role: '', lastMessage: '', lastTime: null, unread: 0, otherUserId: '' })
 const messages = ref<MessageItem[]>([])
 const messagesLoading = ref(false)
@@ -750,6 +766,8 @@ async function startChatWith(otherUserId: string, name: string) {
 async function openLandlordFromQuery() {
   const landlordId = route.query.landlord as string | undefined
   if (!landlordId || !currentUserId.value) return
+  const roomId = route.query.room as string | undefined
+  if (roomId) roomContext.value = { roomId, managerId: landlordId }
   // If a conversation with this manager already exists on this page, open it.
   const existing = conversations.value.find((c) => c.otherUserId === landlordId)
   if (existing) {
@@ -765,6 +783,43 @@ async function openLandlordFromQuery() {
     }
   } catch (caught) {
     $q.notify({ message: caught instanceof Error ? caught.message : 'Could not open that conversation', color: 'negative', position: 'top' })
+  }
+}
+
+async function sendRoomApply() {
+  if (!roomContext.value || applyingRoom.value || !currentUserId.value) return
+  const { roomId, managerId } = roomContext.value
+  applyingRoom.value = true
+  try {
+    const nowIso = new Date().toISOString()
+    const startDate = nowIso.split('T')[0]
+    const endIso = new Date(Date.now() + 150 * 24 * 60 * 60 * 1000).toISOString()
+    const endDate = endIso.split('T')[0]
+
+    // Real pending lease row so the manager's Tenants page lists this request
+    // per property/room (approval flips it to 'active').
+    const { data: leaseRow, error: leaseInsertError } = await (supabase as any).from('leases').insert({
+      student_id: currentUserId.value,
+      accommodation_manager_id: managerId,
+      room_id: roomId,
+      monthly_rent: 0,
+      start_date: startDate,
+      end_date: endDate,
+      status: 'pending',
+    }).select('id').maybeSingle()
+    if (leaseInsertError) throw leaseInsertError
+
+    const payload = JSON.stringify({ kind: 'apply', studentId: currentUserId.value, roomId, label: '', propertyName: '', rent: 0, startDate: nowIso, endDate: endIso, leaseId: leaseRow?.id })
+    const body = '🎯 Room request — this room\nPlease review my application.\n\n@@apply@@\n' + payload
+    await sendMessage(body)
+    roomContext.value = null
+
+    // Best-effort: let the manager know a new application arrived.
+    try {
+      await createNotification(managerId, 'New room application', 'A student applied to one of your rooms. Review it from Tenants.', 'application', '/landlord/tenants')
+    } catch { /* notifications are non-critical */ }
+  } finally {
+    applyingRoom.value = false
   }
 }
 
@@ -1117,4 +1172,13 @@ h1, h2 { margin: 0; color: var(--m-ink); letter-spacing: -.03em; } h1 { font-siz
 }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: no-preference) { .thread-row { transition: background .15s ease; } }
+
+/* Apply-inside-convo banner */
+.apply-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--m-border); border-radius: 12px; background: var(--m-primary-soft); margin: 8px 12px 0; }
+.apply-banner-icon { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: var(--m-surface); color: var(--m-primary-dark); }
+.apply-banner-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.apply-banner-copy strong { color: var(--m-ink); font-size: 12px; }
+.apply-banner-copy small { color: var(--m-muted); font-size: 11px; }
+.apply-banner-btn { min-height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--m-primary-dark); color: #fff; font-size: 12px; font-weight: 800; cursor: pointer; }
+
 </style>
