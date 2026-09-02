@@ -1,668 +1,575 @@
 <template>
-  <q-page class="tenant-profile-page">
-    <!-- Sticky header -->
-    <div class="sticky-header">
-      <div class="row items-center no-wrap">
-        <q-btn flat round dense icon="arrow_back" @click="goBack" />
-        <div class="col text-center">
-          <div class="header-name">{{ tenant.name }}</div>
-          <div class="header-sub">{{ tenant.course }}</div>
-        </div>
-        <div class="row no-wrap items-center">
-          <q-btn flat round dense icon="chat_bubble_outline" @click="openChat" />
-          <q-btn flat round dense icon="close" @click="closeProfile" />
-        </div>
-      </div>
-    </div>
-
-    <div class="content q-pa-md">
-      <!-- Profile identity -->
-      <div class="profile-block text-center">
-        <q-avatar size="84px" style="background-color: #00897b; color: #ffffff;">
-          <span class="avatar-initials">{{ tenant.initials }}</span>
-        </q-avatar>
-        <div class="profile-name q-mt-sm">
-          {{ tenant.name }}
-          <q-icon v-if="tenant.verified" name="verified" size="18px" style="color: #00897b; vertical-align: middle;" />
-        </div>
-        <div class="profile-id">{{ tenant.studentId }}</div>
+  <q-page class="student-detail-page">
+    <main class="detail-shell">
+      <div v-if="loading" class="detail-state" role="status" aria-live="polite">
+        <q-spinner color="primary" size="32px" />
+        <span>Loading student…</span>
       </div>
 
-      <!-- Current stay card -->
-      <q-card flat class="stay-card q-mt-md" style="background-color: #e0f2f1;">
-        <div class="row items-center no-wrap">
-          <q-icon name="person" size="28px" style="color: #00897b;" />
-          <div class="col q-ml-md">
-            <div class="stay-title">{{ tenant.currentStay.type }} · {{ tenant.currentStay.room }}</div>
-            <div class="stay-sub">{{ tenant.currentStay.property }} · {{ tenant.currentStay.floor }}</div>
+      <div v-else-if="error" class="detail-state detail-state--error" role="alert">
+        <IconifyIcon icon="lucide:circle-alert" width="26" />
+        <strong>Couldn’t load this student</strong>
+        <span>{{ error }}</span>
+        <q-btn outline no-caps color="primary" label="Try again" @click="load" />
+      </div>
+
+      <template v-else-if="student">
+        <!-- Profile hero -->
+        <section class="surface-card profile-card">
+          <div class="profile-hero">
+            <span class="profile-avatar-wrap">
+              <span class="profile-avatar">{{ student.initials }}</span>
+            </span>
+            <div class="profile-headline">
+              <h1>{{ student.name }}</h1>
+              <p>{{ student.program || 'Student' }}</p>
+              <span class="verified-pill" :class="{ 'verified-pill--on': student.verified }">
+                <IconifyIcon :icon="student.verified ? 'lucide:badge-check' : 'lucide:clock-3'" width="13" />
+                {{ student.verified ? 'OSAS verified' : 'Not OSAS verified' }}
+              </span>
+            </div>
           </div>
-          <q-badge class="current-badge" style="background-color: #ffffff; color: #00897b;">Current</q-badge>
+
+          <ul class="profile-info">
+            <li><span class="info-icon"><IconifyIcon icon="lucide:id-card" width="17" /></span><div><small>Student ID</small><strong>{{ student.studentId || '—' }}</strong></div></li>
+            <li><span class="info-icon"><IconifyIcon icon="lucide:school" width="17" /></span><div><small>College</small><strong>{{ student.college || '—' }}</strong></div></li>
+            <li><span class="info-icon"><IconifyIcon icon="lucide:graduation-cap" width="17" /></span><div><small>Year level</small><strong>{{ student.yearLevel || '—' }}</strong></div></li>
+            <li><span class="info-icon"><IconifyIcon icon="lucide:mail" width="17" /></span><div><small>Email</small><strong>{{ student.email || '—' }}</strong></div></li>
+            <li><span class="info-icon"><IconifyIcon icon="lucide:phone" width="17" /></span><div><small>Phone</small><strong>{{ student.phone || '—' }}</strong></div></li>
+          </ul>
+        </section>
+
+        <!-- Pending decision (only when this manager has a pending application from them) -->
+        <section v-if="pendingLease" class="surface-card decision-card" aria-label="Application decision">
+          <div class="decision-head">
+            <span class="decision-icon"><IconifyIcon icon="lucide:clock-3" width="18" /></span>
+            <div>
+              <h2>Application pending</h2>
+              <p>{{ pendingLease.roomLabel }} · {{ pendingLease.property }} · {{ formatPeso(pendingLease.monthlyRent) }}/mo · move-in {{ formatDate(pendingLease.startDate) }}</p>
+            </div>
+          </div>
+          <div class="decision-actions">
+            <q-btn unelevated no-caps class="primary-btn" label="Accept application" :loading="acting === 'accept'" @click="decide('accept')" />
+            <q-btn outline no-caps class="ghost-danger-btn" label="Decline" :loading="acting === 'decline'" @click="decide('decline')" />
+          </div>
+        </section>
+
+        <!-- Tabs (folder-tab design, same as accommodation detail) -->
+        <section class="tab-workspace" aria-label="Student sections">
+          <q-tabs v-model="activeTab" dense no-caps align="left" class="folder-tabs">
+            <q-tab v-for="tab in tabs" :key="tab.value" :name="tab.value" :label="tab.label" class="folder-tab" />
+          </q-tabs>
+
+          <q-tab-panels v-model="activeTab" animated class="tab-card">
+            <!-- Overview: current stay info -->
+            <q-tab-panel name="overview" class="q-pa-none">
+              <div v-if="!activeLease && !pendingLease" class="tab-empty">
+                <IconifyIcon icon="lucide:house" width="26" />
+                <p>No active stay for this student at your property.</p>
+              </div>
+              <div v-else class="content-stack">
+                <div v-if="activeLease" class="inner-card">
+                  <p class="list-eyebrow">Current stay</p>
+                  <div class="fact-row"><span>Property</span><strong>{{ activeLease.property }}</strong></div>
+                  <div class="fact-row"><span>Room</span><strong>{{ activeLease.roomLabel }}<template v-if="activeLease.floor"> · {{ activeLease.floor }}</template></strong></div>
+                  <div class="fact-row"><span>Monthly rent</span><strong>{{ formatPeso(activeLease.monthlyRent) }}</strong></div>
+                  <div class="fact-row"><span>Lease</span><strong>{{ formatDate(activeLease.startDate) }} – {{ formatDate(activeLease.endDate) }}</strong></div>
+                  <div class="fact-row"><span>Advance</span><strong>{{ formatPeso(activeLease.advancePaid) }}</strong></div>
+                  <div class="fact-row"><span>Deposit</span><strong>{{ formatPeso(activeLease.depositPaid) }}</strong></div>
+                  <div class="fact-row"><span>Rent status</span><strong :class="(activeLease.balanceDue ?? 0) > 0 ? 'tone-danger' : 'tone-ok'">{{ (activeLease.balanceDue ?? 0) > 0 ? 'Has dues' : 'All paid up' }}</strong></div>
+                </div>
+                <div v-if="pendingLease" class="inner-card">
+                  <p class="list-eyebrow">Pending request</p>
+                  <div class="fact-row"><span>Room</span><strong>{{ pendingLease.roomLabel }}</strong></div>
+                  <div class="fact-row"><span>Property</span><strong>{{ pendingLease.property }}</strong></div>
+                  <div class="fact-row"><span>Monthly</span><strong>{{ formatPeso(pendingLease.monthlyRent) }}</strong></div>
+                  <div class="fact-row"><span>Move-in</span><strong>{{ formatDate(pendingLease.startDate) }}</strong></div>
+                  <div class="fact-row"><span>Term ends</span><strong>{{ formatDate(pendingLease.endDate) }}</strong></div>
+                </div>
+              </div>
+            </q-tab-panel>
+
+            <!-- Payments -->
+            <q-tab-panel name="payments" class="q-pa-none">
+              <div class="pay-head">
+                <div class="pay-summary">
+                  <span class="pay-kicker">Rent balance</span>
+                  <strong v-if="outstandingTotal > 0" class="pay-amount tone-danger">{{ formatPeso(outstandingTotal) }}</strong>
+                  <strong v-else class="pay-amount tone-ok">All settled</strong>
+                  <small>{{ payments.length }} {{ payments.length === 1 ? 'record' : 'records' }}</small>
+                </div>
+                <button type="button" class="log-pay-btn" :disabled="!activeLease" @click="logDialog = true">
+                  <IconifyIcon icon="lucide:wallet-cards" width="16" />
+                  Log payment
+                </button>
+              </div>
+
+              <div v-if="!payments.length" class="tab-empty">
+                <IconifyIcon icon="lucide:receipt-text" width="26" />
+                <p>{{ activeLease ? 'No payments recorded yet.' : 'No active lease for this student.' }}</p>
+              </div>
+
+              <div v-else class="content-stack">
+                <template v-if="attentionPayments.length">
+                  <p class="pay-section-label">Needs attention</p>
+                  <div v-for="payment in attentionPayments" :key="payment.id" class="payment-row">
+                    <span class="payment-dot" :class="`payment-dot--${payment.tone}`" aria-hidden="true" />
+                    <div class="payment-copy">
+                      <strong>{{ formatPeso(payment.amount) }}</strong>
+                      <span>{{ payment.monthLabel }}</span>
+                    </div>
+                    <span class="status-chip" :class="`status-chip--${payment.tone}`">{{ payment.label }}</span>
+                  </div>
+                </template>
+
+                <template v-if="paidPayments.length">
+                  <p class="pay-section-label">Recorded payments</p>
+                  <div v-for="payment in paidPayments" :key="payment.id" class="payment-row">
+                    <span class="payment-dot payment-dot--success" aria-hidden="true"><IconifyIcon icon="lucide:circle-check" width="14" /></span>
+                    <div class="payment-copy">
+                      <strong>{{ formatPeso(payment.amount) }}</strong>
+                      <span>{{ payment.monthLabel }}</span>
+                    </div>
+                    <span class="status-chip status-chip--success">{{ payment.label }}</span>
+                  </div>
+                </template>
+              </div>
+            </q-tab-panel>
+
+            <!-- Boarding history -->
+            <q-tab-panel name="history" class="q-pa-none">
+              <div class="history-head">
+                <div class="history-title">
+                  <p class="pay-kicker">Boarding history</p>
+                  <strong>{{ pastLeases.length }} past {{ pastLeases.length === 1 ? 'stay' : 'stays' }}</strong>
+                </div>
+              </div>
+              <div v-if="!pastLeases.length" class="tab-empty">
+                <IconifyIcon icon="lucide:history" width="26" />
+                <p>No past stays at your property yet.</p>
+              </div>
+              <div v-else class="timeline">
+                <div v-for="lease in pastLeases" :key="lease.id" class="timeline-item">
+                  <span class="timeline-marker" aria-hidden="true">
+                    <span class="timeline-dot" />
+                    <span v-if="lease !== pastLeases[pastLeases.length - 1]" class="timeline-line" />
+                  </span>
+                  <div class="history-card">
+                    <div class="history-top">
+                      <strong>{{ lease.property }}</strong>
+                      <span class="status-chip" :class="historyTone(lease.status)">{{ historyLabel(lease.status) }}</span>
+                    </div>
+                    <span class="history-room"><IconifyIcon icon="lucide:door-open" width="13" /> {{ lease.roomLabel }}</span>
+                    <span class="history-dates"><IconifyIcon icon="lucide:calendar" width="13" /> {{ formatDate(lease.startDate) }} – {{ formatDate(lease.endDate) }}</span>
+                  </div>
+                </div>
+              </div>
+            </q-tab-panel>
+          </q-tab-panels>
+        </section>
+      </template>
+    <!-- Log payment dialog -->
+    <q-dialog v-model="logDialog" position="bottom">
+      <q-card class="sheet-card full-width pb-safe">
+        <div class="sheet-head">
+          <h2>Log payment</h2>
+          <q-btn flat round dense icon="close" color="grey-6" v-close-popup aria-label="Close" />
         </div>
+        <q-card-section class="sheet-body">
+          <p class="field-label">Amount (₱)</p>
+          <q-input v-model="logAmount" type="number" outlined dense class="field-input" placeholder="e.g. 2500" />
+          <p class="field-label">Method</p>
+          <q-select v-model="logMethod" outlined dense class="field-input" bg-color="white" :options="logMethods" emit-value map-options />
+          <q-btn unelevated no-caps color="primary" label="Save payment" class="primary-btn full-width" :loading="logging" :disable="!logAmount || Number(logAmount) <= 0 || !logMethod" @click="submitLogPayment" />
+        </q-card-section>
       </q-card>
-
-      <!-- Quick stats -->
-      <div class="row q-mt-md q-col-gutter-sm">
-        <div v-for="stat in tenant.stats" :key="stat.label" class="col-4">
-          <q-card flat class="stat-card" :style="{ backgroundColor: stat.bg }">
-            <q-icon :name="stat.icon" size="22px" style="color: #00897b;" />
-            <div class="stat-value">{{ stat.value }}</div>
-            <div class="stat-label">{{ stat.label }}</div>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- Pill tabs -->
-      <div class="pill-tabs q-mt-lg">
-        <button
-          v-for="tab in tabDefs"
-          :key="tab.value"
-          class="pill-tab"
-          :class="{ active: activeTab === tab.value }"
-          @click="activeTab = tab.value"
-        >
-          {{ tab.label }}<span v-if="tab.value === 'reviews'"> ({{ tenant.reviews.length }})</span>
-        </button>
-      </div>
-
-      <!-- Tab content -->
-      <div class="tab-content q-mt-md">
-        <!-- Billing -->
-        <div v-if="activeTab === 'billing'">
-          <q-card flat class="placeholder-card">
-            <div class="placeholder-text">No billing records to show.</div>
-          </q-card>
-        </div>
-
-        <!-- Info -->
-        <div v-if="activeTab === 'info'">
-          <div class="section-header">CONTACT</div>
-          <q-card v-for="c in tenant.contacts" :key="c.label" flat class="info-card">
-            <div class="row items-center no-wrap">
-              <q-icon :name="c.icon" size="22px" style="color: #00897b;" />
-              <div class="col q-ml-md">
-                <div class="info-label">{{ c.label }}</div>
-                <div class="info-value">{{ c.value }}</div>
-              </div>
-            </div>
-          </q-card>
-
-          <div class="section-header q-mt-lg">EMERGENCY CONTACT</div>
-          <q-card flat class="emergency-card" style="background-color: #ffebee;">
-            <div class="row items-center no-wrap">
-              <q-avatar size="40px" style="background-color: #ffcdd2; color: #c62828;">
-                <q-icon name="person" size="22px" />
-              </q-avatar>
-              <div class="col q-ml-md">
-                <div class="info-value">{{ tenant.emergency.name }}</div>
-                <div class="info-sub">{{ tenant.emergency.relation }} · {{ tenant.emergency.phone }}</div>
-              </div>
-            </div>
-          </q-card>
-
-          <div class="section-header q-mt-lg">LEASE</div>
-          <div class="lease-row">
-            <span class="lease-label">Move-in</span>
-            <span class="lease-value">{{ tenant.lease.moveIn }}</span>
-          </div>
-        </div>
-
-        <!-- History -->
-        <div v-if="activeTab === 'history'">
-          <div class="section-header">BOARDING TIMELINE</div>
-          <div class="timeline">
-            <div v-for="item in tenant.timeline" :key="item.id" class="timeline-item">
-              <div class="timeline-dot" :style="{ backgroundColor: item.dotColor }">
-                <q-icon :name="item.status === 'current' ? 'check' : 'schedule'" size="14px" style="color: #ffffff;" />
-              </div>
-              <q-card flat class="timeline-card" :style="{ backgroundColor: item.status === 'current' ? '#e0f2f1' : '#f5f5f5' }">
-                <div class="row items-center justify-between no-wrap">
-                  <div class="timeline-title">{{ item.title }}</div>
-                  <div v-if="item.status === 'current'" class="active-badge">Active</div>
-                </div>
-                <div class="timeline-sub">{{ item.property }}</div>
-                <div class="timeline-sub">{{ item.period }}</div>
-                <div v-if="item.note" class="timeline-note">{{ item.note }}</div>
-                <div v-if="item.rating" class="stars q-mt-xs">
-                  <q-icon
-                    v-for="(filled, i) in filledStars(item.rating)"
-                    :key="i"
-                    :name="filled ? 'star' : 'star_border'"
-                    :style="{ color: filled ? '#fbc02d' : '#cfcfcf', fontSize: '16px' }"
-                  />
-                </div>
-              </q-card>
-            </div>
-          </div>
-        </div>
-
-        <!-- Reviews -->
-        <div v-if="activeTab === 'reviews'">
-          <div class="section-header">LEAVE A REVIEW</div>
-          <q-card flat class="review-card">
-            <div class="stars q-mb-md">
-              <q-icon
-                v-for="i in 5"
-                :key="i"
-                :name="i <= newReviewRating ? 'star' : 'star_border'"
-                :style="{ color: i <= newReviewRating ? '#fbc02d' : '#cfcfcf', fontSize: '28px', cursor: 'pointer' }"
-                @click="newReviewRating = i"
-              />
-            </div>
-            <q-input
-              v-model="newReviewNote"
-              type="textarea"
-              borderless
-              placeholder="Write a note about this tenant (optional)..."
-              class="review-input"
-            />
-            <q-btn
-              unelevated
-              class="submit-review"
-              style="background-color: #e0e0e0; color: #ffffff;"
-              @click="submitReview"
-            >
-              Submit Review
-            </q-btn>
-          </q-card>
-
-          <div v-if="tenant.reviews.length" class="q-mt-lg">
-            <div v-for="r in tenant.reviews" :key="r.id" class="review-item">
-              <div class="row items-center justify-between no-wrap">
-                <span class="review-author">{{ r.author }}</span>
-                <span class="review-date">{{ r.date }}</span>
-              </div>
-              <div class="stars q-mt-xs">
-                <q-icon
-                  v-for="(filled, i) in filledStars(r.rating)"
-                  :key="i"
-                  :name="filled ? 'star' : 'star_border'"
-                  :style="{ color: filled ? '#fbc02d' : '#cfcfcf', fontSize: '16px' }"
-                />
-              </div>
-              <div class="review-note">{{ r.note }}</div>
-            </div>
-          </div>
-          <div v-else class="empty-state q-mt-lg">
-            <q-icon name="star" size="56px" style="color: #e0e0e0;" />
-            <div class="empty-text">No reviews yet</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </q-dialog>
+    </main>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { supabase } from '@/shared/utils/supabase'
+import { createNotification } from '@/boot/notify'
 
-interface QuickStat {
-  value: string
-  label: string
-  icon: string
-  bg: string
-}
-
-interface ContactItem {
-  icon: string
-  label: string
-  value: string
-}
-
-interface EmergencyContact {
-  name: string
-  relation: string
-  phone: string
-}
-
-interface TimelineItem {
-  id: number
-  status: 'current' | 'past'
-  title: string
+interface StayLease {
+  id: string
+  status: string
+  startDate: string | null
+  endDate: string | null
+  monthlyRent: number
+  advancePaid: number
+  depositPaid: number
+  roomLabel: string
+  floor: string | null
   property: string
-  period: string
-  note: string
-  rating: number | null
-  dotColor: string
+  balanceDue: number
 }
 
-interface Review {
-  id: number
-  author: string
-  rating: number
-  note: string
-  date: string
-}
-
-interface TenantProfile {
-  name: string
-  course: string
-  initials: string
-  verified: boolean
-  studentId: string
-  currentStay: {
-    type: string
-    room: string
-    property: string
-    floor: string
-  }
-  stats: QuickStat[]
-  contacts: ContactItem[]
-  emergency: EmergencyContact
-  lease: { moveIn: string }
-  timeline: TimelineItem[]
-  reviews: Review[]
-}
-
-type TabValue = 'billing' | 'info' | 'history' | 'reviews'
-
-const router = useRouter()
-
-const activeTab = ref<TabValue>('info')
-
-const tabDefs: ReadonlyArray<{ value: TabValue; label: string }> = [
-  { value: 'billing', label: 'Billing' },
-  { value: 'info', label: 'Info' },
-  { value: 'history', label: 'History' },
-  { value: 'reviews', label: 'Reviews' },
+const route = useRoute()
+const $q = useQuasar()
+const loading = ref(true)
+const error = ref<string | null>(null)
+const acting = ref<'accept' | 'decline' | null>(null)
+const logDialog = ref(false)
+const logging = ref(false)
+const logAmount = ref('')
+const logMethod = ref<string | null>(null)
+const logMethods = [
+  { label: 'GCash', value: 'gcash' },
+  { label: 'Maya', value: 'maya' },
+  { label: 'Bank transfer', value: 'bank' },
+  { label: 'Cash', value: 'cash' },
+  { label: 'Other', value: 'others' },
 ]
 
-const newReviewRating = ref(0)
-const newReviewNote = ref('')
+const student = ref<{
+  name: string; initials: string; studentId: string | null; program: string | null
+  college: string | null; yearLevel: string | null; email: string | null; phone: string | null; verified: boolean
+} | null>(null)
+const leases = ref<StayLease[]>([])
+const payments = ref<{ id: string; amount: number; monthLabel: string; label: string; tone: string }[]>([])
+const attentionPayments = computed(() => payments.value.filter((p) => p.tone !== 'success'))
+const paidPayments = computed(() => payments.value.filter((p) => p.tone === 'success'))
+const outstandingTotal = computed(() => attentionPayments.value.reduce((sum, p) => sum + p.amount, 0))
 
-const tenant = reactive<TenantProfile>({
-  name: 'Maria Santos',
-  course: 'BS Computer Eng...',
-  initials: 'MS',
-  verified: true,
-  studentId: 'ISU-2021-00342',
-  currentStay: {
-    type: 'Solo',
-    room: 'Room 2-B',
-    property: 'Pinzon Student Hub',
-    floor: 'Floor 2',
-  },
-  stats: [
-    { value: '₱3,500', label: 'MONTHLY', icon: 'credit_card', bg: '#e0f2f1' },
-    { value: '3 mo', label: 'PAY STREAK', icon: 'check_circle', bg: '#ede7f6' },
-    { value: '0', label: 'REVIEWS', icon: 'star', bg: '#fff3e0' },
-  ],
-  contacts: [
-    { icon: 'smartphone', label: 'Mobile', value: '+63 912 111 2233' },
-    { icon: 'email', label: 'Email', value: 'm.santos@isu.edu.ph' },
-    { icon: 'badge', label: 'Student ID', value: 'ISU-2021-00342' },
-  ],
-  emergency: {
-    name: 'Carla Santos',
-    relation: 'Mother',
-    phone: '+63 912 444 5566',
-  },
-  lease: {
-    moveIn: 'Jan 1, 2026',
-  },
-  timeline: [
-    {
-      id: 1,
-      status: 'current',
-      title: 'CURRENT STAY',
-      property: 'Pinzon Student Hub',
-      period: 'Solo · Room 2-B · Jan 1, 2026 - present',
-      note: '',
-      rating: null,
-      dotColor: '#00897b',
-    },
-    {
-      id: 2,
-      status: 'past',
-      title: 'BEDSPACER',
-      property: 'ISU Gate Apartment',
-      period: 'Jun 2024 - Dec 2024',
-      note: 'Moved to closer property',
-      rating: 4,
-      dotColor: '#9e9e9e',
-    },
-    {
-      id: 3,
-      status: 'past',
-      title: 'SHARED',
-      property: 'Green Meadows BH',
-      period: 'Jan 2024 - May 2024',
-      note: 'Transferred due to noise complaints',
-      rating: 3,
-      dotColor: '#9e9e9e',
-    },
-  ],
-  reviews: [],
-})
+const pendingLease = computed(() => leases.value.find((l) => l.status === 'pending') ?? null)
+const activeLease = computed(() => leases.value.find((l) => l.status === 'active' || l.status === 'leave_requested') ?? null)
+const pastLeases = computed(() => leases.value.filter((l) => !['pending', 'active', 'leave_requested'].includes(l.status)))
 
-function filledStars(rating: number): boolean[] {
-  return Array.from({ length: 5 }, (_, i) => i < rating)
+const tabs = [
+  { value: 'overview', label: 'Overview' },
+  { value: 'payments', label: 'Payments' },
+  { value: 'history', label: 'Boarding history' },
+]
+const activeTab = ref('overview')
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  const first = parts[0] ?? ''
+  const last = parts[parts.length - 1] ?? ''
+  if (!parts.length) return 'ST'
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase()
+  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
+}
+function formatPeso(v: number | null | undefined): string {
+  return '₱' + (Number(v) || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
+}
+function formatDate(v: string | null | undefined): string {
+  if (!v) return '—'
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+function historyLabel(status: string): string {
+  if (status === 'terminated') return 'Terminated'
+  if (status === 'leave_requested') return 'Left early'
+  return 'Ended'
+}
+function historyTone(status: string): string {
+  if (status === 'terminated') return 'status-chip--danger'
+  return 'status-chip--neutral'
+}
+function monthLabel(month: string | null): string {
+  if (!month) return '—'
+  const d = new Date(`${month}-01T00:00:00`)
+  return Number.isNaN(d.getTime()) ? month : d.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
 }
 
-function submitReview() {
-  if (!newReviewNote.value.trim() && newReviewRating.value === 0) return
-  tenant.reviews.push({
-    id: Date.now(),
-    author: 'You',
-    rating: newReviewRating.value,
-    note: newReviewNote.value.trim() || '(no note)',
-    date: new Date().toLocaleDateString(),
-  })
-  newReviewNote.value = ''
-  newReviewRating.value = 0
+async function load() {
+  loading.value = true
+  error.value = null
+  try {
+    const studentId = String(route.params.tenantId || '')
+    if (!studentId) throw new Error('No student id provided')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+
+    const [userResult, profileResult, leaseResult, pendingPay] = await Promise.all([
+      supabase.from('users').select('full_name, initials, email, phone, status').eq('id', studentId).maybeSingle(),
+      supabase.from('student_profiles').select('student_id, program, college, year_level, osas_verified_at').eq('user_id', studentId).maybeSingle(),
+      (supabase as any)
+        .from('leases')
+        .select('id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, room:rooms(room_number, label, floor, accommodation:accommodations(name))')
+        .eq('student_id', studentId)
+        .eq('accommodation_manager_id', user.id)
+        .order('start_date', { ascending: false }),
+      supabase.from('payments').select('id, amount, status, month, paid_at').eq('lease_id', user.id).limit(1),
+    ])
+
+    const u = userResult.data as { full_name: string | null; initials: string | null; email: string | null; phone: string | null; status: string | null } | null
+    const p = profileResult.data as { student_id: string | null; program: string | null; college: string | null; year_level: number | null; osas_verified_at: string | null } | null
+    const leaseRows = (leaseResult.data ?? []) as any[]
+
+    const name = u?.full_name || 'Student'
+    student.value = {
+      name,
+      initials: u?.initials || initialsOf(name),
+      studentId: p?.student_id ?? null,
+      program: p?.program ?? null,
+      college: p?.college ?? null,
+      yearLevel: p?.year_level ? `${p.year_level}${p.year_level === 1 ? 'st' : p.year_level === 2 ? 'nd' : p.year_level === 3 ? 'rd' : 'th'} Year` : null,
+      email: u?.email ?? null,
+      phone: u?.phone ?? null,
+      verified: Boolean(p?.osas_verified_at),
+    }
+
+    leases.value = leaseRows.map((l) => {
+      const room = l.room || {}
+      return {
+        id: l.id,
+        status: l.status,
+        startDate: l.start_date,
+        endDate: l.end_date,
+        monthlyRent: Number(l.monthly_rent || 0),
+        advancePaid: Number(l.advance_paid || 0),
+        depositPaid: Number(l.deposit_paid || 0),
+        roomLabel: room.label || (room.room_number ? `Room ${room.room_number}` : 'Room'),
+        floor: room.floor || null,
+        property: room.accommodation?.name || 'Accommodation',
+        balanceDue: 0,
+      }
+    })
+
+    const active = leases.value.find((l) => l.status === 'active' || l.status === 'leave_requested')
+    if (active) {
+      const { data: payRows } = await supabase
+        .from('payments')
+        .select('id, amount, status, month, paid_at')
+        .eq('lease_id', active.id)
+        .order('month', { ascending: true })
+      const tone = { overdue: 'danger', due: 'warning', pending_verification: 'warning', paid: 'success' } as Record<string, string>
+      const label = { overdue: 'Overdue', due: 'Due', pending_verification: 'Pending review', paid: 'Paid' } as Record<string, string>
+      payments.value = ((payRows ?? []) as any[]).map((pay) => ({
+        id: pay.id,
+        amount: Number(pay.amount || 0),
+        monthLabel: monthLabel(pay.month),
+        label: label[pay.status] || pay.status || '—',
+        tone: tone[pay.status] || 'neutral',
+      }))
+    } else {
+      payments.value = []
+    }
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'Failed to load student'
+  } finally {
+    loading.value = false
+  }
 }
 
-function goBack() {
-  void router.back()
+async function submitLogPayment() {
+  const lease = activeLease.value
+  const amount = Number(logAmount.value)
+  if (!lease || !logMethod.value || !amount || amount <= 0 || logging.value) return
+  logging.value = true
+  try {
+    const now = new Date()
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await (supabase as any).from('payments').insert({
+      lease_id: lease.id,
+      amount,
+      month,
+      method: logMethod.value,
+      status: 'paid',
+      paid_at: now.toISOString(),
+      verified_by: user?.id ?? null,
+      description: 'Logged by manager',
+    })
+    if (error) throw error
+    logDialog.value = false
+    logAmount.value = ''
+    $q.notify({ type: 'positive', message: 'Payment logged.' })
+    const studentUserId = String(route.params.tenantId || '')
+    try {
+      await createNotification(studentUserId, 'Payment received', `We recorded your ${formatPeso(amount)} rent payment. Thanks!`, 'payment', '/student/payments')
+    } catch { /* notifications are non-critical */ }
+    await load()
+  } catch (cause) {
+    $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Could not log payment' })
+  } finally {
+    logging.value = false
+  }
 }
 
-function openChat() {
-  void router.push('/landlord/chat')
+async function decide(action: 'accept' | 'decline') {
+  const lease = pendingLease.value
+  if (!lease || acting.value) return
+  acting.value = action
+  try {
+    const { error: err } = await (supabase as any)
+      .from('leases')
+      .update({ status: action === 'accept' ? 'active' : 'ended' })
+      .eq('id', lease.id)
+    if (err) throw err
+    $q.notify({ type: 'positive', message: action === 'accept' ? 'Application accepted — lease is active.' : 'Application declined.' })
+    const studentUserId = String(route.params.tenantId || '')
+    try {
+      await createNotification(
+        studentUserId,
+        action === 'accept' ? 'Application accepted 🎉' : 'Application declined',
+        action === 'accept' ? 'Your room application was approved — your lease is now active.' : 'Your room application was declined by the manager.',
+        'application',
+        action === 'accept' ? '/student/stay' : '/student/discover',
+      )
+    } catch { /* notifications are non-critical */ }
+    await load()
+  } catch (cause) {
+    $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Update failed' })
+  } finally {
+    acting.value = null
+  }
 }
 
-function closeProfile() {
-  void router.push('/landlord/tenants')
-}
+onMounted(() => void load())
 </script>
 
 <style scoped>
-.tenant-profile-page {
-  min-height: 100vh;
-  background-color: #ffffff;
-}
+.student-detail-page { min-height: 100%; background: var(--m-bg); color: var(--m-text); }
+.detail-shell { width: min(100%, 760px); margin: 0 auto; padding: var(--m-space-3) var(--m-page-gutter) var(--m-space-8); }
+.detail-state { display: grid; min-height: 40vh; place-items: center; align-content: center; gap: 10px; color: var(--m-muted); text-align: center; }
+.detail-state--error { color: var(--m-danger); }
+.surface-card { border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
 
-.sticky-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background-color: #ffffff;
-  padding: 10px 12px;
-  border-bottom: 1px solid #eeeeee;
-}
+/* Profile hero */
+.profile-card { margin-bottom: var(--m-space-4); padding: var(--m-space-5); }
+.profile-hero { display: flex; align-items: center; gap: var(--m-space-4); }
+.profile-avatar-wrap { position: relative; }
+.profile-avatar { display: grid; width: 76px; height: 76px; place-items: center; border-radius: 50%; background: linear-gradient(135deg, var(--m-primary-dark), var(--m-primary)); color: #fff; font-family: var(--m-font-display); font-size: 26px; font-weight: 800; box-shadow: 0 0 0 3px var(--m-surface), 0 0 0 5px var(--m-primary-soft); }
+.profile-headline { min-width: 0; flex: 1; }
+.profile-headline h1 { margin: 0; color: var(--m-ink); font-family: var(--m-font-display); font-size: 21px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; overflow-wrap: anywhere; }
+.profile-headline p { margin: 3px 0 8px; color: var(--m-muted); font-size: 12px; }
+.verified-pill { display: inline-flex; min-height: 24px; align-items: center; gap: 5px; padding: 0 9px; border-radius: 999px; font-size: 11px; font-weight: 750; background: var(--m-warning-soft); color: var(--m-warning); }
+.verified-pill--on { background: var(--m-success-soft); color: var(--m-success); }
+.profile-info { display: grid; gap: 0; margin: var(--m-space-4) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--m-border); }
+.profile-info li { display: flex; align-items: center; gap: var(--m-space-3); padding: 11px 2px; }
+.profile-info li + li { border-top: 1px solid var(--m-border); }
+.info-icon { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: var(--m-bg); color: var(--m-primary-dark); }
+.profile-info li > div { display: flex; min-width: 0; flex-direction: column; }
+.profile-info small { color: var(--m-muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.profile-info strong { color: var(--m-ink); font-size: 13px; margin-top: 1px; overflow-wrap: anywhere; }
 
-.header-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: #111827;
-}
+.decision-card { margin-bottom: var(--m-space-4); padding: var(--m-space-4); border-color: color-mix(in srgb, var(--m-warning) 30%, var(--m-border)); background: var(--m-warning-soft); }
+.decision-head { display: flex; align-items: flex-start; gap: var(--m-space-3); }
+.decision-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--m-surface); color: var(--m-warning); }
+.decision-head h2 { margin: 0; color: var(--m-ink); font-size: 15px; font-weight: 800; }
+.decision-head p { margin: 3px 0 0; color: var(--m-muted); font-size: 12px; }
+.decision-actions { display: grid; grid-template-columns: 1fr auto; gap: var(--m-space-2); margin-top: var(--m-space-4); }
+.primary-btn { border-radius: var(--m-radius-sm); background: var(--m-primary-dark); }
+.ghost-danger-btn { border-radius: var(--m-radius-sm); color: var(--m-danger); }
 
-.header-sub {
-  font-size: 12px;
-  color: #6b7280;
-}
+.stay-card { margin-bottom: var(--m-space-4); padding: var(--m-space-4); }
+.stay-top { display: flex; align-items: center; gap: var(--m-space-3); }
+.stay-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.stay-copy { min-width: 0; flex: 1; }
+.stay-copy h2 { margin: 0; color: var(--m-ink); font-size: 16px; font-weight: 800; }
+.stay-copy p { margin: 2px 0 0; color: var(--m-muted); font-size: 12px; }
+.stay-badge { flex: 0 0 auto; min-height: 22px; padding: 0 9px; border-radius: 999px; background: var(--m-success-soft); color: var(--m-success); font-size: 11px; font-weight: 800; }
+.stay-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--m-space-2); margin-top: var(--m-space-4); }
+.stay-meta > div { min-width: 0; padding: 10px; border-radius: 8px; background: var(--m-bg); }
+.stay-meta span { display: block; color: var(--m-muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.stay-meta strong { display: block; margin-top: 3px; color: var(--m-ink); font-size: 11px; overflow-wrap: anywhere; }
+.tone-danger { color: var(--m-danger); }
+.tone-ok { color: var(--m-success); }
 
-.profile-block {
-  margin-top: 16px;
-}
+/* Folder-tab design (same as accommodation detail) */
+.tab-workspace { margin: 0 calc(-1 * var(--m-page-gutter)) !important; padding: 0 !important; }
+.tab-workspace :deep(.q-tabs) { margin: 0 !important; box-shadow: none; }
+.folder-tabs { margin: 0 !important; }
+.tab-card { margin: 0 !important; }
+.tab-card :deep(.q-tab-panel) { margin: 0 !important; }
 
-.avatar-initials {
-  font-size: 30px;
-  font-weight: 700;
-}
+.tab-workspace { margin: 0; padding: 0; }
+.folder-tabs { margin: 0; }
+.tab-card { margin: 0; }
+.folder-tabs { position: relative; z-index: 1; min-height: 42px; padding: 0 8px; overflow: visible; background: transparent; }
+.folder-tabs :deep(.q-tabs__content) { justify-content: flex-start; flex-wrap: nowrap; overflow: visible; }
+.folder-tabs :deep(.folder-tab) { min-width: max-content; min-height: 42px; margin-right: 4px; padding: 0 16px; border: 1px solid var(--m-border); border-bottom: 0; border-radius: 11px 11px 0 0; background: var(--m-bg); color: var(--m-muted); font-size: 12px; font-weight: 750; }
+.folder-tabs :deep(.folder-tab.q-tab--active) { z-index: 2; margin-bottom: -1px; position: relative; border-bottom: 1px solid var(--m-surface); background: var(--m-surface); color: var(--m-primary-dark); }
+.folder-tabs :deep(.folder-tab.q-tab--active)::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; content: ''; background: var(--m-surface); }
+.folder-tabs :deep(.q-tab__indicator) { display: none; }
+.tab-card { overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
+.tab-card :deep(.q-tab-panel) { padding: 0; }
+.tab-empty { display: flex; align-items: center; flex-direction: column; gap: 8px; padding: var(--m-space-8); color: var(--m-muted); text-align: center; }
+.tab-empty p { margin: 0; font-size: 13px; }
+.content-stack { display: grid; gap: 12px; padding: var(--m-space-3); }
+.inner-card { overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); }
+.list-card { overflow: hidden; margin-bottom: var(--m-space-3); }
+.list-eyebrow { margin: 0; padding: var(--m-space-3) var(--m-space-4); border-bottom: 1px solid var(--m-border); color: var(--m-muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.fact-row { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); padding: 12px var(--m-space-4); }
+.fact-row + .fact-row { border-top: 1px solid var(--m-border); }
+.fact-row span { color: var(--m-muted); font-size: 12px; }
+.fact-row strong { color: var(--m-ink); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
 
-.profile-name {
-  font-size: 20px;
-  font-weight: 800;
-  color: #111827;
-}
+.past-row { padding: 12px var(--m-space-4); }
+.past-row + .past-row { border-top: 1px solid var(--m-border); }
+.past-row strong { display: block; color: var(--m-ink); font-size: 13px; }
+.past-row span { display: block; margin-top: 2px; color: var(--m-muted); font-size: 12px; }
 
-.profile-id {
-  font-size: 13px;
-  color: #6b7280;
-  margin-top: 2px;
-}
+.payment-row { display: flex; align-items: center; gap: var(--m-space-3); margin: 0 var(--m-space-3); padding: var(--m-space-3) var(--m-space-3); border-bottom: 1px solid var(--m-border); }
+.payment-row:last-child { border-bottom: 0; }
+.payment-dot { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; flex: 0 0 auto; background: var(--m-bg); color: var(--m-muted); }
+.payment-dot--success { background: var(--m-success-soft); color: var(--m-success); }
+.payment-dot--warning { background: var(--m-warning-soft); color: var(--m-warning); }
+.payment-dot--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.payment-dot--neutral { background: var(--m-bg); color: var(--m-muted); }
+.payment-dot svg { display: none; }
+.payment-dot--success svg { display: inline; }
+.payment-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.payment-dot--success { background: var(--m-success); }
+.payment-dot--warning { background: var(--m-warning); }
+.payment-dot--danger { background: var(--m-danger); }
+.payment-dot--neutral { background: var(--m-muted); }
+.payment-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.payment-copy strong { color: var(--m-ink); font-size: 14px; }
+.payment-copy span { color: var(--m-muted); font-size: 11px; }
+.status-chip { flex: 0 0 auto; min-height: 22px; padding: 0 9px; border-radius: 999px; font-size: 11px; font-weight: 750; }
+.status-chip--success { background: var(--m-success-soft); color: var(--m-success); }
+.status-chip--warning { background: var(--m-warning-soft); color: var(--m-warning); }
+.status-chip--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.status-chip--neutral { background: var(--m-bg); color: var(--m-muted); }
 
-.stay-card {
-  border-radius: 16px;
-  padding: 14px 16px;
-}
+/* student info + log payment */
+.identity-top { display: flex; align-items: center; gap: var(--m-space-4); }
+.profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; margin-top: var(--m-space-4); border-top: 1px solid var(--m-border); padding-top: var(--m-space-3); }
+.profile-grid > div { min-width: 0; padding: 6px 0; }
+.profile-grid span { display: block; color: var(--m-muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.profile-grid strong { display: block; margin-top: 2px; color: var(--m-ink); font-size: 12px; overflow-wrap: anywhere; }
+/* Payments panel */
+.pay-head { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); padding: var(--m-space-3); border-bottom: 1px solid var(--m-border); }
+.pay-summary { display: flex; flex-direction: column; }
+.pay-kicker { color: var(--m-muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.pay-amount { font-family: var(--m-font-display); font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.pay-summary small { color: var(--m-muted); font-size: 11px; }
+.log-pay-btn { display: inline-flex; min-height: 40px; align-items: center; gap: 7px; padding: 0 14px; border: 0; border-radius: var(--m-radius-sm); background: var(--m-primary-dark); color: #fff; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.log-pay-btn:disabled { opacity: .5; cursor: default; }
+.pay-section-label { margin: var(--m-space-3) var(--m-space-3) 0; color: var(--m-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.pay-section-label + .payment-row { margin-top: 6px; }
 
-.stay-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #111827;
-}
+.sheet-card { grid-column: 1 / -1; border: 0; border-radius: 18px 18px 0 0; background: var(--m-surface); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 6px; }
+.sheet-head h2 { margin: 0; font-size: 17px; color: var(--m-ink); }
+.sheet-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 20px 24px; }
+.field-label { margin: 6px 0 0; color: var(--m-muted); font-size: 12px; }
+.field-input { width: 100%; }
+.full-width { width: 100%; }
 
-.stay-sub {
-  font-size: 13px;
-  color: #00695c;
-  margin-top: 2px;
-}
 
-.current-badge {
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 12px;
-}
+/* Boarding history timeline */
+.history-head { display: flex; align-items: center; justify-content: space-between; padding: 14px var(--m-space-4); border-bottom: 1px solid var(--m-border); }
+.history-title { display: flex; flex-direction: column; }
+.history-title strong { color: var(--m-ink); font-family: var(--m-font-display); font-size: 16px; font-weight: 800; }
+.timeline { padding: var(--m-space-4); }
+.timeline-item { display: flex; }
+.timeline-marker { display: flex; flex-direction: column; align-items: center; margin-right: 12px; }
+.timeline-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--m-primary); box-shadow: 0 0 0 3px var(--m-primary-soft); }
+.timeline-line { width: 2px; flex: 1; background: var(--m-border); margin: 4px 0; }
+.history-card { flex: 1; min-width: 0; margin-bottom: 14px; padding: 12px; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); }
+.history-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.history-top strong { color: var(--m-ink); font-size: 14px; font-weight: 700; }
+.history-room, .history-dates { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--m-muted); font-size: 12px; }
+.history-dates { margin-top: 3px; }
 
-.stat-card {
-  border-radius: 14px;
-  padding: 12px 8px;
-  text-align: center;
-}
-
-.stat-value {
-  font-size: 16px;
-  font-weight: 800;
-  color: #111827;
-  margin-top: 6px;
-}
-
-.stat-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #6b7280;
-  letter-spacing: 0.5px;
-  margin-top: 2px;
-}
-
-.pill-tabs {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-}
-
-.pill-tab {
-  flex: 1 0 auto;
-  border: none;
-  border-radius: 20px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  background-color: #f1f3f5;
-  color: #374151;
-  cursor: pointer;
-}
-
-.pill-tab.active {
-  background-color: #000000;
-  color: #ffffff;
-}
-
-.section-header {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: #6b7280;
-  margin-bottom: 10px;
-}
-
-.info-card {
-  border-radius: 14px;
-  background-color: #f5f6f8;
-  padding: 12px 14px;
-  margin-bottom: 10px;
-}
-
-.info-label {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.info-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.info-sub {
-  font-size: 13px;
-  color: #6b7280;
-  margin-top: 2px;
-}
-
-.emergency-card {
-  border-radius: 14px;
-  padding: 12px 14px;
-}
-
-.lease-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 4px;
-  border-bottom: 1px solid #eeeeee;
-}
-
-.lease-label {
-  font-size: 14px;
-  color: #374151;
-}
-
-.lease-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.timeline-item {
-  display: flex;
-  gap: 12px;
-}
-
-.timeline-dot {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 4px;
-}
-
-.timeline-card {
-  flex: 1;
-  border-radius: 14px;
-  padding: 12px 14px;
-}
-
-.timeline-title {
-  font-size: 14px;
-  font-weight: 800;
-  color: #111827;
-}
-
-.active-badge {
-  background-color: #00897b;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 20px;
-  padding: 3px 10px;
-}
-
-.timeline-sub {
-  font-size: 13px;
-  color: #6b7280;
-  margin-top: 2px;
-}
-
-.timeline-note {
-  font-size: 13px;
-  color: #374151;
-  margin-top: 4px;
-}
-
-.stars {
-  display: flex;
-  gap: 2px;
-}
-
-.review-card {
-  border-radius: 16px;
-  background-color: #ffffff;
-  border: 1px solid #eeeeee;
-  padding: 16px;
-}
-
-.review-input {
-  background-color: #f5f6f8;
-  border-radius: 10px;
-  margin-top: 6px;
-}
-
-.submit-review {
-  width: 100%;
-  border-radius: 10px;
-  font-weight: 700;
-  margin-top: 12px;
-  text-transform: none;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-}
-
-.empty-text {
-  font-size: 14px;
-  color: #9e9e9e;
-  margin-top: 8px;
-}
-
-.review-item {
-  border-radius: 12px;
-  background-color: #f5f6f8;
-  padding: 12px;
-  margin-bottom: 10px;
-}
-
-.review-author {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.review-date {
-  font-size: 12px;
-  color: #9e9e9e;
-}
-
-.review-note {
-  font-size: 13px;
-  color: #374151;
-  margin-top: 4px;
-}
-
-.placeholder-card {
-  border-radius: 14px;
-  background-color: #f5f6f8;
-  padding: 20px;
-  text-align: center;
-}
-
-.placeholder-text {
-  font-size: 14px;
-  color: #9e9e9e;
-}
 </style>

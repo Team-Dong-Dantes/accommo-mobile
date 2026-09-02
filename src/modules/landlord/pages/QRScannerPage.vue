@@ -1,243 +1,120 @@
 <template>
-  <q-page class="qr-scanner-page">
-    <q-layout view="hHh lpR fFf">
-      <q-header elevated class="bg-primary text-white">
-        <q-toolbar>
-          <q-btn dense flat round @click="toggleLeftDrawer">
-            <IconifyIcon width="24" icon="material-icons:menu" />
-          </q-btn>
+<q-page class="scanner-page">
+  <div class="scanner-shell">
+    <!-- Camera stage: html5-qrcode mounts #qr-reader -->
+    <div class="camera-stage">
+      <div v-if="!cameraError" ref="readerRef" id="qr-reader" class="camera-reader" />
+      <div v-else class="camera-empty" role="alert">
+        <span class="camera-empty__icon"><IconifyIcon icon="lucide:circle-alert" width="30" /></span>
+        <p>Camera unavailable</p>
+        <small>{{ cameraError }}</small>
+      </div>
 
-          <q-toolbar-title>QR Scanner</q-toolbar-title>
+      <!-- Corner brackets over the reader -->
+      <div v-if="!cameraError" class="scan-focus" aria-hidden="true">
+        <i class="focus-corner focus-corner--tl" />
+        <i class="focus-corner focus-corner--tr" />
+        <i class="focus-corner focus-corner--bl" />
+        <i class="focus-corner focus-corner--br" />
+        <span class="scan-beam" />
+      </div>
 
-          <q-btn flat round dense @click="handleLogout">
-            <IconifyIcon width="24" icon="material-icons:logout" />
-          </q-btn>
-        </q-toolbar>
-      </q-header>
+      <div class="stage-shade" aria-hidden="true" />
+    </div>
 
-      <q-drawer show-if-above v-model="leftDrawerOpen" side="left" bordered>
-        <q-list>
-          <q-item-label header>Menu</q-item-label>
+    <div v-if="manualMode" class="manual-panel">
+      <label for="manual-code">Enter the student code from their QR</label>
+      <div class="manual-row">
+        <q-input id="manual-code" v-model="manualCode" outlined dense class="manual-input" placeholder="e.g. 2024-12345" @keyup.enter="lookupManual" return-key-options />
+        <q-btn unelevated no-caps color="primary" class="manual-btn" label="Look up" @click="lookupManual" />
+      </div>
+      <p class="manual-hint">You can enter the code on the student’s ISU ID manually.</p>
+    </div>
+  </div>
 
-          <template v-if="userRole === 'landlord'">
-            <q-item clickable v-ripple to="/landlord/dashboard" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:dashboard" />
-              </q-item-section>
-              <q-item-section> Overview </q-item-section>
-            </q-item>
+  <!-- Hint bar -->
+  <div class="scan-hint">
+    <p>{{
+      manualMode
+        ? 'Scan the student code below, or re-enable the camera when ready.'
+        : 'Point the camera at the student’s QR code to verify identity.'
+    }}</p>
+    <button v-if="!cameraError" type="button" class="hint-action" @click="manualMode = !manualMode">
+      <IconifyIcon icon="lucide:keyboard" width="16" /> {{ manualMode ? 'Back to camera' : 'Enter code manually' }}
+    </button>
+    <p v-else class="hint-static">Camera is off. Enter the student code below to continue.</p>
+  </div>
 
-            <q-item clickable v-ripple to="/landlord/properties" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:domain" />
-              </q-item-section>
-              <q-item-section> My Boarding Houses </q-item-section>
-            </q-item>
+  <!-- Result sheet -->
+  <q-dialog v-model="qrBottomSheetOpen" position="bottom" class="result-dialog">
+    <q-card class="sheet-card full-width pb-safe">
+      <div class="sheet-header">
+        <span class="sheet-grip" aria-hidden="true" />
+        <h2 class="sheet-title">Student found</h2>
+        <q-btn v-if="scannedStudent" flat round dense icon="close" color="grey-6" v-close-popup aria-label="Close" />
+      </div>
 
-            <q-item clickable v-ripple to="/landlord/tenants" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:people" />
-              </q-item-section>
-              <q-item-section> Tenants </q-item-section>
-            </q-item>
+      <div v-if="scannedStudent" class="sheet-body">
+        <div class="result-hero">
+          <q-avatar size="60px" class="result-avatar">{{ scannedStudent.name.trim().charAt(0).toUpperCase() || '?' }}</q-avatar>
+          <div class="result-copy">
+            <strong>{{ scannedStudent.name }}</strong>
+            <span>{{ scannedStudent.course || '—' }}{{ scannedStudent.yearLevel && scannedStudent.yearLevel !== '—' ? ` · Year ${scannedStudent.yearLevel}` : '' }}</span>
+          </div>
+          <q-badge class="result-badge" :color="scannedStudent.osasVerified ? 'positive' : 'warning'">
+            <IconifyIcon :icon="scannedStudent.osasVerified ? 'lucide:shield-check' : 'lucide:shield-alert'" width="13" />
+            {{ scannedStudent.osasVerified ? 'Verified' : 'Not verified' }}
+          </q-badge>
+        </div>
 
-            <q-item clickable v-ripple to="/landlord/payments" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:payments" />
-              </q-item-section>
-              <q-item-section> Payments </q-item-section>
-            </q-item>
-
-            <q-item clickable v-ripple to="/landlord/profile" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:person" />
-              </q-item-section>
-              <q-item-section> Profile </q-item-section>
-            </q-item>
-          </template>
-        </q-list>
-      </q-drawer>
-
-      <q-page-container>
-        <div class="qr-scanner-container">
-          <!-- Camera preview area -->
-          <div class="camera-preview">
-            <div class="camera-frame">
-              <div ref="readerRef" id="qr-reader" class="real-reader"></div>
-              <div class="camera-overlay">
-                <div class="flash-icon" />
-                <q-icon
-                  name="material-icons:qr_code_scanner"
-                  size="48"
-                  color="teal-9"
-                  class="center-qr-icon"
-                />
-              </div>
+        <div class="result-block">
+          <dl>
+            <div><dt>Student ID</dt><dd>{{ scannedStudent.studentId }}</dd></div>
+            <div v-if="scannedStudent.currentBoarding">
+              <dt>Accommodation</dt>
+              <dd>{{ scannedStudent.currentBoarding.propertyName }}</dd>
             </div>
+          </dl>
+        </div>
 
-            <!-- Scanning frame -->
-            <div class="scanning-bar">
-              <div class="scanning-line" />
+        <div v-if="scannedStudent.currentBoarding" class="stay-facts">
+          <div><span>Unit</span><strong>{{ scannedStudent.currentBoarding.unit }}</strong></div>
+          <div><span>Status</span><strong>Active</strong></div>
+          <div><span>Monthly</span><strong>₱{{ scannedStudent.currentBoarding.monthlyRate.toLocaleString() }}</strong></div>
+        </div>
+
+        <div class="result-actions">
+          <q-btn unelevated no-caps color="primary" class="sheet-cta" label="View tenancy history" @click="qrBottomSheetOpen = false; tenancyDialog = true" />
+          <q-btn outline no-caps color="primary" text-color="primary" class="sheet-cta sheet-cta--ghost-row" label="Mark attendance" @click="markAttendance" />
+        </div>
+      </div>
+    </q-card>
+  </q-dialog>
+
+  <!-- Tenancy history -->
+  <q-dialog v-model="tenancyDialog" position="bottom" class="result-dialog">
+    <q-card class="sheet-card full-width pb-safe housesheet">
+      <div class="sheet-header sheet-header--fixed">
+        <span class="sheet-grip sheet-grip--inline" aria-hidden="true" />
+        <h2 class="sheet-title">Tenancy history</h2>
+      </div>
+      <div class="sheet-body sheet-body--scroll">
+        <p v-if="!(scannedStudent?.tenancyHistory?.length)" class="empty-note">No lease records with your property.</p>
+        <div v-else class="history-list">
+          <div v-for="(h, i) in scannedStudent?.tenancyHistory ?? []" :key="i" class="history-row">
+            <span class="history-icon"><IconifyIcon icon="lucide:building-2" width="18" /></span>
+            <div class="history-copy">
+              <strong>{{ h.propertyName }}</strong>
+              <small>{{ h.address }}</small>
+              <small>{{ h.period }}</small>
             </div>
-          </div>
-
-          <!-- QR Code Frame CSS Areas -->
-          <div class="qr-frame-borders">
-            <div class="frame-tl" />
-            <div class="frame-tr" />
-            <div class="frame-bl" />
-            <div class="frame-br" />
-          </div>
-
-          <!-- Student Verified Bottom Sheet -->
-          <q-bottom-sheet v-model="qrBottomSheetOpen" class="qr-bottom-sheet">
-            <q-card class="q-pa-md q-bg-white q-shadow-4">
-              <q-card-section>
-                <div class="row items-center">
-                  <q-avatar
-                    size="56"
-                    color="teal-9"
-                    text-color="white"
-                    font-size="32px"
-                  >
-                    {{ scannedStudent?.name?.charAt(0) ?? '?' }}
-                  </q-avatar>
-
-                  <div class="q-ml-sm q-mt-1">
-                    <div class="text-h6 text-weight-bold">{{ scannedStudent?.name }}</div>
-                    <div class="text-subtitle2 text-teal-7">{{ scannedStudent?.course }}</div>
-                  </div>
-
-                  <q-btn
-                    flat
-                    round
-                    icon="close"
-                    color="teal-9"
-                    @click="qrBottomSheetOpen = false"
-                  />
-                </div>
-              </q-card-section>
-
-              <q-card-section>
-                <div class="row q-mt-sm">
-                  <div class="col-6">
-                    <q-icon name="material-badge" color="teal-9" class="q-mr-sm" />
-                    <span>Student ID: {{ scannedStudent?.studentId }}</span>
-                  </div>
-                  <div class="col-6">
-                    <q-icon
-                      :color="scannedStudent?.osasVerified ? 'green' : 'red'"
-                      name="material-icons:verified"
-                      class="q-mr-sm"
-                    />
-                    <span
-                      v-if="scannedStudent?.osasVerified"
-                      class="text-weight-bold text-teal-7"
-                    >OSAS Verified</span>
-                    <span
-                      v-else
-                      class="text-weight-bold text-red-7"
-                    >OSAS Not Verified</span>
-                  </div>
-                </div>
-              </q-card-section>
-
-              <q-card-section>
-                <div class="row q-mt-sm">
-                  <div class="col-6">
-                    <q-icon name="material-icons:room" color="teal-9" class="q-mr-sm" />
-                    <span>Current Property: {{ scannedStudent?.currentBoarding?.propertyName }}</span>
-                  </div>
-                  <div class="col-6">
-                    <q-icon name="material-icons:bed" color="teal-9" class="q-mr-sm" />
-                    <span>Unit: {{ scannedStudent?.currentBoarding?.unit }}</span>
-                  </div>
-                </div>
-                <div class="row q-mt-2">
-                  <div class="col-12">
-                    <q-icon name="material-icons:monetization_on" color="teal-9" class="q-mr-sm" />
-                    <span>Monthly Rate: ₱{{ scannedStudent?.currentBoarding?.monthlyRate.toLocaleString() }}</span>
-                  </div>
-                </div>
-              </q-card-section>
-
-              <q-card-section>
-                <q-btn
-                  unelevated
-                  color="teal-9"
-                  class="q-ml-sm q-mr-sm q-mt-sm"
-                  label="View Tenancy History"
-                  @click="tenancyDialog = true"
-                />
-                <q-btn
-                  unelevated
-                  color="amber"
-                  class="q-mt-sm"
-                  label="Mark Attendance"
-                  @click="markAttendance"
-                />
-              </q-card-section>
-            </q-card>
-          </q-bottom-sheet>
-
-          <!-- Camera error / manual fallback -->
-          <div v-if="cameraError" class="camera-error">
-            <q-icon name="material-icons:error_outline" color="white" size="28px" />
-            <span class="q-mx-sm">{{ cameraError }}</span>
-          </div>
-
-          <div v-if="manualMode || cameraError" class="manual-box">
-            <q-input
-              v-model="manualCode"
-              label="Enter student code"
-              filled
-              dense
-              class="manual-input"
-              @keyup.enter="lookupManual"
-            >
-              <template #append>
-                <q-btn round dense flat icon="search" color="teal-9" @click="lookupManual" />
-              </template>
-            </q-input>
-          </div>
-
-          <!-- Tenancy history dialog -->
-          <q-dialog v-model="tenancyDialog">
-            <q-card style="width: 350px; max-width: 90vw">
-              <q-card-section class="row items-center q-pb-none">
-                <div class="text-h6">Tenancy History</div>
-                <q-space />
-                <q-btn icon="close" flat round dense v-close-popup />
-              </q-card-section>
-              <q-card-section>
-                <q-list separator>
-                  <q-item v-for="(h, i) in scannedStudent?.tenancyHistory ?? []" :key="i">
-                    <q-item-section>
-                      <q-item-label>{{ h.propertyName }}</q-item-label>
-                      <q-item-label caption>{{ h.address }}</q-item-label>
-                      <q-item-label caption>{{ h.period }} · {{ h.status }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                  <q-item v-if="!(scannedStudent?.tenancyHistory?.length)">
-                    <q-item-section>
-                      <q-item-label caption>No lease records with your property.</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </q-card-section>
-            </q-card>
-          </q-dialog>
-
-          <!-- Instruction text -->
-          <div class="instruction-text">
-            <q-icon name="material-icons:flash_on" color="teal-9" class="q-mr-sm" />
-            <span>Scan student QR code to verify</span>
-            <q-btn flat dense no-caps color="white" class="q-ml-sm" label="Enter code" @click="manualMode = !manualMode" />
+            <q-badge class="history-status" :color="h.status === 'Current' ? 'teal' : 'grey'">{{ h.status }}</q-badge>
           </div>
         </div>
-      </q-page-container>
-    </q-layout>
-  </q-page>
+      </div>
+    </q-card>
+  </q-dialog>
+</q-page>
 </template>
 
 <script setup lang="ts">
@@ -277,6 +154,7 @@ const manualCode = ref('')
 const tenancyDialog = ref(false)
 const readerRef = ref<HTMLElement | null>(null)
 let html5Scanner: Html5Qrcode | null = null
+let disposed = false
 
 // Watch the store so a successful scan (camera or manual) opens the sheet.
 watch(
@@ -325,7 +203,11 @@ function markAttendance() {
 async function startScanner() {
   cameraError.value = ''
   if (!readerRef.value) return
+  // If the user navigates away while the camera is still initialising, never
+  // continue attaching to an unmounted element afterwards.
+  if (disposed) return
   try {
+    if (disposed) return
     html5Scanner = new Html5Qrcode(readerRef.value.id)
     await html5Scanner.start(
       { facingMode: 'environment' },
@@ -335,7 +217,10 @@ async function startScanner() {
         /* ignore per-frame decode errors */
       },
     )
+    // A scan could have stopped the stream while start() was resolving.
+    if (disposed) stopScanner()
   } catch (error: unknown) {
+    if (disposed) { stopScanner(); return }
     const message = error instanceof Error ? error.message : 'Camera unavailable.'
     cameraError.value =
       'Camera unavailable (' + message + '). You can enter the student code manually below.'
@@ -344,19 +229,25 @@ async function startScanner() {
 }
 
 function stopScanner() {
-  if (html5Scanner) {
-    const scanner = html5Scanner
-    html5Scanner = null
-    try {
-      // Only stop when actually scanning; stop() throws a synchronous
-      // "Cannot stop, scanner is not running or paused." otherwise.
-      if (scanner.isScanning) {
-        void (scanner.stop() as unknown as Promise<void>).catch(() => {})
-      }
-    } catch {
-      /* ignore stop errors */
+  const scanner = html5Scanner
+  html5Scanner = null
+  if (!scanner) return
+  // Html5Qrcode throws (or resolves undefined) if the stream is not currently
+  // running, which happens when navigating away mid-init. Guard every call so
+  // teardown in onBeforeUnmount can never throw and break route navigation.
+  try {
+    if (scanner.isScanning) {
+      const stopResult = scanner.stop() as unknown
+      if (stopResult instanceof Promise) void (stopResult as Promise<void>).catch(() => {})
     }
-    void (scanner.clear() as unknown as Promise<void>).catch(() => {})
+  } catch {
+    /* not scanning yet - the start() promise will surface its own error */
+  }
+  try {
+    const clearResult = scanner.clear() as unknown
+    if (clearResult instanceof Promise) void (clearResult as Promise<void>).catch(() => {})
+  } catch {
+    /* clear on an uninitialised scanner is a no-op */
   }
 }
 
@@ -365,248 +256,140 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   stopScanner()
 })
 </script>
 
 <style scoped>
-.qr-scanner-page {
-  background: #F7F9FA;
-}
+.scanner-page { min-height: 100vh; background: var(--m-bg); color: var(--m-text); }
+.scanner-shell { position: relative; width: min(100%, 760px); margin: 0 auto; padding: var(--m-space-3) var(--m-page-gutter) 0; box-sizing: border-box; }
 
-.qr-scanner-container {
+/* ---------- Camera stage ---------- */
+.camera-stage {
   position: relative;
-  width: 100%;
-  height: 100vh;
-  background: black;
+  height: clamp(360px, 62vh, 560px);
   overflow: hidden;
+  border-radius: var(--m-radius-lg);
+  background: #0b1210;
 }
-
-.camera-preview {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.camera-frame {
-  position: absolute;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
-  max-width: 400px;
-  height: 60%;
-  background: black;
-  border: 4px solid #00897B;
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-}
-
-.camera-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: transparent;
-}
-
-.flash-icon {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  animation: flashPulse 2s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes flashPulse {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: translate(-50%, -50%) scale(1.2);
-  }
-  100% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
-.center-qr-icon {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.scanning-bar {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 60%;
-  max-width: 300px;
-  transform: translateX(-50%);
-  height: 3px;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.scanning-line {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 137, 123, 0) 0%,
-    #00897B 50%,
-    rgba(0, 137, 123, 0) 100%
-  );
-  animation: scanLine 2s linear infinite;
-}
-
-@keyframes scanLine {
-  0% {
-    top: 0;
-  }
-  100% {
-    top: 100%;
-  }
-}
-
-.qr-frame-borders {
-  position: absolute;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
-  max-width: 400px;
-  height: 60%;
-  pointer-events: none;
-}
-
-.frame-tl,
-.frame-tr,
-.frame-bl,
-.frame-br {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  border: 4px solid #00897B;
-}
-
-.frame-tl {
-  top: -12px;
-  left: -12px;
-  border-right-width: 0;
-  border-bottom-width: 0;
-}
-
-.frame-tr {
-  top: -12px;
-  right: -12px;
-  border-left-width: 0;
-  border-bottom-width: 0;
-}
-
-.frame-bl {
-  bottom: -12px;
-  left: -12px;
-  border-right-width: 0;
-  border-top-width: 0;
-}
-
-.frame-br {
-  bottom: -12px;
-  right: -12px;
-  border-left-width: 0;
-  border-top-width: 0;
-}
-
-.instruction-text {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: white;
-  font-size: 14px;
-  pointer-events: none;
-}
-
-.qr-bottom-sheet {
-  max-height: 90%;
-  overflow: auto;
-}
-
-.q-bottom-sheet .q-card {
-  border-radius: 24px;
-}
-
-.q-card .q-card-section {
-  padding: 24px;
-}
-
-.q-card .q-card-section:last-child {
-  padding: 16px 24px 24px;
-}
-
-.real-reader {
+.camera-reader { position: absolute; inset: 0; z-index: 0; }
+.camera-empty {
   position: absolute;
   inset: 0;
   z-index: 0;
-}
-
-.real-reader video,
-.real-reader img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover;
-}
-
-.camera-overlay {
-  z-index: 1;
-}
-
-.camera-error {
-  position: absolute;
-  top: 12%;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 90%;
   display: flex;
   align-items: center;
-  color: white;
-  font-size: 14px;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--m-space-6);
+  color: #dfe5e1;
   text-align: center;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 10px 14px;
-  border-radius: 12px;
-  z-index: 3;
 }
+.camera-empty__icon { display: grid; width: 56px; height: 56px; margin-bottom: var(--m-space-3); place-items: center; border-radius: 50%; background: rgba(255,255,255,0.08); color: var(--m-primary-lt, #5eead4); }
+.camera-empty p { margin: 0; font-size: 15px; font-weight: 700; }
+.camera-empty small { margin-top: 6px; color: rgba(255,255,255,0.6); font-size: 12px; line-height: 1.5; }
 
-.manual-box {
+/* vignette so corners / text read */
+.stage-shade { position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 120px rgba(0,0,0,0.45); }
+
+/* focus window + corners */
+.scan-focus {
   position: absolute;
-  bottom: 90px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  width: 90%;
-  max-width: 420px;
-  z-index: 3;
+  z-index: 2;
+  width: 70%;
+  max-width: 260px;
+  height: 70%;
+  max-height: 260px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
+.focus-corner { position: absolute; width: 22px; height: 22px; border-color: var(--m-primary, #14b8a6); border-style: solid; border-width: 0; }
+.focus-corner--tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 6px; }
+.focus-corner--tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 6px; }
+.focus-corner--bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 6px; }
+.focus-corner--br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 6px; }
+.scan-beam { position: absolute; right: 14px; left: 14px; height: 2px; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--m-primary-lt,#5eead4), transparent); box-shadow: 0 0 14px var(--m-primary, #14b8a6); animation: scan-y 2.2s ease-in-out infinite; }
+@keyframes scan-y { 0% { top: 16%; } 50% { top: calc(84% - 2px); } 100% { top: 16%; } }
 
-.manual-input {
-  background: white;
-  border-radius: 12px;
+/* manual entry overlay */
+.manual-panel {
+  margin-top: var(--m-space-3);
+  padding: var(--m-space-4);
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+.manual-panel label { display: block; margin-bottom: var(--m-space-2); color: var(--m-text); font-size: 13px; font-weight: 650; }
+.manual-row { display: flex; align-items: center; gap: var(--m-space-2); }
+.manual-input { flex: 1; }
+.manual-input :deep(.q-field__control) { border-radius: var(--m-radius-sm); background: #fff; }
+.manual-btn { min-width: 96px; min-height: 40px; border-radius: var(--m-radius-sm); }
+.manual-hint { margin: var(--m-space-2) 0 0; color: var(--m-muted); font-size: 11px; line-height: 1.4; }
+
+/* hint row */
+.scan-hint {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m-space-3);
+  padding-top: var(--m-space-3);
+}
+.scan-hint p { margin: 0; color: var(--m-muted); font-size: 13px; line-height: 1.45; }
+.scan-hint .hint-static { font-weight: 650; }
+.hint-action { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; padding: 0 6px; border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 13px; font-weight: 750; }
+
+/* ---------- Sheets ---------- */
+.sheet-card { grid-column: 1 / -1; border: 0; border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; box-shadow: 0 -8px 30px rgba(15,23,42,0.14); color: var(--m-text); }
+.housesheet { display: flex; max-height: 82vh; flex-direction: column; }
+.housesheet .sheet-body--scroll { min-height: 0; }
+.sheet-header { display: flex; min-height: 52px; align-items: center; justify-content: space-between; padding: var(--m-space-3) var(--m-space-4) var(--m-space-2); box-sizing: border-box; }
+.sheet-header--fixed { flex: 0 0 auto; border-bottom: 1px solid var(--m-border); }
+.sheet-grip { width: 40px; height: 4px; margin: 0 auto; border-radius: 999px; background: #d8dce2; }
+.sheet-grip--inline { flex: 0 0 auto; }
+.sheet-title { margin: 0; color: var(--m-ink); font-family: var(--m-font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.sheet-body { padding: var(--m-space-2) var(--m-space-4) var(--m-space-5); }
+.pb-safe { padding-bottom: calc(var(--m-space-5) + env(safe-area-inset-bottom)); }
+.sheet-cta { width: 100%; min-height: 48px; margin-top: var(--m-space-3); border-radius: var(--m-radius-sm); font-weight: 800; }
+.q-btn.sheet-cta:not(.q-btn--outline) { background: var(--m-primary-dark); }
+.sheet-cta--ghost-row { border: 1px solid var(--m-border) !important; color: var(--m-primary-dark); }
+.result-actions { margin-top: var(--m-space-4); }
+.result-actions .sheet-cta + .sheet-cta { margin-top: var(--m-space-2); }
+
+/* result hero */
+.result-hero { display: flex; align-items: center; gap: var(--m-space-3); }
+.result-avatar { flex: 0 0 auto; background: linear-gradient(135deg, var(--m-primary-dark), var(--m-primary)); color: #fff; font-size: 22px; font-weight: 800; }
+.result-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.result-copy strong { color: var(--m-ink); font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.result-copy span { color: var(--m-muted); font-size: 12px; line-height: 1.4; }
+.result-badge { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 0 9px; border-radius: 999px; font-size: 11px; font-weight: 750; }
+
+.result-block dl, .history-block dl { margin: var(--m-space-4) 0 0; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); overflow: hidden; }
+.result-block dl > div { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); padding: var(--m-space-3); }
+.result-block dl > div + div { border-top: 1px solid var(--m-border); }
+.result-block dt, .history-block dt { color: var(--m-muted); font-size: 12px; }
+.result-block dd, .history-block dd { margin: 0; color: var(--m-ink); font-size: 13px; font-weight: 650; text-align: right; overflow-wrap: anywhere; }
+
+.stay-facts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: var(--m-space-2); margin-top: var(--m-space-4); }
+.stay-facts > div { min-width: 0; padding: var(--m-space-3); border-radius: var(--m-radius-sm); background: var(--m-bg); }
+.stay-facts span { display: block; color: var(--m-muted); font-size: 9px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+.stay-facts strong { display: block; margin-top: 4px; overflow: hidden; color: var(--m-ink); font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+
+.empty-note { margin: var(--m-space-3) 0; color: var(--m-muted); font-size: 13px; text-align: center; }
+
+/* history list */
+.history-row { display: flex; align-items: center; gap: var(--m-space-3); padding: var(--m-space-3) 0; }
+.history-row + .history-row { border-top: 1px solid var(--m-border); }
+.history-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.history-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.history-copy strong { color: var(--m-ink); font-size: 14px; line-height: 1.3; }
+.history-copy small { color: var(--m-muted); font-size: 12px; line-height: 1.4; }
+.history-status { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 750; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-beam { animation: none; }
 }
 </style>
