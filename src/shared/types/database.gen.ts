@@ -297,31 +297,43 @@ export type Database = {
       }
       concerns: {
         Row: {
+          acknowledged_at: string | null
           category: string
+          created_at: string
           description: string | null
           id: string
           lease_id: string
+          manager_response: string | null
           reported_at: string
           resolved_at: string | null
           status: string
+          updated_at: string
         }
         Insert: {
+          acknowledged_at?: string | null
           category: string
+          created_at?: string
           description?: string | null
           id?: string
           lease_id: string
+          manager_response?: string | null
           reported_at?: string
           resolved_at?: string | null
           status?: string
+          updated_at?: string
         }
         Update: {
+          acknowledged_at?: string | null
           category?: string
+          created_at?: string
           description?: string | null
           id?: string
           lease_id?: string
+          manager_response?: string | null
           reported_at?: string
           resolved_at?: string | null
           status?: string
+          updated_at?: string
         }
         Relationships: [
           {
