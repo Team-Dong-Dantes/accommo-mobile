@@ -99,8 +99,7 @@ async function handleLogin() {
     else if (role === 'landlord') void router.push('/landlord/dashboard');
     else if (role === 'admin') void router.push('/admin/dashboard');
     else {
-      // Account has no role yet (incomplete registration). Sign out and send
-      // them to register instead of bouncing through the '/' guard.
+
       $q.notify({ message: 'Your account role is not set. Please complete registration.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
       await supabase.auth.signOut();
       void router.push('/register?newUser=true');
