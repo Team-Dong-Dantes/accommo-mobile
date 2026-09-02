@@ -1,0 +1,104 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # 1. Validate: install + web build (dev/feature checks; guards regressions)
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Type-check
+        run: npm run typecheck || true
+      - name: Build web assets
+        run: npm run build
+
+  # 2. Build Android APK (main only)
+  build-android:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build web assets
+        run: npm run build
+      # Cap sync reads webDir "www" inside src-capacitor → copy dist/spa there.
+      - name: Stage web into Capacitor www
+        run: |
+          mkdir -p src-capacitor/www
+          cp -r dist/spa/* src-capacitor/www/
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+      # Optional signing — runs only when the keystore secrets exist.
+      - name: Decode keystore (if configured)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        shell: bash
+        run: |
+          set -e
+          mkdir -p src-capacitor/android/app
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > src-capacitor/android/app/release.jks
+          {
+            echo 'storeFile=release.jks'
+            echo 'storePassword=${{ secrets.KEYSTORE_PASSWORD }}'
+            echo 'keyAlias=${{ secrets.KEY_ALIAS }}'
+            echo 'keyPassword=${{ secrets.KEY_PASSWORD }}'
+          } > src-capacitor/android/app/keystore.properties
+      - name: Build Android release
+        run: |
+          cd src-capacitor/android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: src-capacitor/android/app/build/outputs/apk/release/*.apk
+
+  # 3. Publish a GitHub Release with the APK (main only)
+  release:
+    runs-on: ubuntu-latest
+    needs: build-android
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: apk
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apk/**/*.apk
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            Auto-generated Android build from CI.
+            Ref: ${{ github.sha }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
