@@ -1,8 +1,9 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header v-if="!isProfilePage" class="bg-white text-grey-9 app-header">
+    <q-header class="bg-transparent text-grey-9 app-header" :class="{ 'is-scrolled': scrolled, 'app-header--subpage': isSecondaryPage }">
       <div class="header-row q-px-md">
         <template v-if="isAccommodationSetup || isAccommodationDetail"><q-btn flat round dense class="setup-back-button" aria-label="Back to accommodations" @click="goToAccommodations"><IconifyIcon icon="lucide:arrow-left" width="20" /></q-btn><div class="setup-page-title text-black text-weight-bold">{{ isAccommodationDetail ? 'Accommodation Details' : 'New Accommodation' }}</div></template>
+        <template v-else-if="isSecondaryPage"><q-btn flat round dense class="setup-back-button" :aria-label="`Back to ${secondaryBackLabel}`" @click="goBack"><IconifyIcon icon="lucide:arrow-left" width="20" /></q-btn><h1 class="setup-page-title text-black text-weight-bold">{{ secondaryTitle }}</h1><span class="header-balance" aria-hidden="true" /></template>
         <template v-else><div class="app-title text-black text-weight-bold">accommo</div>
         <q-btn
           flat
@@ -20,10 +21,16 @@
     </q-header>
 
     <q-page-container class="bg-grey-1">
-      <router-view />
+      <div class="page-stage">
+        <router-view v-slot="{ Component }">
+          <transition :name="pageTransition">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </div>
     </q-page-container>
 
-    <q-footer v-if="!isProfilePage" bordered class="bg-white text-grey-8 bottom-footer">
+    <q-footer v-if="!isSecondaryPage" bordered class="bg-white text-grey-8 bottom-footer" :class="{ 'bottom-footer--setup': isAccommodationSetup }">
       <div class="bottom-nav">
         <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'home' }" @click="goToTab('home')">
           <IconifyIcon icon="lucide:house" width="22" />
@@ -77,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '../shared/utils/supabase'
 import { initialsOf } from '@/shared/utils/format'
@@ -88,10 +95,16 @@ const activeBottomTab = ref<BottomTabName>('home')
 const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
 const isProfilePage = computed(() => route.path === '/landlord/profile')
+const isNotificationsPage = computed(() => route.path === '/landlord/notifications')
+const isSecondaryPage = computed(() => isProfilePage.value || isNotificationsPage.value)
 const isAccommodationSetup = computed(() => route.path === '/landlord/properties/new')
 const isAccommodationDetail = computed(() => /^\/landlord\/properties\/[^/]+$/.test(route.path))
 const quickActionsOpen = ref(false)
-const showQuickActions = computed(() => !isProfilePage.value && !isAccommodationSetup.value && !isAccommodationDetail.value && !route.path.startsWith('/landlord/notifications'))
+const scrolled = ref(false)
+const showQuickActions = computed(() => !isSecondaryPage.value && !isAccommodationSetup.value && !isAccommodationDetail.value)
+const secondaryTitle = computed(() => isNotificationsPage.value ? 'Notifications' : 'Profile')
+const secondaryBackLabel = computed(() => isNotificationsPage.value ? 'dashboard' : 'dashboard')
+const pageTransition = ref('page-fade')
 
 const bottomTabs = [
   { name: 'home', route: '/landlord/dashboard' },
@@ -113,6 +126,10 @@ const goToProfile = () => {
   void router.push('/landlord/profile')
 }
 
+const goBack = () => {
+  void router.push('/landlord/dashboard')
+}
+
 const goToAccommodations = () => {
   void router.push('/landlord/properties')
 }
@@ -124,7 +141,10 @@ function navigateQuickAction(path: string) {
 
 watch(
   () => route.path,
-  value => {
+  (value, previousValue) => {
+    const enteringSecondaryPage = value === '/landlord/profile' || value === '/landlord/notifications'
+    const leavingSecondaryPage = previousValue === '/landlord/profile' || previousValue === '/landlord/notifications'
+    pageTransition.value = enteringSecondaryPage && !leavingSecondaryPage ? 'page-slide-left' : leavingSecondaryPage && !enteringSecondaryPage ? 'page-slide-right' : 'page-fade'
     if (value.startsWith('/landlord/notifications') || value === '/landlord/profile' || value === '/landlord/properties/new' || /^\/landlord\/properties\/[^/]+$/.test(value)) quickActionsOpen.value = false
     if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
     else if (value.startsWith('/landlord/tenants')) activeBottomTab.value = 'tenants'
@@ -136,6 +156,9 @@ watch(
 )
 
 onMounted(async () => {
+  window.addEventListener('scroll', onScroll, true)
+  document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
+  onScroll()
   try {
     const { data } = await supabase.auth.getUser()
     const user = data?.user
@@ -164,13 +187,49 @@ onMounted(async () => {
     userInitials.value = 'U'
   }
 })
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll, true)
+  document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
+})
+
+function onScroll() {
+  const container = document.querySelector('.q-page-container') as HTMLElement | null
+  scrolled.value = Math.max(window.scrollY || 0, container?.scrollTop || 0) > 8
+}
 </script>
 
 <style scoped>
 .app-header {
-  background: #ffffff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  margin: 6px 12px 0;
+  border: 1px solid transparent;
+  border-radius: var(--m-radius-lg);
+  background: transparent;
   box-shadow: none !important;
+  transition: background-color .25s ease, backdrop-filter .25s ease, -webkit-backdrop-filter .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+.app-header:not(.is-scrolled) :deep(.q-layout__shadow) {
+  display: none;
+}
+.app-header.is-scrolled {
+  border-color: var(--m-border);
+  background: color-mix(in srgb, var(--m-bg) 72%, transparent);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .06) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+.app-header--subpage {
+  height: 56px;
+  margin: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: var(--m-surface);
+  box-sizing: border-box;
+}
+.app-header--subpage .header-row {
+  height: 55px;
+  min-height: 55px;
+  align-items: center;
 }
 .header-row {
   display: flex;
@@ -184,10 +243,17 @@ onMounted(async () => {
 }
 .setup-page-title {
   flex: 1 1 auto;
+  margin: 0;
+  display: flex;
+  height: 44px;
+  align-items: center;
   font-size: 18px;
+  line-height: 1;
   letter-spacing: -0.02em;
 }
+.header-balance { width: 44px; height: 44px; }
 .setup-back-button {
+  height: 44px;
   min-width: 44px;
   min-height: 44px;
   margin-left: -8px;
@@ -220,6 +286,9 @@ onMounted(async () => {
   right: 0;
   z-index: 50;
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
+}
+.bottom-footer--setup {
+  box-shadow: none;
 }
 .bottom-nav {
   height: 100%;
@@ -346,13 +415,49 @@ onMounted(async () => {
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
 }
+.page-stage { position: relative; min-height: 100%; overflow-x: clip; }
+
+/* Horizontal cover transition for notifs/profile:
+   - OPEN (page-slide-left): the incoming page slides in from the RIGHT and
+     moves left (right → left); the base page nudges slightly left.
+   - CLOSE (page-slide-right): the page slides back out to the RIGHT while the
+     base page re-enters from the LEFT (left → right). */
+.page-slide-left-enter-active,
+.page-slide-left-leave-active,
+.page-slide-right-enter-active,
+.page-slide-right-leave-active {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: var(--m-bg);
+  transition: transform 300ms cubic-bezier(.25, 1, .3, 1);
+}
+.page-slide-left-enter-active {
+  z-index: 1;
+  box-shadow: -10px 0 24px rgba(15, 23, 42, .14);
+}
+.page-slide-left-enter-from { transform: translateX(100%); }
+.page-slide-left-enter-to { transform: translateX(0); }
+.page-slide-left-leave-to { transform: translateX(-30%); }
+.page-slide-right-leave-to { transform: translateX(100%); }
+.page-slide-right-enter-from { transform: translateX(-100%); }
+.page-slide-right-enter-to { transform: translateX(0); }
+.page-fade-enter-active,
+.page-fade-leave-active { transition: opacity 120ms ease-out; }
+.page-fade-enter-from,
+.page-fade-leave-to { opacity: 0; }
 @keyframes quick-actions-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .bottom-fab,
-  .bottom-fab svg { transition: none; }
+  .bottom-fab svg,
+  .page-slide-left-enter-active,
+  .page-slide-left-leave-active,
+  .page-slide-right-leave-active,
+  .page-fade-enter-active,
+  .page-fade-leave-active { transition: none; }
   .quick-action-menu { animation: none; }
 }
 </style>

@@ -78,13 +78,9 @@
         </button>
       </section>
 
-      <section v-else class="state-panel state-panel--first">
-        <span class="state-icon"><IconifyIcon icon="lucide:building-2" width="24" aria-hidden="true" /></span>
-        <span class="eyebrow">Start your portfolio</span>
-        <h2>Add your first accommodation</h2>
-        <p>Submit the listing and required permits to OSAS. Room setup opens after approval.</p>
+      <EmptyState v-else icon="lucide:building-2" title="Add your first accommodation" message="Submit the listing and required permits to OSAS. Room setup opens after approval.">
         <q-btn no-caps unelevated class="primary-action" to="/landlord/properties/new"><IconifyIcon icon="lucide:plus" width="17" aria-hidden="true" /> Add accommodation</q-btn>
-      </section>
+      </EmptyState>
     </main>
 
   </q-page>
@@ -95,6 +91,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
+import EmptyState from '@/shared/components/EmptyState.vue'
 
 type Tone = 'success' | 'warning' | 'danger' | 'neutral'
 interface Property { id: string; name: string; address: string; imageUrl: string; roomCount: number; capacity: number; occupiedSpaces: number; availableSpaces: number; occupancyPercent: number; needsSetup: boolean; statusLabel: string; statusTone: Tone }

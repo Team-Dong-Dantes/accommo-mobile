@@ -18,7 +18,7 @@
 
         <section v-if="visiblePaid.length" class="payment-section" aria-labelledby="paid-heading"><div class="section-heading"><div><h2 id="paid-heading">Received payments</h2><p>Confirmed payment history.</p></div><span>{{ visiblePaid.length }}</span></div><div class="surface payment-list"><article v-for="payment in visiblePaid" :key="payment.id" class="payment-row"><span class="payment-icon payment-icon--success"><IconifyIcon icon="lucide:circle-check" width="19" aria-hidden="true" /></span><div class="payment-copy"><strong>{{ payment.studentName }}</strong><span>{{ payment.propertyName }} · {{ payment.roomName }}</span><small>{{ payment.paidAt ? formatDate(payment.paidAt) : formatMonth(payment.month) }} · {{ methodLabel(payment.method) }}</small></div><div class="payment-side"><strong>{{ formatPeso(payment.amount) }}</strong><span class="status-badge status-badge--success">Paid</span></div></article></div></section>
 
-        <section v-if="!visiblePayments.length" class="surface state-panel"><span class="state-icon"><IconifyIcon icon="lucide:receipt-text" width="24" aria-hidden="true" /></span><h2>{{ payments.length ? 'No matching payments' : 'No payments yet' }}</h2><p>{{ payments.length ? 'Try another search or payment-status filter.' : 'Payment records for tenants in your properties will appear here.' }}</p><button v-if="payments.length" type="button" class="secondary-action" @click="clearFilters">Clear filters</button></section>
+        <EmptyState v-if="!visiblePayments.length" icon="lucide:receipt-text" :title="payments.length ? 'No matching payments' : 'No payments yet'" :message="payments.length ? 'Try another search or payment-status filter.' : 'Payment records for tenants in your properties will appear here.'"><button v-if="payments.length" type="button" class="secondary-action" @click="clearFilters">Clear filters</button></EmptyState>
       </template>
     </main>
   </q-page>
@@ -31,6 +31,7 @@ import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
 import { formatPeso } from '@/shared/utils/format'
+import EmptyState from '@/shared/components/EmptyState.vue'
 
 type PaymentFilter = 'all' | 'pending_verification' | 'outstanding' | 'paid'
 interface Payment { id: string; leaseId: string; amount: number; method: string; month: string; status: string; paidAt: string | null; proofUrl: string | null; txnReference: string | null; studentName: string; propertyName: string; roomName: string }

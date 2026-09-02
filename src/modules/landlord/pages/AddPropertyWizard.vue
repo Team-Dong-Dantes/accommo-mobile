@@ -49,7 +49,15 @@
         </section>
         </q-step>
       </q-stepper>
-          <footer class="setup-footer"><button v-if="currentStep > 1" type="button" class="back-button" :disabled="saving" @click="currentStep -= 1">Go Back</button><button v-if="currentStep < steps.length" type="button" class="next-button" @click="goNext">Next Step <IconifyIcon icon="lucide:arrow-right" width="17" aria-hidden="true" /></button><button v-else type="button" class="next-button" :disabled="saving" @click="saveAccommodation"><IconifyIcon icon="lucide:send" width="17" aria-hidden="true" /> {{ saving ? 'Submitting' : 'Submit to OSAS' }}</button></footer>
+      <footer class="setup-footer">
+        <button v-if="currentStep < steps.length" type="button" class="next-button" @click="goNext">
+          Next Step <IconifyIcon icon="lucide:arrow-right" width="17" aria-hidden="true" />
+        </button>
+        <button v-else type="button" class="next-button" :disabled="saving" @click="saveAccommodation">
+          <IconifyIcon icon="lucide:send" width="17" aria-hidden="true" />
+          {{ saving ? 'Submitting' : 'Submit' }}
+        </button>
+      </footer>
     </main>
   </q-page>
 </template>
@@ -72,7 +80,7 @@ const router = useRouter(); const $q = useQuasar(); const landlordStore = useLan
 const steps = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }]
 const accommodationTypes = [{ label: 'Boarding house', value: 'boarding_house' }, { label: 'Dormitory / residence hall', value: 'residence_hall' }, { label: 'Apartment building', value: 'apartment_building' }, { label: 'Apartment unit', value: 'apartment_unit' }, { label: 'House', value: 'house' }, { label: 'Condominium unit', value: 'condominium_unit' }, { label: 'Bedspace facility', value: 'bedspace_facility' }, { label: 'Other', value: 'other' }]
 const permitRequirements: { type: PermitType; label: string; description: string; icon: string }[] = [{ type: 'sanitary_permit', label: 'Sanitary permit', description: 'Current local health or sanitary clearance.', icon: 'lucide:clipboard-check' }, { type: 'fire_safety', label: 'Fire safety permit', description: 'Current fire safety inspection certificate.', icon: 'lucide:flame' }, { type: 'business_permit', label: 'Business permit', description: 'Current local business permit for the accommodation.', icon: 'lucide:briefcase-business' }, { type: 'building_permit', label: 'Building permit', description: 'Building or occupancy permit for the premises.', icon: 'lucide:building' }]
-const genderOptions = [{ label: 'Boys only', value: 'boys' }, { label: 'Girls only', value: 'girls' }, { label: 'Co-ed', value: 'coed' }]; const amenitiesOptions = [{ label: 'Wi-Fi', value: 'wifi', icon: 'lucide:wifi' }, { label: 'Water', value: 'water', icon: 'lucide:droplets' }, { label: 'Electricity', value: 'electric', icon: 'lucide:zap' }, { label: 'Air conditioning', value: 'aircon', icon: 'lucide:wind' }]
+const genderOptions = [{ label: 'Boys only', value: 'boys' }, { label: 'Girls only', value: 'girls' }, { label: 'Co-ed', value: 'coed' }]; const amenitiesOptions = [{ label: 'Wi-Fi', value: 'wifi', icon: 'lucide:wifi' }, { label: 'Water', value: 'water', icon: 'lucide:droplets' }, { label: 'Electricity', value: 'electric', icon: 'lucide:zap' }, { label: 'Parking', value: 'parking', icon: 'lucide:parking-circle' }]
 const form = ref({ name: '', accommodationType: '', customAccommodationType: '', genderPolicy: '', address: '', latitude: null as number | null, longitude: null as number | null, totalFloors: null as number | null, description: '', exteriorImages: [] as Photo[], amenities: [] as string[], rules: [] as string[], permits: { sanitary_permit: null as File | null, fire_safety: null as File | null, business_permit: null as File | null, building_permit: null as File | null } })
 const locationMap = ref<HTMLElement | null>(null); const locationResults = ref<LocationResult[]>([]); const locationSearchLoading = ref(false); let map: mapboxgl.Map | null = null; let locationMarker: mapboxgl.Marker | null = null; let locationSearchTimer: ReturnType<typeof setTimeout> | undefined
 const accommodationTypeLabel = computed(() => form.value.accommodationType === 'other' ? form.value.customAccommodationType || 'Other' : accommodationTypes.find((item) => item.value === form.value.accommodationType)?.label || 'Not set'); const submittedPermitCount = computed(() => permitRequirements.filter((permit) => Boolean(form.value.permits[permit.type])).length)
@@ -105,6 +113,7 @@ onBeforeUnmount(() => { if (locationSearchTimer) clearTimeout(locationSearchTime
 .setup-stepper :deep(.q-stepper__tab) { min-height: 64px; padding: 12px 4px; }
 .setup-stepper :deep(.q-stepper__step-inner) { min-width: 0; padding: 0; overflow: hidden; }
 .setup-stepper :deep(.q-stepper__content) { min-height: 360px; overflow: hidden; }
+.setup-stepper :deep(.q-stepper__nav) { display: none; }
 .step-content { display: grid; width: 100%; max-width: none; gap: 18px; padding: 16px 0 4px; }
 .step-copy { padding-bottom: 14px; }
 .step-copy h2 { font-size: clamp(24px, 4vw, 32px); letter-spacing: -.035em; line-height: 1.05; }
@@ -125,9 +134,9 @@ onBeforeUnmount(() => { if (locationSearchTimer) clearTimeout(locationSearchTime
 .rules-list > div { padding: 10px 12px; border: 0; border-bottom: 1px solid var(--m-border); border-radius: 0; background: transparent; }
 .rules-list button { width: 32px; height: 32px; border-radius: 50%; background: var(--m-danger-soft); }
 .review-card { gap: 0; padding-top: 16px; }.review-card > div { padding: 11px 0; border-top: 1px solid var(--m-border); }
-.setup-footer { position: fixed; z-index: 45; right: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 0; display: flex; min-height: 76px; align-items: center; gap: 10px; margin: 0; padding: 12px 24px; background: transparent; pointer-events: none; }
+.setup-footer { position: fixed; z-index: 45; right: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 0; display: flex; min-height: 76px; align-items: center; gap: 10px; margin: 0; padding: 12px 24px; border: 0; outline: 0; background: transparent; box-shadow: none; filter: none; pointer-events: none; }
 .step-status { position: absolute; left: 50%; color: var(--m-muted); font-size: 12px; font-weight: 750; pointer-events: none; transform: translateX(-50%); }
-.back-button,.next-button { min-width: 132px; min-height: 48px; border-radius: var(--m-radius-sm); font-weight: 850; transition: background-color 120ms ease-out, border-color 120ms ease-out, transform 80ms ease-out; }.back-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }.back-button:hover { border-color: #cbd5e1; background: var(--m-bg); }.next-button:hover { background: #00594e; }.back-button:active,.next-button:active { transform: scale(.97); }.back-button:disabled,.next-button:disabled { cursor: not-allowed; pointer-events: none; }
+.back-button,.next-button { min-width: 132px; min-height: 48px; border-radius: var(--m-radius-sm); font-weight: 850; transition: background-color 120ms ease-out, transform 80ms ease-out; }.back-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }.back-button:hover { border-color: #cbd5e1; background: var(--m-bg); }.next-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; outline: 0; background: var(--m-primary-dark); box-shadow: none; filter: none; color: #fff; }.next-button:hover { background: #00594e; box-shadow: none; color: #fff; }.next-button:focus,.next-button:focus-visible { outline: 0; box-shadow: none; }.back-button:active,.next-button:active { transform: scale(.97); }.back-button:disabled,.next-button:disabled { cursor: not-allowed; pointer-events: none; opacity: .55; }
 .back-button,.next-button { pointer-events: auto; }.next-button { margin-left: auto; }
 @media (min-width: 680px) { .setup-shell { padding-right: 36px; padding-left: 36px; }.step-content { padding-top: 24px; }.facility-card,.room-card,.private-facility,.review-card { padding-top: 22px; } }
 @media (max-width: 600px) { .room-type-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

@@ -8,15 +8,6 @@
         </div>
       </header>
 
-      <label class="search-field" for="student-message-search">
-        <IconifyIcon icon="lucide:search" width="19" aria-hidden="true" />
-        <span class="sr-only">Search conversations</span>
-        <input id="student-message-search" v-model="searchText" type="search" placeholder="Search messages" autocomplete="off" />
-        <button v-if="searchText" type="button" class="clear-search" aria-label="Clear conversation search" @click="searchText = ''">
-          <IconifyIcon icon="lucide:x" width="17" aria-hidden="true" />
-        </button>
-      </label>
-
       <section v-if="loading" class="list-state" role="status" aria-live="polite">
         <q-spinner color="primary" size="28px" />
         <span>Loading conversations...</span>
@@ -132,6 +123,47 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- Fixed bottom search + filter (discover-style) -->
+    <div v-if="!activeConversation" class="messages-action-bar">
+      <button type="button" class="messages-filter-button" :class="{ 'has-active': activeFilter !== 'all' }" aria-label="Filter conversations" @click="filterDialog = true">
+        <IconifyIcon icon="mdi:tune" width="21" aria-hidden="true" />
+      </button>
+      <label class="messages-search-field" for="student-message-search">
+        <IconifyIcon icon="lucide:search" width="20" aria-hidden="true" />
+        <span class="sr-only">Search conversations</span>
+        <input id="student-message-search" v-model="searchText" type="search" placeholder="Search messages" autocomplete="off" />
+        <button v-if="searchText" type="button" class="messages-clear-search" aria-label="Clear conversation search" @click="searchText = ''">
+          <IconifyIcon icon="lucide:x" width="18" aria-hidden="true" />
+        </button>
+      </label>
+    </div>
+
+    <!-- Filter bottom sheet -->
+    <q-dialog v-model="filterDialog" position="bottom">
+      <q-card class="messages-filter-sheet">
+        <q-card-section class="messages-filter-heading">
+          <div>
+            <h2>Filter conversations</h2>
+            <p>Show only the messages you want.</p>
+          </div>
+          <q-btn flat round aria-label="Close filters" @click="filterDialog = false"><IconifyIcon icon="lucide:x" width="20" /></q-btn>
+        </q-card-section>
+        <q-card-section>
+          <h3>Who</h3>
+          <div class="messages-filter-options">
+            <button v-for="opt in filterOptions" :key="opt.value" type="button" class="f-chip"
+              :class="{ active: activeFilter === opt.value }" @click="activeFilter = opt.value">
+              {{ opt.label }}
+            </button>
+          </div>
+        </q-card-section>
+        <q-card-actions class="messages-filter-actions">
+          <q-btn flat no-caps @click="activeFilter = 'all'; filterDialog = false">Clear</q-btn>
+          <q-btn unelevated no-caps class="primary-button" @click="filterDialog = false">Show messages</q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -152,6 +184,13 @@ const route = useRoute()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const searchText = ref('')
+const filterDialog = ref(false)
+const activeFilter = ref<'all' | 'students' | 'landlords'>('all')
+const filterOptions: { value: 'all' | 'students' | 'landlords'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'students', label: 'Students' },
+  { value: 'landlords', label: 'Landlords' },
+]
 const conversations = ref<ConversationItem[]>([])
 const currentUserId = ref<string | null>(null)
 const activeConversation = ref<string | null>(null)
@@ -168,9 +207,12 @@ const messageChannel = ref<{ unsubscribe: () => void } | null>(null)
 const scrollArea = ref<{ setScrollPosition: (position: number) => void } | null>(null)
 
 const filteredConversations = computed(() => {
+  let list = conversations.value
+  if (activeFilter.value === 'students') list = list.filter((chat) => chat.role === 'Student')
+  else if (activeFilter.value === 'landlords') list = list.filter((chat) => chat.role === 'Landlord')
   const term = searchText.value.trim().toLowerCase()
-  if (!term) return conversations.value
-  return conversations.value.filter((chat) => [chat.name, chat.role, chat.lastMessage].some((value) => value.toLowerCase().includes(term)))
+  if (!term) return list
+  return list.filter((chat) => [chat.name, chat.role, chat.lastMessage].some((value) => value.toLowerCase().includes(term)))
 })
 const unreadCount = computed(() => conversations.value.reduce((total, chat) => total + chat.unread, 0))
 
@@ -262,12 +304,31 @@ onUnmounted(unsubscribeMessages)
 <style scoped>
 .messages-page { min-height: 100vh; background: var(--m-bg); color: var(--m-text); }
 .conversation-list, .chat-view { min-height: 100vh; max-width: 720px; margin: 0 auto; }
-.conversation-list { padding: var(--m-space-5) var(--m-page-gutter) calc(var(--m-space-8) + 72px); }
+.conversation-list { padding: var(--m-space-5) var(--m-page-gutter) calc(168px + env(safe-area-inset-bottom)); }
 .list-header { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-4); }
 h1, h2 { margin: 0; color: var(--m-ink); letter-spacing: -.03em; } h1 { font-size: 28px; line-height: 1.1; } h2 { font-size: 20px; }
 .list-summary { margin: var(--m-space-1) 0 0; color: var(--m-muted); font-size: 13px; }
-.icon-button, .send-button, .clear-search { display: grid; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-ink); cursor: pointer; }
+.icon-button, .send-button { display: grid; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-ink); cursor: pointer; }
 .icon-button--primary, .send-button { background: var(--m-primary); color: var(--m-surface); }
+
+/* Fixed bottom search (discover-style) */
+.messages-action-bar { position: fixed; z-index: 59; right: 12px; bottom: 80px; left: 12px; display: flex; gap: var(--m-space-2); align-items: center; }
+.messages-search-field { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--m-space-2); min-height: 48px; padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }
+.messages-search-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; }
+.messages-search-field input::placeholder { color: var(--m-muted); }
+.messages-clear-search { display: grid; width: 32px; height: 32px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-muted); cursor: pointer; }
+.messages-filter-button { display: grid; width: 48px; height: 48px; flex: 0 0 48px; padding: 0; place-items: center; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-primary-dark); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); cursor: pointer; }
+.messages-filter-button.has-active { border-color: var(--m-primary); background: color-mix(in srgb, var(--m-primary-soft) 60%, var(--m-surface)); }
+.messages-filter-sheet { border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; padding-bottom: env(safe-area-inset-bottom); }
+.messages-filter-heading { display: flex; justify-content: space-between; align-items: flex-start; }
+.messages-filter-heading h2 { margin: 0; font-size: 17px; }
+.messages-filter-heading p { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
+.messages-filter-sheet h3 { margin: 4px 0 10px; color: var(--m-muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.messages-filter-options { display: flex; flex-wrap: wrap; gap: var(--m-space-2); }
+.f-chip { min-height: 38px; padding: 0 16px; border: 1px solid var(--m-border); border-radius: 999px; background: var(--m-surface); color: var(--m-text); font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; }
+.f-chip.active { color: #fff; background: var(--m-primary); border-color: var(--m-primary); }
+.messages-filter-actions { display: flex; justify-content: space-between; padding: 12px 16px; }
+.primary-button { color: #fff; background: var(--m-primary); border-radius: var(--m-radius-sm); font-weight: 700; }
 .search-field { display: flex; align-items: center; gap: var(--m-space-2); min-height: 48px; padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); }
 .search-field input, .composer textarea { width: 100%; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; }
 .search-field input::placeholder, .composer textarea::placeholder { color: var(--m-muted); }.clear-search { width: 32px; height: 32px; color: var(--m-muted); }
@@ -278,7 +339,7 @@ h1, h2 { margin: 0; color: var(--m-ink); letter-spacing: -.03em; } h1 { font-siz
 .list-state { display: grid; min-height: 180px; place-items: center; align-content: center; gap: var(--m-space-2); padding: var(--m-space-6); color: var(--m-muted); text-align: center; }.list-state strong { color: var(--m-ink); }.list-state--error { color: var(--m-danger); }.list-state--error strong { color: var(--m-danger); }.retry-button { display: inline-flex; min-height: 40px; align-items: center; gap: var(--m-space-2); padding: 0 var(--m-space-3); border: 1px solid currentColor; border-radius: var(--m-radius-sm); background: transparent; color: var(--m-danger); font: inherit; font-weight: 700; cursor: pointer; }
 .chat-view { display: flex; flex-direction: column; height: 100vh; }.chat-header { display: flex; min-height: 60px; align-items: center; gap: var(--m-space-2); padding: var(--m-space-2) var(--m-page-gutter); border-bottom: 1px solid var(--m-border); background: var(--m-surface); }.chat-title { display: grid; min-width: 0; gap: 1px; }.chat-title strong { overflow: hidden; color: var(--m-ink); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }.chat-title span { color: var(--m-muted); font-size: 12px; }.message-scroll { flex: 1; }.message-stack { padding: var(--m-space-4) var(--m-page-gutter); }.date-label { width: max-content; margin: var(--m-space-3) auto; padding: var(--m-space-1) var(--m-space-2); border-radius: 999px; background: var(--m-surface); color: var(--m-muted); font-size: 11px; font-weight: 700; }.message-row { display: flex; margin: var(--m-space-1) 0; }.message-row--mine { justify-content: flex-end; }.message-bubble { max-width: 78%; padding: var(--m-space-2) var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); border-bottom-left-radius: var(--m-space-1); background: var(--m-surface); }.message-bubble--mine { border-color: var(--m-primary); border-bottom-right-radius: var(--m-space-1); border-bottom-left-radius: var(--m-radius-sm); background: var(--m-primary); color: var(--m-surface); }.message-bubble p { margin: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 1.4; }.message-bubble time { display: block; margin-top: var(--m-space-1); color: var(--m-muted); font-size: 10px; text-align: right; }.message-bubble--mine time { color: var(--m-primary-soft); }.empty-thread { margin: var(--m-space-8) 0; color: var(--m-muted); text-align: center; }.composer { display: flex; align-items: flex-end; gap: var(--m-space-2); padding: var(--m-space-2) var(--m-page-gutter); border-top: 1px solid var(--m-border); background: var(--m-surface); }.composer textarea { min-height: 44px; max-height: 120px; resize: none; padding: 12px; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); line-height: 18px; }.send-button:disabled { background: var(--m-border); color: var(--m-muted); cursor: not-allowed; }
 .new-conversation-dialog { max-width: 720px; margin: 0 auto; border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; }.dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); }.dialog-list { padding: 0; max-height: 50vh; overflow-y: auto; }.dialog-list .thread-row { padding-left: var(--m-space-4); padding-right: var(--m-space-4); }
-.icon-button:focus-visible, .send-button:focus-visible, .clear-search:focus-visible, .thread-row:focus-visible, .retry-button:focus-visible, .search-field:focus-within, .composer textarea:focus { outline: 2px solid var(--m-primary-dark); outline-offset: 2px; }.thread-row:hover { background: var(--m-primary-soft); }
+.icon-button:focus-visible, .send-button:focus-visible, .messages-clear-search:focus-visible, .thread-row:focus-visible, .retry-button:focus-visible, .messages-search-field:focus-within, .composer textarea:focus { outline: 2px solid var(--m-primary-dark); outline-offset: 2px; }.thread-row:hover { background: var(--m-primary-soft); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: no-preference) { .thread-row { transition: background .15s ease; } }
 </style>

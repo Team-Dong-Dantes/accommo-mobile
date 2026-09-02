@@ -38,13 +38,7 @@
       <template v-if="loading">
         <q-skeleton type="rect" height="64px" v-for="i in 2" :key="i" class="q-mb-sm" style="border-radius:14px" />
       </template>
-      <template v-else-if="tickets.length === 0">
-        <q-card flat bordered class="custom-card q-mb-sm">
-          <q-card-section class="text-center text-grey-6 q-py-md">
-            No tickets yet. Reach out to OSAS for support.
-          </q-card-section>
-        </q-card>
-      </template>
+      <EmptyState v-else-if="tickets.length === 0" icon="lucide:life-buoy" title="No tickets yet" message="Reach out to OSAS for support." />
       <template v-else>
         <q-card v-for="ticket in tickets" :key="ticket.id" flat bordered class="custom-card q-mb-sm">
           <q-item>
@@ -104,6 +98,7 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { supabase } from '@/shared/utils/supabase';
 import { COMPLAINT_STATUS, statusText, statusColor } from '@/shared/utils/format';
+import EmptyState from '@/shared/components/EmptyState.vue';
 
 interface TicketRow {
   id: string;

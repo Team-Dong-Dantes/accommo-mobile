@@ -9,43 +9,10 @@
         </p>
       </header>
 
-      <section class="search-section" aria-label="Find tenants">
-        <label class="sr-only" for="tenant-search">Search tenants, properties, or rooms</label>
-        <div class="search-control">
-          <IconifyIcon icon="lucide:search" width="19" aria-hidden="true" />
-          <input
-            id="tenant-search"
-            v-model="searchText"
-            type="search"
-            autocomplete="off"
-            placeholder="Search tenants, properties, or rooms"
-          />
-          <button v-if="searchText" type="button" class="search-clear" aria-label="Clear search" @click="searchText = ''">
-            <IconifyIcon icon="lucide:x" width="18" aria-hidden="true" />
-          </button>
-        </div>
-
-        <nav class="filter-bar" aria-label="Tenant status filters">
-          <button
-            v-for="filter in filters"
-            :key="filter.value"
-            type="button"
-            class="filter-button"
-            :class="{ 'filter-button--active': statusFilter === filter.value }"
-            :aria-pressed="statusFilter === filter.value"
-            @click="statusFilter = filter.value"
-          >
-            {{ filter.label }}
-          </button>
-        </nav>
-
-        <div class="results-bar" aria-live="polite">
-          <span>{{ resultCount }} {{ resultCount === 1 ? 'result' : 'results' }}</span>
-          <button v-if="hasActiveFilters" type="button" class="clear-filters" @click="clearFilters">
-            Clear filters
-          </button>
-        </div>
-      </section>
+      <div class="results-bar" aria-live="polite">
+        <span>{{ resultCount }} {{ resultCount === 1 ? 'result' : 'results' }}</span>
+        <button v-if="hasActiveFilters" type="button" class="clear-filters" @click="clearFilters">Clear filters</button>
+      </div>
 
       <section v-if="isLoading" class="state-panel" aria-busy="true" aria-label="Loading tenants">
         <div v-for="index in 5" :key="index" class="skeleton-row" aria-hidden="true">
@@ -129,6 +96,10 @@
               <span class="row-copy">
                 <strong :title="tenant.name">{{ tenant.name }}</strong>
                 <span :title="`${tenant.property} · ${tenant.room}`">{{ tenant.property }} · {{ tenant.room }}</span>
+                <small v-if="tenant.payment" class="tenant-payment" :class="`tenant-payment--${tenant.payment.tone}`">
+                  <IconifyIcon :icon="tenant.payment.icon" width="13" aria-hidden="true" />
+                  {{ tenant.payment.label }} · {{ tenant.payment.amount }}
+                </small>
               </span>
               <span class="status-badge" :class="`status-badge--${tenant.statusKey}`">
                 <IconifyIcon :icon="tenant.statusIcon" width="14" aria-hidden="true" />
@@ -139,19 +110,40 @@
           </div>
         </section>
 
-        <section v-if="!hasEntries" class="state-panel" aria-labelledby="empty-heading">
-          <span class="state-icon"><IconifyIcon icon="lucide:users-round" width="24" aria-hidden="true" /></span>
-          <h2 id="empty-heading">No tenants yet</h2>
-          <p>Tenants appear here after a lease is created for one of your properties.</p>
-        </section>
+        <EmptyState v-if="!hasEntries" icon="lucide:users-round" title="No tenants yet" message="Tenants appear here after a lease is created for one of your properties." />
 
-        <section v-else-if="!visibleTenants.length && !visiblePendingApplications.length" class="state-panel" aria-labelledby="no-results-heading">
-          <span class="state-icon"><IconifyIcon icon="lucide:search-x" width="24" aria-hidden="true" /></span>
-          <h2 id="no-results-heading">No matching tenants</h2>
-          <p>Try another search or clear the active filters.</p>
-          <button type="button" class="retry-button" @click="clearFilters">Clear filters</button>
-        </section>
+        <EmptyState v-else-if="!visibleTenants.length && !visiblePendingApplications.length" icon="lucide:search-x" title="No matching tenants" message="Try another search or clear the active filters."><button type="button" class="retry-button" @click="clearFilters">Clear filters</button></EmptyState>
       </template>
+
+      <div class="tenant-action-bar">
+        <button type="button" class="filter-icon-button" :class="{ 'filter-icon-button--active': statusFilter !== 'all' }" aria-label="Filter tenants" @click="filterDialog = true">
+          <IconifyIcon icon="mdi:tune" width="21" aria-hidden="true" />
+        </button>
+        <label class="search-field" for="tenant-search">
+          <IconifyIcon icon="lucide:search" width="20" aria-hidden="true" />
+          <span class="sr-only">Search tenants, properties, or rooms</span>
+          <input id="tenant-search" v-model="searchText" type="search" autocomplete="off" placeholder="Search tenants" />
+          <button v-if="searchText" type="button" class="search-clear" aria-label="Clear search" @click="searchText = ''"><IconifyIcon icon="lucide:x" width="18" aria-hidden="true" /></button>
+        </label>
+      </div>
+
+      <q-dialog v-model="filterDialog" position="bottom">
+        <q-card class="tenant-filter-sheet">
+          <q-card-section class="tenant-filter-sheet__heading">
+            <div><h2>Filter tenants</h2><p>Choose the tenant status to review.</p></div>
+            <q-btn flat round dense aria-label="Close filters" @click="filterDialog = false"><IconifyIcon icon="lucide:x" width="20" /></q-btn>
+          </q-card-section>
+          <q-card-section>
+            <div class="tenant-filter-options">
+              <button v-for="filter in filters" :key="filter.value" type="button" :class="{ active: statusFilter === filter.value }" @click="statusFilter = filter.value">{{ filter.label }}</button>
+            </div>
+          </q-card-section>
+          <q-card-actions class="tenant-filter-sheet__actions">
+            <q-btn flat no-caps label="Clear" @click="clearFilters" />
+            <q-btn unelevated no-caps class="retry-button" label="Show results" @click="filterDialog = false" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
     </main>
   </q-page>
 </template>
@@ -162,6 +154,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
+import EmptyState from '@/shared/components/EmptyState.vue'
 
 type TenantFilter = 'all' | 'active' | 'pending' | 'payment-due' | 'leaving'
 type TenantStatusKey = Exclude<TenantFilter, 'all' | 'pending'> | 'ended' | 'unknown'
@@ -176,6 +169,12 @@ interface Tenant {
   status: string
   statusKey: TenantStatusKey
   statusIcon: string
+  payment: {
+    label: string
+    amount: string
+    tone: 'danger' | 'warning' | 'success' | 'neutral'
+    icon: string
+  } | null
 }
 
 interface PendingApplication {
@@ -190,6 +189,7 @@ const $q = useQuasar()
 const router = useRouter()
 const searchText = ref('')
 const statusFilter = ref<TenantFilter>('all')
+const filterDialog = ref(false)
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 const applicationAction = ref<string | null>(null)
@@ -233,6 +233,31 @@ function tenantStatus(status: string, leaveRequested: boolean, paymentDue: boole
   if (status === 'active') return { status: 'Active', statusKey: 'active', statusIcon: 'lucide:circle-check' }
   if (['ended', 'expired', 'terminated'].includes(status)) return { status: 'Ended', statusKey: 'ended', statusIcon: 'lucide:circle-x' }
   return { status: status ? status.replace(/_/g, ' ') : 'Unknown', statusKey: 'unknown', statusIcon: 'lucide:circle-help' }
+}
+
+function formatPeso(value: number): string {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function paymentSummary(payments: any[]): Tenant['payment'] {
+  if (!payments.length) return null
+
+  const priority = ['overdue', 'pending_verification', 'due', 'paid']
+  const payment = [...payments].sort((a, b) => priority.indexOf(a.status) - priority.indexOf(b.status))[0]
+  if (!payment) return null
+
+  const summaries: Record<string, Omit<NonNullable<Tenant['payment']>, 'amount'>> = {
+    overdue: { label: 'Overdue', tone: 'danger', icon: 'lucide:circle-alert' },
+    pending_verification: { label: 'Payment to verify', tone: 'warning', icon: 'lucide:file-check-2' },
+    due: { label: 'Payment due', tone: 'warning', icon: 'lucide:receipt-text' },
+    paid: { label: 'Last payment received', tone: 'success', icon: 'lucide:circle-check' },
+  }
+  const presentation = summaries[payment.status] || { label: 'Payment recorded', tone: 'neutral' as const, icon: 'lucide:receipt-text' }
+  return { ...presentation, amount: formatPeso(Number(payment.amount || 0)) }
 }
 
 async function loadTenants() {
@@ -281,16 +306,17 @@ async function loadTenants() {
       leaseRows = (leases || []) as any[]
     }
 
-    const paymentDueLeaseIds = new Set<string>()
+    const paymentsByLease = new Map<string, any[]>()
     const leaseIds = leaseRows.map((lease) => lease.id)
     if (leaseIds.length) {
       const { data: payments, error: paymentError } = await supabase
         .from('payments')
-        .select('lease_id, status')
+        .select('lease_id, amount, status, month, paid_at')
         .in('lease_id', leaseIds)
-        .in('status', ['due', 'overdue', 'pending_verification'])
       if (paymentError) throw paymentError
-      ;(payments || []).forEach((payment: any) => paymentDueLeaseIds.add(payment.lease_id))
+      ;(payments || []).forEach((payment: any) => {
+        paymentsByLease.set(payment.lease_id, [...(paymentsByLease.get(payment.lease_id) || []), payment])
+      })
     }
 
     const userById = new Map<string, any>()
@@ -330,7 +356,7 @@ async function loadTenants() {
       const status = tenantStatus(
         String(lease.status || '').toLowerCase(),
         Boolean(lease.leave_requested_at),
-        paymentDueLeaseIds.has(lease.id),
+        (paymentsByLease.get(lease.id) || []).some((payment) => ['due', 'overdue', 'pending_verification'].includes(payment.status)),
       )
       nextTenants.push({
         id: lease.id,
@@ -339,6 +365,7 @@ async function loadTenants() {
         initials: initialsOf(name),
         ...tenantLocation,
         ...status,
+        payment: paymentSummary(paymentsByLease.get(lease.id) || []),
       })
     }
 
@@ -400,6 +427,7 @@ const resultCount = computed(() => visibleTenants.value.length + visiblePendingA
 function clearFilters() {
   searchText.value = ''
   statusFilter.value = 'all'
+  filterDialog.value = false
 }
 
 function openTenant(studentId: string) {
@@ -414,7 +442,7 @@ onMounted(() => {
 <style scoped>
 .tenants-page {
   min-height: 100%;
-  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  padding-bottom: calc(168px + env(safe-area-inset-bottom));
   background: var(--m-bg);
   color: var(--m-text);
 }
@@ -430,21 +458,26 @@ onMounted(() => {
 .page-summary { margin: 0; color: var(--m-muted); font-size: 13px; line-height: 1.45; }
 .page-summary span::before { content: ' '; }
 
-.search-section { display: grid; gap: var(--m-space-3); margin-bottom: var(--m-space-6); }
-.search-control { display: grid; min-height: 48px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--m-space-2); padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); }
-.search-control:focus-within { border-color: var(--m-primary); box-shadow: 0 0 0 2px var(--m-primary-soft); color: var(--m-primary-dark); }
-.search-control input { min-width: 0; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; font-size: 15px; }
-.search-control input::placeholder { color: var(--m-muted); opacity: 1; }
-.search-clear { display: grid; width: 36px; height: 36px; margin-right: -6px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-muted); cursor: pointer; }
-.search-clear:hover { background: var(--m-bg); color: var(--m-ink); }
-
-.filter-bar { display: flex; flex-wrap: wrap; gap: var(--m-space-2); }
-.filter-button { min-height: 36px; padding: 0 12px; border: 1px solid var(--m-border); border-radius: 999px; background: var(--m-surface); color: var(--m-muted); cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
-.filter-button:hover { border-color: var(--m-primary); color: var(--m-primary-dark); }
-.filter-button--active { border-color: var(--m-primary-dark); background: var(--m-primary-dark); color: var(--m-surface); }
-.filter-button--active:hover { color: var(--m-surface); }
-.results-bar { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: var(--m-space-3); color: var(--m-muted); font-size: 12px; font-weight: 700; }
+.results-bar { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-5); color: var(--m-muted); font-size: 12px; font-weight: 700; }
 .clear-filters { min-height: 36px; margin: -6px 0; padding: 0 4px; border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }
+
+.tenant-action-bar { position: fixed; z-index: 59; right: 72px; bottom: 80px; left: var(--m-space-4); display: flex; align-items: center; gap: var(--m-space-2); }
+.search-field { display: flex; min-width: 0; flex: 1; min-height: 44px; align-items: center; gap: var(--m-space-2); padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); color: var(--m-muted); }
+.search-field:focus-within { border-color: var(--m-primary); color: var(--m-primary-dark); }
+.search-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; font-size: 14px; }
+.search-field input::placeholder { color: var(--m-muted); opacity: 1; }
+.search-clear, .filter-icon-button { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; padding: 0; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); color: var(--m-primary-dark); cursor: pointer; }
+.search-clear { width: 28px; height: 28px; margin-right: -4px; border: 0; border-radius: 50%; box-shadow: none; color: var(--m-muted); }
+.filter-icon-button--active { border-color: var(--m-primary-dark); background: var(--m-primary-soft); }
+
+.tenant-filter-sheet { width: 100%; max-width: 680px; margin: 0 auto; border-radius: 18px 18px 0 0; }
+.tenant-filter-sheet__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--m-space-3); border-bottom: 1px solid var(--m-border); }
+.tenant-filter-sheet__heading h2 { margin: 0; color: var(--m-ink); font-size: 18px; }
+.tenant-filter-sheet__heading p { margin: 4px 0 0; color: var(--m-muted); font-size: 12px; }
+.tenant-filter-options { display: flex; flex-wrap: wrap; gap: var(--m-space-2); }
+.tenant-filter-options button { min-height: 40px; padding: 0 13px; border: 1px solid var(--m-border); border-radius: 999px; background: var(--m-surface); color: var(--m-text); font: inherit; font-size: 12px; font-weight: 750; }
+.tenant-filter-options button.active { border-color: var(--m-primary-dark); background: var(--m-primary-dark); color: #fff; }
+.tenant-filter-sheet__actions { display: flex; justify-content: space-between; padding: var(--m-space-3) var(--m-space-4) max(var(--m-space-3), env(safe-area-inset-bottom)); border-top: 1px solid var(--m-border); }
 
 .applications-section, .roster-section { margin-top: var(--m-space-6); }
 .applications-section:first-of-type { margin-top: 0; }
@@ -460,6 +493,11 @@ onMounted(() => {
 .row-copy strong, .row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-copy strong { color: var(--m-ink); font-size: 14px; line-height: 1.25; }
 .row-copy > span { color: var(--m-muted); font-size: 12px; line-height: 1.25; }
+.tenant-payment { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 11px; font-weight: 750; line-height: 1.25; }
+.tenant-payment--danger { color: var(--m-danger); }
+.tenant-payment--warning { color: var(--m-warning); }
+.tenant-payment--success { color: var(--m-success); }
+.tenant-payment--neutral { color: var(--m-muted); }
 .application-actions { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: var(--m-space-2); }
 .application-action, .retry-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border-radius: var(--m-radius-sm); cursor: pointer; font: inherit; font-size: 13px; font-weight: 800; }
 .application-action--accept { border: 1px solid var(--m-success); background: var(--m-success); color: var(--m-surface); }

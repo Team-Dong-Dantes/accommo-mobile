@@ -10,7 +10,7 @@
     <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://api.mapbox.com blob:; style-src 'self' 'unsafe-inline' https://api.mapbox.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com https://api.mapbox.com https://*.mapbox.com https://events.mapbox.com https://fonts.openmaptiles.org; img-src 'self' data: https://*.supabase.co https://www.gstatic.com https://isu.edu.ph https://api.mapbox.com https://*.mapbox.com https://*.tiles.mapbox.com https://fonts.openmaptiles.org; font-src 'self' data: https://api.mapbox.com https://fonts.openmaptiles.org; worker-src 'self' blob:; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://api.mapbox.com blob:; style-src 'self' 'unsafe-inline' https://api.mapbox.com https://fonts.googleapis.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com https://api.mapbox.com https://*.mapbox.com https://events.mapbox.com https://fonts.openmaptiles.org; img-src 'self' data: https://*.supabase.co https://www.gstatic.com https://isu.edu.ph https://api.mapbox.com https://*.mapbox.com https://*.tiles.mapbox.com https://fonts.openmaptiles.org; font-src 'self' data: https://api.mapbox.com https://fonts.openmaptiles.org https://fonts.gstatic.com; worker-src 'self' blob:; form-action 'self'; base-uri 'self'; upgrade-insecure-requests;"
     />
 
     <link rel="icon" type="image/png" sizes="128x128" href="icons/favicon-128x128.png">
@@ -20,6 +20,9 @@
     <link rel="icon" type="image/ico" href="favicon.ico">
 
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.28.1/mapbox-gl.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.28.1/mapbox-gl.js"></script>
   </head>
   <body>
