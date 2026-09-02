@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/shared/utils/supabase';
 import { uploadDocument } from '@/shared/utils/upload';
 import type { RegisterForm } from '@/shared/types/database';
@@ -402,16 +403,17 @@ export const useAuthStore = defineStore('auth', {
 
     async loginWithGoogle(redirectPath: string) {
       // The app uses history-mode routing (see quasar.config vueRouterMode).
-      // Earlier this hardcoded "origin + '/#/' + path" from a hash-routing era,
-      // which broke OAuth: the callback tokens landed in a # fragment that
-      // history-mode vue-router ignored, so the redirect resolved to '/' (the
-      // Get Started page) and the session was never picked up.
-      //
-      // Use a plain path and PKCE flow so the callback returns a ?code= query
-      // param that @supabase/supabase-js exchanges for a session on load.
-      const base = window.location.origin;
-      const path = redirectPath.replace(/^\/+/, '');
-      const redirectTo = `${base}/${path}`;
+      // On the packaged Capacitor app we return the user through the registered
+      // custom-scheme deep link com.accommo.app://auth/callback (see boot/deeplink
+      // + the AndroidManifest VIEW intent-filter). On web we keep the origin path.
+      let redirectTo: string
+      if (Capacitor.isNativePlatform()) {
+        redirectTo = 'com.accommo.app://auth/callback'
+      } else {
+        const base = window.location.origin
+        const path = redirectPath.replace(/^\/+/, '')
+        redirectTo = `${base}/${path}`
+      }
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
