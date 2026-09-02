@@ -45,13 +45,16 @@ jobs:
         run: npm ci
       - name: Build web assets
         run: npm run build
-      # Cap sync reads webDir "www" inside src-capacitor → copy dist/spa there.
+      # Cap sync must run inside src-capacitor, where the native android project
+      # and this project's capacitor.config.json (webDir "www") live.
       - name: Stage web into Capacitor www
         run: |
           mkdir -p src-capacitor/www
           cp -r dist/spa/* src-capacitor/www/
       - name: Sync Capacitor Android
-        run: npx cap sync android
+        run: |
+          cd src-capacitor
+          node ../node_modules/@capacitor/cli/bin/capacitor sync android
       # Optional signing — signs only when the keystore secret is present.
       # (The secrets context can't be used in a step `if:`; guard it in bash.)
       - name: Decode keystore (if configured)
