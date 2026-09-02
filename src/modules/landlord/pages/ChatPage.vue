@@ -1,331 +1,179 @@
 <template>
   <q-page class="chat-page">
-    <q-layout view="hHh lpR fFf">
-      <q-header elevated class="bg-primary text-white">
-        <q-toolbar>
-          <q-btn
-            v-if="!chat.activeConversationId && !activePlaceholderConv"
-            dense
-            flat
-            round
-            @click="toggleLeftDrawer"
-          >
-            <IconifyIcon width="24" icon="material-icons:menu" />
-          </q-btn>
-          <q-btn
-            v-else
-            dense
-            flat
-            round
-            icon="arrow_back"
-            @click="backToList"
-          />
+    <!-- No conversation selected state -->
+    <div v-if="!chat.activeConversationId" class="no-conv">
+      <div class="no-conv-icon">
+        <IconifyIcon icon="lucide:message-square" width="40" aria-hidden="true" />
+      </div>
+      <strong>No chat selected</strong>
+      <span>Select a tenant conversation to start messaging.</span>
+      <button type="button" class="back-pill" @click="goToList">
+        <IconifyIcon icon="lucide:chevron-left" width="18" aria-hidden="true" /> Back to Chats
+      </button>
+    </div>
 
-          <q-toolbar-title>
-            {{ (chat.activeConversationId || activePlaceholderConv) ? activeOtherName : 'Messages' }}
-          </q-toolbar-title>
+    <!-- Active Messenger Conversation (Teal Theme) -->
+    <main v-else class="messenger-chat-view" :aria-label="`Chat with ${activeOtherName}`">
+      <!-- Messenger Header -->
+      <header class="messenger-header">
+        <button type="button" class="back-btn" aria-label="Back to messages" @click="goToList">
+          <IconifyIcon icon="lucide:chevron-left" width="28" aria-hidden="true" />
+        </button>
+        
+        <div class="header-user-info">
+          <q-avatar size="38px" class="header-avatar">
+            {{ initials(activeOtherName) }}
+          </q-avatar>
+          <div class="header-titles">
+            <strong class="user-name">{{ activeOtherName }}</strong>
+            <span class="user-subtitle">{{ activeOtherRole }}</span>
+          </div>
+        </div>
 
-          <q-btn flat round dense @click="handleLogout">
-            <IconifyIcon width="24" icon="material-icons:logout" />
-          </q-btn>
-        </q-toolbar>
-      </q-header>
+        <div class="header-actions">
+          <button type="button" class="action-circle-btn" aria-label="Info">
+            <IconifyIcon icon="lucide:info" width="20" aria-hidden="true" />
+          </button>
+        </div>
+      </header>
 
-      <q-drawer show-if-above v-model="leftDrawerOpen" side="left" bordered>
-        <q-list>
-          <q-item-label header>Menu</q-item-label>
+      <!-- Scrollable Message Stack -->
+      <q-scroll-area ref="scrollArea" class="messenger-scroll">
+        <div v-if="chat.isLoading" class="chat-loading">
+          <q-spinner-dots color="teal-8" size="32px" />
+        </div>
+        
+        <div v-else-if="chat.loadError" class="chat-error">
+          <IconifyIcon icon="lucide:alert-triangle" width="28" aria-hidden="true" />
+          <span>{{ chat.loadError }}</span>
+          <button type="button" class="retry-pill" @click="reloadThread">Retry</button>
+        </div>
 
-          <template v-if="userRole === 'landlord'">
-            <q-item clickable v-ripple to="/landlord/dashboard" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:dashboard" />
-              </q-item-section>
-              <q-item-section> Overview </q-item-section>
-            </q-item>
-
-            <q-item clickable v-ripple to="/landlord/properties" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:domain" />
-              </q-item-section>
-              <q-item-section> My Boarding Houses </q-item-section>
-            </q-item>
-
-            <q-item clickable v-ripple to="/landlord/tenants" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:people" />
-              </q-item-section>
-              <q-item-section> Tenants </q-item-section>
-            </q-item>
-
-            <q-item clickable v-ripple to="/landlord/payments" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:payments" />
-              </q-item-section>
-              <q-item-section> Payments </q-item-section>
-            </q-item>
-
-            <q-item clickable v-ripple to="/landlord/profile" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:person" />
-              </q-item-section>
-              <q-item-section> Profile </q-item-section>
-            </q-item>
-
-            <q-item clickable v-ripple to="/landlord/chat" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:chat" />
-              </q-item-section>
-              <q-item-section> Chat </q-item-section>
-            </q-item>
-
-            <q-item clickable v-ripple to="/landlord/notifications" exact>
-              <q-item-section avatar>
-                <IconifyIcon width="24" icon="material-icons:notifications" />
-              </q-item-section>
-              <q-item-section> Notifications </q-item-section>
-            </q-item>
-          </template>
-        </q-list>
-      </q-drawer>
-
-      <q-page-container>
-        <div class="chat-page-wrapper">
-          <!-- Conversation list -->
-          <div v-if="!chat.activeConversationId && !activePlaceholderConv" class="conv-list">
-            <div class="conv-list-head">
-              <div class="conv-list-title">Conversations</div>
-              <div class="row no-wrap items-center">
-                <q-btn round flat icon="edit" color="teal-9" @click="openNewChat" />
-              </div>
-            </div>
-
-
-            <div v-if="chat.isLoading" class="center-state">
-              <q-spinner size="40px" color="teal-8" />
-            </div>
-
-            <div v-else-if="chat.loadError" class="center-state text-negative">
-              {{ chat.loadError }}
-            </div>
-
-            <q-list v-else-if="conversationList.length" separator>
-              <q-item
-                v-for="c in conversationList"
-                :key="c.id"
-                clickable
-                v-ripple
-                @click="openConversation(c.id)"
-              >
-                <q-item-section avatar>
-                  <q-avatar color="teal-9" text-color="white">
-                    {{ initials(c.otherName) }}
-                  </q-avatar>
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ c.otherName }}</q-item-label>
-                  <q-item-label caption lines="1">
-                    {{ c.lastMessage || 'No messages yet' }}
-                  </q-item-label>
-                </q-item-section>
-                <q-item-section side top>
-                  <q-item-label caption>
-                    {{ c.lastTime ? formatTimestamp(c.lastTime) : '' }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-
-            <div v-else class="center-state text-grey-7">
-              No conversations yet. Tap
-              <q-icon name="edit" class="q-mx-xs" /> to message a tenant.
-            </div>
+        <div v-else class="bubble-stack">
+          <!-- Intro Profile Card -->
+          <div class="chat-intro-banner">
+            <q-avatar size="72px" class="intro-avatar">
+              {{ initials(activeOtherName) }}
+            </q-avatar>
+            <h2 class="intro-name">{{ activeOtherName }}</h2>
+            <span class="intro-meta">{{ activeOtherRole }} · Accommo Platform</span>
+            <span class="intro-hint">You are connected on Accommo</span>
           </div>
 
-          <!-- Thread -->
-          <template v-else>
-            <div class="conversation-header">
-              <q-avatar color="teal-9" text-color="white" size="40px">
+          <template v-for="(msg, index) in threadMessages" :key="msg.id">
+            <!-- Date Separator -->
+            <div
+              v-if="index === 0 || isDifferentDay(threadMessages[index - 1]?.timestamp, msg.timestamp)"
+              class="messenger-date-pill"
+            >
+              {{ formatDay(msg.timestamp) }}
+            </div>
+
+            <!-- Message Row -->
+            <div
+              class="bubble-row"
+              :class="{
+                'bubble-row--mine': msg.isLandlord,
+                'bubble-row--theirs': !msg.isLandlord,
+                'bubble-row--seq': isSequence(index)
+              }"
+            >
+              <!-- Their Avatar on cluster -->
+              <q-avatar
+                v-if="!msg.isLandlord"
+                size="28px"
+                class="sender-avatar"
+                :class="{ 'sender-avatar--hidden': isFollowedByTheirs(index) }"
+              >
                 {{ initials(activeOtherName) }}
               </q-avatar>
-              <div class="header-info">
-                <div class="header-name">{{ activeOtherName }}</div>
-              </div>
-            </div>
 
-            <div class="conversation-view">
-              <div v-if="chat.isLoading" class="center-state">
-                <q-spinner size="40px" color="teal-8" />
-              </div>
-              <div v-else-if="chat.loadError" class="center-state text-negative">
-                {{ chat.loadError }}
-              </div>
-              <template v-else>
-                <div
-                  v-for="message in threadMessages"
-                  :key="message.id"
-                  class="message-bubble-wrapper"
-                  :class="message.isLandlord ? 'from-me' : 'from-them'"
+              <div class="bubble-content-wrap">
+                <article
+                  class="messenger-bubble"
+                  :class="{
+                    'messenger-bubble--mine': msg.isLandlord,
+                    'messenger-bubble--theirs': !msg.isLandlord,
+                    'radius-bottom-right': msg.isLandlord && isFollowedByMine(index),
+                    'radius-top-right': msg.isLandlord && isPrecededByMine(index),
+                    'radius-bottom-left': !msg.isLandlord && isFollowedByTheirs(index),
+                    'radius-top-left': !msg.isLandlord && isPrecededByTheirs(index),
+                  }"
                 >
-                  <div
-                    class="message-bubble"
-                    :class="message.isLandlord ? 'landlord-bubble' : 'student-bubble'"
-                  >
-                    {{ message.text }}
-                    <div class="message-meta">
-                      {{ formatTimestamp(message.timestamp) }}
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
+                  <p class="bubble-text">{{ msg.text }}</p>
+                </article>
 
-            <div class="message-input-area">
-              <q-input
-                v-model="newMessage"
-                @keyup.enter="sendMessage"
-                outlined
-                rounded
-                dense
-                placeholder="Type a message..."
-                class="chat-input"
-              >
-                <template #append>
-                  <q-btn flat round icon="send" color="teal-9" @click="sendMessage" />
-                </template>
-              </q-input>
+                <!-- Status Indicator below message -->
+                <div v-if="msg.isLandlord && index === threadMessages.length - 1" class="delivery-status">
+                  <span v-if="msg.status === 'read'" class="seen-label">
+                    <IconifyIcon icon="lucide:check-check" width="13" class="seen-check" /> Seen
+                  </span>
+                  <span v-else class="sent-label">
+                    <IconifyIcon icon="lucide:check" width="13" /> Sent
+                  </span>
+                </div>
+              </div>
             </div>
           </template>
         </div>
-      </q-page-container>
-    </q-layout>
+      </q-scroll-area>
 
-    <!-- New chat dialog -->
-    <q-dialog v-model="showNewChat">
-      <q-card class="new-chat-card">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Message a tenant</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-        <q-card-section>
-          <div v-if="tenantLoading" class="center-state">
-            <q-spinner size="32px" color="teal-8" />
+      <!-- Messenger Composer -->
+      <footer class="messenger-composer-bar">
+        <form class="composer-form" @submit.prevent="submitMessage">
+          <div class="input-pill">
+            <textarea
+              id="landlord-chat-composer"
+              v-model="newMessage"
+              rows="1"
+              placeholder="Message..."
+              :disabled="sending"
+              @keydown.enter.exact.prevent="submitMessage"
+            />
+            <button
+              type="submit"
+              class="send-icon-btn"
+              :disabled="!newMessage.trim() || sending"
+              aria-label="Send"
+            >
+              <q-spinner v-if="sending" size="16px" />
+              <IconifyIcon v-else icon="lucide:send" width="18" aria-hidden="true" />
+            </button>
           </div>
-          <template v-else>
-            <q-item-label header>Tenants</q-item-label>
-            <q-list separator>
-              <q-item
-                v-for="t in tenants"
-                :key="t.id"
-                clickable
-                v-ripple
-                @click="startChatWith(t.id)"
-              >
-                <q-item-section avatar>
-                  <q-avatar color="teal-9" text-color="white">{{ initials(t.name) }}</q-avatar>
-                </q-item-section>
-                <q-item-section>{{ t.name }}</q-item-section>
-              </q-item>
-              <q-item v-if="!tenants.length">
-                <q-item-section class="text-grey-7">No active tenants found.</q-item-section>
-              </q-item>
-            </q-list>
-          </template>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+        </form>
+      </footer>
+    </main>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
-import { supabase } from '@/shared/utils/supabase'
+import { chatFullscreen } from '@/shared/utils/chatFullscreen'
 
 const router = useRouter()
 const route = useRoute()
 const $q = useQuasar()
-const authStore = useAuthStore()
 const chat = useChatStore()
 
-const userRole = ref<'landlord' | 'student' | ''>('landlord')
-const leftDrawerOpen = ref(false)
 const newMessage = ref('')
-const showNewChat = ref(false)
-const tenants = ref<{ id: string; name: string }[]>([])
-const tenantLoading = ref(false)
-
-// Conversations load from Supabase only; no placeholder/sample data.
-
-function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value
-}
-
-function handleLogout() {
-  authStore.clearCachedRole()
-  void supabase.auth.signOut()
-  void router.push('/login')
-}
-
-interface PlaceholderMessage {
-  id: string
-  text: string
-  isLandlord: boolean
-  timestamp: string
-}
-
-interface PlaceholderConv {
-  id: string
-  otherName: string
-  lastMessage: string
-  lastTime: string
-  messages: PlaceholderMessage[]
-}
-
-const placeholderConversations = ref<PlaceholderConv[]>([
-  {
-    id: 'ph-1',
-    otherName: 'Maria Santos',
-    lastMessage: 'Hi! About the lease renewal for Room 3.',
-    lastTime: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-    messages: [
-      { id: 'm1', text: 'Hi! My lease ends next month. Can we renew for another semester?', isLandlord: false, timestamp: new Date(Date.now() - 2 * 3600 * 1000).toISOString() },
-      { id: 'm2', text: 'Sure, Maria. I will prepare the renewal papers this week and message you the details.', isLandlord: true, timestamp: new Date(Date.now() - 1.9 * 3600 * 1000).toISOString() },
-      { id: 'm3', text: 'Thank you! Also, is the advance payment still the same amount?', isLandlord: false, timestamp: new Date(Date.now() - 1.6 * 3600 * 1000).toISOString() },
-    ],
-  },
-  {
-    id: 'ph-2',
-    otherName: 'OSAS Office',
-    lastMessage: 'We received your accreditation documents.',
-    lastTime: new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
-    messages: [
-      { id: 'm1', text: 'Good day! We have received your submitted business permit.', isLandlord: false, timestamp: new Date(Date.now() - 26 * 3600 * 1000).toISOString() },
-      { id: 'm2', text: 'Our officer will review it within 3 business days and update your status.', isLandlord: false, timestamp: new Date(Date.now() - 26 * 3600 * 1000 + 60000).toISOString() },
-    ],
-  },
-])
-
-const activePlaceholderConv = ref<PlaceholderConv | null>(null)
-
-const conversationList = computed(() => {
-  if (chat.conversations.length > 0) return chat.conversations
-  return placeholderConversations.value
-})
-
-const threadMessages = computed(() => {
-  if (activePlaceholderConv.value) return activePlaceholderConv.value.messages
-  return chat.messages
-})
+const sending = ref(false)
+const scrollArea = ref<any>(null)
 
 const activeOtherName = computed(() => {
-  if (activePlaceholderConv.value) return activePlaceholderConv.value.otherName
   const c = chat.conversations.find((x) => x.id === chat.activeConversationId)
-  return c?.otherName ?? 'Chat'
+  return c?.otherName ?? 'Tenant'
 })
+
+const activeOtherRole = computed(() => {
+  const c = chat.conversations.find((x) => x.id === chat.activeConversationId)
+  return c?.otherRole ?? 'Tenant'
+})
+
+type ChatMessage = { id: string; text: string; isLandlord: boolean; timestamp: string; status: 'sent' | 'delivered' | 'read' }
+const threadMessages = computed<ChatMessage[]>(() => chat.messages as ChatMessage[])
 
 function initials(name: string): string {
   return (name || '?')
@@ -337,220 +185,432 @@ function initials(name: string): string {
     .toUpperCase()
 }
 
-function openConversation(id: string) {
-  if (id.startsWith('ph-')) {
-    activePlaceholderConv.value = placeholderConversations.value.find((c) => c.id === id) ?? null
-    return
-  }
-  void chat.loadMessages(id)
+function goToList() {
+  void router.replace('/landlord/messages')
 }
 
-function backToList() {
-  chat.clearActive()
-  activePlaceholderConv.value = null
-  void router.push('/landlord/messages')
+function isDifferentDay(previous: string | undefined, current: string): boolean {
+  return !previous || new Date(previous).toDateString() !== new Date(current).toDateString()
+}
+function formatDay(timestamp: string): string {
+  const date = new Date(timestamp)
+  const today = new Date().toDateString()
+  const yesterday = new Date(Date.now() - 86400000).toDateString()
+  if (date.toDateString() === today) return 'Today'
+  if (date.toDateString() === yesterday) return 'Yesterday'
+  return date.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+function formatTime(timestamp: string): string {
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 }
 
-async function sendMessage() {
-  const text = newMessage.value.trim()
-  if (!text) return
-  if (activePlaceholderConv.value) {
-    activePlaceholderConv.value.messages.push({
-      id: `local-${Date.now()}`,
-      text,
-      isLandlord: true,
-      timestamp: new Date().toISOString(),
-    })
-    newMessage.value = ''
-    return
+// Cluster helpers
+function isSequence(index: number): boolean {
+  if (index === 0) return false
+  return threadMessages.value[index]?.isLandlord === threadMessages.value[index - 1]?.isLandlord
+}
+function isFollowedByMine(index: number): boolean {
+  return threadMessages.value[index + 1]?.isLandlord === true
+}
+function isPrecededByMine(index: number): boolean {
+  return threadMessages.value[index - 1]?.isLandlord === true
+}
+function isFollowedByTheirs(index: number): boolean {
+  return threadMessages.value[index + 1]?.isLandlord === false
+}
+function isPrecededByTheirs(index: number): boolean {
+  return threadMessages.value[index - 1]?.isLandlord === false
+}
+
+async function scrollToBottom(duration = 120) {
+  await nextTick()
+  const area = scrollArea.value
+  if (!area) return
+  if (typeof area.setScrollPercentage === 'function') {
+    area.setScrollPercentage('vertical', 1, duration)
+  } else if (typeof area.setScrollPosition === 'function') {
+    area.setScrollPosition('vertical', 999999, duration)
   }
+}
+
+watch(() => threadMessages.value.length, () => {
+  void scrollToBottom()
+})
+
+async function reloadThread() {
+  if (!chat.activeConversationId) return
+  await chat.loadMessages(chat.activeConversationId)
+  void scrollToBottom(0)
+  setTimeout(() => { void scrollToBottom(0) }, 60)
+  setTimeout(() => { void scrollToBottom(0) }, 200)
+}
+
+async function submitMessage() {
+  void sendMessage()
+}
+
+async function sendMessage(textOverride?: string) {
+  const text = (typeof textOverride === 'string' ? textOverride : newMessage.value).trim()
+  if (!text || sending.value || !chat.activeConversationId) return
+  sending.value = true
   try {
     await chat.sendMessage(text)
     newMessage.value = ''
+    void scrollToBottom()
   } catch (e: any) {
     $q.notify({ type: 'negative', message: e?.message || 'Failed to send message' })
-  }
-}
-
-async function openNewChat() {
-  showNewChat.value = true
-  tenantLoading.value = true
-  tenants.value = []
-  try {
-    tenants.value = await chat.loadTenantsForNewChat()
-  } catch (e: any) {
-    $q.notify({ type: 'negative', message: e?.message || 'Failed to load tenants' })
   } finally {
-    tenantLoading.value = false
+    sending.value = false
   }
 }
 
-async function startChatWith(otherUserId: string) {
-  try {
-    const id = await chat.ensureConversation(otherUserId)
-    if (id) {
-      showNewChat.value = false
-      await chat.loadMessages(id)
-    }
-  } catch (e: any) {
-    $q.notify({ type: 'negative', message: e?.message || 'Failed to start conversation' })
-  }
-}
-
-function formatTimestamp(ts: string): string {
-  if (!ts) return ''
-  const date = new Date(ts)
-  const now = new Date()
-  const diffMinutes = Math.floor((now.getTime() - date.getTime()) / 60000)
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes} min ago`
-  if (diffMinutes < 1440) {
-    const h = Math.floor(diffMinutes / 60)
-    return `${h} hour${h !== 1 ? 's' : ''} ago`
-  }
-  const d = Math.floor(diffMinutes / 1440)
-  if (d < 7) return `${d} day${d !== 1 ? 's' : ''} ago`
-  return date.toLocaleDateString()
+function sendQuickLike() {
+  void sendMessage('👍')
 }
 
 onMounted(async () => {
-  await chat.loadConversations()
-  const convId = route.query.conv as string | undefined
-  if (convId) {
-    void chat.loadMessages(convId)
+  chatFullscreen.value = true
+  chat.onNewMessage = () => {
+    void scrollToBottom()
   }
+  if (!chat.conversations.length) {
+    await chat.loadConversations()
+  }
+  const convId = (route.query.conv as string | undefined) || chat.activeConversationId
+  if (convId) {
+    await chat.loadMessages(convId)
+    void scrollToBottom(0)
+    setTimeout(() => { void scrollToBottom(0) }, 60)
+    setTimeout(() => { void scrollToBottom(0) }, 200)
+  }
+})
+
+onUnmounted(() => {
+  chatFullscreen.value = false
+  chat.clearActive()
 })
 </script>
 
 <style scoped>
 .chat-page {
-  background: #f7f9fa;
   height: 100vh;
+  background: #ffffff;
+  color: #050505;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-.chat-page-wrapper {
+/* No-conversation fallback */
+.no-conv {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   height: 100%;
-  overflow: hidden;
+  padding: 24px;
+  color: #65676b;
+  text-align: center;
+}
+.no-conv-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #f0f2f5;
+  display: grid;
+  place-items: center;
+  color: #8a8d91;
+}
+.no-conv strong { color: #050505; font-size: 18px; }
+.back-pill {
+  margin-top: 8px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 19px;
+  border: 0;
+  background: var(--m-primary-dark, #00695c);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
-.conv-list {
+/* Messenger Chat View */
+.messenger-chat-view {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+  height: 100vh;
+  background: #ffffff;
 }
 
-.conv-list-head {
+.messenger-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  background: white;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  z-index: 10;
 }
 
-.conv-list-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: #111827;
+.back-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark, #00695c);
+  cursor: pointer;
+  border-radius: 50%;
 }
+.back-btn:hover { background: #f0f2f5; }
 
-.conv-list .q-list {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.center-state {
-  flex: 1;
+.header-user-info {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 24px;
-  text-align: center;
-  color: #6b7280;
+  gap: 10px;
+  flex: 1;
+  margin-left: 2px;
 }
-
-.conversation-header {
-  background: white;
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+.header-avatar {
+  background: var(--m-primary-soft, #e6f5f3);
+  color: var(--m-primary-dark, #00695c);
+  font-weight: 700;
+  font-size: 14px;
 }
-
-.header-info {
+.header-titles {
   display: flex;
   flex-direction: column;
 }
-
-.header-name {
-  font-size: 16px;
-  font-weight: 800;
-  color: #111827;
+.user-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #050505;
+  line-height: 1.2;
+}
+.user-subtitle {
+  font-size: 11px;
+  color: #65676b;
 }
 
-.conversation-view {
+.action-circle-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark, #00695c);
+  cursor: pointer;
+}
+.action-circle-btn:hover { background: #f0f2f5; }
+
+/* Scroll Area */
+.messenger-scroll {
   flex: 1;
-  overflow-y: auto;
-  padding: 20px;
+  background: #ffffff;
 }
-
-.message-bubble-wrapper {
+.bubble-stack {
+  padding: 16px 14px 24px;
   display: flex;
-  margin-bottom: 14px;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.message-bubble-wrapper.from-me {
-  justify-content: flex-end;
+/* Chat Intro Profile Banner */
+.chat-intro-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 16px 0 28px;
+  text-align: center;
+}
+.intro-avatar {
+  background: var(--m-primary-soft, #e6f5f3);
+  color: var(--m-primary-dark, #00695c);
+  font-weight: 700;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+.intro-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #050505;
+}
+.intro-meta {
+  font-size: 12px;
+  color: #65676b;
+  margin-top: 2px;
+}
+.intro-hint {
+  font-size: 11px;
+  color: #8a8d91;
+  margin-top: 6px;
 }
 
-.message-bubble-wrapper.from-them {
-  justify-content: flex-start;
+.messenger-date-pill {
+  align-self: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #65676b;
+  margin: 14px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.message-bubble {
-  max-width: 75%;
+/* Bubble Rows */
+.bubble-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+.bubble-row--mine { justify-content: flex-end; }
+.bubble-row--theirs { justify-content: flex-start; }
+.bubble-row--seq { margin-top: 1px; }
+
+.sender-avatar {
+  background: var(--m-primary-soft, #e6f5f3);
+  color: var(--m-primary-dark, #00695c);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+.sender-avatar--hidden { visibility: hidden; }
+
+.bubble-content-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: 72%;
+}
+.bubble-row--mine .bubble-content-wrap { align-items: flex-end; }
+.bubble-row--theirs .bubble-content-wrap { align-items: flex-start; }
+
+/* Messenger Teal Bubbles */
+.messenger-bubble {
   padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 14px;
-  line-height: 1.4;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.35;
   word-break: break-word;
 }
-
-.landlord-bubble {
-  background: #00897b;
-  color: white;
-  border-radius: 16px 16px 4px 16px;
+.messenger-bubble--mine {
+  background: linear-gradient(135deg, #00897b 0%, #00695c 100%);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+.messenger-bubble--theirs {
+  background: #f0f2f5;
+  color: #050505;
+  border-bottom-left-radius: 4px;
 }
 
-.student-bubble {
-  background: #eef2f4;
-  color: #222;
-  border-radius: 16px 16px 16px 4px;
+.radius-bottom-right { border-bottom-right-radius: 4px !important; }
+.radius-top-right { border-top-right-radius: 4px !important; }
+.radius-bottom-left { border-bottom-left-radius: 4px !important; }
+.radius-top-left { border-top-left-radius: 4px !important; }
+
+.bubble-text { margin: 0; }
+
+.delivery-status {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #65676b;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.seen-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--m-primary-dark, #00695c);
+  font-weight: 600;
+}
+.sent-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #65676b;
 }
 
-.message-meta {
-  margin-top: 4px;
-  font-size: 10px;
-  opacity: 0.75;
-  text-align: right;
+/* Composer Bar */
+.messenger-composer-bar {
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+}
+.composer-form {
+  display: flex;
+  align-items: center;
+}
+.input-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  background: #f0f2f5;
+  border-radius: 20px;
+  padding: 4px 6px 4px 14px;
+}
+.input-pill textarea {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 15px;
+  line-height: 20px;
+  max-height: 100px;
+  resize: none;
+  color: #050505;
+  padding: 4px 0;
+}
+.input-pill textarea::placeholder { color: #8a8d91; }
+
+.send-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark, #00695c);
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.send-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.send-icon-btn:not(:disabled):hover {
+  background: rgba(0, 105, 92, 0.1);
 }
 
-.message-input-area {
-  padding: 12px 16px;
-  background: white;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+.chat-loading, .chat-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  gap: 8px;
+  color: #65676b;
 }
-
-.chat-input {
-  border-radius: 24px;
-}
-
-.new-chat-card {
-  width: 360px;
-  max-width: 92vw;
+.retry-pill {
+  margin-top: 6px;
+  padding: 4px 14px;
+  border-radius: 12px;
+  border: 0;
+  background: #f0f2f5;
+  font-weight: 600;
+  cursor: pointer;
 }
 </style>

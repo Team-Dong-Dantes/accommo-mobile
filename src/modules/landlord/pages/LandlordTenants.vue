@@ -461,7 +461,7 @@ onMounted(() => {
 .results-bar { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-5); color: var(--m-muted); font-size: 12px; font-weight: 700; }
 .clear-filters { min-height: 36px; margin: -6px 0; padding: 0 4px; border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }
 
-.tenant-action-bar { position: fixed; z-index: 59; right: 72px; bottom: 80px; left: var(--m-space-4); display: flex; align-items: center; gap: var(--m-space-2); }
+.tenant-action-bar { position: fixed; z-index: 59; right: 72px; bottom: 68px; left: var(--m-space-4); display: flex; align-items: center; gap: var(--m-space-2); }
 .search-field { display: flex; min-width: 0; flex: 1; min-height: 44px; align-items: center; gap: var(--m-space-2); padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); color: var(--m-muted); }
 .search-field:focus-within { border-color: var(--m-primary); color: var(--m-primary-dark); }
 .search-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; font-size: 14px; }

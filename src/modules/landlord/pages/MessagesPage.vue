@@ -45,7 +45,7 @@
           <IconifyIcon v-else icon="lucide:chevron-right" class="row-chevron" width="18" aria-hidden="true" />
         </button>
       </section>
-      <EmptyState icon="lucide:message-circle" :title="searchText ? 'No conversations match your search.' : 'No conversations yet.'" :message="searchText ? '' : 'Messages from students will appear here.'" />
+      <EmptyState v-else icon="lucide:message-circle" :title="searchText ? 'No conversations match your search.' : 'No conversations yet.'" :message="searchText ? '' : 'Messages from students will appear here.'" />
     </main>
 
     <!-- Fixed bottom search + filter (discover-style) -->
@@ -92,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/shared/utils/supabase'
 import EmptyState from '@/shared/components/EmptyState.vue'
@@ -113,6 +113,70 @@ const filterOptions: { value: 'all' | 'students' | 'landlords'; label: string }[
 const loading = ref(true)
 const error = ref<string | null>(null)
 const conversations = ref<ConversationItem[]>([])
+const currentUserId = ref<string | null>(null)
+const conversationChannel = ref<{ unsubscribe: () => void } | null>(null)
+let listPollTimer: any = null
+
+function stopListPolling() {
+  if (listPollTimer) {
+    clearInterval(listPollTimer)
+    listPollTimer = null
+  }
+}
+
+function startListPolling() {
+  stopListPolling()
+  listPollTimer = setInterval(async () => {
+    await fetchConversationsQuietly()
+  }, 2000)
+}
+
+async function fetchConversationsQuietly() {
+  if (!currentUserId.value) return
+  try {
+    const { data: conversationData } = await supabase
+      .from('conversations')
+      .select('id, user_a_id, user_b_id, last_message, last_time, unread_a, unread_b')
+      .or(`user_a_id.eq.${currentUserId.value},user_b_id.eq.${currentUserId.value}`)
+      .order('last_time', { ascending: false, nullsFirst: false })
+
+    if (!conversationData) return
+    const rows = conversationData as ConversationRow[]
+    const otherUserIds = [...new Set(rows.map((row) => row.user_a_id === currentUserId.value ? row.user_b_id : row.user_a_id))]
+    const { data: users } = otherUserIds.length
+      ? await supabase.from('users').select('id, full_name, email, role').in('id', otherUserIds)
+      : { data: [] }
+    const usersById = new Map((users ?? []).map((value) => { const participant = value as UserRow; return [participant.id, participant] }))
+
+    const updated = rows.map((row) => {
+      const otherUserId = row.user_a_id === currentUserId.value ? row.user_b_id : row.user_a_id
+      const participant = usersById.get(otherUserId)
+      const role = roleLabel(participant?.role)
+      const name = participant?.full_name ?? participant?.email ?? role
+      return {
+        id: row.id,
+        initials: initialsOf(name),
+        name,
+        role,
+        lastMessage: row.last_message ?? '',
+        lastTime: row.last_time,
+        unread: row.user_a_id === currentUserId.value ? row.unread_a ?? 0 : row.unread_b ?? 0,
+      }
+    })
+
+    const hasDiff = updated.length !== conversations.value.length ||
+      updated.some((item, idx) => {
+        const curr = conversations.value[idx]
+        return !curr || curr.id !== item.id || curr.lastMessage !== item.lastMessage || curr.unread !== item.unread
+      })
+
+    if (hasDiff) {
+      conversations.value = updated
+    }
+  } catch {
+    // quiet
+  }
+}
 
 const unreadCount = computed(() => conversations.value.reduce((total, conversation) => total + conversation.unread, 0))
 const filteredConversations = computed(() => {
@@ -134,6 +198,8 @@ async function loadConversations() {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { conversations.value = []; return }
+    currentUserId.value = user.id
+    subscribeToConversations(user.id)
     const { data, error: conversationError } = await supabase
       .from('conversations')
       .select('id, user_a_id, user_b_id, last_message, last_time, unread_a, unread_b')
@@ -172,11 +238,47 @@ async function loadConversations() {
   }
 }
 
-function openConversation(conversationId: string) {
+async function markConversationSeen(conversationId: string) {
+  if (!currentUserId.value) return
+  try {
+    const { data, error: queryError } = await supabase.from('conversations').select('user_a_id').eq('id', conversationId).maybeSingle()
+    if (queryError || !data) return
+    if ((data as { user_a_id: string }).user_a_id === currentUserId.value) {
+      await supabase.from('conversations').update({ unread_a: 0 }).eq('id', conversationId)
+    } else {
+      await supabase.from('conversations').update({ unread_b: 0 }).eq('id', conversationId)
+    }
+  } catch (e) {
+    console.warn('Failed to mark conversation read:', e)
+  }
+}
+
+function unsubscribeConversations() {
+  stopListPolling()
+  conversationChannel.value?.unsubscribe()
+  conversationChannel.value = null
+}
+
+function subscribeToConversations(userId: string) {
+  unsubscribeConversations()
+  startListPolling()
+  conversationChannel.value = supabase
+    .channel(`landlord-conversations-${userId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+      void fetchConversationsQuietly()
+    })
+    .subscribe()
+}
+
+async function openConversation(conversationId: string) {
+  const chat = conversations.value.find((item) => item.id === conversationId)
+  if (chat) chat.unread = 0
+  await markConversationSeen(conversationId)
   void router.push(`/landlord/chat?conv=${conversationId}`)
 }
 
 onMounted(() => { void loadConversations() })
+onUnmounted(() => { unsubscribeConversations() })
 </script>
 
 <style scoped>
@@ -184,10 +286,10 @@ onMounted(() => { void loadConversations() })
 .conversation-list { min-height: 100vh; max-width: 720px; margin: 0 auto; padding: var(--m-space-5) var(--m-page-gutter) calc(168px + env(safe-area-inset-bottom)); }
 .list-header { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-4); }.list-summary { margin: 0; color: var(--m-muted); font-size: 13px; }
 
-/* Fixed bottom search (discover-style) */
-.messages-action-bar { position: fixed; z-index: 59; right: 12px; bottom: 80px; left: 12px; display: flex; gap: var(--m-space-2); align-items: center; }
-.messages-search-field { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--m-space-2); min-height: 48px; padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }.messages-search-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; }.messages-search-field input::placeholder { color: var(--m-muted); }.messages-clear-search { display: grid; width: 32px; height: 32px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-muted); cursor: pointer; }
-.messages-filter-button { display: grid; width: 48px; height: 48px; flex: 0 0 48px; padding: 0; place-items: center; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-primary-dark); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); cursor: pointer; }
+/* Fixed bottom search (discover-style matching landlord tenants / discover action-bar) */
+.messages-action-bar { position: fixed; z-index: 59; right: 72px; bottom: 68px; left: var(--m-page-gutter); display: flex; gap: var(--m-space-2); align-items: center; }
+.messages-search-field { display: flex; min-width: 0; flex: 1; align-items: center; gap: var(--m-space-2); min-height: 44px; padding: 0 var(--m-space-3); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-muted); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }.messages-search-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--m-ink); font: inherit; }.messages-search-field input::placeholder { color: var(--m-muted); }.messages-clear-search { display: grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--m-muted); cursor: pointer; }
+.messages-filter-button { display: grid; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; place-items: center; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); color: var(--m-primary-dark); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); cursor: pointer; }
 .messages-filter-button.has-active { border-color: var(--m-primary); background: color-mix(in srgb, var(--m-primary-soft) 60%, var(--m-surface)); }
 .messages-filter-sheet { border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0; padding-bottom: env(safe-area-inset-bottom); }
 .messages-filter-heading { display: flex; justify-content: space-between; align-items: flex-start; }
