@@ -123,7 +123,70 @@ export const useAuthStore = defineStore('auth', {
       if (error) throw sanitizeError(error);
     },
 
-    // --- STUDENT REGISTRATION ---
+    // --- STUDENT REGISTRATION (re-architected, account-first) ---
+    // Phase 1: create the auth account + users row + empty student_profiles ONLY
+    // (no academic/docs yet). Called when the student leaves the Account step so
+    // an e-mail OTP can be sent, then Academy/Docs attach later on the SAME user.
+    async createStudentAccount(
+      form: RegisterForm & { schoolIdFile?: File | null; assessmentFile?: File | null },
+    ) {
+      const profileData = this.formatProfileData(form, 'student');
+      const response = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password ?? '',
+        options: { data: profileData },
+      });
+      if (response.error) throw sanitizeError(response.error);
+      const userId = response.data.user?.id;
+      if (!userId) throw new Error('Failed to retrieve user ID after registration.');
+
+      await this.ensureUserRow(userId, form.email, profileData);
+
+      const { error: profileError } = await supabase.from('student_profiles').upsert(
+        {
+          user_id: userId,
+          student_id: form.studentId || null,
+          college: form.college,
+          program: form.program,
+          year_level: parseInt(form.yearLevel.charAt(0)) || 1,
+        },
+        { onConflict: 'user_id' },
+      );
+      if (profileError) throw sanitizeError(profileError);
+
+      this.cachedRole = 'student';
+      return userId;
+    },
+
+    // Phase 2: given an already-created student user, upload school docs and update
+    // the academic fields onto that existing profile (never re-signUp).
+    async finalizeStudentAccount(
+      userId: string,
+      form: RegisterForm & { schoolIdFile?: File | null; assessmentFile?: File | null },
+    ) {
+      let schoolIdUrl: string | null = null;
+      let assessmentUrl: string | null = null;
+      if (form.schoolIdFile) {
+        try { schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id'); } catch { schoolIdUrl = null; }
+      }
+      if (form.assessmentFile) {
+        try { assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment'); } catch { assessmentUrl = null; }
+      }
+
+      const { error: profileError } = await supabase
+        .from('student_profiles')
+        .update({
+          college: form.college,
+          program: form.program,
+          year_level: parseInt(form.yearLevel.charAt(0)) || 1,
+          school_id_url: schoolIdUrl,
+          assessment_of_fees_url: assessmentUrl,
+        })
+        .eq('user_id', userId);
+      if (profileError) throw sanitizeError(profileError);
+      this.cachedRole = 'student';
+    },
+
     async register(
       form: RegisterForm & { schoolIdFile?: File | null; assessmentFile?: File | null },
     ) {
@@ -231,7 +294,46 @@ export const useAuthStore = defineStore('auth', {
       this.cachedRole = 'student';
     },
 
-    // --- LANDLORD REGISTRATION ---
+    // --- LANDLORD REGISTRATION (account-first) ---
+    async createLandlordAccount(form: LandlordRegisterForm) {
+      const profileData = this.formatProfileData(form, 'landlord');
+      const response = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password ?? '',
+        options: { data: profileData },
+      });
+      if (response.error) throw sanitizeError(response.error);
+      const userId = response.data.user?.id;
+      if (!userId) throw new Error('Failed to retrieve user ID after registration.');
+      await this.ensureUserRow(userId, form.email, profileData);
+      return userId;
+    },
+
+    async finalizeLandlordAccount(userId: string, form: LandlordRegisterForm) {
+      const [govIdUrl, permitUrl] = await Promise.all([
+        form.governmentIdFile ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null) : Promise.resolve(null),
+        form.businessPermitFile ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null) : Promise.resolve(null),
+      ]);
+      if (govIdUrl) {
+        const { error: govErr } = await supabase.from('verification_documents').insert({
+          user_id: userId, doc_type: 'government_id', file_url: govIdUrl,
+          filename: form.governmentIdFile?.name ?? null, status: 'pending',
+        });
+        if (govErr) throw sanitizeError(govErr);
+      }
+      if (permitUrl) {
+        const { error: permitErr } = await supabase.from('verification_documents').insert({
+          user_id: userId, doc_type: 'business_permit', file_url: permitUrl,
+          filename: form.businessPermitFile?.name ?? null, status: 'pending',
+        });
+        if (permitErr) throw sanitizeError(permitErr);
+      }
+      // After submit, the landlord is signed out and “pending” until OSAS approves.
+      await supabase.auth.signOut();
+    },
+
+    // --- LANDLORD REGISTRATION (legacy one-shot) ---
+
     async registerLandlord(form: LandlordRegisterForm) {
       const profileData = this.formatProfileData(form, 'landlord');
 
@@ -394,6 +496,28 @@ export const useAuthStore = defineStore('auth', {
       });
       if (error) throw sanitizeError(error);
       this.cachedRole = data.user?.role ?? this.cachedRole;
+      return data;
+    },
+
+    // --- EMAIL OTP (secondary e-mail verification for NON-OAuth sign-ups) ---
+    // Users who registered with e-mail + password (instead of Google) confirm
+    // they own the e-mail inbox via a one-time code delivered by Supabase Auth
+    // through Brevo/SMTP. OAuth users skip this (their e-mail is already
+    // verified by the provider).
+
+    async sendEmailOtp(email: string) {
+      // shouldCreateUser:false — the account already exists; we only deliver a code.
+      // Resend is a no-op guard against accidental double-creation.
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: undefined as unknown as string },
+      });
+      if (error) throw sanitizeError(error);
+    },
+
+    async verifyEmailOtp(email: string, token: string) {
+      const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+      if (error) throw sanitizeError(error);
       return data;
     },
 

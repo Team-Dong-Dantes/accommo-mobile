@@ -114,7 +114,24 @@
             </AuthInput>
           </q-step>
 
-          <q-step :name="3" title="Verification" icon="verified_user">
+          <q-step v-if="!isGoogleMode" :name="3" title="Confirm e-mail" icon="mail" :done="step > 3">
+            <template v-if="!emailCreated">
+              <div class="q-pa-sm">
+                <p class="otp-note text-grey-7">We’ll create your landlord account, then send a code to your inbox to confirm your e-mail before you continue.</p>
+                <AuthButton @click="createAccountNow" :loading="creatingAccount">Create account &amp; send code
+                  <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" /></AuthButton>
+              </div>
+            </template>
+            <template v-else>
+              <EmailVerifyInline v-if="!emailVerified" :email="form.email" @verified="onEmailVerified" />
+              <div v-else class="otp-verified">
+                <IconifyIcon icon="material-icons:check_circle" color="teal-6" size="28" class="q-mr-sm" />
+                <div><strong>E-mail confirmed</strong><span class="text-grey-7"> Continue to upload your documents.</span></div>
+              </div>
+            </template>
+          </q-step>
+
+          <q-step :name="4" title="Verification" icon="verified_user" :done="step > 4">
             <div class="q-mt-xs q-mb-md text-subtitle2 text-grey-8 font-weight-medium">
               Upload verification documents
             </div>
@@ -136,12 +153,12 @@
         </q-stepper>
 
         <div class="q-px-sm q-mt-md">
-          <AuthButton v-if="step < 3" @click="nextStep">
+          <AuthButton v-if="step < 4" @click="nextStep">
             NEXT STEP
             <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
           </AuthButton>
 
-          <AuthButton v-if="step === 3" type="submit" :loading="loading">
+          <AuthButton v-if="step === 4" type="submit" :loading="loading" :disable="creatingAccount">
             {{ isGoogleMode ? 'SUBMIT APPLICATION' : 'REGISTER' }}
             <IconifyIcon icon="material-icons:check_circle" class="q-ml-sm" />
           </AuthButton>
@@ -154,6 +171,10 @@
             </template>
 
             <template v-else-if="step === 2 || step === 3">
+              <q-btn flat dense no-caps label="Go Back" color="grey-6" class="text-weight-bold nav-link-btn"
+                @click="prevStep" />
+            </template>
+            <template v-else-if="step === 4">
               <q-btn flat dense no-caps label="Go Back" color="grey-6" class="text-weight-bold nav-link-btn"
                 @click="prevStep" />
             </template>
@@ -179,6 +200,7 @@ import AuthButton from '@/modules/auth/components/AuthButton.vue';
 import AuthGoogleBtn from '@/modules/auth/components/AuthGoogleBtn.vue';
 import AuthDivider from '@/modules/auth/components/AuthDivider.vue';
 import ConnectedGoogleBox from '@/modules/auth/components/ConnectedGoogleBox.vue';
+import EmailVerifyInline from '@/modules/auth/components/EmailVerifyInline.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -188,6 +210,11 @@ const authStore = useAuthStore();
 const step = ref(1);
 const registerFormRef = ref<QForm | null>(null);
 const isGoogleMode = ref(false);
+const needEmailOtp = ref(false);
+const emailCreated = ref(false);
+const emailVerified = ref(false);
+const creatingAccount = ref(false);
+let createdUserId: string | null = null;
 const googleUserId = ref('');
 
 const sexOptions = ['Male', 'Female'];
@@ -263,17 +290,48 @@ onMounted(async () => {
   }
 });
 
-async function nextStep() {
-  if (!registerFormRef.value) return;
-  const success = await registerFormRef.value.validate();
-  if (success) {
-    if (step.value === 1 && isGoogleMode.value) step.value = 3;
-    else if (step.value < 3) step.value++;
+async function createAccountNow(): Promise<boolean> {
+  if (emailCreated.value || creatingAccount.value) return emailCreated.value;
+  creatingAccount.value = true;
+  try {
+    syncFullName();
+    if (form.phoneDigits) form.phone = normalizePhPhone(form.phoneDigits);
+    if (!isGoogleMode.value) form.email = `${form.emailUser}@${form.emailDomain}`;
+    createdUserId = await authStore.createLandlordAccount(form);
+    emailCreated.value = true;
+    return true;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Could not create your account.';
+    $q.notify({ message, position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    return false;
+  } finally {
+    creatingAccount.value = false;
   }
 }
 
+async function nextStep() {
+  if (!registerFormRef.value) return;
+  const success = await registerFormRef.value.validate();
+  if (!success) return;
+  if (isGoogleMode.value) {
+    if (step.value === 1) step.value = 4;   // skip Account(2)/Confirm(3) -> Verification(4)
+    else if (step.value < 4) step.value++;
+    return;
+  }
+  if (step.value === 2) {
+    const ok = await createAccountNow();
+    if (ok) step.value = 3;
+    return;
+  }
+  if (step.value === 3 && !emailVerified.value) {
+    $q.notify({ message: 'Confirm your e-mail before continuing.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
+    return;
+  }
+  if (step.value < 4) step.value++;
+}
+
 function prevStep() {
-  if (step.value === 3 && isGoogleMode.value) step.value = 1;
+  if (step.value === 4 && isGoogleMode.value) step.value = 1;
   else if (step.value > 1) step.value--;
 }
 
@@ -343,9 +401,13 @@ async function handleRegister() {
       });
       void router.push('/landlord/dashboard');
     } else {
-      await authStore.registerLandlord(form);
+      if (createdUserId) {
+        await authStore.finalizeLandlordAccount(createdUserId, form);
+      } else {
+        await authStore.registerLandlord(form); // safety fallback (no early account)
+      }
       $q.notify({
-        message: 'Application submitted! OSAS will review your application. Check your email for updates.',
+        message: 'Application submitted! OSAS will review your documents. Check your e-mail for updates.',
         position: 'top',
         color: 'grey-9',
         textColor: 'white',
@@ -369,6 +431,11 @@ async function handleRegister() {
     loading.value = false;
   }
 }
+
+function onEmailVerified() {
+  emailVerified.value = true; // Confirm-e-mail step passed; docs submit is next
+}
+
 </script>
 
 <style scoped>
@@ -382,21 +449,29 @@ async function handleRegister() {
 }
 
 .auth-stepper :deep(.q-stepper__content) {
-  min-height: 360px;
-  overflow: hidden;
+  min-height: 40vh;
+  overflow-y: auto;
 }
 
 .auth-stepper :deep(.q-stepper__step-inner) {
   padding: 0;
+  overflow: visible;
   min-width: 0;
 }
 
 .auth-stepper :deep(.q-stepper__header) {
   padding: 0;
+  min-height: 0;
 }
 
 .auth-stepper :deep(.q-stepper__tab) {
-  padding: 20px 4px;
+  padding: 8px 2px;
+}
+
+.auth-stepper :deep(.q-stepper__tab .q-stepper__title) {
+  font-size: 9px;
+  line-height: 1.1;
+  white-space: normal;
 }
 
 .auth-title {

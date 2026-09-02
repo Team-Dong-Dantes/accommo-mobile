@@ -9,7 +9,7 @@
       <q-form
         ref="registerFormRef"
         class="col column"
-        @submit.prevent="() => step === 4 && handleRegister(false)"
+        @submit.prevent="() => step === 5 && handleRegister(false)"
       >
         <q-stepper
           v-model="step"
@@ -163,7 +163,28 @@
             </AuthInput>
           </q-step>
 
-          <q-step :name="3" title="Academic" icon="school" :done="step > 3">
+          <q-step v-if="!isGoogleMode" :name="3" title="Confirm e-mail" icon="mail" :done="step > 3">
+            <template v-if="!emailCreated">
+              <div class="q-pa-sm">
+                <p class="otp-note">We’ll create your account, then a code goes to your inbox to confirm your e-mail before you continue.</p>
+                <AuthButton @click="createAccountNow" :loading="creatingAccount">
+                  Create account &amp; send code
+                  <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
+                </AuthButton>
+              </div>
+            </template>
+            <template v-else>
+              <EmailVerifyInline :email="form.email"
+                 v-if="!emailVerified"
+                 @verified="onEmailVerified" />
+              <div v-else class="otp-verified">
+                <IconifyIcon icon="material-icons:check_circle" color="teal-6" size="28" class="q-mr-sm" />
+                <div><strong>E-mail confirmed</strong><span class="text-grey-7"> You’re verified. Continue to your academic details.</span></div>
+              </div>
+            </template>
+          </q-step>
+
+          <q-step :name="4" title="Academic" icon="school" :done="step > 4">
             <AuthSelect
               v-model="form.college"
               :options="collegeOptions"
@@ -196,7 +217,7 @@
             </AuthSelect>
           </q-step>
 
-          <q-step :name="4" title="Verification" icon="verified_user">
+          <q-step :name="5" title="Verification" icon="verified_user" :done="step > 5">
             <AuthInput
               v-model="form.studentId"
               label="ISU Student ID Number"
@@ -231,12 +252,12 @@
         </q-stepper>
 
         <div class="q-px-sm q-mt-md">
-          <AuthButton v-if="step < 4" @click="nextStep">
+          <AuthButton v-if="step < 5" @click="nextStep">
             NEXT STEP
             <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
           </AuthButton>
 
-          <AuthButton v-if="step === 4" type="submit" :loading="loading">
+          <AuthButton v-if="step === 5" type="submit" :loading="loading" :disable="creatingAccount">
             {{ isGoogleMode ? 'FINISH PROFILE' : 'REGISTER' }}
             <IconifyIcon icon="material-icons:person_add" class="q-ml-sm" />
           </AuthButton>
@@ -254,7 +275,7 @@
                 class="text-weight-bold q-ml-sm"
               />
             </template>
-            <template v-else-if="step === 2 || step === 3">
+            <template v-else-if="step >= 2 && step <= 4">
               <q-btn
                 flat
                 dense
@@ -265,7 +286,7 @@
                 @click="prevStep"
               />
             </template>
-            <template v-else-if="step === 4">
+            <template v-else-if="step === 5">
               <div class="row justify-between full-width q-px-sm">
                 <q-btn
                   flat
@@ -290,6 +311,7 @@
           </div>
         </div>
       </q-form>
+
     </div>
   </q-page>
 </template>
@@ -307,6 +329,7 @@ import AuthFileDropZone from '@/modules/auth/components/AuthFileDropZone.vue';
 import AuthButton from '@/modules/auth/components/AuthButton.vue';
 import AuthGoogleBtn from '@/modules/auth/components/AuthGoogleBtn.vue';
 import AuthDivider from '@/modules/auth/components/AuthDivider.vue';
+import EmailVerifyInline from '@/modules/auth/components/EmailVerifyInline.vue';
 import ConnectedGoogleBox from '@/modules/auth/components/ConnectedGoogleBox.vue';
 import { normalizePhPhone, phNationalDigits } from '@/shared/utils/format';
 
@@ -319,6 +342,11 @@ const step = ref(1);
 const registerFormRef = ref<QForm | null>(null);
 const isGoogleMode = ref(false);
 const googleUserId = ref('');
+const needEmailOtp = ref(false);
+const emailCreated = ref(false);
+const emailVerified = ref(false);
+const creatingAccount = ref(false);
+let createdUserId: string | null = null;
 
 const sexOptions = ['Male', 'Female'];
 const yearOptions = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year'];
@@ -428,6 +456,25 @@ const passwordChecks = computed(() => {
   ];
 });
 
+async function createAccountNow(): Promise<boolean> {
+  if (emailCreated.value || creatingAccount.value) return emailCreated.value;
+  creatingAccount.value = true;
+  try {
+    syncFullName();
+    if (form.phoneDigits) form.phone = normalizePhPhone(form.phoneDigits);
+    if (!isGoogleMode.value) form.email = `${form.emailUser}@${form.emailDomain}`;
+    createdUserId = await authStore.createStudentAccount(form as any);
+    emailCreated.value = true;
+    return true;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Could not create your account.';
+    $q.notify({ message, position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    return false;
+  } finally {
+    creatingAccount.value = false;
+  }
+}
+
 function splitFullName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return {
@@ -469,14 +516,39 @@ onMounted(async () => {
 async function nextStep() {
   if (!registerFormRef.value) return;
   const success = await registerFormRef.value.validate();
-  if (success) {
-    if (step.value === 1 && isGoogleMode.value) step.value = 3;
-    else if (step.value < 4) step.value++;
+  if (!success) return;
+
+  if (isGoogleMode.value) {
+    // Google path skips Account (2)/Confirm (3) → straight to Academic(4)
+    if (step.value === 1) { step.value = 4; return; }
+    if (step.value < 5) step.value++;
+    return;
   }
+
+  if (step.value === 2) {
+    // Leaving Account: create the account so Confirm-e-mail can send a code.
+    const ok = await createAccountNow();
+    if (ok) step.value = 3;
+    return;
+  }
+
+  if (step.value === 3 && !emailVerified.value) {
+    $q.notify({
+      message: 'Confirm your e-mail before continuing.',
+      position: 'top',
+      color: 'grey-9',
+      textColor: 'white',
+      icon: 'info',
+      iconColor: 'amber-4',
+      classes: 'custom-notify',
+    });
+    return;
+  }
+  if (step.value < 5) step.value++;
 }
 
 function prevStep() {
-  if (step.value === 3 && isGoogleMode.value) step.value = 1;
+  if (step.value === 4 && isGoogleMode.value) step.value = 1;
   else if (step.value > 1) step.value--;
 }
 
@@ -571,7 +643,11 @@ async function handleRegister(skipVerification: boolean = false) {
          classes: 'custom-notify',
        });
      } else {
-        await authStore.register(form);
+        if (createdUserId) {
+        await authStore.finalizeStudentAccount(createdUserId, form as any);
+      } else {
+        await authStore.register(form); // safety fallback (no early account)
+      }
         $q.notify({
           message: 'Account created successfully!',
           position: 'top',
@@ -602,6 +678,11 @@ async function handleRegister(skipVerification: boolean = false) {
 function finishRegistration() {
   void router.push('/student/home');
 }
+
+// Called by the Confirm-e-mail step when the code verifies.
+function onEmailVerified() {
+  emailVerified.value = true;
+}
 </script>
 
 <style scoped>
@@ -615,22 +696,30 @@ function finishRegistration() {
 }
 
 .auth-stepper :deep(.q-stepper__content) {
-  min-height: 360px;
-  overflow: hidden;
+  min-height: 40vh;
+  overflow-y: auto;
 }
 
 .auth-stepper :deep(.q-stepper__step-inner) {
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   min-width: 0;
 }
 
 .auth-stepper :deep(.q-stepper__header) {
   padding: 0;
+  min-height: 0;
 }
 
 .auth-stepper :deep(.q-stepper__tab) {
-  padding: 20px 4px;
+  padding: 8px 2px;
+}
+
+/* More readable step-title line for the narrower 5-step header */
+.auth-stepper :deep(.q-stepper__tab .q-stepper__title) {
+  font-size: 9px;
+  line-height: 1.1;
+  white-space: normal;
 }
 
 .auth-title {
