@@ -4,11 +4,6 @@ import { supabase } from '@/shared/utils/supabase';
 // supabase.ts checks: const demoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
 const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
 
-// Helper: generate a simple unique ID
-function generateId(): string {
-  return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-}
-
 // Create a notification stored in Supabase notifications table
 export async function createNotification(
   userId: string,
@@ -23,8 +18,10 @@ export async function createNotification(
     return true;
   }
 
+  // NOTE: do NOT send `id`. `notifications.id` is a uuid column with a
+  // `gen_random_uuid()` default; passing a base36 string made every insert fail
+  // with `invalid input syntax for type uuid`, so notifications never worked.
   const { error } = await supabase.from('notifications').insert({
-    id: generateId(),
     title,
     body,
     type,

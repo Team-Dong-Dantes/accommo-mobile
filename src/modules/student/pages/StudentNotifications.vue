@@ -4,9 +4,6 @@
       <header class="notifications-header">
         <div>
           <h1 id="notifications-title" class="sr-only">Notifications</h1>
-          <p class="unread-summary" aria-live="polite">
-            {{ unreadCount === 1 ? '1 unread notification' : `${unreadCount} unread notifications` }}
-          </p>
         </div>
         <q-btn
           flat
@@ -45,7 +42,10 @@
 
       <div v-else class="notification-groups">
         <section v-for="group in groupedNotifications" :key="group.label" class="notification-group" :aria-labelledby="group.id">
-          <h2 :id="group.id" class="group-label">{{ group.label }}</h2>
+          <div class="group-heading">
+            <h2 :id="group.id" class="group-label">{{ group.label }}</h2>
+            <span>{{ group.notifications.length }} {{ group.notifications.length === 1 ? 'update' : 'updates' }}</span>
+          </div>
           <q-list class="notification-list">
             <q-item
               v-for="notification in group.notifications"
@@ -258,22 +258,21 @@ onMounted(() => { void loadNotifications(); });
 </script>
 
 <style scoped>
-.notifications-page { min-height: 100vh; padding: var(--m-space-4) var(--m-page-gutter) 96px; background: var(--m-bg); }
-.notifications-content { width: 100%; max-width: 620px; margin: 0 auto; }
-.notifications-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-5); }
-.group-label { margin: 0; color: var(--m-primary-dark); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-h1 { margin: var(--m-space-1) 0 0; color: var(--m-ink); font-size: 28px; line-height: 1.15; letter-spacing: -.04em; }
-.unread-summary { margin: 0; color: var(--m-muted); font-size: 13px; font-weight: 600; }
-.mark-read-button { min-height: 44px; margin-top: var(--m-space-1); padding: 0 var(--m-space-2); border-radius: var(--m-radius-sm); color: var(--m-primary-dark); font-size: 13px; font-weight: 750; }
+.notifications-page { box-sizing: border-box; min-height: 100vh; padding: var(--m-space-4) var(--m-page-gutter) 96px; overflow-x: hidden; background: var(--m-bg); }
+.notifications-content { box-sizing: border-box; width: 100%; max-width: 640px; margin: 0 auto; }
+.notifications-header { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); margin-bottom: var(--m-space-4); }
+h1 { margin: 0; color: var(--m-ink); font-size: 26px; font-weight: 800; line-height: 1.1; letter-spacing: -.04em; }
+.mark-read-button { min-height: 44px; padding: 0 var(--m-space-2); border-radius: var(--m-radius-sm); color: var(--m-primary-dark); font-size: 13px; font-weight: 750; }
 .mark-read-button:focus-visible, .notification-row:focus-visible, .retry-button:focus-visible { outline: 3px solid var(--m-primary); outline-offset: 2px; }
 .notification-groups { display: grid; gap: var(--m-space-5); }
-.group-label { margin-bottom: var(--m-space-2); padding-left: var(--m-space-1); color: var(--m-muted); }
-.notification-list { overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); box-shadow: var(--m-shadow); }
-.notification-row { width: 100%; min-height: 76px; padding: var(--m-space-3); border: 0; border-bottom: 1px solid var(--m-border); background: var(--m-surface); color: var(--m-text); text-align: left; }
-.notification-row:last-child { border-bottom: 0; }
+.group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--m-space-2); margin-bottom: var(--m-space-2); padding: 0 var(--m-space-1); }
+.group-label { margin: 0; color: var(--m-muted); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.group-heading > span { color: var(--m-muted); font-size: 11px; font-weight: 650; }
+.notification-list { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-border); }
+.notification-row { box-sizing: border-box; width: 100%; min-width: 0; min-height: 76px; padding: var(--m-space-3); border: 0; border-radius: 0; background: var(--m-surface); color: var(--m-text); text-align: left; transition: background-color 160ms ease; }
 .notification-row--unread { background: var(--m-primary-soft); box-shadow: inset 3px 0 0 var(--m-primary); }
 .notification-row:not(.notification-row--unread):hover { background: var(--m-bg); }
-.notification-icon, .feedback-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.notification-icon, .feedback-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); color: var(--m-primary-dark); }
 .notification-row--success .notification-icon { background: var(--m-success-soft); color: var(--m-success); }
 .notification-row--warning .notification-icon { background: var(--m-warning-soft); color: var(--m-warning); }
 .notification-row--danger .notification-icon, .feedback-icon--danger { background: var(--m-danger-soft); color: var(--m-danger); }
@@ -281,6 +280,8 @@ h1 { margin: var(--m-space-1) 0 0; color: var(--m-ink); font-size: 28px; line-he
 .notification-title { color: var(--m-ink); font-size: 14px; font-weight: 750; line-height: 1.3; }
 .notification-body { display: -webkit-box; margin-top: 2px; overflow: hidden; color: var(--m-text); font-size: 13px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .notification-time { margin-top: 4px; color: var(--m-muted); font-size: 11px; font-weight: 650; }
+.notification-row :deep(.q-item__section--main) { min-width: 0; }
+.notification-row :deep(.q-item__section--side) { flex: 0 0 auto; }
 .unread-dot { display: block; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--m-primary-dark); }
 .chevron { margin-top: 1px; color: var(--m-muted); }
 .notification-skeletons { display: grid; gap: var(--m-space-2); }
@@ -291,4 +292,6 @@ h1 { margin: var(--m-space-1) 0 0; color: var(--m-ink); font-size: 28px; line-he
 .feedback-state p { margin: 0; color: var(--m-muted); font-size: 14px; line-height: 1.5; }
 .retry-button { min-height: 44px; margin-top: var(--m-space-4); padding: 0 var(--m-space-4); border-radius: var(--m-radius-sm); background: var(--m-primary-dark); color: var(--m-surface); font-weight: 750; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 480px) { .notifications-header { align-items: flex-start; } .mark-read-button { margin-top: -6px; } .notification-row { min-height: 76px; padding: var(--m-space-3) var(--m-space-2); } .notification-icon { width: 40px; height: 40px; } }
+@media (prefers-reduced-motion: reduce) { .notification-row { transition: none; } }
 </style>

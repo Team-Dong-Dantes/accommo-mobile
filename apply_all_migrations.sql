@@ -540,3 +540,38 @@ WHERE lp.business_name IS NULL;
 --    UPDATE public.properties SET landlord_id = '<owner-user-id>'
 --    WHERE landlord_id IS NULL;
 -- SELECT id, name, landlord_id FROM public.properties WHERE landlord_id IS NULL;
+-- Verification queue access fix: admin role check does not depend on is_admin().
+DROP POLICY IF EXISTS "Verification documents visible to owner/admin" ON public.verification_documents;
+GRANT SELECT, INSERT, UPDATE ON public.verification_documents TO authenticated;
+ALTER TABLE public.verification_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Verification documents visible to owner/admin"
+  ON public.verification_documents FOR ALL TO authenticated
+  USING (
+    user_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+  )
+  WITH CHECK (
+    user_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Verification queue RPC: joins users and pending documents server-side so the
+-- admin queue does not depend on client-side RLS joins.
+CREATE OR REPLACE FUNCTION public.get_verification_queue()
+RETURNS TABLE (
+  user_id uuid, full_name text, email text, role text, user_status text,
+  created_at timestamptz, doc_type text, file_url text, filename text, doc_status text
+)
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT u.id, u.full_name, u.email, u.role::text, u.status::text, u.created_at,
+         d.doc_type, d.file_url, d.filename, d.status::text
+  FROM public.users u
+  LEFT JOIN public.verification_documents d
+    ON d.user_id = u.id AND d.status = 'pending'
+  WHERE u.status::text IN ('pending', 'reviewing')
+     OR d.id IS NOT NULL
+  ORDER BY u.created_at DESC NULLS LAST, d.uploaded_at DESC NULLS LAST;
+$$;
+REVOKE ALL ON FUNCTION public.get_verification_queue() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_verification_queue() TO authenticated;

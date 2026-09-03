@@ -114,7 +114,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const conversations = ref<ConversationItem[]>([])
 const currentUserId = ref<string | null>(null)
-const conversationChannel = ref<{ unsubscribe: () => void } | null>(null)
+const conversationChannel = ref<any>(null)
 let listPollTimer: any = null
 
 function stopListPolling() {
@@ -255,7 +255,12 @@ async function markConversationSeen(conversationId: string) {
 
 function unsubscribeConversations() {
   stopListPolling()
-  conversationChannel.value?.unsubscribe()
+  // removeChannel(), not unsubscribe(): unsubscribe() leaves the channel in the
+  // client cache, so re-subscribing to the same channel name later throws
+  // "cannot add postgres_changes callbacks after subscribe()".
+  if (conversationChannel.value) {
+    void supabase.removeChannel(conversationChannel.value)
+  }
   conversationChannel.value = null
 }
 

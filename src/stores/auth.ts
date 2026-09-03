@@ -105,6 +105,7 @@ export const useAuthStore = defineStore('auth', {
       userId: string,
       email: string,
       profileData: { role: 'student' | 'landlord'; full_name: string; initials: string; phone?: string },
+      status?: 'pending',
     ) {
       const { error } = await supabase
         .from('users')
@@ -113,14 +114,41 @@ export const useAuthStore = defineStore('auth', {
             id: userId,
             email,
             phone: (profileData.phone as string) ?? '+639000000000',
-            role: profileData.role,
+            role: toDbRole(profileData.role) as any,
             full_name: profileData.full_name,
             initials: profileData.initials,
+            ...(status ? { status } : {}),
           },
           { onConflict: 'id' },
         );
 
       if (error) throw sanitizeError(error);
+    },
+
+    async submitStudentVerificationDocuments(
+      userId: string,
+      documents: Array<{ docType: string; file: File | null; url: string | null }>,
+    ) {
+      const rows = documents
+        .filter((document) => document.file && document.url)
+        .map((document) => ({
+          user_id: userId,
+          doc_type: document.docType,
+          file_url: document.url!,
+          filename: document.file!.name,
+          status: 'pending' as const,
+        }));
+
+      if (!rows.length) return;
+
+      const { error } = await supabase.from('verification_documents').insert(rows);
+      if (error) throw sanitizeError(error);
+
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ status: 'pending' })
+        .eq('id', userId);
+      if (userError) throw sanitizeError(userError);
     },
 
     // --- STUDENT REGISTRATION (re-architected, account-first) ---
@@ -140,7 +168,7 @@ export const useAuthStore = defineStore('auth', {
       const userId = response.data.user?.id;
       if (!userId) throw new Error('Failed to retrieve user ID after registration.');
 
-      await this.ensureUserRow(userId, form.email, profileData);
+      await this.ensureUserRow(userId, form.email, profileData, 'pending');
 
       const { error: profileError } = await supabase.from('student_profiles').upsert(
         {
@@ -166,12 +194,8 @@ export const useAuthStore = defineStore('auth', {
     ) {
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
-      if (form.schoolIdFile) {
-        try { schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id'); } catch { schoolIdUrl = null; }
-      }
-      if (form.assessmentFile) {
-        try { assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment'); } catch { assessmentUrl = null; }
-      }
+      if (form.schoolIdFile) schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id');
+      if (form.assessmentFile) assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment');
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -204,25 +228,13 @@ export const useAuthStore = defineStore('auth', {
 
       if (!userId) throw new Error('Failed to retrieve user ID after registration.');
 
-      await this.ensureUserRow(userId, form.email, profileData);
+      await this.ensureUserRow(userId, form.email, profileData, 'pending');
 
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
 
-      if (form.schoolIdFile) {
-        try {
-          schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id');
-        } catch {
-          schoolIdUrl = null;
-        }
-      }
-      if (form.assessmentFile) {
-        try {
-          assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment');
-        } catch {
-          assessmentUrl = null;
-        }
-      }
+      if (form.schoolIdFile) schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id');
+      if (form.assessmentFile) assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment');
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -240,6 +252,10 @@ export const useAuthStore = defineStore('auth', {
 
       // Keep the session active (email autoconfirm is on) so the caller can proceed
       // to the phone-verification step without having to sign in again.
+      await this.submitStudentVerificationDocuments(userId, [
+        { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
+        { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
+      ]);
       this.cachedRole = 'student';
 
       return response.data;
@@ -251,7 +267,7 @@ export const useAuthStore = defineStore('auth', {
     ) {
       const profileData = this.formatProfileData(form, 'student');
 
-      await this.ensureUserRow(userId, form.email, profileData);
+      await this.ensureUserRow(userId, form.email, profileData, 'pending');
 
       const { error: userError } = await supabase
         .from('users')
@@ -291,6 +307,10 @@ export const useAuthStore = defineStore('auth', {
         });
 
       if (profileError) throw sanitizeError(profileError);
+      await this.submitStudentVerificationDocuments(userId, [
+        { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
+        { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
+      ]);
       this.cachedRole = 'student';
     },
 
@@ -305,29 +325,12 @@ export const useAuthStore = defineStore('auth', {
       if (response.error) throw sanitizeError(response.error);
       const userId = response.data.user?.id;
       if (!userId) throw new Error('Failed to retrieve user ID after registration.');
-      await this.ensureUserRow(userId, form.email, profileData);
+      await this.ensureUserRow(userId, form.email, profileData, 'pending');
       return userId;
     },
 
     async finalizeLandlordAccount(userId: string, form: LandlordRegisterForm) {
-      const [govIdUrl, permitUrl] = await Promise.all([
-        form.governmentIdFile ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null) : Promise.resolve(null),
-        form.businessPermitFile ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null) : Promise.resolve(null),
-      ]);
-      if (govIdUrl) {
-        const { error: govErr } = await supabase.from('verification_documents').insert({
-          user_id: userId, doc_type: 'government_id', file_url: govIdUrl,
-          filename: form.governmentIdFile?.name ?? null, status: 'pending',
-        });
-        if (govErr) throw sanitizeError(govErr);
-      }
-      if (permitUrl) {
-        const { error: permitErr } = await supabase.from('verification_documents').insert({
-          user_id: userId, doc_type: 'business_permit', file_url: permitUrl,
-          filename: form.businessPermitFile?.name ?? null, status: 'pending',
-        });
-        if (permitErr) throw sanitizeError(permitErr);
-      }
+      await this.submitLandlordVerificationDocuments(userId, form);
       // After submit, the landlord is signed out and “pending” until OSAS approves.
       await supabase.auth.signOut();
     },
@@ -352,39 +355,8 @@ export const useAuthStore = defineStore('auth', {
       // Upload both documents in parallel (they're independent) while we ensure
       // the user row — this significantly cuts registration latency vs doing the
       // uploads one-after-another on a mobile connection.
-      const [govIdUrl, permitUrl] = await Promise.all([
-        form.governmentIdFile
-          ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null)
-          : Promise.resolve(null),
-        form.businessPermitFile
-          ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null)
-          : Promise.resolve(null),
-      ]);
-
-      await this.ensureUserRow(userId, form.email, profileData);
-
-      // The live schema has no landlord_profiles table (only admin_profiles);
-      // store the government ID as a verification document, like the permit.
-      if (govIdUrl) {
-        const { error: govIdError } = await supabase.from('verification_documents').insert({
-          user_id: userId,
-          doc_type: 'government_id',
-          file_url: govIdUrl,
-          filename: form.governmentIdFile?.name ?? null,
-          status: 'pending',
-        });
-        if (govIdError) throw sanitizeError(govIdError);
-      }
-
-      if (permitUrl) {
-        await supabase.from('verification_documents').insert({
-          user_id: userId,
-          doc_type: 'business_permit',
-          file_url: permitUrl,
-          filename: form.businessPermitFile?.name ?? null,
-          status: 'pending',
-        });
-      }
+      await this.ensureUserRow(userId, form.email, profileData, 'pending');
+      await this.submitLandlordVerificationDocuments(userId, form);
 
       await supabase.auth.signOut();
 
@@ -394,7 +366,7 @@ export const useAuthStore = defineStore('auth', {
     async completeGoogleLandlordProfile(userId: string, form: LandlordRegisterForm) {
       const profileData = this.formatProfileData(form, 'landlord');
 
-      await this.ensureUserRow(userId, form.email, profileData);
+      await this.ensureUserRow(userId, form.email, profileData, 'pending');
 
       const { error: userError } = await supabase
         .from('users')
@@ -403,38 +375,37 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
-      // Upload both documents in parallel (independent of each other).
-      const [govIdUrl, permitUrl] = await Promise.all([
-        form.governmentIdFile
-          ? uploadDocument(form.governmentIdFile, userId, 'government_id').catch(() => null)
-          : Promise.resolve(null),
-        form.businessPermitFile
-          ? uploadDocument(form.businessPermitFile, userId, 'business_permit').catch(() => null)
-          : Promise.resolve(null),
+      await this.submitLandlordVerificationDocuments(userId, form);
+    },
+
+    async submitLandlordVerificationDocuments(userId: string, form: LandlordRegisterForm) {
+      if (!form.governmentIdFile || !form.businessPermitFile) {
+        throw new Error('Both verification documents are required.');
+      }
+
+      const [governmentIdUrl, businessPermitUrl] = await Promise.all([
+        uploadDocument(form.governmentIdFile, userId, 'government_id'),
+        uploadDocument(form.businessPermitFile, userId, 'business_permit'),
       ]);
 
-      // The live schema has no landlord_profiles table (only admin_profiles);
-      // store the government ID as a verification document, like the permit.
-      if (govIdUrl) {
-        const { error: govIdError } = await supabase.from('verification_documents').insert({
+      const { error } = await supabase.from('verification_documents').insert([
+        {
           user_id: userId,
           doc_type: 'government_id',
-          file_url: govIdUrl,
-          filename: form.governmentIdFile?.name ?? null,
+          file_url: governmentIdUrl,
+          filename: form.governmentIdFile.name,
           status: 'pending',
-        });
-        if (govIdError) throw sanitizeError(govIdError);
-      }
-
-      if (permitUrl) {
-        await supabase.from('verification_documents').insert({
+        },
+        {
           user_id: userId,
           doc_type: 'business_permit',
-          file_url: permitUrl,
-          filename: form.businessPermitFile?.name ?? null,
+          file_url: businessPermitUrl,
+          filename: form.businessPermitFile.name,
           status: 'pending',
-        });
-      }
+        },
+      ]);
+
+      if (error) throw sanitizeError(error);
     },
 
     // --- SHARED LOGIN ---
@@ -526,11 +497,11 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async loginWithGoogle(redirectPath: string) {
-      // The app uses history-mode routing (see quasar.config vueRouterMode).
-      // On native mobile (Capacitor/Android build) or when running under a custom scheme/origin,
-      // return the user through registered deep link com.accommo.app://auth/callback
+      // Only installed Capacitor apps can receive the custom scheme. Browser
+      // development sessions, including localhost, must return to their HTTP(S)
+      // origin because Chrome has no handler for com.accommo.app://.
       let redirectTo: string
-      if (Capacitor.isNativePlatform() || window.location.origin.includes('localhost') || window.location.origin.includes('capacitor://')) {
+      if (Capacitor.isNativePlatform()) {
         redirectTo = 'com.accommo.app://auth/callback'
       } else {
         const base = window.location.origin

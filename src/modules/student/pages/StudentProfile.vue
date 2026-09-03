@@ -779,18 +779,19 @@ async function submitVerification() {
 
     if (profileError) throw profileError;
 
-    // Add entries to the verification queue for OSAS admins. Best-effort: a
-    // failure here must not fail the submission, since the profile URLs are
-    // already persisted (and drive the "under review" state on reload).
-    try {
-      const { error: docError } = await supabase.from('verification_documents').insert([
-        { user_id: user.id, doc_type: 'assessment_of_fees', file_url: assessmentUrl, filename: assessmentFile.value.name, status: 'pending' },
-        { user_id: user.id, doc_type: 'school_id', file_url: schoolIdUrl, filename: schoolIdFile.value.name, status: 'pending' },
-      ]);
-      if (docError) console.warn('[profile] verification_documents insert skipped:', docError.message);
-    } catch (e) {
-      console.warn('[profile] verification_documents insert skipped:', e);
-    }
+    const { error: docError } = await supabase.from('verification_documents').insert([
+      { user_id: user.id, doc_type: 'assessment_of_fees', file_url: assessmentUrl, filename: assessmentFile.value.name, status: 'pending' },
+      { user_id: user.id, doc_type: 'school_id', file_url: schoolIdUrl, filename: schoolIdFile.value.name, status: 'pending' },
+    ]);
+    if (docError) throw docError;
+
+    // Re-open the queue through the RPC (SECURITY DEFINER) rather than PATCHing
+    // users.status directly: a DB trigger (lock_user_privileges) forbids a
+    // student from changing their own status, which made every re-submission
+    // after a rejection fail with P0001 (400). resubmit_verification() only ever
+    // moves the caller back to 'pending' — never to verified.
+    const { error: userError } = await (supabase as any).rpc('resubmit_verification')
+    if (userError) throw userError;
 
     pendingReview.value = true;
     verifiedSuccess.value = true;

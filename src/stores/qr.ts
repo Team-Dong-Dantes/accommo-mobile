@@ -47,10 +47,10 @@ export const useQrStore = defineStore('qr', {
           .maybeSingle()
 
         // Leases between this landlord and the student (RLS enforces landlord_id).
-        const { data: leases } = await supabase
+        const { data: leases } = await (supabase as any)
           .from('leases')
           .select(
-            'id, status, start_date, end_date, monthly_rent, room:rooms(room_number, property:properties(name, address))',
+            'id, status, start_date, end_date, monthly_rent, room:rooms(room_number, accommodation:accommodations(name, address))',
           )
           .eq('student_id', userId)
           .order('start_date', { ascending: false })
@@ -60,21 +60,21 @@ export const useQrStore = defineStore('qr', {
           start_date: string | null
           end_date: string | null
           monthly_rent: number | null
-          room: { room_number: string | null; property: { name: string | null; address: string | null } | null } | null
+          room: { room_number: string | null; accommodation: { name: string | null; address: string | null } | null } | null
         }>
 
         const active = leaseRows.find((l) => l.status === 'active')
         const currentBoarding = active
           ? {
-              propertyName: active.room?.property?.name ?? 'Your property',
+              propertyName: active.room?.accommodation?.name ?? 'Your property',
               unit: active.room?.room_number ?? '—',
               monthlyRate: active.monthly_rent ?? 0,
             }
           : null
 
         const tenancyHistory = leaseRows.map((l) => ({
-          propertyName: l.room?.property?.name ?? 'Boarding House',
-          address: l.room?.property?.address ?? '—',
+          propertyName: l.room?.accommodation?.name ?? 'Boarding House',
+          address: l.room?.accommodation?.address ?? '—',
           period: `${l.start_date ? new Date(l.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : ''} - ${l.end_date ? new Date(l.end_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : 'Present'}`,
           status: l.status === 'active' ? 'Current' : 'Past',
           remarks: '',

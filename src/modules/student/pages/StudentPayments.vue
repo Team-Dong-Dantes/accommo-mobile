@@ -7,6 +7,10 @@
       <template v-else-if="lease">
         <section v-if="actionablePayments.length" class="payment-section" aria-labelledby="action-heading"><div class="section-heading"><div><h2 id="action-heading">Payment required</h2><p>Submit proof for a due payment.</p></div><span>{{ actionablePayments.length }}</span></div><article v-for="payment in actionablePayments" :key="payment.id" class="surface action-card" :class="{ 'action-card--overdue': payment.status === 'overdue' }"><span class="action-icon"><IconifyIcon :icon="payment.status === 'overdue' ? 'lucide:circle-alert' : 'lucide:receipt-text'" width="21" aria-hidden="true" /></span><div><strong>{{ formatPeso(payment.amount) }}</strong><span>{{ formatMonth(payment.month) }}</span><small>{{ payment.status === 'overdue' ? 'This payment is overdue.' : 'Payment is due.' }}</small></div><button type="button" @click="openPaymentMethod(payment)">Pay now</button></article></section>
         <section v-if="pendingPayments.length" class="payment-section" aria-labelledby="pending-heading"><div class="section-heading"><div><h2 id="pending-heading">Awaiting verification</h2><p>Your landlord will review the submitted proof.</p></div><span>{{ pendingPayments.length }}</span></div><div class="surface payment-list"><article v-for="payment in pendingPayments" :key="payment.id" class="payment-row"><span class="payment-icon payment-icon--warning"><IconifyIcon icon="lucide:clock-3" width="19" aria-hidden="true" /></span><div class="payment-copy"><strong>{{ formatPeso(payment.amount) }}</strong><span>{{ formatMonth(payment.month) }}</span><small>{{ methodLabel(payment.method) }}<template v-if="payment.txnReference"> · {{ payment.txnReference }}</template></small></div><span class="status-badge status-badge--warning">Pending review</span></article></div></section>
+        <section v-if="lease && !actionablePayments.length && !advancing" class="payment-section" aria-labelledby="advance-heading">
+          <div class="section-heading"><div><h2 id="advance-heading">All settled</h2><p>You can pay next month’s rent in advance.</p></div></div>
+          <div class="surface action-card action-card--advance"><span class="action-icon"><IconifyIcon icon="lucide:calendar-plus" width="21" aria-hidden="true" /></span><div><strong>Pay in advance</strong><span>Cover {{ advanceMonthLabel }} early and stay worry-free.</span></div><button type="button" @click="payNextMonth">Pay now</button></div>
+        </section>
         <section class="payment-section" aria-labelledby="history-heading"><div class="section-heading"><div><h2 id="history-heading">Payment history</h2><p>Confirmed and previous lease payments.</p></div><span>{{ historyPayments.length }}</span></div><div v-if="historyPayments.length" class="surface payment-list"><article v-for="payment in historyPayments" :key="payment.id" class="payment-row"><span class="payment-icon" :class="payment.status === 'paid' ? 'payment-icon--success' : payment.status === 'overdue' ? 'payment-icon--danger' : 'payment-icon--neutral'"><IconifyIcon :icon="payment.status === 'paid' ? 'lucide:circle-check' : 'lucide:receipt-text'" width="19" aria-hidden="true" /></span><div class="payment-copy"><strong>{{ formatPeso(payment.amount) }}</strong><span>{{ formatMonth(payment.month) }}</span><small>{{ payment.status === 'paid' && payment.paidAt ? `Confirmed ${formatDate(payment.paidAt)}` : statusLabel(payment.status) }}</small></div><div class="history-side"><span class="status-badge" :class="`status-badge--${toneForStatus(payment.status)}`">{{ statusLabel(payment.status) }}</span><a v-if="payment.proofUrl" :href="payment.proofUrl" target="_blank" rel="noopener">View proof</a></div></article></div><div v-else class="surface empty-history"><IconifyIcon icon="lucide:receipt-text" width="22" aria-hidden="true" /><p>No payments recorded for this lease.</p></div></section>
         <section class="surface lease-details" aria-labelledby="lease-heading"><h2 id="lease-heading">Lease terms</h2><div><span>Monthly rent</span><strong>{{ formatPeso(lease.monthlyRent || 0) }}</strong></div><div><span>Advance paid</span><strong>{{ formatPeso(lease.advancePaid || 0) }}</strong></div><div><span>Deposit paid</span><strong>{{ formatPeso(lease.depositPaid || 0) }}</strong></div><div><span>Lease period</span><strong>{{ formatDate(lease.startDate) }} – {{ formatDate(lease.endDate) }}</strong></div></section>
       </template>
@@ -34,9 +38,46 @@ const leaseManagerId = ref<string | null>(null); const payments = ref<Payment[]>
 const paymentMethods = [{ value: 'gcash', label: 'GCash', hint: 'Transfer through the GCash app' }, { value: 'maya', label: 'Maya', hint: 'Transfer through the Maya app' }, { value: 'bank', label: 'Bank transfer', hint: 'Direct bank transfer or InstaPay' }, { value: 'cash', label: 'Cash', hint: 'Use the agreed in-person payment method' }]
 const actionablePayments = computed(() => payments.value.filter((payment) => ['due', 'overdue'].includes(payment.status))); const pendingPayments = computed(() => payments.value.filter((payment) => payment.status === 'pending_verification')); const historyPayments = computed(() => payments.value.filter((payment) => !['due', 'overdue', 'pending_verification'].includes(payment.status)))
 function formatDate(value: string | null) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) }; function formatMonth(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? 'Payment month unavailable' : date.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' }) }; function methodLabel(method: string) { return (method || 'Method not recorded').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) }; function statusLabel(status: string) { return status === 'paid' ? 'Paid' : status === 'overdue' ? 'Overdue' : status === 'due' ? 'Due' : status === 'pending_verification' ? 'Pending review' : status || 'Unknown' }; function toneForStatus(status: string) { return status === 'paid' ? 'success' : status === 'overdue' ? 'danger' : status === 'due' || status === 'pending_verification' ? 'warning' : 'neutral' }
-async function loadPayments() { loading.value = true; error.value = null; try { const { data: { user }, error: authError } = await supabase.auth.getUser(); if (authError) throw authError; if (!user) { void router.push('/login'); return }; const { data: leaseRow, error: leaseError } = await (supabase as any).from('leases').select('id, start_date, end_date, monthly_rent, advance_paid, deposit_paid, accommodation_manager_id').eq('student_id', user.id).eq('status', 'active').maybeSingle(); if (leaseError) throw leaseError; if (!leaseRow) { lease.value = null; payments.value = []; return }; lease.value = { id: leaseRow.id, startDate: leaseRow.start_date, endDate: leaseRow.end_date, monthlyRent: leaseRow.monthly_rent, advancePaid: leaseRow.advance_paid, depositPaid: leaseRow.deposit_paid };
+async function loadPayments() { loading.value = true; error.value = null; try { const { data: { user }, error: authError } = await supabase.auth.getUser(); if (authError) throw authError; if (!user) { void router.push('/login'); return }; const { data: leaseRow, error: leaseError } = await (supabase as any).from('leases').select('id, start_date, end_date, monthly_rent, advance_paid, deposit_paid, accommodation_manager_id').eq('student_id', user.id).in('status', ['active', 'leave_requested']).maybeSingle(); if (leaseError) throw leaseError; if (!leaseRow) { lease.value = null; payments.value = []; return }; lease.value = { id: leaseRow.id, startDate: leaseRow.start_date, endDate: leaseRow.end_date, monthlyRent: leaseRow.monthly_rent, advancePaid: leaseRow.advance_paid, depositPaid: leaseRow.deposit_paid };
 leaseManagerId.value = leaseRow.accommodation_manager_id ?? null; const { data: paymentRows, error: paymentError } = await (supabase as any).from('payments').select('id, month, amount, status, method, txn_reference, proof_url, paid_at').eq('lease_id', leaseRow.id).order('month', { ascending: false }); if (paymentError) throw paymentError; payments.value = (paymentRows ?? []).map((payment: any) => ({ id: payment.id, month: payment.month || '', amount: Number(payment.amount || 0), status: payment.status || '', method: payment.method || '', txnReference: payment.txn_reference, proofUrl: payment.proof_url, paidAt: payment.paid_at })) } catch (reason) { error.value = reason instanceof Error ? reason.message : 'We could not retrieve your payments.' } finally { loading.value = false } }
 function openPaymentMethod(payment: Payment) { selectedPayment.value = payment; selectedMethod.value = null; proofFile.value = null; methodDialog.value = true }; function continuePayment() { if (!selectedMethod.value) return; methodDialog.value = false; proofDialog.value = true }
+const advancing = ref(false)
+const advanceMonthLabel = ref('next month')
+
+async function payNextMonth() {
+  if (!lease.value || advancing.value) return
+  advancing.value = true
+  try {
+    const now = new Date()
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    // payments.month is a DATE column — 'YYYY-MM-01', not 'YYYY-MM' (400 otherwise).
+    const monthKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+    const month = `${monthKey}-01`
+    advanceMonthLabel.value = next.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
+    const amount = Number(lease.value.monthlyRent || 0) || 0
+    if (!amount) throw new Error('Monthly rent is not set on this lease.')
+
+    const { data: existing } = await (supabase as any).from('payments').select('id').eq('lease_id', lease.value.id).eq('month', month).maybeSingle()
+    if (!existing) {
+      const { error } = await (supabase as any).from('payments').insert({
+        lease_id: lease.value.id,
+        amount,
+        month,
+        method: 'cash',
+        status: 'due',
+      })
+      if (error) throw error
+    }
+    await loadPayments()
+    const duePayment = payments.value.find((p) => p.month.startsWith(monthKey) && ['due', 'overdue'].includes(p.status))
+    if (duePayment) openPaymentMethod(duePayment)
+  } catch (reason) {
+    $q.notify({ type: 'negative', message: reason instanceof Error ? reason.message : 'Could not start advance payment', position: 'top' })
+  } finally {
+    advancing.value = false
+  }
+}
+
 async function submitPayment() { if (!selectedPayment.value || !selectedMethod.value || !proofFile.value) return; submitting.value = true; try { const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error('Please sign in again.'); const proofUrl = await uploadDocument(proofFile.value, user.id, 'payment_proof'); const transactionReference = `TXN-${Date.now().toString().slice(-8)}`; const { error: updateError } = await (supabase as any).from('payments').update({ method: selectedMethod.value, proof_url: proofUrl, txn_reference: transactionReference, status: 'pending_verification' }).eq('id', selectedPayment.value.id); if (updateError) throw updateError;
     if (leaseManagerId.value) {
       try {

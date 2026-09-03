@@ -34,46 +34,66 @@
 
               <div v-if="!home.rooms.length" class="surface home-empty">No rooms added for this property yet.</div>
 
-              <template v-for="room in home.rooms" :key="room.id">
-                <button
-                  v-if="room.tenant"
-                  type="button"
-                  class="room-row room-row--taken"
-                  @click="openTenant(room.tenant.studentId)"
-                >
-                  <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ room.tenant.initials }}</q-avatar>
-                  <span class="row-copy">
-                    <strong>{{ room.tenant.name }}</strong>
-                    <small>{{ room.label }}<template v-if="room.floor"> · {{ room.floor }}</template></small>
+              <div v-for="room in home.rooms" :key="room.id" class="room-group">
+                <!-- Room header: ALWAYS visible, even with zero tenants -->
+                <div class="room-head">
+                  <span class="room-head__icon" aria-hidden="true"><IconifyIcon icon="lucide:door-closed" width="16" /></span>
+                  <strong class="room-head__label">{{ room.label }}</strong>
+                  <small v-if="room.floor" class="room-head__floor">Floor {{ room.floor }}</small>
+                  <span class="room-head__count" :class="{ 'room-head__count--full': room.capacity != null && room.tenants.length >= room.capacity }">
+                    {{ room.tenants.length }}<template v-if="room.capacity != null">/{{ room.capacity }}</template>
                   </span>
-                  <span class="status-badge status-badge--active"><IconifyIcon icon="lucide:circle-check" width="13" /> Tenant</span>
-                  <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="18" aria-hidden="true" />
-                </button>
-
-                <button
-                  v-else-if="room.applicant"
-                  type="button"
-                  class="room-row room-row--pending"
-                  @click="openTenant(room.applicant.studentId)"
-                >
-                  <span class="room-open-icon room-open-icon--pending" aria-hidden="true"><IconifyIcon icon="lucide:clock-3" width="18" /></span>
-                  <span class="row-copy">
-                    <strong>{{ room.applicant.name }}</strong>
-                    <small>{{ room.label }}<template v-if="room.floor"> · {{ room.floor }}</template></small>
-                  </span>
-                  <span class="status-badge status-badge--warning"><IconifyIcon icon="lucide:clock-3" width="13" /> Pending</span>
-                  <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="18" aria-hidden="true" />
-                </button>
-
-                <div v-else class="room-row room-row--open">
-                  <span class="room-open-icon" aria-hidden="true"><IconifyIcon icon="lucide:door-open" width="18" /></span>
-                  <span class="row-copy">
-                    <strong>{{ room.label }}</strong>
-                    <small>Open room — no tenant yet</small>
-                  </span>
-                  <span class="status-badge status-badge--neutral">Available</span>
                 </div>
-              </template>
+
+                <div class="room-body">
+                  <!-- Pending applicants for this room -->
+                  <button
+                    v-for="applicant in room.applicants"
+                    :key="applicant.leaseId"
+                    type="button"
+                    class="room-row room-row--pending"
+                    @click="openTenant(applicant.studentId)"
+                  >
+                    <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ applicant.initials }}</q-avatar>
+                    <span class="row-copy">
+                      <strong>{{ applicant.name }}</strong>
+                      <small>Applicant — awaiting decision</small>
+                    </span>
+                    <span class="status-badge status-badge--warning"><IconifyIcon icon="lucide:clock-3" width="13" /> Pending</span>
+                    <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="18" aria-hidden="true" />
+                  </button>
+
+                  <!-- Current tenants in this room (all of them) -->
+                  <button
+                    v-for="tenant in room.tenants"
+                    :key="tenant.studentId"
+                    type="button"
+                    class="room-row room-row--taken"
+                    :class="{ 'room-row--leaving': tenant.statusKey === 'leaving' }"
+                    @click="openTenant(tenant.studentId)"
+                  >
+                    <q-avatar size="40px" class="tenant-avatar" aria-hidden="true">{{ tenant.initials }}</q-avatar>
+                    <span class="row-copy">
+                      <strong>{{ tenant.name }}</strong>
+                      <small>Occupant</small>
+                    </span>
+                    <span class="status-badge" :class="`status-badge--${tenant.statusKey}`">
+                      <IconifyIcon :icon="tenant.statusIcon" width="13" /> {{ tenant.status }}
+                    </span>
+                    <IconifyIcon class="row-chevron" icon="lucide:chevron-right" width="18" aria-hidden="true" />
+                  </button>
+
+                  <!-- No one in this room yet -->
+                  <div v-if="!room.tenants.length && !room.applicants.length" class="room-row room-row--open">
+                    <span class="room-open-icon" aria-hidden="true"><IconifyIcon icon="lucide:door-open" width="18" /></span>
+                    <span class="row-copy">
+                      <strong>Open room</strong>
+                      <small>No tenant yet</small>
+                    </span>
+                    <span class="status-badge status-badge--neutral">Available</span>
+                  </div>
+                </div>
+              </div>
             </article>
           </div>
         </section>
@@ -115,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
@@ -162,7 +182,7 @@ const filterDialog = ref(false)
 const isLoading = ref(false)
 const loadError = ref<string | null>(null)
 const applicationAction = ref<string | null>(null)
-interface HomeRoom { id: string; label: string; floor: string | null; tenant: { studentId: string; name: string; initials: string } | null; applicant: { studentId: string; name: string; initials: string; leaseId: string } | null }
+interface HomeRoom { id: string; label: string; floor: string | null; capacity: number | null; tenants: { studentId: string; name: string; initials: string; status: string; statusKey: string; statusIcon: string }[]; applicants: { studentId: string; name: string; initials: string; leaseId: string }[] }
 interface HomeGroup { id: string; name: string; rooms: HomeRoom[] }
 const tenants = ref<Tenant[]>([])
 const pendingApplications = ref<PendingApplication[]>([])
@@ -200,10 +220,13 @@ function matchesSearch(entry: { name: string; property: string; room: string }, 
 }
 
 function tenantStatus(status: string, leaveRequested: boolean, paymentDue: boolean): Pick<Tenant, 'status' | 'statusKey' | 'statusIcon'> {
+  // Status FIRST: an ended lease is ended, full stop. A stale
+  // leave_requested_at on an ended/terminated lease must NOT render as
+  // "Leaving" (it previously overrode real state and confused the roster).
+  if (['ended', 'expired', 'terminated'].includes(status)) return { status: 'Ended', statusKey: 'ended', statusIcon: 'lucide:circle-x' }
   if (paymentDue) return { status: 'Payment due', statusKey: 'payment-due', statusIcon: 'lucide:receipt-text' }
   if (leaveRequested) return { status: 'Leaving', statusKey: 'leaving', statusIcon: 'lucide:log-out' }
   if (status === 'active') return { status: 'Active', statusKey: 'active', statusIcon: 'lucide:circle-check' }
-  if (['ended', 'expired', 'terminated'].includes(status)) return { status: 'Ended', statusKey: 'ended', statusIcon: 'lucide:circle-x' }
   return { status: status ? status.replace(/_/g, ' ') : 'Unknown', statusKey: 'unknown', statusIcon: 'lucide:circle-help' }
 }
 
@@ -346,18 +369,19 @@ async function loadTenants() {
     tenants.value = nextTenants
     pendingApplications.value = nextPendingApplications
 
-    // Property -> room -> occupant (tenant or pending applicant). Keyed by room id
-    // so each student/applicant shows on their actual room.
-    // Only CURRENT tenants occupy a room in the tree. Ended/terminated leases
-    // (e.g. a declined application -> 'ended', or a moved-out tenant) must not
-    // keep showing as the room occupant.
+    // Property -> room -> occupant list (all current tenants per room, not just
+    // one). Ended leases never occupy. Rooms with zero tenants still render.
     const OCCUPYING = new Set(['active', 'payment-due', 'leaving'])
-    const tenantByRoomId = new Map<string, Tenant>()
+    const tenantsByRoomId = new Map<string, Tenant[]>()
     for (const t of nextTenants) {
-      if (t.roomId && OCCUPYING.has(t.statusKey)) tenantByRoomId.set(t.roomId, t)
+      if (!t.roomId || !OCCUPYING.has(t.statusKey)) continue
+      tenantsByRoomId.set(t.roomId, [...(tenantsByRoomId.get(t.roomId) || []), t])
     }
-    const applicantByRoomId = new Map<string, PendingApplication>()
-    for (const a of nextPendingApplications) if (a.roomId) applicantByRoomId.set(a.roomId, a)
+    const applicantsByRoomId = new Map<string, PendingApplication[]>()
+    for (const a of nextPendingApplications) {
+      if (!a.roomId) continue
+      applicantsByRoomId.set(a.roomId, [...(applicantsByRoomId.get(a.roomId) || []), a])
+    }
 
     structuredHomes.value = propertyRows.map((property: any) => ({
       id: property.id,
@@ -365,14 +389,15 @@ async function loadTenants() {
       rooms: roomRows
         .filter((room) => room.accommodation_id === property.id)
         .map((room) => {
-          const tenant = tenantByRoomId.get(room.id)
-          const applicant = applicantByRoomId.get(room.id)
+          const tenants = tenantsByRoomId.get(room.id) || []
+          const applicants = applicantsByRoomId.get(room.id) || []
           return {
             id: room.id,
             label: roomName(room),
             floor: room.floor || null,
-            tenant: tenant ? { studentId: tenant.studentId, name: tenant.name, initials: tenant.initials } : null,
-            applicant: applicant ? { studentId: applicant.studentId, name: applicant.name, initials: applicant.initials, leaseId: applicant.id } : null,
+            capacity: room.capacity || null,
+            tenants: tenants.map((tenant) => ({ studentId: tenant.studentId, name: tenant.name, initials: tenant.initials, status: tenant.status, statusKey: tenant.statusKey, statusIcon: tenant.statusIcon })),
+            applicants: applicants.map((applicant) => ({ studentId: applicant.studentId, name: applicant.name, initials: applicant.initials, leaseId: applicant.id })),
           }
         }),
     }))
@@ -440,6 +465,14 @@ function openTenant(studentId: string) {
 }
 
 onMounted(() => {
+  void loadTenants()
+})
+
+// The tenant detail page mutates leases (accept / decline / approve leave). When
+// the router returns here the component may be kept alive, so `onMounted` does
+// not re-run and the list would still show the pre-decision state (e.g. a
+// student who already moved out). Reload whenever this view is re-activated.
+onActivated(() => {
   void loadTenants()
 })
 </script>
@@ -559,6 +592,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--m-primary);
 .room-open-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--m-bg); color: var(--m-muted); }
 .room-open-icon--pending { background: var(--m-warning-soft); color: var(--m-warning); }
 .home-empty { margin: 12px; padding: 14px; border: 1px dashed var(--m-border); border-radius: 10px; color: var(--m-muted); font-size: 12px; text-align: center; }
+
+/* Room group: header strip + stacked occupant rows */
+.room-group { border-top: 1px solid var(--m-border); }
+.room-group:first-of-type { border-top: 0; }
+.room-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px 6px; background: color-mix(in srgb, var(--m-bg) 55%, var(--m-surface)); }
+.room-head__icon { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; background: var(--m-surface); color: var(--m-muted); border: 1px solid var(--m-border); }
+.room-head__label { font-size: 13.5px; letter-spacing: -0.01em; }
+.room-head__floor { color: var(--m-muted); font-size: 11px; }
+.room-head__count { margin-left: auto; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--m-primary-soft, color-mix(in srgb, var(--m-primary) 10%, transparent)); color: var(--m-primary); }
+.room-head__count--full { background: var(--m-warning-soft); color: var(--m-warning); }
+.room-body { display: grid; }
 .room-row .row-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
 .room-row .row-copy strong { color: var(--m-ink); font-size: 14px; font-weight: 700; }
 .room-row .row-copy small { color: var(--m-muted); font-size: 12px; }
