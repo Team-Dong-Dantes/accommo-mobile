@@ -54,6 +54,21 @@
           </div>
         </section>
 
+        <!-- Leave request decision (when tenant requested to leave) -->
+        <section v-if="leaveRequestedLease" class="surface-card decision-card leave-decision-card" aria-label="Leave request decision">
+          <div class="decision-head">
+            <span class="decision-icon leave-icon"><IconifyIcon icon="lucide:log-out" width="18" /></span>
+            <div>
+              <h2>Leave requested</h2>
+              <p>Tenant requested to leave {{ leaveRequestedLease.roomLabel }} · {{ leaveRequestedLease.property }}<template v-if="leaveRequestedLease.leaveRequestedAt"> on {{ formatDate(leaveRequestedLease.leaveRequestedAt) }}</template></p>
+            </div>
+          </div>
+          <div class="decision-actions">
+            <q-btn unelevated no-caps class="primary-btn" label="Approve leave" :loading="actingLeave === 'approve'" @click="decideLeave('approve')" />
+            <q-btn outline no-caps class="ghost-danger-btn" label="Decline leave" :loading="actingLeave === 'decline'" @click="decideLeave('decline')" />
+          </div>
+        </section>
+
         <!-- Tabs (folder-tab design, same as accommodation detail) -->
         <section class="tab-workspace" aria-label="Student sections">
           <q-tabs v-model="activeTab" dense no-caps align="left" class="folder-tabs">
@@ -206,7 +221,9 @@ interface StayLease {
   roomLabel: string
   floor: string | null
   property: string
+  accommodationId: string | null
   balanceDue: number
+  leaveRequestedAt: string | null
 }
 
 const route = useRoute()
@@ -214,6 +231,7 @@ const $q = useQuasar()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const acting = ref<'accept' | 'decline' | null>(null)
+const actingLeave = ref<'approve' | 'decline' | null>(null)
 const logDialog = ref(false)
 const logging = ref(false)
 const logAmount = ref('')
@@ -237,6 +255,7 @@ const paidPayments = computed(() => payments.value.filter((p) => p.tone === 'suc
 const outstandingTotal = computed(() => attentionPayments.value.reduce((sum, p) => sum + p.amount, 0))
 
 const pendingLease = computed(() => leases.value.find((l) => l.status === 'pending') ?? null)
+const leaveRequestedLease = computed(() => leases.value.find((l) => l.status === 'leave_requested') ?? null)
 const activeLease = computed(() => leases.value.find((l) => l.status === 'active' || l.status === 'leave_requested') ?? null)
 const pastLeases = computed(() => leases.value.filter((l) => !['pending', 'active', 'leave_requested'].includes(l.status)))
 
@@ -292,7 +311,7 @@ async function load() {
       supabase.from('student_profiles').select('student_id, program, college, year_level, osas_verified_at').eq('user_id', studentId).maybeSingle(),
       (supabase as any)
         .from('leases')
-        .select('id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, room:rooms(room_number, label, floor, accommodation:accommodations(name))')
+        .select('id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, leave_requested_at, room:rooms(room_number, label, floor, accommodation:accommodations(id, name))')
         .eq('student_id', studentId)
         .eq('accommodation_manager_id', user.id)
         .order('start_date', { ascending: false }),
@@ -329,7 +348,9 @@ async function load() {
         roomLabel: room.label || (room.room_number ? `Room ${room.room_number}` : 'Room'),
         floor: room.floor || null,
         property: room.accommodation?.name || 'Accommodation',
+        accommodationId: room.accommodation?.id ?? null,
         balanceDue: 0,
+        leaveRequestedAt: l.leave_requested_at ?? null,
       }
     })
 
@@ -366,7 +387,9 @@ async function submitLogPayment() {
   logging.value = true
   try {
     const now = new Date()
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    // payments.month is a DATE column (not a text 'YYYY-MM'), so send the first
+    // of the month — 'YYYY-MM-01' — otherwise PostgREST rejects it (400).
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await (supabase as any).from('payments').insert({
       lease_id: lease.id,
@@ -420,6 +443,80 @@ async function decide(action: 'accept' | 'decline') {
     $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Update failed' })
   } finally {
     acting.value = null
+  }
+}
+
+async function decideLeave(action: 'approve' | 'decline') {
+  const lease = leaveRequestedLease.value
+  if (!lease || actingLeave.value) return
+  actingLeave.value = action
+  try {
+    const studentUserId = String(route.params.tenantId || '')
+    const now = new Date()
+    if (action === 'approve') {
+      const { error: err } = await (supabase as any)
+        .from('leases')
+        .update({
+          status: 'ended',
+          ended_reason: 'leave_approved',
+          end_date: now.toISOString().split('T')[0],
+        })
+        .eq('id', lease.id)
+      if (err) throw err
+
+      // boarding_history.accommodation_id is NOT NULL, and RLS requires the
+      // caller to manage that accommodation — skip if we somehow lack the id
+      // rather than firing a guaranteed-failing insert.
+      if (lease.accommodationId) {
+        try {
+          await (supabase as any).from('boarding_history').insert({
+            student_id: studentUserId,
+            accommodation_id: lease.accommodationId,
+            accommodation_name: lease.property,
+            period_start: lease.startDate || now.toISOString(),
+            period_end: now.toISOString(),
+            room_type: lease.roomLabel,
+            end_reason: 'leave_approved',
+          })
+        } catch { /* non-critical */ }
+      }
+
+      $q.notify({ type: 'positive', message: 'Leave request approved. Lease has ended.' })
+      try {
+        await createNotification(
+          studentUserId,
+          'Leave request approved',
+          `Your leave request for ${lease.roomLabel} at ${lease.property} was approved by the manager. Your stay has ended.`,
+          'leave',
+          '/student/stay',
+        )
+      } catch { /* non-critical */ }
+    } else {
+      const { error: err } = await (supabase as any)
+        .from('leases')
+        .update({
+          status: 'active',
+          leave_requested_at: null,
+        })
+        .eq('id', lease.id)
+      if (err) throw err
+
+      $q.notify({ type: 'warning', message: 'Leave request declined.' })
+      try {
+        await createNotification(
+          studentUserId,
+          'Leave request declined',
+          `Your leave request for ${lease.roomLabel} at ${lease.property} was declined. Please contact your manager for details.`,
+          'leave',
+          '/student/stay',
+        )
+      } catch { /* non-critical */ }
+    }
+    await load()
+  } catch (cause) {
+    $q.notify({ type: 'negative', message: cause instanceof Error ? cause.message : 'Action failed' })
+  } finally {
+    actingLeave.value = null
   }
 }
 

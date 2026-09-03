@@ -169,7 +169,7 @@
                 </div>
                 <div class="ticket-row-meta font-mono">
                   <span>{{ formatCategory(t.category) }}</span>
-                  <time>{{ formatDate(t.filed_at || t.created_at) }}</time>
+                  <time>{{ formatDate(t.reported_at || t.created_at) }}</time>
                 </div>
               </article>
             </div>
@@ -194,12 +194,7 @@
 
           <div class="modal-body">
             <div class="field-group">
-              <label for="student-id-field" class="input-label font-mono">STUDENT ID NUMBER</label>
-              <q-input id="student-id-field" v-model="corForm.studentIdNumber" outlined dense placeholder="e.g. 21-0891" />
-            </div>
-
-            <div class="field-group">
-              <label class="input-label font-mono">SEMESTER CLEARANCE / COR (PDF / IMAGE)</label>
+              <label class="input-label font-mono">{{ activeDocLabel.toUpperCase() }} (PDF / IMAGE)</label>
               <AuthFileDropZone
                 v-model="corForm.file"
                 label="Attach renewed PDF or document photo"
@@ -350,8 +345,8 @@ const systemCategoryOptions = [
 const studentDocItems = ref<any[]>([
   {
     key: 'cor',
-    label: 'Certificate of Registration (COR)',
-    desc: 'Official semester registration proving active university enrollment.',
+    label: 'Assessment of Fees',
+    desc: 'Official semester assessment of fees proving active university enrollment.',
     icon: 'lucide:file-text',
     status: 'missing',
     statusLabel: 'Missing',
@@ -365,16 +360,6 @@ const studentDocItems = ref<any[]>([
     icon: 'lucide:contact-2',
     status: 'missing',
     statusLabel: 'Missing',
-    fileUrl: null,
-    updatedAt: null,
-  },
-  {
-    key: 'good_moral',
-    label: 'Good Moral Certificate',
-    desc: 'University character endorsement for boarding house accreditation.',
-    icon: 'lucide:award',
-    status: 'missing',
-    statusLabel: 'Optional',
     fileUrl: null,
     updatedAt: null,
   },
@@ -444,14 +429,24 @@ async function submitDocument() {
     await supabase.auth.updateUser({
       data: {
         [`${activeDocKey.value}_url`]: fileUrl,
-        student_id_number: corForm.value.studentIdNumber || undefined,
         osas_verified: false,
       },
     })
 
-    if (corForm.value.studentIdNumber) {
-      studentIdNumber.value = corForm.value.studentIdNumber
-    }
+    const docType = activeDocKey.value === 'cor' ? 'assessment_of_fees' : activeDocKey.value === 'id_card' ? 'school_id' : activeDocKey.value
+    const { error: documentError } = await supabase.from('verification_documents').insert({
+      user_id: user.id,
+      doc_type: docType,
+      file_url: fileUrl,
+      filename: corForm.value.file?.name ?? null,
+      status: 'pending',
+    })
+    if (documentError) throw documentError
+
+    // Re-open the queue via the RPC — a direct users.status PATCH is rejected by
+    // the lock_user_privileges trigger (P0001). The RPC only sets caller->pending.
+    const { error: userError } = await (supabase as any).rpc('resubmit_verification')
+    if (userError) throw userError
 
     const target = studentDocItems.value.find((d) => d.key === activeDocKey.value)
     if (target) {
@@ -488,17 +483,18 @@ async function submitNewTicket() {
     }
 
     const { data, error } = await (supabase as any)
-      .from('complaints')
+      .from('tickets')
       .insert({
         student_id: user.id,
-        landlord_id: user.id,
-        property_id: '',
+        landlord_id: null,
+        property_id: null,
+        lease_id: null,
         subject: newTicketForm.value.title.trim(),
-        title: newTicketForm.value.title.trim(),
         category: newTicketForm.value.category,
         description: newTicketForm.value.description.trim() + (screenshotUrl ? `\n[Screenshot]: ${screenshotUrl}` : ''),
         status: 'pending',
         priority: 'medium',
+        photo_urls: screenshotUrl ? [screenshotUrl] : [],
       })
       .select('*')
       .single()
@@ -518,7 +514,7 @@ async function submitNewTicket() {
 
 function openTicketDetail(t: any) {
   $q.dialog({
-    title: t.title || t.subject,
+    title: t.subject || t.title,
     message: `${t.description || 'No statement provided.'}\n\nStatus: ${statusLabel(t.status)}\nClassification: ${formatCategory(t.category)}`,
     ok: 'Close',
   })
@@ -545,10 +541,10 @@ async function loadData() {
     // Load Student's Tickets
     ticketsLoading.value = true
     const { data: compList } = await (supabase as any)
-      .from('complaints')
+      .from('tickets')
       .select('*')
       .eq('student_id', user.id)
-      .order('filed_at', { ascending: false, nullsFirst: false })
+      .order('reported_at', { ascending: false, nullsFirst: false })
 
     tickets.value = compList || []
   } catch (e) {

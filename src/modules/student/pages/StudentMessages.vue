@@ -77,10 +77,16 @@
       <div v-if="roomContext && activeConversation" class="apply-banner">
         <span class="apply-banner-icon" aria-hidden="true"><IconifyIcon icon="lucide:door-open" width="17" /></span>
         <span class="apply-banner-copy">
-          <strong>Interested in this room?</strong>
-          <small>Send your application to {{ activeChat.name }} right here.</small>
+          <template v-if="hasCurrentStay">
+            <strong>You already have a stay</strong>
+            <small>End or move out of your current room before applying to another.</small>
+          </template>
+          <template v-else>
+            <strong>Interested in this room?</strong>
+            <small>Send your application to {{ activeChat.name }} right here.</small>
+          </template>
         </span>
-        <button type="button" class="apply-banner-btn" :disabled="applyingRoom" @click="sendRoomApply">
+        <button type="button" class="apply-banner-btn" :disabled="applyingRoom || hasCurrentStay" @click="sendRoomApply">
           <q-spinner v-if="applyingRoom" size="15px" color="white" />
           <span v-else>Apply</span>
         </button>
@@ -290,6 +296,26 @@ const currentUserId = ref<string | null>(null)
 const activeConversation = ref<string | null>(null)
 const roomContext = ref<{ roomId: string; managerId: string } | null>(null)
 const applyingRoom = ref(false)
+// True when the student already holds a current lease (active / leave_requested
+// / pending). The DB enforces one current stay per student via the partial
+// unique index `leases_one_current_per_student`; this mirrors it in the UI so
+// the student gets an explanation instead of a raw constraint error.
+const hasCurrentStay = ref(false)
+
+async function refreshCurrentStay() {
+  if (!currentUserId.value) return
+  try {
+    const { data } = await (supabase as any)
+      .from('leases')
+      .select('id')
+      .eq('student_id', currentUserId.value)
+      .in('status', ['active', 'leave_requested', 'pending'])
+      .limit(1)
+    hasCurrentStay.value = Array.isArray(data) && data.length > 0
+  } catch {
+    hasCurrentStay.value = false
+  }
+}
 const activeChat = ref<ConversationItem>({ id: '', name: '', initials: '', role: '', lastMessage: '', lastTime: null, unread: 0, otherUserId: '' })
 const messages = ref<MessageItem[]>([])
 const messagesLoading = ref(false)
@@ -299,8 +325,11 @@ const sending = ref(false)
 const newConvoDialog = ref(false)
 const newConvoLoading = ref(false)
 const landlords = ref<{ id: string; name: string }[]>([])
-const messageChannel = ref<{ unsubscribe: () => void } | null>(null)
-const conversationChannel = ref<{ unsubscribe: () => void } | null>(null)
+// Channel refs typed loosely: the exported RealtimeChannel type drifts from
+// what channel() actually returns in the installed supabase-js, which makes
+// removeChannel() fail typecheck. Runtime behavior is what matters here.
+const messageChannel = ref<any>(null)
+const conversationChannel = ref<any>(null)
 const scrollArea = ref<any>(null)
 let pollTimer: any = null
 let listPollTimer: any = null
@@ -563,14 +592,21 @@ async function markConversationRead(id: string) {
 function unsubscribeMessages() {
   stopPolling()
   if (messageChannel.value) {
-    messageChannel.value.unsubscribe()
+    // removeChannel(), not unsubscribe() — see unsubscribeConversations().
+    void supabase.removeChannel(messageChannel.value)
     messageChannel.value = null
   }
 }
 function unsubscribeConversations() {
   stopListPolling()
   if (conversationChannel.value) {
-    conversationChannel.value.unsubscribe()
+    // Must be removeChannel(), not unsubscribe(): unsubscribe() leaves the
+    // channel registered in the client cache, so a later
+    // supabase.channel(<same name>) returns the SAME already-subscribed object
+    // and attaching `.on('postgres_changes', ...)` throws
+    // "cannot add postgres_changes callbacks after subscribe()" — which then
+    // breaks the whole messages view.
+    void supabase.removeChannel(conversationChannel.value)
     conversationChannel.value = null
   }
 }
@@ -788,6 +824,13 @@ async function openLandlordFromQuery() {
 
 async function sendRoomApply() {
   if (!roomContext.value || applyingRoom.value || !currentUserId.value) return
+  // Re-check server-side before inserting: the student may have been accepted
+  // elsewhere since this screen loaded.
+  await refreshCurrentStay()
+  if (hasCurrentStay.value) {
+    $q.notify({ type: 'warning', message: 'You already have a current stay or pending application.' })
+    return
+  }
   const { roomId, managerId } = roomContext.value
   applyingRoom.value = true
   try {
@@ -797,22 +840,32 @@ async function sendRoomApply() {
     const endDate = endIso.split('T')[0]
 
     // Real pending lease row so the manager's Tenants page lists this request
-    // per property/room (approval flips it to 'active').
+    // per property/room (approval flips it to 'active'). Rent comes from the
+    // room itself — writing 0 here made "My stay" show ₱0 for the student.
+    const { data: roomRow } = await (supabase as any)
+      .from('rooms')
+      .select('monthly_rent, room_number, label')
+      .eq('id', roomId)
+      .maybeSingle()
+    const roomRent = Number(roomRow?.monthly_rent ?? 0) || 0
+
     const { data: leaseRow, error: leaseInsertError } = await (supabase as any).from('leases').insert({
       student_id: currentUserId.value,
       accommodation_manager_id: managerId,
       room_id: roomId,
-      monthly_rent: 0,
+      monthly_rent: roomRent,
       start_date: startDate,
       end_date: endDate,
       status: 'pending',
     }).select('id').maybeSingle()
     if (leaseInsertError) throw leaseInsertError
 
-    const payload = JSON.stringify({ kind: 'apply', studentId: currentUserId.value, roomId, label: '', propertyName: '', rent: 0, startDate: nowIso, endDate: endIso, leaseId: leaseRow?.id })
+    const payload = JSON.stringify({ kind: 'apply', studentId: currentUserId.value, roomId, label: '', propertyName: '', rent: roomRent, startDate: nowIso, endDate: endIso, leaseId: leaseRow?.id })
     const body = '🎯 Room request — this room\nPlease review my application.\n\n@@apply@@\n' + payload
     await sendMessage(body)
     roomContext.value = null
+    // The pending lease now exists — block further applications immediately.
+    hasCurrentStay.value = true
 
     // Best-effort: let the manager know a new application arrived.
     try {
@@ -825,6 +878,7 @@ async function sendRoomApply() {
 
 onMounted(async () => {
   await loadConversations()
+  await refreshCurrentStay()
   await openLandlordFromQuery()
 })
 onUnmounted(() => {

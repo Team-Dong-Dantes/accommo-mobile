@@ -1485,7 +1485,7 @@ export type Database = {
         | "delisted"
       room_status: "available" | "occupied" | "maintenance"
       room_type: "solo" | "duo" | "triple" | "bedspace" | "studio"
-      user_role: "student" | "landlord" | "admin"
+      user_role: "student" | "accommodation_manager" | "admin"
       user_status:
         | "unverified"
         | "pending"
@@ -1656,7 +1656,7 @@ export const Constants = {
       ],
       room_status: ["available", "occupied", "maintenance"],
       room_type: ["solo", "duo", "triple", "bedspace", "studio"],
-      user_role: ["student", "landlord", "admin"],
+      user_role: ["student", "accommodation_manager", "admin"],
       user_status: [
         "unverified",
         "pending",

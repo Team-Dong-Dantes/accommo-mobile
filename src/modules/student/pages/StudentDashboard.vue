@@ -108,7 +108,7 @@ import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { supabase } from '@/shared/utils/supabase'
 
-interface LeaseRow { id: string; start_date: string | null; end_date: string | null; monthly_rent: number | null; room: { room_number: string | null; accommodation: { name: string | null } | null } | null }
+interface LeaseRow { id: string; status: string; start_date: string | null; end_date: string | null; monthly_rent: number | null; room: { room_number: string | null; accommodation: { name: string | null } | null } | null }
 interface PaymentRow { amount: number; status: string; month: string | null }
 
 const router = useRouter()
@@ -178,9 +178,9 @@ async function load() {
 
     const { data: leaseRow } = await (supabase as any)
       .from('leases')
-      .select('id, start_date, end_date, monthly_rent, room:rooms(room_number, accommodation:accommodations(name))')
+      .select('id, status, start_date, end_date, monthly_rent, room:rooms(room_number, accommodation:accommodations(name))')
       .eq('student_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'leave_requested'])
       .maybeSingle()
     if (!leaseRow) { lease.value = null; dues.value = []; return }
     lease.value = leaseRow as LeaseRow
