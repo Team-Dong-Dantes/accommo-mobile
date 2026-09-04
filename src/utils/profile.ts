@@ -9,16 +9,18 @@ export const DOC_LABEL: Record<string, string> = {
   assessment_of_fees: 'Assessment of fees',
 };
 
+// Tone names match what the hand-written page designs use, so a pasted
+// `class="tag-${status.tone}"` resolves without a translation step.
 export interface Presentation {
   label: string;
-  tone: 'ok' | 'warn' | 'bad' | 'idle';
+  tone: 'good' | 'warn' | 'danger' | 'idle';
   icon: string;
 }
 
 /** doc_status: pending | approved | rejected */
 export function docPresentation(status: string | null | undefined): Presentation {
-  if (status === 'approved') return { label: 'Approved', tone: 'ok', icon: 'lucide:check' };
-  if (status === 'rejected') return { label: 'Rejected', tone: 'bad', icon: 'lucide:x' };
+  if (status === 'approved') return { label: 'Approved', tone: 'good', icon: 'lucide:check' };
+  if (status === 'rejected') return { label: 'Rejected', tone: 'danger', icon: 'lucide:x' };
   return { label: 'In review', tone: 'warn', icon: 'lucide:hourglass' };
 }
 
@@ -26,11 +28,11 @@ export function docPresentation(status: string | null | undefined): Presentation
 export function statusPresentation(status: string | null | undefined): Presentation {
   switch (status) {
     case 'verified':
-      return { label: 'Verified', tone: 'ok', icon: 'lucide:badge-check' };
+      return { label: 'Verified', tone: 'good', icon: 'lucide:badge-check' };
     case 'rejected':
-      return { label: 'Rejected', tone: 'bad', icon: 'lucide:file-x' };
+      return { label: 'Rejected', tone: 'danger', icon: 'lucide:file-x' };
     case 'suspended':
-      return { label: 'Suspended', tone: 'bad', icon: 'lucide:ban' };
+      return { label: 'Suspended', tone: 'danger', icon: 'lucide:ban' };
     case 'pending':
     case 'reviewing':
       return { label: 'In review', tone: 'warn', icon: 'lucide:hourglass' };

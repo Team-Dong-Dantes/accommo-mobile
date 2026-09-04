@@ -10,16 +10,16 @@ export type Role = 'manager' | 'student';
 
 export interface NotifLook {
   icon: string;
-  tone: 'ok' | 'warn' | 'bad' | 'info' | 'idle';
+  tone: 'good' | 'warn' | 'danger' | 'info' | 'idle';
 }
 
 const LOOK: Record<string, NotifLook> = {
   verification: { icon: 'lucide:shield-check', tone: 'info' },
   accommodation: { icon: 'lucide:building-2', tone: 'info' },
-  application: { icon: 'lucide:file-check', tone: 'ok' },
+  application: { icon: 'lucide:file-check', tone: 'good' },
   lease: { icon: 'lucide:file-text', tone: 'info' },
   leave: { icon: 'lucide:door-open', tone: 'warn' },
-  payment: { icon: 'lucide:wallet-cards', tone: 'ok' },
+  payment: { icon: 'lucide:wallet-cards', tone: 'good' },
   ticket: { icon: 'lucide:triangle-alert', tone: 'warn' },
 };
 

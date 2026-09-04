@@ -2,10 +2,10 @@
   <q-page class="profile-page">
     <!-- Loading -->
     <div v-if="loading" class="loading-stack">
-      <q-skeleton type="rect" height="180px" class="sk" />
       <q-skeleton type="rect" height="120px" class="sk" />
       <q-skeleton type="rect" height="80px" class="sk" />
-      <q-skeleton type="rect" height="80px" class="sk" />
+      <q-skeleton type="rect" height="70px" class="sk" />
+      <q-skeleton type="rect" height="70px" class="sk" />
     </div>
 
     <!-- Error -->
@@ -22,182 +22,175 @@
 
     <!-- Profile Content -->
     <div v-else class="content-stack">
-      <!-- ===== PROFILE HEADER ===== -->
-      <div class="profile-header">
-        <div class="header-avatar" @click="openAvatarPicker">
-          <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
-          <span v-else>{{ me.initials || '?' }}</span>
-          <div class="avatar-overlay">
-            <IconifyIcon icon="lucide:camera" width="16" />
+      <!-- ===== HEADER CARD ===== -->
+      <div class="header-card">
+        <div class="header-top">
+          <div class="avatar-wrap" @click="openAvatarPicker">
+            <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
+            <span v-else>{{ me.initials || '?' }}</span>
+            <div class="avatar-overlay">
+              <IconifyIcon icon="lucide:camera" width="16" />
+            </div>
+          </div>
+          <input
+            ref="avatarInput"
+            type="file"
+            accept="image/*"
+            class="hidden-input"
+            @change="onAvatarSelected"
+          />
+          <div class="header-text">
+            <h1 class="name">{{ me.fullName || 'Your name' }}</h1>
+            <div class="role-row">
+              <span class="role">Accommodation Manager</span>
+              <span class="status-tag" :class="`tag-${status.tone || 'warn'}`">
+                <IconifyIcon
+                  v-if="status.tone === 'good'"
+                  icon="lucide:check-circle"
+                  width="12"
+                />
+                <IconifyIcon
+                  v-else-if="status.tone === 'warn'"
+                  icon="lucide:clock"
+                  width="12"
+                />
+                <IconifyIcon v-else icon="lucide:alert-circle" width="12" />
+                {{ status.label || 'Unverified' }}
+              </span>
+            </div>
           </div>
         </div>
-        <input
-          ref="avatarInput"
-          type="file"
-          accept="image/*"
-          class="hidden-input"
-          @change="onAvatarSelected"
-        />
 
-        <div class="header-info">
-          <h1 class="header-name">{{ me.fullName || 'Your name' }}</h1>
-          <div class="header-meta">
-            <span class="header-role">Accommodation Manager</span>
-            <span class="status-badge" :class="`badge-${status.tone || 'warn'}`">
-              <IconifyIcon
-                v-if="status.tone === 'ok'"
-                icon="lucide:check-circle"
-                width="12"
-              />
-              <IconifyIcon
-                v-else-if="status.tone === 'warn'"
-                icon="lucide:clock"
-                width="12"
-              />
-              <IconifyIcon v-else icon="lucide:alert-circle" width="12" />
-              {{ status.label || 'Unverified' }}
-            </span>
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+          <div class="stat-block">
+            <IconifyIcon icon="lucide:building-2" width="18" class="stat-icon" />
+            <div>
+              <span class="stat-number">{{ accommodationCount }}</span>
+              <span class="stat-label">Properties</span>
+            </div>
           </div>
-          <p class="header-since">
+          <div class="stat-divider" />
+          <div class="stat-block">
+            <IconifyIcon icon="lucide:users" width="18" class="stat-icon" />
+            <div>
+              <span class="stat-number">{{ tenantCount }}</span>
+              <span class="stat-label">Tenants</span>
+            </div>
+          </div>
+          <div class="stat-divider" />
+          <div class="stat-block">
+            <IconifyIcon icon="lucide:message-square" width="18" class="stat-icon" />
+            <div>
+              <span class="stat-number">{{ responseRate !== null ? responseRate + '%' : '—' }}</span>
+              <span class="stat-label">Reply rate</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <button class="action-scan" @click="go('/manager/profile/qr-scanner')">
+          <IconifyIcon icon="lucide:scan" width="18" />
+          <span>Scan QR</span>
+        </button>
+      </div>
+
+      <!-- ===== DETAILS CARD ===== -->
+      <div class="card">
+        <div class="card-header">
+          <IconifyIcon icon="lucide:user" width="18" class="card-icon" />
+          <h2 class="card-title">Personal details</h2>
+          <button v-if="!editing" class="edit-btn" @click="startEdit">
+            <IconifyIcon icon="lucide:pencil" width="14" />
+            Edit
+          </button>
+        </div>
+        <div class="card-body">
+          <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
+          <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
+          <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
+        </div>
+        <div v-if="editing" class="card-actions">
+          <button class="btn-cancel" :disabled="saving" @click="cancelEdit">Cancel</button>
+          <button class="btn-save" :disabled="saving" @click="save">
+            {{ saving ? 'Saving…' : 'Save changes' }}
+          </button>
+        </div>
+        <div class="card-footer">
+          <span class="member-since">
             Member since {{ memberSinceLabel || 'recently' }}
-            <span v-if="updatedAt" class="updated">· Updated {{ ago(updatedAt) }}</span>
-          </p>
+            <span v-if="updatedAt" class="updated">· {{ ago(updatedAt) }}</span>
+          </span>
         </div>
+      </div>
 
-        <div class="header-action">
-          <button class="action-btn scan-btn" @click="go('/manager/profile/qr-scanner')">
-            <IconifyIcon icon="lucide:scan" width="16" />
-            <span>Scan QR</span>
+      <!-- ===== VERIFICATION CARD ===== -->
+      <div class="card">
+        <div class="card-header">
+          <IconifyIcon icon="lucide:shield-check" width="18" class="card-icon" />
+          <h2 class="card-title">Verification</h2>
+          <span v-if="pendingDocs > 0" class="badge-pending">{{ pendingDocs }}</span>
+        </div>
+        <div class="card-body">
+          <div v-if="documents.length" class="doc-list">
+            <div v-for="doc in documents" :key="doc.id" class="doc-item">
+              <span class="doc-icon" :class="`doc-${doc.tone}`">
+                <IconifyIcon :icon="doc.icon" width="14" />
+              </span>
+              <div class="doc-info">
+                <span class="doc-name">{{ doc.label }}</span>
+                <span class="doc-when">{{ doc.when }}</span>
+              </div>
+              <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
+            </div>
+          </div>
+          <p v-else class="empty-text">No documents submitted yet</p>
+          <button class="link-btn" @click="go('/manager/osas-compliance')">
+            <IconifyIcon icon="lucide:arrow-right" width="16" />
+            <span>Open OSAS compliance</span>
           </button>
         </div>
       </div>
 
-      <!-- ===== STATS ROW ===== -->
-      <div class="stats-row">
-        <div class="stat-item">
-          <IconifyIcon icon="lucide:building-2" width="20" class="stat-icon" />
-          <div>
-            <span class="stat-number">{{ accommodationCount }}</span>
-            <span class="stat-label">Accommodations</span>
-          </div>
+      <!-- ===== ACCOMMODATIONS CARD ===== -->
+      <div class="card">
+        <div class="card-header">
+          <IconifyIcon icon="lucide:building-2" width="18" class="card-icon" />
+          <h2 class="card-title">Accommodations</h2>
+          <button class="icon-btn" @click="go('/manager/properties/new')">
+            <IconifyIcon icon="lucide:plus" width="18" />
+          </button>
         </div>
-        <div class="stat-divider" />
-        <div class="stat-item">
-          <IconifyIcon icon="lucide:users" width="20" class="stat-icon" />
-          <div>
-            <span class="stat-number">{{ tenantCount }}</span>
-            <span class="stat-label">Tenants</span>
-          </div>
-        </div>
-        <div class="stat-divider" />
-        <div class="stat-item">
-          <IconifyIcon icon="lucide:message-square" width="20" class="stat-icon" />
-          <div>
-            <span class="stat-number">{{ responseRate !== null ? responseRate + '%' : '—' }}</span>
-            <span class="stat-label">Reply rate</span>
-          </div>
+        <div class="card-body">
+          <button class="link-btn" @click="go('/manager/properties')">
+            <IconifyIcon icon="lucide:list" width="16" />
+            <span>Manage {{ accommodationCount }} {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}</span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+          </button>
+          <button class="link-btn" @click="go('/manager/tenants')">
+            <IconifyIcon icon="lucide:users" width="16" />
+            <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'tenant' : 'tenants' }}</span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+          </button>
         </div>
       </div>
 
-      <!-- ===== TWO-COLUMN GRID ===== -->
-      <div class="grid-2">
-        <!-- Left Column -->
-        <div class="grid-left">
-          <!-- Details Card -->
-          <section class="profile-card">
-            <div class="card-header">
-              <IconifyIcon icon="lucide:user" width="18" class="card-icon" />
-              <h2 class="card-title">Personal details</h2>
-              <button v-if="!editing" class="edit-trigger" @click="startEdit">
-                <IconifyIcon icon="lucide:pencil" width="14" />
-                Edit
-              </button>
-            </div>
-            <div class="card-body">
-              <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
-              <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
-              <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
-            </div>
-            <div v-if="editing" class="card-actions">
-              <button class="action-cancel" :disabled="saving" @click="cancelEdit">Cancel</button>
-              <button class="action-save" :disabled="saving" @click="save">
-                {{ saving ? 'Saving…' : 'Save changes' }}
-              </button>
-            </div>
-          </section>
-
-          <!-- Verification Card -->
-          <section class="profile-card">
-            <div class="card-header">
-              <IconifyIcon icon="lucide:shield-check" width="18" class="card-icon" />
-              <h2 class="card-title">Verification</h2>
-              <span v-if="pendingDocs > 0" class="badge-pending">{{ pendingDocs }} pending</span>
-            </div>
-            <div class="card-body">
-              <div v-if="documents.length" class="doc-list">
-                <div v-for="doc in documents" :key="doc.id" class="doc-item">
-                  <span class="doc-icon" :class="`doc-${doc.tone}`">
-                    <IconifyIcon :icon="doc.icon" width="14" />
-                  </span>
-                  <div class="doc-info">
-                    <span class="doc-name">{{ doc.label }}</span>
-                    <span class="doc-when">{{ doc.when }}</span>
-                  </div>
-                  <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
-                </div>
-              </div>
-              <p v-else class="empty-text">No documents submitted yet</p>
-              <button class="link-button" @click="go('/manager/osas-compliance')">
-                <IconifyIcon icon="lucide:arrow-right" width="16" />
-                <span>Open OSAS compliance</span>
-              </button>
-            </div>
-          </section>
+      <!-- ===== SETTINGS CARD ===== -->
+      <div class="card">
+        <div class="card-header">
+          <IconifyIcon icon="lucide:settings" width="18" class="card-icon" />
+          <h2 class="card-title">Settings</h2>
         </div>
-
-        <!-- Right Column -->
-        <div class="grid-right">
-          <!-- Accommodations Card -->
-          <section class="profile-card">
-            <div class="card-header">
-              <IconifyIcon icon="lucide:building-2" width="18" class="card-icon" />
-              <h2 class="card-title">Accommodations</h2>
-              <button class="icon-action" @click="go('/manager/properties/new')">
-                <IconifyIcon icon="lucide:plus" width="16" />
-              </button>
-            </div>
-            <div class="card-body">
-              <button class="link-button" @click="go('/manager/properties')">
-                <IconifyIcon icon="lucide:list" width="16" />
-                <span>Manage {{ accommodationCount }} {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}</span>
-                <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-              </button>
-              <button class="link-button" @click="go('/manager/tenants')">
-                <IconifyIcon icon="lucide:users" width="16" />
-                <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'tenant' : 'tenants' }}</span>
-                <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-              </button>
-            </div>
-          </section>
-
-          <!-- Settings Card -->
-          <section class="profile-card">
-            <div class="card-header">
-              <IconifyIcon icon="lucide:settings" width="18" class="card-icon" />
-              <h2 class="card-title">Settings</h2>
-            </div>
-            <div class="card-body">
-              <button class="link-button" @click="passwordOpen = true">
-                <IconifyIcon icon="lucide:lock" width="16" />
-                <span>Change password</span>
-                <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-              </button>
-              <button class="link-button link-danger" @click="signOut">
-                <IconifyIcon icon="lucide:log-out" width="16" />
-                <span>Sign out</span>
-              </button>
-            </div>
-          </section>
+        <div class="card-body">
+          <button class="link-btn" @click="passwordOpen = true">
+            <IconifyIcon icon="lucide:lock" width="16" />
+            <span>Change password</span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+          </button>
+          <button class="link-btn link-danger" @click="signOut">
+            <IconifyIcon icon="lucide:log-out" width="16" />
+            <span>Sign out</span>
+          </button>
         </div>
       </div>
     </div>
@@ -451,16 +444,16 @@ onMounted(load)
 <style scoped>
 /* ===== BASE ===== */
 .profile-page {
-  background: #f8fafc;
-  padding-bottom: 40px;
+  background: #f1f5f9;
+  padding-bottom: 24px;
   min-height: 100vh;
 }
 
 .loading-stack {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px var(--m-page-gutter) 80px;
+  gap: 12px;
+  padding: 12px 16px 80px;
 }
 
 .sk {
@@ -470,17 +463,16 @@ onMounted(load)
 .error-state {
   display: flex;
   justify-content: center;
-  padding: 40px var(--m-page-gutter);
+  padding: 40px 16px;
 }
 
 .error-card {
-  max-width: 360px;
+  max-width: 340px;
   width: 100%;
-  padding: 28px 24px;
+  padding: 24px 20px;
   border-radius: 16px;
   background: white;
   text-align: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
 }
 
 .error-icon {
@@ -490,64 +482,59 @@ onMounted(load)
 
 .error-title {
   margin: 0 0 4px;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: #0f172a;
 }
 
 .error-message {
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   font-size: 14px;
   color: #64748b;
 }
 
 /* ===== CONTENT ===== */
 .content-stack {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) 40px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
+  padding: 12px 16px 40px;
 }
 
-/* ===== PROFILE HEADER ===== */
-.profile-header {
-  display: flex;
-  align-items: center;
-  gap: 18px;
+/* ===== HEADER CARD ===== */
+.header-card {
   background: white;
   border-radius: 16px;
-  padding: 24px 28px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  padding: 20px 16px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
   border: 1px solid #e9edf2;
-  flex-wrap: wrap;
 }
 
-.header-avatar {
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar-wrap {
   position: relative;
-  flex: 0 0 72px;
-  width: 72px;
-  height: 72px;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
   border-radius: 999px;
   background: linear-gradient(135deg, #2563eb, #7c3aed);
   color: white;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(37,99,235,0.2);
-  transition: transform 0.2s;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.2);
 }
 
-.header-avatar:hover {
-  transform: scale(1.03);
-}
-
-.header-avatar img {
+.avatar-wrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -565,7 +552,7 @@ onMounted(load)
   transition: opacity 0.2s;
 }
 
-.header-avatar:hover .avatar-overlay {
+.avatar-wrap:hover .avatar-overlay {
   opacity: 1;
 }
 
@@ -573,167 +560,135 @@ onMounted(load)
   display: none;
 }
 
-.header-info {
+.header-text {
   flex: 1;
-  min-width: 180px;
+  min-width: 0;
 }
 
-.header-name {
+.name {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
 }
 
-.header-meta {
+.role-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
-  margin-top: 4px;
+  gap: 6px 10px;
+  margin-top: 2px;
 }
 
-.header-role {
+.role {
   font-size: 14px;
   color: #64748b;
 }
 
-.status-badge {
+.status-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 12px;
+  padding: 2px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.badge-ok {
+.tag-good {
   background: #dcfce7;
   color: #16a34a;
 }
-.badge-idle {
+.tag-idle {
   background: var(--m-bg);
   color: var(--m-muted);
 }
-.badge-warn {
+.tag-warn {
   background: #fef9c3;
   color: #ca8a04;
 }
-.badge-bad {
+.tag-danger {
   background: #fee2e2;
   color: #dc2626;
 }
 
-.header-since {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: #94a3b8;
+/* Quick Stats */
+.quick-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
 }
 
-.header-since .updated {
-  color: #94a3b8;
+.stat-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-icon {
+  color: #2563eb;
   opacity: 0.7;
 }
 
-.header-action {
-  margin-left: auto;
+.stat-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  display: block;
+  line-height: 1.2;
 }
 
-.scan-btn {
-  display: inline-flex;
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: block;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 30px;
+  background: #e9edf2;
+}
+
+/* Action Scan */
+.action-scan {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 20px;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 0;
   border: 1px solid #e9edf2;
   border-radius: 999px;
   background: white;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #1e293b;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.scan-btn:hover {
-  background: #f1f5f9;
+.action-scan:hover {
+  background: #f8fafc;
   border-color: #cbd5e1;
 }
 
-/* ===== STATS ROW ===== */
-.stats-row {
-  display: flex;
-  align-items: stretch;
-  background: white;
-  border-radius: 16px;
-  padding: 16px 24px;
-  border: 1px solid #e9edf2;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
-  gap: 16px;
-}
-
-.stat-item {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.stat-item > div {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.stat-icon {
-  color: #2563eb;
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.stat-number {
-  font-size: 20px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.stat-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.stat-divider {
-  width: 1px;
-  background: #e9edf2;
-  flex-shrink: 0;
-}
-
-/* ===== GRID LAYOUT ===== */
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-}
-
-@media (min-width: 768px) {
-  .grid-2 {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 /* ===== CARDS ===== */
-.profile-card {
+.card {
   background: white;
   border-radius: 16px;
   border: 1px solid #e9edf2;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
   overflow: hidden;
 }
 
@@ -741,8 +696,8 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 20px;
-  border-bottom: 1px solid #e9edf2;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
   background: #fafcfd;
 }
 
@@ -753,11 +708,10 @@ onMounted(load)
 
 .card-title {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: #0f172a;
   flex: 1;
-  letter-spacing: 0.02em;
 }
 
 .badge-pending {
@@ -769,7 +723,7 @@ onMounted(load)
   border-radius: 999px;
 }
 
-.edit-trigger {
+.edit-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -781,17 +735,16 @@ onMounted(load)
   color: #2563eb;
   cursor: pointer;
   border-radius: 999px;
-  transition: background 0.15s;
 }
 
-.edit-trigger:hover {
+.edit-btn:hover {
   background: #eff6ff;
 }
 
-.icon-action {
+.icon-btn {
   display: flex;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   align-items: center;
   justify-content: center;
   border: 1px solid #e9edf2;
@@ -802,18 +755,18 @@ onMounted(load)
   transition: all 0.15s;
 }
 
-.icon-action:hover {
+.icon-btn:hover {
   background: #eff6ff;
   color: #2563eb;
 }
 
 .card-body {
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 .card-body > * {
   border-bottom: 1px solid #f1f5f9;
-  padding: 10px 20px;
+  padding: 10px 16px;
 }
 
 .card-body > *:last-child {
@@ -823,43 +776,60 @@ onMounted(load)
 .card-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 20px;
-  border-top: 1px solid #e9edf2;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid #f1f5f9;
   background: #fafcfd;
 }
 
-.action-cancel,
-.action-save {
-  padding: 6px 20px;
+.btn-cancel,
+.btn-save {
+  padding: 8px 22px;
   border: 0;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
+  min-height: 44px;
 }
 
-.action-cancel {
+.btn-cancel {
   background: transparent;
   color: #64748b;
 }
-.action-cancel:hover {
+.btn-cancel:hover {
   background: #f1f5f9;
 }
 
-.action-save {
+.btn-save {
   background: #2563eb;
   color: white;
 }
-.action-save:hover {
+.btn-save:hover {
   background: #1d4ed8;
 }
 
-.action-cancel:disabled,
-.action-save:disabled {
+.btn-cancel:disabled,
+.btn-save:disabled {
   opacity: 0.5;
   pointer-events: none;
+}
+
+.card-footer {
+  padding: 8px 16px 12px;
+  border-top: 1px solid #f1f5f9;
+  text-align: center;
+}
+
+.member-since {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.member-since .updated {
+  color: #94a3b8;
+  opacity: 0.7;
 }
 
 /* ===== DOCS ===== */
@@ -878,7 +848,7 @@ onMounted(load)
   border-radius: 999px;
 }
 
-.doc-ok {
+.doc-good {
   background: #dcfce7;
   color: #16a34a;
 }
@@ -890,7 +860,7 @@ onMounted(load)
   background: #fef9c3;
   color: #ca8a04;
 }
-.doc-bad {
+.doc-danger {
   background: #fee2e2;
   color: #dc2626;
 }
@@ -915,11 +885,11 @@ onMounted(load)
 .doc-status {
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
 }
 
-.status-ok {
+.status-good {
   background: #dcfce7;
   color: #16a34a;
 }
@@ -931,7 +901,7 @@ onMounted(load)
   background: #fef9c3;
   color: #ca8a04;
 }
-.status-bad {
+.status-danger {
   background: #fee2e2;
   color: #dc2626;
 }
@@ -941,11 +911,11 @@ onMounted(load)
   font-size: 14px;
   color: #94a3b8;
   text-align: center;
-  padding: 20px 0;
+  padding: 16px 0;
 }
 
 /* ===== LINK BUTTONS ===== */
-.link-button {
+.link-btn {
   display: flex;
   width: 100%;
   align-items: center;
@@ -956,15 +926,16 @@ onMounted(load)
   font: inherit;
   text-align: left;
   color: #0f172a;
+  padding: 12px 16px;
+  min-height: 48px;
   transition: background 0.12s;
-  padding: 10px 20px;
 }
 
-.link-button:hover {
+.link-btn:hover {
   background: #f8fafc;
 }
 
-.link-button .chevron {
+.link-btn .chevron {
   margin-left: auto;
   color: #94a3b8;
 }
@@ -974,37 +945,5 @@ onMounted(load)
 }
 .link-danger:hover {
   background: #fef2f2;
-}
-
-/* ===== RESPONSIVE TWEAKS ===== */
-@media (max-width: 600px) {
-  .profile-header {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 20px;
-  }
-
-  .header-action {
-    margin-left: 0;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-  }
-
-  .stats-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    padding: 16px;
-  }
-
-  .stat-divider {
-    display: none;
-  }
-
-  .stat-item {
-    justify-content: center;
-  }
 }
 </style>

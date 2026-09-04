@@ -251,7 +251,7 @@ onMounted(reload)
   background: var(--m-bg);
   color: var(--m-muted);
 }
-.item-icon--ok {
+.item-icon--good {
   background: var(--m-success-soft);
   color: var(--m-success);
 }
@@ -259,7 +259,7 @@ onMounted(reload)
   background: var(--m-warning-soft);
   color: var(--m-warning);
 }
-.item-icon--bad {
+.item-icon--danger {
   background: var(--m-danger-soft);
   color: var(--m-danger);
 }

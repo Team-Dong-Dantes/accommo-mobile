@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase'
+import { errorMessage } from '@/utils/errors';
 
 export interface NotifRow {
   id: string;
@@ -52,7 +53,7 @@ export const useNotificationsStore = defineStore('notifications', {
         this.items = (data as NotifRow[]) ?? [];
         this.ready = true;
       } catch (e) {
-        this.error = e instanceof Error ? e.message : 'Could not load notifications.';
+        this.error = errorMessage(e, 'Could not load notifications.');
       } finally {
         this.loading = false;
       }

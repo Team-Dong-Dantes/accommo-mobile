@@ -16,6 +16,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { supabase } from '@/utils/supabase'
+import { errorMessage } from '@/utils/errors'
 import { useMessagesStore } from '@/stores/messages'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import ThreadList from '@/components/messages/ThreadList.vue'
@@ -52,7 +53,7 @@ async function resolveEnquiry(to: string) {
   } catch (e) {
     $q.notify({
       type: 'negative',
-      message: e instanceof Error ? e.message : 'Could not open that conversation.',
+      message: errorMessage(e, 'Could not open that conversation.'),
     })
     await router.replace({ path: route.path })
   } finally {
