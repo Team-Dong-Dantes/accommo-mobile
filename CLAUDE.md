@@ -30,9 +30,8 @@ src/
     shared/        EmptyState
   router/          index.ts (guards) · routes.ts · auth.ts
   stores/          auth
-  shared/
-    types/         database.gen.ts (generated) · forms.ts · app-types.ts
-    utils/         supabase, format, upload, cloudinaryUrl, chatFullscreen, config, transition
+  types/           database.gen.ts (generated) · forms.ts · app-types.ts
+  utils/           supabase, format, upload, cloudinaryUrl, chatFullscreen, config, transition
 ```
 
 As features return: pages go in `src/pages/<role>/` with the role prefix (`ManagerDashboard.vue`, `StudentDiscover.vue`); drill-down views (detail screens, wizards, scanners) go in `src/components/<role>/` **without** the prefix and without a `Page` suffix (`PropertyDetail.vue`, `QRScanner.vue`). `pages/` is nav destinations only. Route registration goes in `src/router/<role>.ts`, mounted as children of MainLayout in `routes.ts` — never redeclare a route in both places, the root file's copy is silently shadowed.
@@ -49,7 +48,7 @@ Admin/OSAS has no surface in this app — it lives in `accommo-web`. Do not add 
 
 1. Resolve manager vs. student (vs. auth/shared) before searching.
 2. Read only matched files and relevant line ranges. Never `Read` a whole large file when a targeted grep + offset/limit read will do.
-3. **`src/shared/types/database.gen.ts` (1600+ lines, generated):** never read in full. Grep for the specific table/interface name only.
+3. **`src/types/database.gen.ts` (1600+ lines, generated):** never read in full. Grep for the specific table/interface name only.
 4. For files over ~500 lines, grep for the target section first, then Read with offset/limit.
 5. Reuse existing components, utilities, types, and visual patterns. Make the smallest correct patch; avoid unrelated refactors.
 6. Batch equivalent student and manager edits into one implementation and one verification pass.

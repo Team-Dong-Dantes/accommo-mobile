@@ -75,13 +75,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { supabase } from '@/shared/utils/supabase'
-import { initialsOf } from '@/shared/utils/format'
-import { resolveAsset } from '@/shared/utils/cloudinaryUrl'
-import { chatFullscreen } from '@/shared/utils/chatFullscreen'
+import { supabase } from '@/utils/supabase'
+import { initialsOf } from '@/utils/format'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { chatFullscreen } from '@/utils/chatFullscreen'
 import BottomNav from '@/components/layout/BottomNav.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
-import type { SecondaryPage, ShellConfig } from '@/shared/types/app-types'
+import type { SecondaryPage, ShellConfig } from '@/types/app-types'
 
 const router = useRouter()
 const route = useRoute()

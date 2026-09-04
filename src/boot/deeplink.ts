@@ -1,7 +1,7 @@
 import { defineBoot } from '#q-app'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
-import { supabase } from '@/shared/utils/supabase'
+import { supabase } from '@/utils/supabase'
 
 // Handles the OAuth return via the app's custom scheme:
 //   com.accommo.app://auth/callback#access_token=...&refresh_token=...&...

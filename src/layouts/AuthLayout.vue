@@ -29,8 +29,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { EXTERNAL_URLS } from '@/shared/utils/config';
-import { transitionDir } from '@/shared/utils/transition';
+import { EXTERNAL_URLS } from '@/utils/config';
+import { transitionDir } from '@/utils/transition';
 
 const route = useRoute();
 

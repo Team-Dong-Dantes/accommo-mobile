@@ -45,7 +45,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/shared/utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';

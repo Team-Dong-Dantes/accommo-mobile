@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import { transitionDir } from '@/shared/utils/transition';
+import { transitionDir } from '@/utils/transition';
 
 const router = useRouter();
 

@@ -5,7 +5,7 @@ reconstructed screen by screen. Auth is being kept as working code; everything
 below the auth section is being removed and rebuilt from this document.
 
 The backend does not change. Every table named here already exists in Supabase and
-is reflected in `src/shared/types/database.gen.ts`.
+is reflected in `src/types/database.gen.ts`.
 
 ---
 
@@ -55,7 +55,7 @@ reference — keep it.
 - Folder-tab workspace card (used by both OSAS screens and tenant/accommodation detail).
 - Bottom sheets for edit/detail forms (used throughout both profiles).
 - Empty state, loading skeletons, status chips driven by
-  `shared/utils/format.ts` (`LEASE`, `ROOM`, `PAYMENT`, `CONCERN`, `COMPLAINT`
+  `utils/format.ts` (`LEASE`, `ROOM`, `PAYMENT`, `CONCERN`, `COMPLAINT`
   status maps + `statusText`/`statusColor`).
 
 ---
@@ -120,7 +120,7 @@ Conversation list + Messenger-style thread (teal theme): top header, date
 separators, message rows, bottom composer, info action, conversation search and
 filter sheet, new-conversation dialog. Shows an apply-for-this-room banner when
 arrived from a listing. Full-screen chat mode hides the app shell via
-`shared/utils/chatFullscreen.ts`.
+`utils/chatFullscreen.ts`.
 Tables: `conversations`, `messages`, `users`, `leases`, `rooms`.
 
 ### 3.4 Stay — `/student/stay`
@@ -239,20 +239,20 @@ Same pattern as the student list. Table: `notifications`.
 
 ---
 
-## 5. Shared infrastructure (kept)
+## 5. Infrastructure (kept)
 
-- `shared/utils/supabase.ts` — client + demo mode.
-- `shared/utils/format.ts` — `formatPeso`, `formatDate`, `formatMonth`,
+- `utils/supabase.ts` — client + demo mode.
+- `utils/format.ts` — `formatPeso`, `formatDate`, `formatMonth`,
   `initialsOf`, `normalizePhPhone`, `phNationalDigits`, and the status maps
   `LEASE` / `ROOM` / `PAYMENT` / `CONCERN` / `COMPLAINT` with
   `statusText` / `statusColor`.
-- `shared/utils/upload.ts` — `validateFile`, `uploadToCloudinary`, `uploadDocument`.
-- `shared/utils/cloudinaryUrl.ts` — `resolveAsset` and friends; call before any
+- `utils/upload.ts` — `validateFile`, `uploadToCloudinary`, `uploadDocument`.
+- `utils/cloudinaryUrl.ts` — `resolveAsset` and friends; call before any
   `<img src>` on a stored asset.
-- `shared/utils/validation.ts` — `validationRules`, `getValidationMessage`.
-- `shared/utils/avatar.ts` — `restoreGooglePhoto`.
-- `shared/utils/chatFullscreen.ts` — global flag hiding the shell during chat.
-- `shared/utils/env.ts`, `config.ts`, `transition.ts`.
+- `utils/validation.ts` — `validationRules`, `getValidationMessage`.
+- `utils/avatar.ts` — `restoreGooglePhoto`.
+- `utils/chatFullscreen.ts` — global flag hiding the shell during chat.
+- `utils/env.ts`, `config.ts`, `transition.ts`.
 - `components/shared/EmptyState.vue`.
 - Boot files: `deeplink`, `iconify`, `keyboard`, `notify`, `pinia`.
 

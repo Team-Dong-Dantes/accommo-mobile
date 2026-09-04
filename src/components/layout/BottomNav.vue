@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import type { BottomTab } from '@/shared/types/app-types'
+import type { BottomTab } from '@/types/app-types'
 
 defineProps<{
   tabs: readonly BottomTab[]
