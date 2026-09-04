@@ -1,164 +1,130 @@
 <template>
   <q-page class="dash q-pb-xl">
-    <!-- Greeting -->
-    <header class="dash-greeting q-px-md q-pt-md">
-      <p class="greeting-eyebrow">{{ greeting }}</p>
-      <h1 class="greeting-name">{{ firstName }}</h1>
+    <header class="dash-head q-px-md q-pt-md">
+      <p class="head-eyebrow">{{ greeting }}</p>
+      <h1 class="head-name">{{ firstName }}</h1>
     </header>
 
-    <!-- Loading -->
     <div v-if="loading" class="q-px-md q-pt-md">
-      <q-skeleton type="rect" height="120px" class="skeleton-card q-mb-md" />
-      <q-skeleton type="rect" height="88px" class="skeleton-card q-mb-md" />
-      <q-skeleton type="rect" height="140px" class="skeleton-card" />
+      <q-skeleton type="rect" height="150px" class="sk q-mb-md" />
+      <q-skeleton type="rect" height="82px" class="sk q-mb-md" />
+      <q-skeleton type="rect" height="120px" class="sk" />
     </div>
 
-    <!-- Load failure -->
     <div v-else-if="error" class="q-px-md q-pt-md">
-      <q-card flat bordered class="state-card text-center q-pa-lg">
-        <IconifyIcon icon="lucide:cloud-off" width="28" class="text-grey-6" />
-        <p class="state-title q-mt-sm">Couldn't load your dashboard</p>
-        <p class="state-text">{{ error }}</p>
-        <q-btn
-          unelevated
-          rounded
-          color="primary"
-          label="Try again"
-          class="q-mt-sm"
-          @click="load"
-        />
+      <q-card flat bordered class="panel text-center q-pa-lg">
+        <IconifyIcon icon="lucide:cloud-off" width="26" class="text-grey-6" />
+        <p class="panel-title q-mt-sm">Couldn't load your dashboard</p>
+        <p class="panel-sub">{{ error }}</p>
+        <q-btn unelevated rounded color="primary" label="Try again" class="q-mt-sm" @click="load" />
       </q-card>
     </div>
 
-    <!-- No active stay -->
-    <div v-else-if="!lease" class="q-px-md q-pt-md">
-      <EmptyState
-        icon="lucide:house-plus"
-        title="No accommodation yet"
-        message="Once a manager accepts your application, your stay, dues and payments all show up here."
-      >
-        <template #actions>
-          <q-btn
-            unelevated
-            rounded
-            color="primary"
-            label="Find a room"
-            @click="go('/student/discover')"
-          />
-        </template>
-      </EmptyState>
-    </div>
-
-    <!-- Briefing -->
     <template v-else>
-      <!-- Dues attention -->
-      <section v-if="duePayment" class="q-px-md q-pt-md">
-        <q-card
-          flat
-          class="due-card"
-          :class="isOverdue ? 'due-card--overdue' : 'due-card--due'"
-        >
-          <div class="due-head">
-            <IconifyIcon
-              :icon="isOverdue ? 'lucide:triangle-alert' : 'lucide:calendar-clock'"
-              width="18"
-            />
-            <span>{{ isOverdue ? 'Payment overdue' : 'Payment due' }}</span>
-          </div>
-          <div class="due-amount">{{ formatPeso(duePayment.amount) }}</div>
-          <div class="due-meta">for {{ formatMonth(duePayment.month) }}</div>
-          <q-btn
-            unelevated
-            rounded
-            no-caps
-            class="due-action q-mt-sm"
-            :color="isOverdue ? 'red-8' : 'primary'"
-            label="Pay now"
-            @click="go('/student/payments')"
-          />
-        </q-card>
-      </section>
-
-      <!-- Current stay -->
+      <!-- Your stay: same card shape whether or not a lease exists -->
       <section class="q-px-md q-pt-md">
-        <h2 class="section-title">Your stay</h2>
-        <q-card flat bordered class="stay-card">
-          <div class="stay-head">
-            <div class="stay-identity">
-              <div class="stay-property">{{ lease.propertyName }}</div>
-              <div class="stay-room">{{ roomLabel }}</div>
-            </div>
-            <q-badge
-              :color="statusColor(LEASE_STATUS, lease.status)"
-              class="stay-badge"
-            >
-              {{ statusText(LEASE_STATUS, lease.status) }}
-            </q-badge>
+        <q-card v-if="stay" flat class="stay-card">
+          <div class="stay-top">
+            <span class="stay-caption">Your stay</span>
+            <q-badge class="stay-badge">{{ statusLabel(stay.status) }}</q-badge>
           </div>
-
-          <q-separator class="q-my-sm" />
-
+          <div class="stay-name">{{ stay.accommodationName }}</div>
+          <div class="stay-room">{{ roomLabel }}</div>
           <div class="stay-grid">
             <div class="stay-cell">
               <span class="cell-label">Monthly rent</span>
-              <span class="cell-value">{{ formatPeso(lease.monthlyRent) }}</span>
+              <span class="cell-value">{{ formatPeso(stay.monthlyRent) }}</span>
             </div>
             <div class="stay-cell">
-              <span class="cell-label">Started</span>
-              <span class="cell-value">{{ formatDate(lease.startDate) }}</span>
+              <span class="cell-label">Since</span>
+              <span class="cell-value">{{ formatDate(stay.startDate) }}</span>
             </div>
             <div class="stay-cell">
               <span class="cell-label">Until</span>
-              <span class="cell-value">{{ formatDate(lease.endDate) }}</span>
+              <span class="cell-value">{{ formatDate(stay.endDate) }}</span>
             </div>
           </div>
+        </q-card>
 
+        <q-card v-else flat class="stay-card stay-card--empty">
+          <div class="stay-top">
+            <span class="stay-caption">Your stay</span>
+          </div>
+          <div class="stay-name">No accommodation yet</div>
+          <div class="stay-room">Your room, rent and dates appear here once a manager accepts you</div>
+          <div class="stay-grid">
+            <div v-for="label in ['Monthly rent', 'Since', 'Until']" :key="label" class="stay-cell">
+              <span class="cell-label">{{ label }}</span>
+              <span class="cell-value cell-value--muted">—</span>
+            </div>
+          </div>
           <q-btn
-            flat
-            no-caps
-            dense
-            class="stay-link"
-            label="View stay details"
-            icon-right="lucide:chevron-right"
-            @click="go('/student/stay')"
+            unelevated rounded no-caps color="primary" label="Find a room"
+            class="q-mt-md" @click="go('/student/discover')"
           />
         </q-card>
       </section>
 
-      <!-- At a glance -->
+      <!-- Standing -->
       <section class="q-px-md q-pt-md">
-        <h2 class="section-title">At a glance</h2>
-        <div class="glance-grid">
-          <q-card flat bordered class="glance-card">
-            <span class="glance-value">{{ formatPeso(paidThisYear) }}</span>
-            <span class="glance-label">Paid to date</span>
-          </q-card>
-          <q-card flat bordered class="glance-card">
-            <span class="glance-value">{{ outstandingCount }}</span>
-            <span class="glance-label">
-              {{ outstandingCount === 1 ? 'Unpaid due' : 'Unpaid dues' }}
+        <h2 class="sec-title">Standing</h2>
+        <div class="stat-row">
+          <div class="stat" :class="verificationTone">
+            <span class="stat-value">{{ verificationLabel }}</span>
+            <span class="stat-label">OSAS status</span>
+          </div>
+          <button type="button" class="stat" @click="go('/student/messages')">
+            <span class="stat-value">{{ unreadMessages }}</span>
+            <span class="stat-label">
+              {{ unreadMessages === 1 ? 'Unread message' : 'Unread messages' }}
             </span>
-          </q-card>
+          </button>
+        </div>
+      </section>
+
+      <!-- Rent: payments are not yet recorded, so this is stated as expected -->
+      <section class="q-px-md q-pt-md">
+        <div class="row-head">
+          <h2 class="sec-title">Rent</h2>
+          <q-btn
+            flat dense no-caps class="sec-action" label="Payments"
+            @click="go('/student/payments')"
+          />
+        </div>
+        <q-card flat bordered class="panel rent-card">
+          <div class="rent-main">
+            <span class="rent-label">{{ stay ? 'Due each month' : 'Nothing due' }}</span>
+            <span class="rent-amount" :class="{ 'rent-amount--muted': !stay }">
+              {{ stay ? formatPeso(stay.monthlyRent) : '—' }}
+            </span>
+          </div>
+          <p class="rent-note">
+            {{
+              stay
+                ? 'Payment records show up here once your manager logs them.'
+                : 'Rent appears here when your stay begins.'
+            }}
+          </p>
+        </q-card>
+      </section>
+
+      <!-- Shortcuts: always available, so the page never bottoms out -->
+      <section class="q-px-md q-pt-md">
+        <h2 class="sec-title">Shortcuts</h2>
+        <div class="tile-grid">
+          <button
+            v-for="link in shortcuts"
+            :key="link.route"
+            type="button"
+            class="tile"
+            @click="go(link.route)"
+          >
+            <span class="tile-icon"><IconifyIcon :icon="link.icon" width="18" /></span>
+            <span class="tile-label">{{ link.label }}</span>
+          </button>
         </div>
       </section>
     </template>
-
-    <!-- Quick links: always available -->
-    <section class="q-px-md q-pt-md">
-      <h2 class="section-title">Shortcuts</h2>
-      <div class="links-grid">
-        <button
-          v-for="link in quickLinks"
-          :key="link.route"
-          type="button"
-          class="link-tile"
-          @click="go(link.route)"
-        >
-          <span class="link-icon"><IconifyIcon :icon="link.icon" width="18" /></span>
-          <span class="link-label">{{ link.label }}</span>
-        </button>
-      </div>
-    </section>
   </q-page>
 </template>
 
@@ -167,32 +133,17 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
-import {
-  formatPeso,
-  formatDate,
-  formatMonth,
-  statusText,
-  statusColor,
-  LEASE_STATUS,
-} from '@/utils/format'
-import EmptyState from '@/components/shared/EmptyState.vue'
+import { formatPeso, formatDate } from '@/utils/format'
 
-interface StaySummary {
+interface Stay {
   id: string
   status: string
   startDate: string
   endDate: string
   monthlyRent: number
-  propertyName: string
+  accommodationName: string
   roomNumber: string | null
   roomLabel: string | null
-}
-
-interface DueSummary {
-  id: string
-  amount: number
-  month: string
-  status: string
 }
 
 const router = useRouter()
@@ -200,53 +151,58 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const firstName = ref('there')
-const lease = ref<StaySummary | null>(null)
-const payments = ref<DueSummary[]>([])
+const stay = ref<Stay | null>(null)
+const verification = ref('unverified')
+const unreadMessages = ref(0)
 
-const quickLinks = [
+const shortcuts = [
   { icon: 'lucide:search', label: 'Discover', route: '/student/discover' },
-  { icon: 'lucide:wallet-cards', label: 'Payments', route: '/student/payments' },
+  { icon: 'lucide:bed-double', label: 'My stay', route: '/student/stay' },
   { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
   { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
 ] as const
 
 const greeting = computed(() => {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 })
 
 const roomLabel = computed(() => {
-  if (!lease.value) return ''
-  const { roomNumber, roomLabel: label } = lease.value
+  if (!stay.value) return ''
+  const { roomNumber, roomLabel: label } = stay.value
   if (roomNumber && label) return `Room ${roomNumber} · ${label}`
   if (roomNumber) return `Room ${roomNumber}`
   return label || 'Room'
 })
 
-// The soonest unpaid due drives the attention card; overdue outranks due.
-const duePayment = computed<DueSummary | null>(() => {
-  const unpaid = payments.value.filter(
-    (p) => p.status === 'due' || p.status === 'overdue',
-  )
-  if (unpaid.length === 0) return null
-  const overdue = unpaid.filter((p) => p.status === 'overdue')
-  const pool = overdue.length > 0 ? overdue : unpaid
-  return [...pool].sort((a, b) => a.month.localeCompare(b.month))[0] ?? null
+function statusLabel(status: string) {
+  const map: Record<string, string> = {
+    active: 'Active',
+    pending: 'Pending',
+    leave_requested: 'Leaving',
+    ended: 'Ended',
+    terminated: 'Ended',
+  }
+  return map[status] ?? status
+}
+
+const verificationLabel = computed(() => {
+  const map: Record<string, string> = {
+    verified: 'Verified',
+    pending: 'Pending',
+    reviewing: 'In review',
+    unverified: 'Unverified',
+    rejected: 'Rejected',
+    suspended: 'Suspended',
+  }
+  return map[verification.value] ?? verification.value
 })
 
-const isOverdue = computed(() => duePayment.value?.status === 'overdue')
-
-const outstandingCount = computed(
-  () => payments.value.filter((p) => p.status === 'due' || p.status === 'overdue').length,
-)
-
-const paidThisYear = computed(() =>
-  payments.value
-    .filter((p) => p.status === 'paid')
-    .reduce((total, p) => total + Number(p.amount || 0), 0),
-)
+const verificationTone = computed(() => {
+  if (verification.value === 'verified') return 'stat--ok'
+  if (verification.value === 'rejected' || verification.value === 'suspended') return 'stat--danger'
+  return 'stat--warn'
+})
 
 function go(path: string) {
   void router.push(path)
@@ -265,66 +221,57 @@ async function load() {
 
     const { data: profile } = await supabase
       .from('users')
-      .select('full_name')
+      .select('full_name, status')
       .eq('id', user.id)
       .maybeSingle()
     firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
+    verification.value = profile?.status || 'unverified'
 
-    // Active stay: a lease that has not ended. leave_requested still counts as
-    // living there until the manager approves it.
+    // Students hold at most one live lease, so a single row is enough.
     const { data: leaseRow, error: leaseError } = await supabase
       .from('leases')
       .select(
-        'id, status, start_date, end_date, monthly_rent, rooms(room_number, label, monthly_rent, properties(name))',
+        'id, status, start_date, end_date, monthly_rent, rooms(room_number, label, monthly_rent, accommodations(name))',
       )
       .eq('student_id', user.id)
-      .in('status', ['active', 'leave_requested'])
+      .in('status', ['active', 'pending', 'leave_requested'])
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle()
-
     if (leaseError) throw leaseError
 
-    if (!leaseRow) {
-      lease.value = null
-      payments.value = []
-      return
+    if (leaseRow) {
+      const room = leaseRow.rooms as unknown as
+        | {
+            room_number: string | null
+            label: string | null
+            monthly_rent: number | null
+            accommodations: { name: string } | null
+          }
+        | null
+      stay.value = {
+        id: leaseRow.id,
+        status: leaseRow.status,
+        startDate: leaseRow.start_date,
+        endDate: leaseRow.end_date,
+        monthlyRent: Number(leaseRow.monthly_rent ?? room?.monthly_rent ?? 0),
+        accommodationName: room?.accommodations?.name || 'Your accommodation',
+        roomNumber: room?.room_number ?? null,
+        roomLabel: room?.label ?? null,
+      }
+    } else {
+      stay.value = null
     }
 
-    const room = leaseRow.rooms as unknown as
-      | {
-          room_number: string | null
-          label: string | null
-          monthly_rent: number | null
-          properties: { name: string } | null
-        }
-      | null
-
-    lease.value = {
-      id: leaseRow.id,
-      status: leaseRow.status,
-      startDate: leaseRow.start_date,
-      endDate: leaseRow.end_date,
-      monthlyRent: Number(leaseRow.monthly_rent ?? room?.monthly_rent ?? 0),
-      propertyName: room?.properties?.name || 'Your accommodation',
-      roomNumber: room?.room_number ?? null,
-      roomLabel: room?.label ?? null,
-    }
-
-    const { data: paymentRows, error: paymentError } = await supabase
-      .from('payments')
-      .select('id, amount, month, status')
-      .eq('lease_id', leaseRow.id)
-      .order('month', { ascending: false })
-
-    if (paymentError) throw paymentError
-
-    payments.value = (paymentRows || []).map((p) => ({
-      id: p.id,
-      amount: Number(p.amount || 0),
-      month: p.month,
-      status: p.status,
-    }))
+    // conversations carries denormalised unread counters per side.
+    const { data: convos } = await supabase
+      .from('conversations')
+      .select('user_a_id, user_b_id, unread_a, unread_b')
+      .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+    unreadMessages.value = (convos || []).reduce((n, c) => {
+      const mine = c.user_a_id === user.id ? c.unread_a : c.unread_b
+      return n + Number(mine || 0)
+    }, 0)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -338,14 +285,9 @@ onMounted(load)
 <style scoped>
 .dash { background: var(--m-bg); }
 
-.dash-greeting { padding-bottom: 2px; }
-.greeting-eyebrow {
-  margin: 0;
-  color: var(--m-muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-.greeting-name {
+.dash-head { padding-bottom: 2px; }
+.head-eyebrow { margin: 0; color: var(--m-muted); font-size: 13px; font-weight: 600; }
+.head-name {
   margin: 2px 0 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
@@ -355,80 +297,69 @@ onMounted(load)
   line-height: 1.2;
 }
 
-.section-title {
-  margin: 0 0 var(--m-space-2);
-  color: var(--m-ink);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
+.sec-title { margin: 0 0 var(--m-space-2); color: var(--m-ink); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.row-head { display: flex; align-items: center; justify-content: space-between; }
+.sec-action { color: var(--m-primary-dark); font-weight: 700; }
 
-.skeleton-card, .state-card { border-radius: var(--m-radius); }
-.state-title { margin: var(--m-space-2) 0 0; font-weight: 700; color: var(--m-ink); }
-.state-text { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
-
-/* Dues */
-.due-card {
-  padding: var(--m-space-4);
-  border-radius: var(--m-radius);
-  color: #fff;
-}
-.due-card--due { background: var(--m-primary); }
-.due-card--overdue { background: var(--m-danger); }
-.due-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.92;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.due-amount {
-  margin-top: 6px;
-  font-family: var(--m-font-display);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.due-meta { font-size: 13px; opacity: 0.9; }
-.due-action { background: #fff !important; color: var(--m-ink) !important; min-height: 40px; }
+.sk, .panel { border-radius: var(--m-radius); }
+.panel { background: var(--m-surface); }
+.panel-title { margin: var(--m-space-2) 0 0; color: var(--m-ink); font-weight: 700; }
+.panel-sub { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
 
 /* Stay */
-.stay-card { padding: var(--m-space-4); border-radius: var(--m-radius); background: var(--m-surface); }
-.stay-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--m-space-2); }
-.stay-property { color: var(--m-ink); font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
-.stay-room { margin-top: 2px; color: var(--m-muted); font-size: 13px; }
-.stay-badge { border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; }
-.stay-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--m-space-2); }
-.stay-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cell-label { color: var(--m-muted); font-size: 11px; font-weight: 600; }
-.cell-value { color: var(--m-ink); font-size: 14px; font-weight: 700; }
-.stay-link { margin-top: var(--m-space-2); color: var(--m-primary-dark); font-weight: 700; }
+.stay-card { padding: var(--m-space-4); border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
+.stay-card--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
+.stay-top { display: flex; align-items: center; justify-content: space-between; }
+.stay-caption { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.9; }
+.stay-badge { border-radius: 999px; padding: 3px 10px; background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 11px; font-weight: 700; }
+.stay-name { margin-top: var(--m-space-2); font-family: var(--m-font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.stay-room { margin-top: 2px; font-size: 13px; opacity: 0.9; }
+.stay-card--empty .stay-room { color: var(--m-muted); opacity: 1; }
+.stay-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--m-space-2); margin-top: var(--m-space-4); }
+.stay-cell { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.cell-label { font-size: 11px; font-weight: 600; opacity: 0.85; }
+.stay-card--empty .cell-label { color: var(--m-muted); opacity: 1; }
+.cell-value { font-size: 14px; font-weight: 700; }
+.cell-value--muted { color: var(--m-border); }
 
-/* Glance */
-.glance-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--m-space-3); }
-.glance-card {
+/* Stats */
+.stat-row { display: flex; gap: var(--m-space-3); }
+.stat {
   display: flex;
+  min-height: 74px;
+  flex: 1 1 0;
+  min-width: 0;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
-  padding: var(--m-space-4);
+  padding: var(--m-space-3);
+  border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
 }
-.glance-value {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.glance-label { color: var(--m-muted); font-size: 12px; font-weight: 600; }
+.stat:active { transform: scale(0.97); }
+.stat--ok { border-color: color-mix(in srgb, var(--m-success) 40%, var(--m-border)); background: var(--m-success-soft); }
+.stat--warn { border-color: color-mix(in srgb, var(--m-warning) 45%, var(--m-border)); background: var(--m-warning-soft); }
+.stat--danger { border-color: color-mix(in srgb, var(--m-danger) 40%, var(--m-border)); background: var(--m-danger-soft); }
+.stat-value { color: var(--m-ink); font-family: var(--m-font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.stat-label { color: var(--m-muted); font-size: 12px; font-weight: 600; }
+
+/* Rent */
+.rent-card { padding: var(--m-space-4); }
+.rent-main { display: flex; align-items: baseline; justify-content: space-between; gap: var(--m-space-2); }
+.rent-label { color: var(--m-muted); font-size: 13px; font-weight: 600; }
+.rent-amount { color: var(--m-ink); font-family: var(--m-font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.rent-amount--muted { color: var(--m-border); }
+.rent-note { margin: var(--m-space-2) 0 0; color: var(--m-muted); font-size: 12px; }
 
 /* Shortcuts */
-.links-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--m-space-3); }
-.link-tile {
+.tile-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--m-space-3); }
+.tile {
   display: flex;
   min-height: 56px;
   align-items: center;
@@ -444,22 +375,13 @@ onMounted(load)
   font-weight: 700;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease, background-color 0.12s ease;
+  transition: transform 0.12s ease;
 }
-.link-tile:active { transform: scale(0.97); }
-.link-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  place-items: center;
-  border-radius: var(--m-radius-sm);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.link-label { min-width: 0; }
+.tile:active { transform: scale(0.97); }
+.tile-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.tile-label { min-width: 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .link-tile { transition: none; }
+  .stat, .tile { transition: none; }
 }
 </style>
