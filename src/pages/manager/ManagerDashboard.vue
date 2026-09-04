@@ -1,8 +1,9 @@
 <template>
   <q-page class="dash">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="128px" class="sk" />
-      <q-skeleton type="rect" height="112px" class="sk" />
+      <q-skeleton type="text" width="55%" height="26px" />
+      <q-skeleton type="rect" height="150px" class="sk" />
+      <q-skeleton type="rect" height="118px" class="sk" />
       <q-skeleton type="rect" height="132px" class="sk" />
     </div>
 
@@ -16,31 +17,55 @@
     </div>
 
     <div v-else class="stack">
-      <!-- 1 · Portfolio. Every headline figure lives here and nowhere else. -->
-      <q-card flat class="hero" :class="{ 'hero--empty': !hasAccommodations }">
-        <div class="hero-top">
-          <span class="hero-cap">Occupancy</span>
-          <span class="hero-rate">{{ hasAccommodations ? `${occupancyRate}%` : '—' }}</span>
-        </div>
-        <div class="hero-track">
-          <div class="hero-fill" :style="{ width: `${occupancyRate}%` }" />
-        </div>
-        <div class="hero-facts">
-          <span>
-            <b>{{ tenants }}</b>/{{ totalBeds }} beds
+      <!-- Greeting -->
+      <div class="greet">
+        <span class="greet-time">{{ greeting }},</span>
+        <span class="greet-name">{{ firstName }}</span>
+      </div>
+
+      <!-- Occupancy card -->
+      <q-card flat class="occ" :class="{ 'occ--empty': !hasAccommodations }">
+        <div class="occ-left">
+          <span class="occ-cap">Occupancy</span>
+          <span class="occ-pct">
+            {{ hasAccommodations ? occupancyRate : 0 }}<span class="occ-sign">%</span>
           </span>
-          <span class="hero-dot">·</span>
-          <span>
-            <b>{{ accommodations.length }}</b>
-            {{ accommodations.length === 1 ? 'accommodation' : 'accommodations' }}
+          <span class="occ-sub">
+            {{ hasAccommodations ? `${tenants} of ${totalBeds} beds filled` : 'No beds listed yet' }}
           </span>
-          <span class="hero-dot">·</span>
-          <span><b>{{ formatPeso(expectedMonthly) }}</b> expected</span>
+        </div>
+
+        <div class="occ-right" aria-hidden="true">
+          <svg viewBox="0 0 120 120" class="ring">
+            <circle cx="60" cy="60" r="52" class="ring-track" />
+            <circle
+              cx="60"
+              cy="60"
+              r="52"
+              class="ring-fill"
+              :stroke-dasharray="`${(occupancyRate / 100) * 326.7} 326.7`"
+              transform="rotate(-90 60 60)"
+            />
+          </svg>
         </div>
       </q-card>
 
-      <!-- 2 · One action queue. Compliance, approvals and tickets rank together
-           here rather than each getting its own duplicate counter row. -->
+      <!-- Money + scale, as a quiet strip under the headline number -->
+      <div class="strip">
+        <div class="strip-cell">
+          <span class="strip-value">{{ formatPeso(expectedMonthly) }}</span>
+          <span class="strip-label">Expected / month</span>
+        </div>
+        <div class="strip-div" />
+        <div class="strip-cell">
+          <span class="strip-value">{{ accommodations.length }}</span>
+          <span class="strip-label">
+            {{ accommodations.length === 1 ? 'Accommodation' : 'Accommodations' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Action queue -->
       <q-card flat bordered class="card">
         <div class="card-head">
           <span class="card-title">Needs attention</span>
@@ -64,12 +89,12 @@
           <span class="row-dot row-dot--ok" />
           <span class="row-body">
             <span class="row-label">All clear</span>
-            <span class="row-hint">Renewals, applications and tickets land here</span>
+            <span class="row-hint">Concerns, applications and renewals land here</span>
           </span>
         </div>
       </q-card>
 
-      <!-- 3 · The portfolio itself. Status appears once, per accommodation. -->
+      <!-- Register -->
       <q-card flat bordered class="card">
         <div class="card-head">
           <span class="card-title">Accommodations</span>
@@ -79,7 +104,7 @@
         </div>
 
         <button
-          v-for="a in accommodations"
+          v-for="a in visibleAccommodations"
           :key="a.id"
           type="button"
           class="row"
@@ -96,6 +121,10 @@
             <span class="meter-fill" :style="{ width: `${a.rate}%` }" />
           </span>
           <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
+        </button>
+
+        <button v-if="hiddenCount > 0" type="button" class="row row--more" @click="go('/manager/properties')">
+          <span class="row-label row-label--link">+ {{ hiddenCount }} more</span>
         </button>
 
         <button v-if="!hasAccommodations" type="button" class="row" @click="go('/manager/properties/new')">
@@ -127,26 +156,35 @@ interface AccommodationCard {
   rate: number
 }
 
+const MAX_VISIBLE = 4
+
 const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
+const firstName = ref('there')
 const accommodations = ref<AccommodationCard[]>([])
 const totalBeds = ref(0)
-// Tenants and filled beds are the same measure (both counted from active
-// leases), so it is stored and shown once.
+// Tenants and filled beds are one measure (both counted from active leases).
 const tenants = ref(0)
 const pendingLeases = ref(0)
 const leaveRequests = ref(0)
 const expectedMonthly = ref(0)
 const expiredDocs = ref(0)
 const expiringDocs = ref(0)
-const openTickets = ref(0)
+const openConcerns = ref(0)
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+})
 
 const hasAccommodations = computed(() => accommodations.value.length > 0)
 const occupancyRate = computed(() =>
   totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
 )
+const visibleAccommodations = computed(() => accommodations.value.slice(0, MAX_VISIBLE))
+const hiddenCount = computed(() => Math.max(0, accommodations.value.length - MAX_VISIBLE))
 const notAccredited = computed(
   () => accommodations.value.filter((a) => a.status !== 'accredited').length,
 )
@@ -169,6 +207,13 @@ function toneOf(s: string) {
 
 const attention = computed(() => {
   const items: { label: string; hint: string; route: string; tone: string }[] = []
+  if (openConcerns.value)
+    items.push({
+      label: `${openConcerns.value} student ${openConcerns.value === 1 ? 'concern' : 'concerns'}`,
+      hint: 'Raised about your accommodation',
+      route: '/manager/support',
+      tone: 'danger',
+    })
   if (expiredDocs.value)
     items.push({
       label: `${expiredDocs.value} expired ${expiredDocs.value === 1 ? 'document' : 'documents'}`,
@@ -188,13 +233,6 @@ const attention = computed(() => {
       label: `${leaveRequests.value} leave ${leaveRequests.value === 1 ? 'request' : 'requests'}`,
       hint: 'Tenant wants to move out',
       route: '/manager/tenants',
-      tone: 'warn',
-    })
-  if (openTickets.value)
-    items.push({
-      label: `${openTickets.value} open ${openTickets.value === 1 ? 'ticket' : 'tickets'}`,
-      hint: 'Reported by tenants or OSAS',
-      route: '/manager/support',
       tone: 'warn',
     })
   if (expiringDocs.value)
@@ -228,6 +266,13 @@ async function load() {
       void router.push('/login')
       return
     }
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+    firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
 
     const { data: accRows, error: accError } = await supabase
       .from('accommodations')
@@ -305,12 +350,14 @@ async function load() {
       }).length
     }
 
-    const { count } = await supabase
-      .from('tickets')
-      .select('*', { count: 'exact', head: true })
-      .eq('accommodation_manager_id', user.id)
+    // Concerns are filed by students against a lease, so they reach the manager
+    // through it. Anything not yet resolved still needs a reply.
+    const { count: concernCount } = await supabase
+      .from('concerns')
+      .select('id, leases!inner(accommodation_manager_id)', { count: 'exact', head: true })
+      .eq('leases.accommodation_manager_id', user.id)
       .neq('status', 'resolved')
-    openTickets.value = count || 0
+    openConcerns.value = concernCount || 0
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -327,7 +374,7 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px var(--m-page-gutter) 24px;
+  padding: 8px var(--m-page-gutter) 24px;
 }
 .sk { border-radius: var(--m-radius); }
 
@@ -336,28 +383,75 @@ onMounted(load)
 .err-title { margin: 8px 0 0; color: var(--m-ink); font-size: 14px; font-weight: 700; }
 .err-sub { margin: 2px 0 0; color: var(--m-muted); font-size: 12px; }
 
-/* Hero */
-.hero { padding: 14px; border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
-.hero--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
-.hero-top { display: flex; align-items: baseline; justify-content: space-between; }
-.hero-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.9; }
-.hero-rate { font-family: var(--m-font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
-.hero-track { margin-top: 10px; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.3); overflow: hidden; }
-.hero--empty .hero-track { background: var(--m-bg); }
-.hero-fill { display: block; height: 100%; border-radius: 999px; background: #fff; transition: width 0.4s ease; }
-.hero--empty .hero-fill { background: var(--m-border); }
-.hero-facts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 5px;
-  margin-top: 8px;
-  font-size: 12px;
-  opacity: 0.94;
+/* Greeting */
+.greet { display: flex; align-items: baseline; gap: 5px; padding: 2px 2px 0; flex-wrap: wrap; }
+.greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }
+.greet-name {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
-.hero-facts b { font-weight: 700; }
-.hero--empty .hero-facts { color: var(--m-muted); opacity: 1; }
-.hero-dot { opacity: 0.5; }
+
+/* Occupancy card */
+.occ {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--m-radius);
+  background: var(--m-primary);
+  color: #fff;
+}
+.occ--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
+.occ-left { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.occ-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.9; }
+.occ-pct {
+  font-family: var(--m-font-display);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.occ-sign { font-size: 20px; font-weight: 600; opacity: 0.8; }
+.occ-sub { font-size: 12.5px; opacity: 0.9; }
+.occ--empty .occ-sub, .occ--empty .occ-cap { color: var(--m-muted); opacity: 1; }
+.occ-right { flex: 0 0 76px; }
+.ring { display: block; width: 76px; height: 76px; }
+.ring-track { fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 11; }
+.occ--empty .ring-track { stroke: var(--m-bg); }
+.ring-fill {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 11;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.5s ease;
+}
+.occ--empty .ring-fill { stroke: var(--m-border); }
+
+/* Strip */
+.strip {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+.strip-cell { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 2px; padding: 11px 14px; }
+.strip-div { width: 1px; background: var(--m-border); }
+.strip-value {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.strip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 
 /* Card head */
 .card-head {
@@ -397,8 +491,10 @@ onMounted(load)
   -webkit-tap-highlight-color: transparent;
 }
 .row--static { cursor: default; }
+.row--more { min-height: 42px; }
 .row-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
 .row-label { color: var(--m-ink); font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-label--link { color: var(--m-primary-dark); font-size: 12.5px; }
 .row-hint { display: flex; align-items: center; gap: 5px; color: var(--m-muted); font-size: 11.5px; }
 .row-chev { color: #c7ccd3; flex: 0 0 auto; }
 
@@ -424,6 +520,6 @@ onMounted(load)
 .meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--m-primary); }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-fill { transition: none; }
+  .ring-fill { transition: none; }
 }
 </style>
