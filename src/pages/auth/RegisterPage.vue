@@ -332,6 +332,7 @@ import AuthDivider from '@/components/auth/AuthDivider.vue';
 import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
 import ConnectedGoogleBox from '@/components/auth/ConnectedGoogleBox.vue';
 import { normalizePhPhone, phNationalDigits } from '@/utils/format';
+import { yearOptions, collegePrograms } from '@/constants/academics';
 
 const router = useRouter();
 const route = useRoute();
@@ -349,66 +350,7 @@ const creatingAccount = ref(false);
 let createdUserId: string | null = null;
 
 const sexOptions = ['Male', 'Female'];
-const yearOptions = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year'];
 const emailDomains = ['gmail.com', 'isu.edu.ph'];
-
-const collegePrograms: Record<string, string[]> = {
-  'College of Agriculture (CA)': [
-    'BS in Agriculture major in Agronomy',
-    'BS in Agriculture major in Horticulture',
-    'BS in Agriculture major in Animal Science',
-    'BS in Agribusiness',
-    'BS in Animal Husbandry',
-    'Diploma in Agricultural Technology (DAT)',
-  ],
-  'College of Arts and Sciences (CAS)': [
-    'BS in Biology',
-    'BS in Mathematics',
-    'BS in Psychology',
-    'BA in Communication',
-    'BA in English Language Studies',
-    'BS in Environmental Science',
-  ],
-  'College of Business, Accountancy and Public Administration (CBAPA)': [
-    'BS in Accountancy',
-    'BS in Management Accounting',
-    'BS in Business Administration',
-    'BS in Entrepreneurship',
-    'BA in Public Administration',
-    'BS in Hospitality Management',
-    'BS in Tourism Management',
-  ],
-  'College of Computing Studies, Information and Communication Technology (CCSICT)': [
-    'BS in Computer Science',
-    'BS in Information Technology',
-    'BS in Information Systems',
-    'BS in Library and Information Science',
-    'BS in Data Science and Analytics',
-  ],
-  'College of Criminal Justice Education (CCJE)': [
-    'BS in Criminology',
-    'BS in Law Enforcement Administration',
-  ],
-  'College of Education (COEd)': [
-    'Bachelor of Elementary Education (BEEd)',
-    'Bachelor of Secondary Education (BSEd)',
-    'Bachelor of Physical Education (BPEd)',
-    'Bachelor of Technology and Livelihood Education (BTLEd)',
-  ],
-  'College of Engineering (COE)': [
-    'BS in Agricultural and Biosystems Engineering',
-    'BS in Civil Engineering',
-  ],
-  'College of Nursing (CON)': [
-    'BS in Nursing (BSN)',
-  ],
-  'Institute of Fisheries (IOF)': [
-    'BS in Fisheries and Aquatic Sciences',
-  ],
-  'School of Veterinary Medicine (SVM)': [
-    'Doctor of Veterinary Medicine (DVM)',
-  ],
-};
 
 const collegeOptions = Object.keys(collegePrograms);
 
