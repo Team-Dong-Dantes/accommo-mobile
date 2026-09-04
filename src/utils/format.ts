@@ -57,11 +57,6 @@ export const LEASE_STATUS: Record<string, StatusMeta> = {
   leave_requested: { text: 'Leave Requested', color: 'orange' },
 };
 
-export const ROOM_STATUS: Record<string, StatusMeta> = {
-  available: { text: 'Available', color: 'green' },
-  occupied: { text: 'Occupied', color: 'orange' },
-  maintenance: { text: 'Maintenance', color: 'red' },
-};
 
 export const PAYMENT_STATUS: Record<string, StatusMeta> = {
   due: { text: 'Due', color: 'amber' },
@@ -70,19 +65,7 @@ export const PAYMENT_STATUS: Record<string, StatusMeta> = {
   pending_verification: { text: 'Pending Verification', color: 'orange' },
 };
 
-export const CONCERN_STATUS: Record<string, StatusMeta> = {
-  open: { text: 'Open', color: 'amber' },
-  in_progress: { text: 'In Progress', color: 'teal' },
-  resolved: { text: 'Resolved', color: 'green' },
-  rejected: { text: 'Rejected', color: 'red' },
-};
 
-export const COMPLAINT_STATUS: Record<string, StatusMeta> = {
-  pending: { text: 'Pending', color: 'amber' },
-  assigned: { text: 'Assigned', color: 'blue' },
-  under_review: { text: 'Under Review', color: 'teal' },
-  resolved: { text: 'Resolved', color: 'green' },
-};
 
 export function statusText(
   map: Record<string, StatusMeta>,

@@ -52,7 +52,7 @@ function emptyMessage(): string {
   return 'Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your environment.';
 }
 
-export function validateFile(file: File): string | null {
+function validateFile(file: File): string | null {
   if (file.size > MAX_FILE_SIZE) {
     return 'File size must be less than 5MB.';
   }

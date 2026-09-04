@@ -6,7 +6,7 @@
 const CLOUD_DELIVERY_RE = /(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)/;
 
 /** True when the URL points at a Cloudinary image delivery. */
-export function isCloudinaryUrl(url: string | null | undefined): boolean {
+function isCloudinaryUrl(url: string | null | undefined): boolean {
   return !!url && /res\.cloudinary\.com\/[^/]+\/(image|video|raw|auto)\/upload\//.test(url);
 }
 
@@ -15,7 +15,7 @@ export function isCloudinaryUrl(url: string | null | undefined): boolean {
  * (`/f_auto,q_auto/`) form. Idempotent — safe to call on any stored value.
  * PDFs and raw/video assets are returned unchanged.
  */
-export function optimizeCloudinaryUrl(url: string | null | undefined): string {
+function optimizeCloudinaryUrl(url: string | null | undefined): string {
   if (!url) return ''
   // Already optimized (f_auto present) → leave alone.
   if (url.includes('/f_auto,q_auto/')) return url
