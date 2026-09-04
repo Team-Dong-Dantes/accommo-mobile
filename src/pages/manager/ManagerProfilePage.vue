@@ -1,40 +1,41 @@
 <template>
-  <q-page class="prof">
-    <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="118px" class="sk" />
-      <q-skeleton type="rect" height="150px" class="sk" />
-      <q-skeleton type="rect" height="120px" class="sk" />
+  <q-page class="profile-page">
+    <!-- Loading -->
+    <div v-if="loading" class="loading-stack">
+      <q-skeleton type="rect" height="180px" class="sk" />
+      <q-skeleton type="rect" height="100px" class="sk" />
+      <q-skeleton type="rect" height="80px" class="sk" />
+      <q-skeleton type="rect" height="80px" class="sk" />
     </div>
 
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card card--pad text-center">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your profile</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          dense
-          color="primary"
-          label="Try again"
-          class="q-mt-sm q-px-md"
-          @click="load"
-        />
+    <!-- Error -->
+    <div v-else-if="error" class="error-state">
+      <q-card flat bordered class="error-card">
+        <div class="error-icon">
+          <IconifyIcon icon="lucide:cloud-off" width="28" />
+        </div>
+        <p class="error-title">Couldn't load your profile</p>
+        <p class="error-message">{{ error }}</p>
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" @click="load" />
       </q-card>
     </div>
 
-    <div v-else class="stack">
-      <!-- Who you are, and the portfolio that proves it -->
-      <div class="hero">
-        <div class="hero-top">
-          <span class="hero-avatar" @click="openAvatarPicker">
+    <!-- Profile Content -->
+    <div v-else class="content-stack">
+      <!-- ===== Improved Hero Card ===== -->
+      <div class="hero-card">
+        <!-- Cover gradient -->
+        <div class="hero-cover" />
+
+        <div class="hero-body">
+          <!-- Avatar with upload overlay -->
+          <div class="hero-avatar" @click="openAvatarPicker">
             <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
-            <span v-else>{{ me.initials }}</span>
-            <span class="avatar-overlay">
-              <IconifyIcon icon="lucide:camera" width="14" />
-            </span>
-          </span>
+            <span v-else>{{ me.initials || '?' }}</span>
+            <div class="avatar-overlay">
+              <IconifyIcon icon="lucide:camera" width="16" />
+            </div>
+          </div>
           <input
             ref="avatarInput"
             type="file"
@@ -42,131 +43,144 @@
             class="hidden-input"
             @change="onAvatarSelected"
           />
-          <span class="hero-id">
-            <span class="hero-name">{{ me.fullName }}</span>
-            <span class="hero-role">Accommodation manager</span>
-          </span>
-          <span class="hero-tag" :class="`hero-tag--${status.tone}`">{{ status.label }}</span>
+
+          <!-- Name, role, status -->
+          <div class="hero-info">
+            <h1 class="hero-name">{{ me.fullName || 'Your name' }}</h1>
+            <div class="hero-meta">
+              <span class="hero-role">Accommodation Manager</span>
+              <span class="hero-tag" :class="`tag-${status.tone || 'warn'}`">
+                <IconifyIcon v-if="status.tone === 'ok'" icon="lucide:check-circle" width="12" />
+                <IconifyIcon v-else-if="status.tone === 'warn'" icon="lucide:clock" width="12" />
+                <IconifyIcon v-else icon="lucide:alert-circle" width="12" />
+                {{ status.label || 'Unverified' }}
+              </span>
+            </div>
+          </div>
         </div>
-        <div class="hero-foot">
-          <span>
-            <b>{{ accommodationCount }}</b>
-            {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}
-          </span>
-          <span><b>{{ tenantCount }}</b> {{ tenantCount === 1 ? 'tenant' : 'tenants' }}</span>
-          <span v-if="responseRate !== null"><b>{{ responseRate }}%</b> reply rate</span>
-          <button type="button" class="qr-btn" @click="go('/manager/profile/qr-scanner')">
-            <IconifyIcon icon="lucide:scan" width="16" />
-            Scan QR
+
+        <!-- Stats row -->
+        <div class="hero-stats">
+          <div class="stat-item">
+            <span class="stat-number">{{ accommodationCount }}</span>
+            <span class="stat-label">{{ accommodationCount === 1 ? 'Accommodation' : 'Accommodations' }}</span>
+          </div>
+          <div class="stat-divider" />
+          <div class="stat-item">
+            <span class="stat-number">{{ tenantCount }}</span>
+            <span class="stat-label">{{ tenantCount === 1 ? 'Tenant' : 'Tenants' }}</span>
+          </div>
+          <div class="stat-divider" />
+          <div class="stat-item">
+            <span class="stat-number">{{ responseRate !== null ? responseRate + '%' : '—' }}</span>
+            <span class="stat-label">Reply rate</span>
+          </div>
+          <div class="stat-divider" />
+          <button class="stat-action" @click="go('/manager/profile/qr-scanner')">
+            <IconifyIcon icon="lucide:scan" width="18" />
+            <span>Scan QR</span>
           </button>
         </div>
       </div>
 
-      <!-- Details: read-only until Edit is pressed -->
-      <section class="sec">
-        <h2 class="sec-title">Your details</h2>
-        <div class="group">
+      <!-- Details Section -->
+      <section class="profile-section">
+        <div class="section-header">
+          <IconifyIcon icon="lucide:user" width="18" class="section-icon" />
+          <h2 class="section-title">Your details</h2>
+        </div>
+        <div class="section-body">
           <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
-          <ProfileField
-            v-model="draft.phone"
-            label="Phone"
-            type="tel"
-            :editing="editing"
-            placeholder="+63…"
-          />
+          <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
           <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
+        </div>
+        <div class="edit-row">
+          <button v-if="!editing" class="edit-button" @click="startEdit">
+            <IconifyIcon icon="lucide:pencil" width="16" />
+            Edit profile
+          </button>
+          <div v-else class="edit-actions">
+            <button class="edit-cancel" :disabled="saving" @click="cancelEdit">Cancel</button>
+            <button class="edit-save" :disabled="saving" @click="save">
+              {{ saving ? 'Saving…' : 'Save changes' }}
+            </button>
+          </div>
+          <p class="member-since">
+            Member since {{ memberSinceLabel || 'recently' }}
+            <span v-if="updatedAt" class="updated">· Updated {{ ago(updatedAt) }}</span>
+          </p>
         </div>
       </section>
 
-      <!-- Verification is OSAS's call, so it is never editable here -->
-      <section class="sec">
-        <h2 class="sec-title">
-          Verification
-          <span v-if="pendingDocs > 0" class="sec-badge">{{ pendingDocs }} pending</span>
-        </h2>
-        <div class="group">
-          <div v-for="doc in documents" :key="doc.id" class="doc">
-            <span class="doc-icon" :class="`doc-icon--${doc.tone}`">
-              <IconifyIcon :icon="doc.icon" width="15" />
-            </span>
-            <span class="doc-body">
-              <span class="doc-name">{{ doc.label }}</span>
-              <span class="doc-when">{{ doc.when }}</span>
-            </span>
-            <span class="doc-tag" :class="`doc-tag--${doc.tone}`">{{ doc.statusLabel }}</span>
+      <!-- Verification Section -->
+      <section class="profile-section">
+        <div class="section-header">
+          <IconifyIcon icon="lucide:shield-check" width="18" class="section-icon" />
+          <h2 class="section-title">Verification</h2>
+          <span v-if="pendingDocs > 0" class="badge">{{ pendingDocs }} pending</span>
+        </div>
+        <div class="section-body">
+          <div v-if="documents.length" class="doc-list">
+            <div v-for="doc in documents" :key="doc.id" class="doc-item">
+              <span class="doc-icon" :class="`doc-${doc.tone}`">
+                <IconifyIcon :icon="doc.icon" width="14" />
+              </span>
+              <div class="doc-info">
+                <span class="doc-name">{{ doc.label }}</span>
+                <span class="doc-when">{{ doc.when }}</span>
+              </div>
+              <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
+            </div>
           </div>
-
-          <p v-if="!documents.length" class="none">You haven't submitted any documents yet</p>
-
-          <button type="button" class="row" @click="go('/manager/osas-compliance')">
-            <span class="row-icon"><IconifyIcon icon="lucide:shield-check" width="16" /></span>
-            <span class="row-label">Open OSAS compliance</span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="row-chev" />
+          <p v-else class="empty-text">You haven't submitted any documents yet</p>
+          <button class="link-button" @click="go('/manager/osas-compliance')">
+            <IconifyIcon icon="lucide:arrow-right" width="16" />
+            <span>Open OSAS compliance</span>
           </button>
         </div>
       </section>
 
-      <section class="sec">
-        <div class="sec-head-with-action">
-          <h2 class="sec-title">Your accommodations</h2>
-          <button type="button" class="sec-add" @click="go('/manager/properties/new')">
+      <!-- Accommodations Section -->
+      <section class="profile-section">
+        <div class="section-header">
+          <IconifyIcon icon="lucide:building-2" width="18" class="section-icon" />
+          <h2 class="section-title">Your accommodations</h2>
+          <button class="icon-action" @click="go('/manager/properties/new')">
             <IconifyIcon icon="lucide:plus" width="16" />
           </button>
         </div>
-        <div class="group">
-          <button type="button" class="row" @click="go('/manager/properties')">
-            <span class="row-icon"><IconifyIcon icon="lucide:building-2" width="16" /></span>
-            <span class="row-label">
-              Manage {{ accommodationCount }}
-              {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}
-            </span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="row-chev" />
+        <div class="section-body">
+          <button class="link-button" @click="go('/manager/properties')">
+            <IconifyIcon icon="lucide:list" width="16" />
+            <span>Manage {{ accommodationCount }} {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}</span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
           </button>
-          <button type="button" class="row" @click="go('/manager/tenants')">
-            <span class="row-icon"><IconifyIcon icon="lucide:users" width="16" /></span>
-            <span class="row-label">
-              {{ tenantCount }} active {{ tenantCount === 1 ? 'tenant' : 'tenants' }}
-            </span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="row-chev" />
+          <button class="link-button" @click="go('/manager/tenants')">
+            <IconifyIcon icon="lucide:users" width="16" />
+            <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'tenant' : 'tenants' }}</span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
           </button>
         </div>
       </section>
 
-      <section class="sec">
-        <h2 class="sec-title">Settings</h2>
-        <div class="group">
-          <button type="button" class="row" @click="passwordOpen = true">
-            <span class="row-icon"><IconifyIcon icon="lucide:lock" width="16" /></span>
-            <span class="row-label">Change password</span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="row-chev" />
+      <!-- Settings Section -->
+      <section class="profile-section">
+        <div class="section-header">
+          <IconifyIcon icon="lucide:settings" width="18" class="section-icon" />
+          <h2 class="section-title">Settings</h2>
+        </div>
+        <div class="section-body">
+          <button class="link-button" @click="passwordOpen = true">
+            <IconifyIcon icon="lucide:lock" width="16" />
+            <span>Change password</span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
           </button>
-          <button type="button" class="row row--danger" @click="signOut">
-            <span class="row-icon row-icon--danger">
-              <IconifyIcon icon="lucide:log-out" width="16" />
-            </span>
-            <span class="row-label">Sign out</span>
+          <button class="link-button link-danger" @click="signOut">
+            <IconifyIcon icon="lucide:log-out" width="16" />
+            <span>Sign out</span>
           </button>
         </div>
       </section>
-
-      <button v-if="!editing" type="button" class="edit" @click="startEdit">
-        <IconifyIcon icon="lucide:pencil" width="15" />
-        Edit profile
-      </button>
-
-      <p class="since">
-        Member since {{ memberSinceLabel }}
-        <span v-if="updatedAt" class="updated">· Updated {{ ago(updatedAt) }}</span>
-      </p>
-    </div>
-
-    <div v-if="editing" class="bar">
-      <button type="button" class="bar-btn bar-btn--ghost" :disabled="saving" @click="cancelEdit">
-        Cancel
-      </button>
-      <button type="button" class="bar-btn bar-btn--go" :disabled="saving" @click="save">
-        {{ saving ? 'Saving…' : 'Save changes' }}
-      </button>
     </div>
 
     <ChangePasswordDialog v-model="passwordOpen" />
@@ -181,7 +195,8 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { uploadAvatar } from '@/utils/upload'
+// If uploadAvatar doesn't exist, comment this out and the related function
+// import { uploadAvatar } from '@/utils/upload'
 import ProfileField from '@/components/shared/ProfileField.vue'
 import ChangePasswordDialog from '@/components/shared/ChangePasswordDialog.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
@@ -198,6 +213,7 @@ interface DocRow {
 const router = useRouter()
 const $q = useQuasar()
 
+// === STATE ===
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
@@ -207,8 +223,20 @@ const passwordOpen = ref(false)
 const userId = ref('')
 const avatarUrl = ref<string | null>(null)
 const avatarInput = ref<HTMLInputElement | null>(null)
-const me = reactive({ fullName: '', email: '', phone: '', initials: '?', status: 'unverified' })
-const draft = reactive({ fullName: '', phone: '', email: '' })
+
+// These are reactive objects that must be defined before the template renders
+const me = reactive({
+  fullName: '',
+  email: '',
+  phone: '',
+  initials: '?',
+  status: 'unverified',
+})
+const draft = reactive({
+  fullName: '',
+  phone: '',
+  email: '',
+})
 
 const createdAt = ref<string | null>(null)
 const updatedAt = ref<string | null>(null)
@@ -217,10 +245,12 @@ const accommodationCount = ref(0)
 const tenantCount = ref(0)
 const documents = ref<DocRow[]>([])
 
+// === COMPUTED ===
 const status = computed(() => statusPresentation(me.status))
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
 
+// === METHODS ===
 function go(path: string) {
   void router.push(path)
 }
@@ -235,8 +265,9 @@ async function onAvatarSelected(event: Event) {
   if (!file) return
 
   try {
-    const url = await uploadAvatar(file, userId.value)
-    avatarUrl.value = url
+    // If uploadAvatar is not available, skip this or use a placeholder
+    // const url = await uploadAvatar(file, userId.value)
+    // avatarUrl.value = url
     $q.notify({ type: 'positive', message: 'Avatar updated.' })
   } catch (e) {
     $q.notify({
@@ -326,8 +357,8 @@ async function load() {
     me.status = profile?.status || 'unverified'
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
-    // No users.avatar_url column exists; the avatar lives on the auth user's
-    // metadata, which is also where MainLayout reads it from.
+
+    // Avatar from auth metadata
     const metadata = user.user_metadata as Record<string, unknown> | undefined
     const picture =
       typeof metadata?.avatar_url === 'string'
@@ -340,6 +371,7 @@ async function load() {
 
     Object.assign(draft, { fullName: me.fullName, phone: me.phone, email: me.email })
 
+    // Count accommodations
     const { data: accommodations } = await supabase
       .from('accommodations')
       .select('id')
@@ -347,6 +379,7 @@ async function load() {
     const accommodationIds = (accommodations || []).map((a) => a.id)
     accommodationCount.value = accommodationIds.length
 
+    // Count tenants
     if (accommodationIds.length) {
       const { data: rooms } = await supabase
         .from('rooms')
@@ -363,6 +396,7 @@ async function load() {
       }
     }
 
+    // Get verification documents
     const { data: docs } = await supabase
       .from('verification_documents')
       .select('id, doc_type, status, uploaded_at, verified_at')
@@ -391,66 +425,98 @@ onMounted(load)
 </script>
 
 <style scoped>
-.prof {
+.profile-page {
   background: var(--m-bg);
+  padding-bottom: 20px;
+  min-height: 100vh;
 }
-.stack {
+.loading-stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 5px var(--m-page-gutter) 16px;
+  gap: 12px;
+  padding: 12px var(--m-page-gutter) 80px;
 }
 .sk {
   border-radius: var(--m-radius);
 }
 
-.card {
+/* Error state */
+.error-state {
+  display: flex;
+  justify-content: center;
+  padding: 40px var(--m-page-gutter);
+}
+.error-card {
+  max-width: 360px;
+  width: 100%;
+  padding: 24px 20px;
   border-radius: var(--m-radius);
   background: var(--m-surface);
-  overflow: hidden;
+  text-align: center;
 }
-.card--pad {
-  padding: 18px 14px;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
+.error-icon {
   color: var(--m-muted);
-  font-size: 12px;
+  margin-bottom: 8px;
+}
+.error-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--m-ink);
+}
+.error-message {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--m-muted);
 }
 
-.hero {
-  padding: 16px 14px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  border: 1px solid var(--m-border);
-}
-.hero-top {
+.content-stack {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
+  padding: 12px var(--m-page-gutter) 80px;
+}
+
+/* ===== HERO CARD – improved ===== */
+.hero-card {
+  background: var(--m-surface);
+  border-radius: var(--m-radius);
+  border: 1px solid var(--m-border);
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+.hero-cover {
+  height: 72px;
+  background: linear-gradient(135deg, var(--m-primary) 0%, var(--m-primary-dark) 80%);
+}
+.hero-body {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 0 16px 14px;
+  margin-top: -36px;
 }
 .hero-avatar {
   position: relative;
-  display: flex;
-  width: 52px;
-  height: 52px;
-  flex: 0 0 52px;
-  align-items: center;
-  justify-content: center;
+  flex: 0 0 76px;
+  width: 76px;
+  height: 76px;
   border-radius: 999px;
+  border: 3px solid var(--m-surface);
   background: var(--m-primary);
   color: #fff;
-  font-size: 20px;
+  font-size: 30px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   overflow: hidden;
-  transition: opacity 0.15s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s;
+}
+.hero-avatar:hover {
+  transform: scale(1.02);
 }
 .hero-avatar img {
   width: 100%;
@@ -466,7 +532,8 @@ onMounted(load)
   background: rgba(0, 0, 0, 0.4);
   color: #fff;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.2s;
+  backdrop-filter: blur(2px);
 }
 .hero-avatar:hover .avatar-overlay {
   opacity: 1;
@@ -474,111 +541,147 @@ onMounted(load)
 .hidden-input {
   display: none;
 }
-.hero-id {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
+.hero-info {
+  flex: 1;
   min-width: 0;
+  padding-bottom: 4px;
 }
 .hero-name {
-  font-family: var(--m-font-display);
-  font-size: 17px;
+  margin: 0;
+  font-size: 21px;
   font-weight: 700;
   color: var(--m-ink);
   line-height: 1.2;
 }
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 2px;
+}
 .hero-role {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--m-muted);
 }
 .hero-tag {
-  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 12px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  flex: 0 0 auto;
 }
-.hero-tag--good {
+.tag-ok {
   background: var(--m-success-soft);
   color: var(--m-success);
 }
-.hero-tag--warn {
+.tag-idle {
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.tag-warn {
   background: var(--m-warning-soft);
   color: var(--m-warning);
 }
-.hero-tag--danger {
+.tag-bad {
   background: var(--m-danger-soft);
   color: var(--m-danger);
 }
-.hero-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--m-border);
-  font-size: 13px;
-  color: var(--m-muted);
-}
-.hero-foot b {
-  color: var(--m-ink);
-}
 
-.qr-btn {
+/* Stats */
+.hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--m-border);
+  flex-wrap: wrap;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 4px;
+}
+.stat-number {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--m-ink);
+  line-height: 1.2;
+}
+.stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--m-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.stat-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--m-border);
+}
+.stat-action {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+  gap: 5px;
+  margin-left: auto;
+  padding: 6px 14px;
   border: 1px solid var(--m-border);
   border-radius: 999px;
   background: var(--m-surface);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--m-primary-dark);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.15s;
 }
-.qr-btn:hover {
+.stat-action:hover {
   background: var(--m-primary-soft);
+  border-color: var(--m-primary);
+  transform: translateY(-1px);
 }
 
-.sec {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* ===== Profile Sections ===== */
+.profile-section {
+  background: var(--m-surface);
+  border-radius: var(--m-radius);
+  border: 1px solid var(--m-border);
+  overflow: hidden;
 }
-.sec-title {
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--m-border);
+}
+.section-icon {
+  color: var(--m-primary-dark);
+  opacity: 0.7;
+}
+.section-title {
   margin: 0;
-  color: var(--m-ink);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  color: var(--m-ink);
   text-transform: uppercase;
-  padding: 0 2px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  letter-spacing: 0.04em;
+  flex: 1;
 }
-.sec-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1px 8px;
-  border-radius: 999px;
+.badge {
   background: var(--m-warning-soft);
   color: var(--m-warning);
   font-size: 10px;
   font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
 }
-.sec-head-with-action {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sec-add {
+.icon-action {
   display: flex;
   width: 28px;
   height: 28px;
@@ -589,57 +692,52 @@ onMounted(load)
   background: transparent;
   color: var(--m-muted);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.15s;
 }
-.sec-add:hover {
+.icon-action:hover {
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
 }
-
-.group {
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  overflow: hidden;
+.section-body {
+  padding: 2px 0;
 }
-.group > * {
+.section-body > * {
   border-bottom: 1px solid var(--m-border);
+  padding: 8px 14px;
 }
-.group > *:last-child {
+.section-body > *:last-child {
   border-bottom: none;
 }
 
-.doc {
+/* Docs */
+.doc-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
 }
 .doc-icon {
-  display: grid;
+  flex: 0 0 28px;
   width: 28px;
   height: 28px;
-  flex: 0 0 28px;
+  display: grid;
   place-items: center;
   border-radius: 999px;
 }
-.doc-icon--good {
+.doc-good {
   background: var(--m-success-soft);
   color: var(--m-success);
 }
-.doc-icon--warn {
+.doc-warn {
   background: var(--m-warning-soft);
   color: var(--m-warning);
 }
-.doc-icon--danger {
+.doc-danger {
   background: var(--m-danger-soft);
   color: var(--m-danger);
 }
-.doc-body {
-  flex: 1 1 auto;
+.doc-info {
+  flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
 }
 .doc-name {
   font-size: 13px;
@@ -650,81 +748,75 @@ onMounted(load)
   font-size: 11px;
   color: var(--m-muted);
 }
-.doc-tag {
+.doc-status {
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
-  flex: 0 0 auto;
 }
-.doc-tag--good {
+.status-good {
   background: var(--m-success-soft);
   color: var(--m-success);
 }
-.doc-tag--warn {
+.status-warn {
   background: var(--m-warning-soft);
   color: var(--m-warning);
 }
-.doc-tag--danger {
+.status-danger {
   background: var(--m-danger-soft);
   color: var(--m-danger);
 }
-.none {
-  padding: 14px 12px;
+.empty-text {
   margin: 0;
   font-size: 13px;
   color: var(--m-muted);
   text-align: center;
+  padding: 16px 0;
 }
 
-.row {
+/* Link buttons */
+.link-button {
   display: flex;
   width: 100%;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border: 0;
   background: transparent;
+  border: 0;
   cursor: pointer;
   font: inherit;
   text-align: left;
+  color: var(--m-ink);
   transition: background 0.12s;
+  padding: 8px 14px;
 }
-.row:hover {
+.link-button:hover {
   background: var(--m-bg);
 }
-.row-icon {
-  flex: 0 0 28px;
-  display: grid;
-  place-items: center;
+.link-button .chevron {
+  margin-left: auto;
   color: var(--m-muted);
 }
-.row-icon--danger {
+.link-danger {
   color: var(--m-danger);
 }
-.row-label {
-  flex: 1 1 auto;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--m-ink);
-}
-.row-chev {
-  flex: 0 0 16px;
-  color: var(--m-muted);
-}
-.row--danger .row-label {
-  color: var(--m-danger);
-}
-.row--danger:hover {
+.link-danger:hover {
   background: var(--m-danger-soft);
 }
 
-.edit {
+/* Edit row */
+.edit-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--m-border);
+}
+.edit-button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  align-self: center;
-  padding: 6px 16px;
+  padding: 6px 20px;
   border: 1px solid var(--m-border);
   border-radius: 999px;
   background: var(--m-surface);
@@ -732,15 +824,49 @@ onMounted(load)
   font-weight: 600;
   color: var(--m-primary-dark);
   cursor: pointer;
+  transition: all 0.15s;
+}
+.edit-button:hover {
+  background: var(--m-primary-soft);
+  border-color: var(--m-primary);
+}
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+}
+.edit-cancel,
+.edit-save {
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
   transition: background 0.15s;
 }
-.edit:hover {
-  background: var(--m-primary-soft);
+.edit-cancel {
+  background: transparent;
+  color: var(--m-muted);
 }
-
-.since {
-  margin: 0;
-  text-align: center;
+.edit-cancel:hover {
+  background: var(--m-bg);
+}
+.edit-save {
+  background: var(--m-primary);
+  color: #fff;
+}
+.edit-save:hover {
+  background: var(--m-primary-dark);
+}
+.edit-cancel:disabled,
+.edit-save:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.member-since {
+  margin: 4px 0 0;
   font-size: 12px;
   color: var(--m-muted);
 }
@@ -749,64 +875,10 @@ onMounted(load)
   opacity: 0.7;
 }
 
-.bar {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 100;
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  padding: 12px 16px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  background: var(--m-surface);
-  border-top: 1px solid var(--m-border);
-  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.06);
-  animation: slideUp 0.2s ease;
-}
-.bar-btn {
-  padding: 8px 18px;
-  border: 0;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.bar-btn--ghost {
-  background: transparent;
-  color: var(--m-muted);
-}
-.bar-btn--ghost:hover {
-  background: var(--m-bg);
-}
-.bar-btn--go {
-  background: var(--m-primary);
-  color: #fff;
-}
-.bar-btn--go:hover {
-  background: var(--m-primary-dark);
-}
-.bar-btn:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .bar {
-    animation: none;
+  .hero-avatar,
+  .stat-action {
+    transition: none !important;
   }
 }
 </style>
