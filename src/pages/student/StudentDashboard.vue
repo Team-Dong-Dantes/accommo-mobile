@@ -50,6 +50,16 @@
         </template>
       </div>
 
+      <!-- Broadcast from OSAS -->
+      <button v-if="notice" type="button" class="notice" @click="go('/student/support')">
+        <span class="notice-icon"><IconifyIcon icon="lucide:megaphone" width="16" /></span>
+        <span class="notice-body">
+          <span class="notice-title">{{ notice.title }}</span>
+          <span class="notice-text">{{ notice.body }}</span>
+        </span>
+        <span class="notice-when">{{ notice.when }}</span>
+      </button>
+
       <!-- Needs attention: one actionable lead, the rest kept quiet -->
       <section class="sec">
         <div class="sec-head">
@@ -95,6 +105,45 @@
           </span>
         </div>
       </section>
+
+      <!-- The people behind the stay -->
+      <section v-if="manager || roommates.length" class="sec">
+        <div class="sec-head">
+          <h2 class="sec-title">Your place</h2>
+        </div>
+
+        <div v-if="manager" class="person">
+          <span class="person-avatar">{{ manager.initials }}</span>
+          <span class="person-body">
+            <span class="person-name">{{ manager.name }}</span>
+            <span class="person-role">
+              Your manager<template v-if="manager.replyMinutes">
+                · replies in ~{{ manager.replyMinutes }} min</template>
+            </span>
+          </span>
+          <span class="person-actions">
+            <button type="button" class="icon-btn" aria-label="Message manager" @click.stop="go('/student/messages')">
+              <IconifyIcon icon="lucide:message-circle" width="17" />
+            </button>
+            <a v-if="manager.phone" class="icon-btn" :href="`tel:${manager.phone}`" aria-label="Call manager">
+              <IconifyIcon icon="lucide:phone" width="16" />
+            </a>
+          </span>
+        </div>
+
+        <div v-if="roommates.length" class="mates">
+          <span class="mates-stack" aria-hidden="true">
+            <span v-for="m in roommates.slice(0, 4)" :key="m.id" class="mates-avatar">{{ m.initials }}</span>
+            <span v-if="roommates.length > 4" class="mates-avatar mates-avatar--more">
+              +{{ roommates.length - 4 }}
+            </span>
+          </span>
+          <span class="mates-text">
+            Sharing {{ stay?.roomNumber ? `Room ${stay.roomNumber}` : 'your room' }}
+            with {{ roommates.length }} {{ roommates.length === 1 ? 'other' : 'others' }}
+          </span>
+        </div>
+      </section>
     </div>
   </q-page>
 </template>
@@ -104,7 +153,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
-import { formatPeso, formatDate } from '@/utils/format'
+import { formatPeso, formatDate, initialsOf } from '@/utils/format'
 
 interface Stay {
   id: string
@@ -131,6 +180,24 @@ interface AttentionItem {
   rank: number
 }
 
+interface Notice {
+  title: string
+  body: string
+  when: string
+}
+
+interface Manager {
+  name: string
+  initials: string
+  phone: string | null
+  replyMinutes: number | null
+}
+
+interface Roommate {
+  id: string
+  initials: string
+}
+
 const MAX_MINOR = 3
 
 const router = useRouter()
@@ -140,6 +207,9 @@ const error = ref('')
 const firstName = ref('there')
 const stay = ref<Stay | null>(null)
 const attention = ref<AttentionItem[]>([])
+const notice = ref<Notice | null>(null)
+const manager = ref<Manager | null>(null)
+const roommates = ref<Roommate[]>([])
 
 const greeting = computed(() => {
   const h = new Date().getHours()
@@ -212,7 +282,7 @@ async function load() {
     const { data: leaseRow, error: leaseError } = await supabase
       .from('leases')
       .select(
-        'id, status, start_date, end_date, monthly_rent, rooms(room_number, label, monthly_rent, accommodations(name))',
+        'id, status, start_date, end_date, monthly_rent, room_id, rooms(room_number, label, monthly_rent, accommodations(name, accommodation_manager_id))',
       )
       .eq('student_id', user.id)
       .in('status', ['active', 'pending', 'leave_requested'])
@@ -227,7 +297,7 @@ async function load() {
             room_number: string | null
             label: string | null
             monthly_rent: number | null
-            accommodations: { name: string } | null
+            accommodations: { name: string; accommodation_manager_id: string } | null
           }
         | null
       stay.value = {
@@ -242,6 +312,63 @@ async function load() {
       }
     } else {
       stay.value = null
+    }
+
+    // Newest live broadcast aimed at students.
+    const { data: noticeRows } = await supabase
+      .from('announcements')
+      .select('title, body, published_at, expires_at')
+      .in('audience', ['all', 'students'])
+      .eq('archived', false)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('published_at', { ascending: false })
+      .limit(1)
+
+    const top = noticeRows?.[0]
+    notice.value = top
+      ? { title: top.title, body: top.body || '', when: ago(top.published_at) }
+      : null
+
+    if (leaseRow) {
+      const room = leaseRow.rooms as unknown as {
+        accommodations: { accommodation_manager_id: string } | null
+      } | null
+      const managerId = room?.accommodations?.accommodation_manager_id
+
+      if (managerId) {
+        const [{ data: mgr }, { data: mgrProfile }] = await Promise.all([
+          supabase.from('users').select('full_name, initials, phone').eq('id', managerId).maybeSingle(),
+          supabase
+            .from('accommodation_manager_profiles')
+            .select('avg_response_minutes')
+            .eq('user_id', managerId)
+            .maybeSingle(),
+        ])
+        if (mgr) {
+          manager.value = {
+            name: mgr.full_name,
+            initials: mgr.initials || initialsOf(mgr.full_name),
+            phone: mgr.phone || null,
+            replyMinutes: mgrProfile?.avg_response_minutes ?? null,
+          }
+        }
+      }
+
+      // Everyone else currently housed in the same room.
+      const { data: mateRows } = await supabase
+        .from('leases')
+        .select('student_id, users!leases_student_id_fkey(full_name, initials)')
+        .eq('room_id', leaseRow.room_id)
+        .eq('status', 'active')
+        .neq('student_id', user.id)
+
+      roommates.value = (mateRows || []).map((m) => {
+        const person = m.users as unknown as { full_name: string; initials: string | null } | null
+        return {
+          id: m.student_id,
+          initials: person?.initials || initialsOf(person?.full_name || '?'),
+        }
+      })
     }
 
     const items: AttentionItem[] = []
@@ -484,6 +611,94 @@ onMounted(load)
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Broadcast notice */
+.notice {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--m-info) 22%, var(--m-border));
+  border-radius: var(--m-radius);
+  background: var(--m-info-soft);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.notice-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 999px; background: #fff; color: var(--m-info); }
+.notice-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+.notice-title { color: var(--m-ink); font-size: 13px; font-weight: 700; line-height: 1.25; }
+.notice-text {
+  color: var(--m-text);
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.notice-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11px; font-weight: 600; }
+
+/* People */
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+.person-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.person-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+.person-name { color: var(--m-ink); font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-role { color: var(--m-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-actions { display: flex; flex: 0 0 auto; gap: 6px; }
+.icon-btn {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-primary-dark);
+  cursor: pointer;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mates { display: flex; align-items: center; gap: 10px; padding: 2px 4px; }
+.mates-stack { display: flex; flex: 0 0 auto; }
+.mates-avatar {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  margin-left: -7px;
+  border: 2px solid var(--m-bg);
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+.mates-avatar:first-child { margin-left: 0; }
+.mates-avatar--more { background: var(--m-border); color: var(--m-text); }
+.mates-text { color: var(--m-muted); font-size: 12px; font-weight: 600; }
 
 /* Sections */
 .sec { display: flex; flex-direction: column; gap: 6px; }
