@@ -1,130 +1,82 @@
 <template>
-  <q-page class="dash q-pb-xl">
-    <header class="dash-head q-px-md q-pt-md">
-      <p class="head-eyebrow">{{ greeting }}</p>
-      <h1 class="head-name">{{ firstName }}</h1>
-    </header>
-
-    <div v-if="loading" class="q-px-md q-pt-md">
-      <q-skeleton type="rect" height="150px" class="sk q-mb-md" />
-      <q-skeleton type="rect" height="82px" class="sk q-mb-md" />
-      <q-skeleton type="rect" height="120px" class="sk" />
+  <q-page class="dash">
+    <div v-if="loading" class="stack">
+      <q-skeleton type="rect" height="146px" class="sk" />
+      <q-skeleton type="rect" height="96px" class="sk" />
+      <q-skeleton type="rect" height="112px" class="sk" />
     </div>
 
-    <div v-else-if="error" class="q-px-md q-pt-md">
-      <q-card flat bordered class="panel text-center q-pa-lg">
-        <IconifyIcon icon="lucide:cloud-off" width="26" class="text-grey-6" />
-        <p class="panel-title q-mt-sm">Couldn't load your dashboard</p>
-        <p class="panel-sub">{{ error }}</p>
-        <q-btn unelevated rounded color="primary" label="Try again" class="q-mt-sm" @click="load" />
+    <div v-else-if="error" class="stack">
+      <q-card flat bordered class="card card--pad text-center">
+        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+        <p class="err-title">Couldn't load your dashboard</p>
+        <p class="err-sub">{{ error }}</p>
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
       </q-card>
     </div>
 
-    <template v-else>
-      <!-- Your stay: same card shape whether or not a lease exists -->
-      <section class="q-px-md q-pt-md">
-        <q-card v-if="stay" flat class="stay-card">
-          <div class="stay-top">
-            <span class="stay-caption">Your stay</span>
-            <q-badge class="stay-badge">{{ statusLabel(stay.status) }}</q-badge>
-          </div>
-          <div class="stay-name">{{ stay.accommodationName }}</div>
-          <div class="stay-room">{{ roomLabel }}</div>
-          <div class="stay-grid">
-            <div class="stay-cell">
-              <span class="cell-label">Monthly rent</span>
-              <span class="cell-value">{{ formatPeso(stay.monthlyRent) }}</span>
-            </div>
-            <div class="stay-cell">
-              <span class="cell-label">Since</span>
-              <span class="cell-value">{{ formatDate(stay.startDate) }}</span>
-            </div>
-            <div class="stay-cell">
-              <span class="cell-label">Until</span>
-              <span class="cell-value">{{ formatDate(stay.endDate) }}</span>
-            </div>
-          </div>
-        </q-card>
+    <div v-else class="stack">
+      <!-- 1 · The stay. Rent, room and dates live here only. -->
+      <q-card flat class="hero" :class="{ 'hero--empty': !stay }">
+        <div class="hero-top">
+          <span class="hero-cap">Your stay</span>
+          <span v-if="stay" class="hero-tag">{{ statusLabel(stay.status) }}</span>
+        </div>
 
-        <q-card v-else flat class="stay-card stay-card--empty">
-          <div class="stay-top">
-            <span class="stay-caption">Your stay</span>
+        <template v-if="stay">
+          <div class="hero-name">{{ stay.accommodationName }}</div>
+          <div class="hero-sub">{{ roomLabel }}</div>
+          <div class="hero-rent">
+            {{ formatPeso(stay.monthlyRent) }}<span class="hero-per">/mo</span>
           </div>
-          <div class="stay-name">No accommodation yet</div>
-          <div class="stay-room">Your room, rent and dates appear here once a manager accepts you</div>
-          <div class="stay-grid">
-            <div v-for="label in ['Monthly rent', 'Since', 'Until']" :key="label" class="stay-cell">
-              <span class="cell-label">{{ label }}</span>
-              <span class="cell-value cell-value--muted">—</span>
-            </div>
+          <div class="hero-facts">
+            <span>{{ formatDate(stay.startDate) }}</span>
+            <span class="hero-dash">—</span>
+            <span>{{ formatDate(stay.endDate) }}</span>
           </div>
+        </template>
+
+        <template v-else>
+          <div class="hero-name">No accommodation yet</div>
+          <div class="hero-sub">Your room, rent and dates appear here once a manager accepts you</div>
+          <div class="hero-rent hero-rent--muted">—<span class="hero-per">/mo</span></div>
           <q-btn
-            unelevated rounded no-caps color="primary" label="Find a room"
-            class="q-mt-md" @click="go('/student/discover')"
+            unelevated rounded no-caps dense color="primary" label="Find a room"
+            class="hero-cta q-px-md" @click="go('/student/discover')"
           />
-        </q-card>
-      </section>
+        </template>
+      </q-card>
 
-      <!-- Standing -->
-      <section class="q-px-md q-pt-md">
-        <h2 class="sec-title">Standing</h2>
-        <div class="stat-row">
-          <div class="stat" :class="verificationTone">
-            <span class="stat-value">{{ verificationLabel }}</span>
-            <span class="stat-label">OSAS status</span>
-          </div>
-          <button type="button" class="stat" @click="go('/student/messages')">
-            <span class="stat-value">{{ unreadMessages }}</span>
-            <span class="stat-label">
-              {{ unreadMessages === 1 ? 'Unread message' : 'Unread messages' }}
+      <!-- 2 · Standing: only things needing a look, as one compact list. -->
+      <q-card flat bordered class="card">
+        <button type="button" class="row row--first" @click="go('/student/support')">
+          <span class="row-dot" :class="`row-dot--${verificationTone}`" />
+          <span class="row-body">
+            <span class="row-label">OSAS {{ verificationLabel.toLowerCase() }}</span>
+            <span class="row-hint">{{ verificationHint }}</span>
+          </span>
+          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
+        </button>
+        <button type="button" class="row" @click="go('/student/messages')">
+          <span class="row-dot" :class="unreadMessages ? 'row-dot--warn' : 'row-dot--ok'" />
+          <span class="row-body">
+            <span class="row-label">
+              {{ unreadMessages ? `${unreadMessages} unread` : 'No unread messages' }}
             </span>
-          </button>
-        </div>
-      </section>
+            <span class="row-hint">Conversations with your manager</span>
+          </span>
+          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
+        </button>
+      </q-card>
 
-      <!-- Rent: payments are not yet recorded, so this is stated as expected -->
-      <section class="q-px-md q-pt-md">
-        <div class="row-head">
-          <h2 class="sec-title">Rent</h2>
-          <q-btn
-            flat dense no-caps class="sec-action" label="Payments"
-            @click="go('/student/payments')"
-          />
-        </div>
-        <q-card flat bordered class="panel rent-card">
-          <div class="rent-main">
-            <span class="rent-label">{{ stay ? 'Due each month' : 'Nothing due' }}</span>
-            <span class="rent-amount" :class="{ 'rent-amount--muted': !stay }">
-              {{ stay ? formatPeso(stay.monthlyRent) : '—' }}
-            </span>
-          </div>
-          <p class="rent-note">
-            {{
-              stay
-                ? 'Payment records show up here once your manager logs them.'
-                : 'Rent appears here when your stay begins.'
-            }}
-          </p>
-        </q-card>
-      </section>
-
-      <!-- Shortcuts: always available, so the page never bottoms out -->
-      <section class="q-px-md q-pt-md">
-        <h2 class="sec-title">Shortcuts</h2>
-        <div class="tile-grid">
-          <button
-            v-for="link in shortcuts"
-            :key="link.route"
-            type="button"
-            class="tile"
-            @click="go(link.route)"
-          >
-            <span class="tile-icon"><IconifyIcon :icon="link.icon" width="18" /></span>
-            <span class="tile-label">{{ link.label }}</span>
-          </button>
-        </div>
-      </section>
-    </template>
+      <!-- 3 · Destinations not already represented above. -->
+      <div class="tiles">
+        <button v-for="t in shortcuts" :key="t.route" type="button" class="tile" @click="go(t.route)">
+          <IconifyIcon :icon="t.icon" width="17" class="tile-icon" />
+          <span>{{ t.label }}</span>
+        </button>
+      </div>
+    </div>
   </q-page>
 </template>
 
@@ -150,22 +102,17 @@ const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
-const firstName = ref('there')
 const stay = ref<Stay | null>(null)
 const verification = ref('unverified')
 const unreadMessages = ref(0)
 
+// Discover and Payments are not reachable from anything above; Stay and OSAS
+// already have their own rows, so they are deliberately not repeated here.
 const shortcuts = [
   { icon: 'lucide:search', label: 'Discover', route: '/student/discover' },
-  { icon: 'lucide:bed-double', label: 'My stay', route: '/student/stay' },
+  { icon: 'lucide:wallet-cards', label: 'Payments', route: '/student/payments' },
   { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
-  { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
 ] as const
-
-const greeting = computed(() => {
-  const h = new Date().getHours()
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
-})
 
 const roomLabel = computed(() => {
   if (!stay.value) return ''
@@ -175,33 +122,46 @@ const roomLabel = computed(() => {
   return label || 'Room'
 })
 
-function statusLabel(status: string) {
-  const map: Record<string, string> = {
-    active: 'Active',
-    pending: 'Pending',
-    leave_requested: 'Leaving',
-    ended: 'Ended',
-    terminated: 'Ended',
-  }
-  return map[status] ?? status
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Active',
+  pending: 'Pending',
+  leave_requested: 'Leaving',
+  ended: 'Ended',
+  terminated: 'Ended',
+}
+function statusLabel(s: string) {
+  return STATUS_LABEL[s] ?? s
 }
 
-const verificationLabel = computed(() => {
-  const map: Record<string, string> = {
-    verified: 'Verified',
-    pending: 'Pending',
-    reviewing: 'In review',
-    unverified: 'Unverified',
-    rejected: 'Rejected',
-    suspended: 'Suspended',
+const VERIFY_LABEL: Record<string, string> = {
+  verified: 'Verified',
+  pending: 'Pending',
+  reviewing: 'In review',
+  unverified: 'Unverified',
+  rejected: 'Rejected',
+  suspended: 'Suspended',
+}
+const verificationLabel = computed(() => VERIFY_LABEL[verification.value] ?? verification.value)
+
+const verificationHint = computed(() => {
+  switch (verification.value) {
+    case 'verified':
+      return 'Your documents are approved'
+    case 'reviewing':
+      return 'OSAS is checking your documents'
+    case 'rejected':
+      return 'Re-upload your documents'
+    case 'suspended':
+      return 'Contact OSAS to resolve this'
+    default:
+      return 'Upload your documents to get verified'
   }
-  return map[verification.value] ?? verification.value
 })
 
 const verificationTone = computed(() => {
-  if (verification.value === 'verified') return 'stat--ok'
-  if (verification.value === 'rejected' || verification.value === 'suspended') return 'stat--danger'
-  return 'stat--warn'
+  if (verification.value === 'verified') return 'ok'
+  if (verification.value === 'rejected' || verification.value === 'suspended') return 'danger'
+  return 'warn'
 })
 
 function go(path: string) {
@@ -221,10 +181,9 @@ async function load() {
 
     const { data: profile } = await supabase
       .from('users')
-      .select('full_name, status')
+      .select('status')
       .eq('id', user.id)
       .maybeSingle()
-    firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
     verification.value = profile?.status || 'unverified'
 
     // Students hold at most one live lease, so a single row is enough.
@@ -284,104 +243,87 @@ onMounted(load)
 
 <style scoped>
 .dash { background: var(--m-bg); }
-
-.dash-head { padding-bottom: 2px; }
-.head-eyebrow { margin: 0; color: var(--m-muted); font-size: 13px; font-weight: 600; }
-.head-name {
-  margin: 2px 0 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-.sec-title { margin: 0 0 var(--m-space-2); color: var(--m-ink); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
-.row-head { display: flex; align-items: center; justify-content: space-between; }
-.sec-action { color: var(--m-primary-dark); font-weight: 700; }
-
-.sk, .panel { border-radius: var(--m-radius); }
-.panel { background: var(--m-surface); }
-.panel-title { margin: var(--m-space-2) 0 0; color: var(--m-ink); font-weight: 700; }
-.panel-sub { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
-
-/* Stay */
-.stay-card { padding: var(--m-space-4); border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
-.stay-card--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
-.stay-top { display: flex; align-items: center; justify-content: space-between; }
-.stay-caption { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.9; }
-.stay-badge { border-radius: 999px; padding: 3px 10px; background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 11px; font-weight: 700; }
-.stay-name { margin-top: var(--m-space-2); font-family: var(--m-font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.stay-room { margin-top: 2px; font-size: 13px; opacity: 0.9; }
-.stay-card--empty .stay-room { color: var(--m-muted); opacity: 1; }
-.stay-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--m-space-2); margin-top: var(--m-space-4); }
-.stay-cell { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.cell-label { font-size: 11px; font-weight: 600; opacity: 0.85; }
-.stay-card--empty .cell-label { color: var(--m-muted); opacity: 1; }
-.cell-value { font-size: 14px; font-weight: 700; }
-.cell-value--muted { color: var(--m-border); }
-
-/* Stats */
-.stat-row { display: flex; gap: var(--m-space-3); }
-.stat {
+.stack {
   display: flex;
-  min-height: 74px;
-  flex: 1 1 0;
-  min-width: 0;
   flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  padding: var(--m-space-3);
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
+  gap: 10px;
+  padding: 10px var(--m-page-gutter) 24px;
+}
+.sk { border-radius: var(--m-radius); }
+
+.card { border-radius: var(--m-radius); background: var(--m-surface); overflow: hidden; }
+.card--pad { padding: 18px 14px; }
+.err-title { margin: 8px 0 0; color: var(--m-ink); font-size: 14px; font-weight: 700; }
+.err-sub { margin: 2px 0 0; color: var(--m-muted); font-size: 12px; }
+
+/* Hero */
+.hero { padding: 14px; border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
+.hero--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
+.hero-top { display: flex; align-items: center; justify-content: space-between; }
+.hero-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.9; }
+.hero-tag { padding: 2px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.22); font-size: 10.5px; font-weight: 700; }
+.hero-name { margin-top: 7px; font-family: var(--m-font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+.hero-sub { margin-top: 2px; font-size: 12px; opacity: 0.9; }
+.hero--empty .hero-sub { color: var(--m-muted); opacity: 1; }
+.hero-rent { margin-top: 10px; font-family: var(--m-font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.hero-rent--muted { color: var(--m-border); }
+.hero-per { font-size: 13px; font-weight: 600; opacity: 0.75; }
+.hero-facts { margin-top: 4px; display: flex; gap: 6px; font-size: 12px; opacity: 0.9; }
+.hero-dash { opacity: 0.6; }
+.hero-cta { margin-top: 12px; }
+
+/* Rows */
+.row {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 0;
+  border-top: 1px solid var(--m-border);
+  background: transparent;
   cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
 }
-.stat:active { transform: scale(0.97); }
-.stat--ok { border-color: color-mix(in srgb, var(--m-success) 40%, var(--m-border)); background: var(--m-success-soft); }
-.stat--warn { border-color: color-mix(in srgb, var(--m-warning) 45%, var(--m-border)); background: var(--m-warning-soft); }
-.stat--danger { border-color: color-mix(in srgb, var(--m-danger) 40%, var(--m-border)); background: var(--m-danger-soft); }
-.stat-value { color: var(--m-ink); font-family: var(--m-font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
-.stat-label { color: var(--m-muted); font-size: 12px; font-weight: 600; }
+.row--first { border-top: 0; }
+.row-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+.row-label { color: var(--m-ink); font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-hint { color: var(--m-muted); font-size: 11.5px; }
+.row-chev { color: #c7ccd3; flex: 0 0 auto; }
+.row-dot { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border-radius: 999px; }
+.row-dot--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.row-dot--warn { background: var(--m-warning-soft); color: var(--m-warning); }
+.row-dot--ok { background: var(--m-success-soft); color: var(--m-success); }
+.row-dot::before { content: ''; width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
 
-/* Rent */
-.rent-card { padding: var(--m-space-4); }
-.rent-main { display: flex; align-items: baseline; justify-content: space-between; gap: var(--m-space-2); }
-.rent-label { color: var(--m-muted); font-size: 13px; font-weight: 600; }
-.rent-amount { color: var(--m-ink); font-family: var(--m-font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-.rent-amount--muted { color: var(--m-border); }
-.rent-note { margin: var(--m-space-2) 0 0; color: var(--m-muted); font-size: 12px; }
-
-/* Shortcuts */
-.tile-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--m-space-3); }
+/* Tiles */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .tile {
   display: flex;
-  min-height: 56px;
+  min-height: 62px;
+  flex-direction: column;
   align-items: center;
-  gap: var(--m-space-3);
-  padding: var(--m-space-3);
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 4px;
   border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
+  border-radius: var(--m-radius-sm);
   background: var(--m-surface);
   color: var(--m-ink);
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
+  font-size: 11.5px;
   font-weight: 700;
-  text-align: left;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.12s ease;
 }
-.tile:active { transform: scale(0.97); }
-.tile-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); color: var(--m-primary-dark); }
-.tile-label { min-width: 0; }
+.tile:active { transform: scale(0.96); }
+.tile-icon { color: var(--m-primary-dark); }
 
 @media (prefers-reduced-motion: reduce) {
-  .stat, .tile { transition: none; }
+  .tile { transition: none; }
 }
 </style>
