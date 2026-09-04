@@ -22,7 +22,7 @@ const NOT_CONFIGURED = 'Supabase not configured';
 // Fake session/user used in demo mode so protected screens render.
 const DEMO_SESSION = {
   access_token: 'demo-token',
-  user: { id: 'demo-user', email: 'demo@accommo.local', role: 'landlord' },
+  user: { id: 'demo-user', email: 'demo@accommo.local', role: 'manager' },
 };
 
 let _supabaseInstance: SupabaseClient<Database>;
@@ -36,8 +36,8 @@ if (supabaseUrl && supabaseAnonKey) {
 
   // Demo-mode role, guessed from the email used to sign in: emails
   // containing "student" land on the Student Hub, everything else on the
-  // Landlord Dashboard. Reset on every sign-in.
-  let demoRole: 'student' | 'landlord' = 'landlord';
+  // Manager Dashboard. Reset on every sign-in.
+  let demoRole: 'student' | 'manager' = 'manager';
 
   // In-memory demo database: rows written via insert() are kept and returned
   // by later queries, so records added while previewing (e.g. properties)
@@ -64,7 +64,7 @@ if (supabaseUrl && supabaseAnonKey) {
         .toLowerCase()
         .includes('student')
         ? 'student'
-        : 'landlord';
+        : 'manager';
       const user = { ...DEMO_SESSION.user, role: demoRole };
       return Promise.resolve({
         data: { user, session: { ...DEMO_SESSION, user } },

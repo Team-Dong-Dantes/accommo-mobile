@@ -38,3 +38,14 @@ yarn-error.log*
 
 # Supabase local CLI state
 supabase/
+
+# Local debugging / scratch output dumps
+discover_out.json
+prop_out.json
+room_out.json
+
+# Claude Code: keep shared CLAUDE.md + .claude/settings.json (system-related,
+# committed on purpose), ignore personal/local/ephemeral agent state
+.claude/settings.local.json
+.claude/*.log
+.mcp-auth/

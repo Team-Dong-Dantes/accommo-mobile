@@ -39,12 +39,12 @@ export default defineRouter(() => {
         if (error || !data) return null;
 
         let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
-        if (role === 'accommodation_manager') role = 'landlord';
+        if (role === 'accommodation_manager') role = 'manager';
         if (!role) {
           const metaRole = session.user.user_metadata?.role;
           if (typeof metaRole === 'string' && metaRole) {
             role = metaRole.toLowerCase();
-            if (role === 'accommodation_manager') role = 'landlord';
+            if (role === 'accommodation_manager') role = 'manager';
           }
         }
         authStore.cachedRole = role;
@@ -68,7 +68,7 @@ export default defineRouter(() => {
     const { data: { session } } = await supabase.auth.getSession();
     const isAuthenticated = !!session;
 
-    const publicRoutes = ['/', '/login', '/register', '/register/role', '/register/landlord'];
+    const publicRoutes = ['/', '/login', '/register', '/register/role', '/register/manager'];
     const isPublicRoute = publicRoutes.includes(to.path);
 
     if (!isAuthenticated && !isPublicRoute) {
@@ -90,15 +90,19 @@ export default defineRouter(() => {
 
       if (to.path === '/profile') {
         const role = await fetchUserRole(session);
-        if (role === 'landlord') return '/landlord/profile';
-        if (role === 'student') return '/student/dashboard';
+        if (role === 'manager') return '/manager/profile';
+        if (role === 'student') return '/student/profile';
       }
 
       if (isPublicRoute) {
         const role = await fetchUserRole(session);
         if (role === 'student') return '/student/home';
-        if (role === 'landlord') return '/landlord/dashboard';
-        if (role === 'admin') return '/admin/dashboard';
+        if (role === 'manager') return '/manager/dashboard';
+        // Admin/OSAS lives in the web client — this app has no admin surface.
+        if (role === 'admin') {
+          await supabase.auth.signOut();
+          return '/login?adminUsesWeb=true';
+        }
         // Missing or unrecognized role: invalid account state. Sign out and land
         // on a safe (still public) route instead of returning '/' again, which
         // would re-trigger this guard and loop forever.
@@ -106,12 +110,12 @@ export default defineRouter(() => {
         return role === null ? '/register?newUser=true' : '/login';
       }
 
-      // Role-based authorization: protect student vs landlord routes
+      // Role-based authorization: protect student vs manager routes
       const role = await fetchUserRole(session);
       if (to.path.startsWith('/student') && role !== 'student') {
-        return role === 'landlord' ? '/landlord/dashboard' : '/login';
+        return role === 'manager' ? '/manager/dashboard' : '/login';
       }
-      if (to.path.startsWith('/landlord') && role !== 'landlord') {
+      if (to.path.startsWith('/manager') && role !== 'manager') {
         return role === 'student' ? '/student/home' : '/login';
       }
     }

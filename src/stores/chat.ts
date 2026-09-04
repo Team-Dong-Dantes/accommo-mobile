@@ -32,7 +32,7 @@ function startPolling(conversationId: string, store: any) {
           text: m.body,
           senderId: m.sender_id,
           timestamp: m.sent_at,
-          isLandlord: m.sender_id === myId,
+          isManager: m.sender_id === myId,
           status: m.status || 'sent',
         }))
 
@@ -129,7 +129,7 @@ export const useChatStore = defineStore('chat', {
         ;(users || []).forEach((u: any) => {
           userMap[u.id] = {
             name: u.full_name || 'Tenant',
-            role: u.role === 'student' ? 'Tenant' : u.role === 'accommodation_manager' || u.role === 'landlord' ? 'Manager' : 'User',
+            role: u.role === 'student' ? 'Tenant' : u.role === 'accommodation_manager' || u.role === 'manager' ? 'Manager' : 'User',
           }
         })
 
@@ -188,7 +188,7 @@ export const useChatStore = defineStore('chat', {
           text: m.body,
           senderId: m.sender_id,
           timestamp: m.sent_at,
-          isLandlord: m.sender_id === user.id,
+          isManager: m.sender_id === user.id,
           status: m.status || 'sent',
         }))
 
@@ -216,7 +216,7 @@ export const useChatStore = defineStore('chat', {
                 text: msg.text,
                 senderId: msg.senderId,
                 timestamp: msg.timestamp,
-                isLandlord: msg.senderId === user.id,
+                isManager: msg.senderId === user.id,
                 status: 'read',
               })
               if (msg.senderId !== user.id) {
@@ -236,7 +236,7 @@ export const useChatStore = defineStore('chat', {
                 text: row.body,
                 senderId: row.sender_id,
                 timestamp: row.sent_at,
-                isLandlord: row.sender_id === user.id,
+                isManager: row.sender_id === user.id,
                 status: row.status || 'sent',
               })
               if (row.sender_id !== user.id) {
@@ -387,7 +387,7 @@ export const useChatStore = defineStore('chat', {
       return (created as any)?.id ?? null
     },
 
-    // Students currently renting from this landlord (active leases) — used to
+    // Students currently renting from this manager (active leases) — used to
     // start a new conversation.
     async loadTenantsForNewChat(): Promise<{ id: string; name: string }[]> {
       const {
@@ -429,7 +429,7 @@ export const useChatStore = defineStore('chat', {
       return studentIds.map((id) => ({ id, name: userMap.get(id) || 'Student' }))
     },
 
-    // Landlord messaging is tenant-only; OSAS concerns are filed via the Support page.
+    // Manager messaging is tenant-only; OSAS concerns are filed via the Support page.
 
     clearActive() {
       stopPolling()

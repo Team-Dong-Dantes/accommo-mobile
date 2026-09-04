@@ -2,13 +2,13 @@ import { defineStore } from 'pinia';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/shared/utils/supabase';
 import { uploadDocument } from '@/shared/utils/upload';
-import type { RegisterForm } from '@/shared/types/database';
+import type { RegisterForm } from '@/shared/types/forms';
 
 // The database role enum uses 'accommodation_manager' where the app's UI and
-// routing use 'landlord' (the leader's terminology change). Map between them
-// at the DB boundary so the rest of the app keeps using 'landlord'.
-const APP_ROLE_TO_DB: Record<string, string> = { landlord: 'accommodation_manager' };
-const DB_ROLE_TO_APP: Record<string, string> = { accommodation_manager: 'landlord' };
+// routing use 'manager' (the leader's terminology change). Map between them
+// at the DB boundary so the rest of the app keeps using 'manager'.
+const APP_ROLE_TO_DB: Record<string, string> = { manager: 'accommodation_manager' };
+const DB_ROLE_TO_APP: Record<string, string> = { accommodation_manager: 'manager' };
 
 function toDbRole(role: string): string {
   return APP_ROLE_TO_DB[role] ?? role;
@@ -56,7 +56,7 @@ function sanitizeError(error: unknown): Error {
   return new Error(`${friendly} (${raw})`);
 }
 
-export interface LandlordRegisterForm {
+export interface ManagerRegisterForm {
   email: string;
   password?: string;
   fullName: string;
@@ -71,7 +71,7 @@ export const useAuthStore = defineStore('auth', {
     cachedRole: null as string | null,
   }),
   actions: {
-    formatProfileData(form: RegisterForm | LandlordRegisterForm, role: 'student' | 'landlord') {
+    formatProfileData(form: RegisterForm | ManagerRegisterForm, role: 'student' | 'manager') {
       const nameParts = form.fullName.trim().split(' ').filter(Boolean);
       let initials = 'UN';
 
@@ -104,7 +104,7 @@ export const useAuthStore = defineStore('auth', {
     async ensureUserRow(
       userId: string,
       email: string,
-      profileData: { role: 'student' | 'landlord'; full_name: string; initials: string; phone?: string },
+      profileData: { role: 'student' | 'manager'; full_name: string; initials: string; phone?: string },
       status?: 'pending',
     ) {
       const { error } = await supabase
@@ -314,9 +314,9 @@ export const useAuthStore = defineStore('auth', {
       this.cachedRole = 'student';
     },
 
-    // --- LANDLORD REGISTRATION (account-first) ---
-    async createLandlordAccount(form: LandlordRegisterForm) {
-      const profileData = this.formatProfileData(form, 'landlord');
+    // --- MANAGER REGISTRATION (account-first) ---
+    async createManagerAccount(form: ManagerRegisterForm) {
+      const profileData = this.formatProfileData(form, 'manager');
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
@@ -329,16 +329,16 @@ export const useAuthStore = defineStore('auth', {
       return userId;
     },
 
-    async finalizeLandlordAccount(userId: string, form: LandlordRegisterForm) {
-      await this.submitLandlordVerificationDocuments(userId, form);
-      // After submit, the landlord is signed out and “pending” until OSAS approves.
+    async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
+      await this.submitManagerVerificationDocuments(userId, form);
+      // After submit, the manager is signed out and “pending” until OSAS approves.
       await supabase.auth.signOut();
     },
 
-    // --- LANDLORD REGISTRATION (legacy one-shot) ---
+    // --- MANAGER REGISTRATION (legacy one-shot) ---
 
-    async registerLandlord(form: LandlordRegisterForm) {
-      const profileData = this.formatProfileData(form, 'landlord');
+    async registerManager(form: ManagerRegisterForm) {
+      const profileData = this.formatProfileData(form, 'manager');
 
       const response = await supabase.auth.signUp({
         email: form.email,
@@ -356,15 +356,15 @@ export const useAuthStore = defineStore('auth', {
       // the user row — this significantly cuts registration latency vs doing the
       // uploads one-after-another on a mobile connection.
       await this.ensureUserRow(userId, form.email, profileData, 'pending');
-      await this.submitLandlordVerificationDocuments(userId, form);
+      await this.submitManagerVerificationDocuments(userId, form);
 
       await supabase.auth.signOut();
 
       return response.data;
     },
 
-    async completeGoogleLandlordProfile(userId: string, form: LandlordRegisterForm) {
-      const profileData = this.formatProfileData(form, 'landlord');
+    async completeGoogleManagerProfile(userId: string, form: ManagerRegisterForm) {
+      const profileData = this.formatProfileData(form, 'manager');
 
       await this.ensureUserRow(userId, form.email, profileData, 'pending');
 
@@ -375,10 +375,10 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
-      await this.submitLandlordVerificationDocuments(userId, form);
+      await this.submitManagerVerificationDocuments(userId, form);
     },
 
-    async submitLandlordVerificationDocuments(userId: string, form: LandlordRegisterForm) {
+    async submitManagerVerificationDocuments(userId: string, form: ManagerRegisterForm) {
       if (!form.governmentIdFile || !form.businessPermitFile) {
         throw new Error('Both verification documents are required.');
       }

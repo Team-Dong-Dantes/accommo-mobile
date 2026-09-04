@@ -1,4 +1,4 @@
-export interface LandlordProfile {
+export interface ManagerProfile {
   id: string
   name: string
   memberSince: string
@@ -45,7 +45,7 @@ export interface ChatMessage {
   text: string
   senderId: string
   timestamp: string
-  isLandlord: boolean
+  isManager: boolean
   status: 'sent' | 'delivered' | 'read'
 }
 
@@ -85,4 +85,48 @@ export interface MetricCardData {
   value: string | number
   icon: string
   color: string
+}
+
+// --- App shell (MainLayout) ---
+
+export interface BottomTab {
+  /** Stable id used for active-tab matching. */
+  name: string
+  /** Destination when the tab is tapped. */
+  route: string
+  /** Iconify icon name. Ignored when `avatar` is true. */
+  icon: string
+  /** Accessible label. */
+  label: string
+  /** Render the user's avatar instead of an icon (profile tab). */
+  avatar?: boolean
+  /** Extra path prefixes that should light this tab up. */
+  match?: readonly string[]
+}
+
+export interface QuickAction {
+  icon: string
+  label: string
+  route: string
+}
+
+/** A page that replaces the wordmark header with a back button + title. */
+export interface SecondaryPage {
+  /** Exact path, or a regex for parameterised routes. */
+  path: string | RegExp
+  title: string
+  /** Where the back button goes. */
+  back: string
+  /** Spoken destination for the back button's aria-label. */
+  backLabel: string
+  /** Keep the bottom nav visible (stacked pages hide it like secondary ones). */
+  stacked?: boolean
+}
+
+export interface ShellConfig {
+  home: string
+  notifications: string
+  tabs: readonly BottomTab[]
+  quickActions: readonly QuickAction[]
+  secondaryPages: readonly SecondaryPage[]
 }
