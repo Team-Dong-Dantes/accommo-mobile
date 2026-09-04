@@ -32,7 +32,7 @@
             @click="goToNotifications"
           >
             <IconifyIcon icon="lucide:bell" width="22" />
-            <span v-if="unreadNotifCount > 0" class="header-notif-dot" />
+            <span v-if="notifications.unread > 0" class="header-notif-dot" />
           </q-btn>
         </template>
       </div>
@@ -76,6 +76,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/utils/supabase'
+import { useNotificationsStore } from '@/stores/notifications'
 import { initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
@@ -85,6 +86,7 @@ import type { SecondaryPage, ShellConfig } from '@/types/app-types'
 
 const router = useRouter()
 const route = useRoute()
+const notifications = useNotificationsStore()
 
 // One shell, two configurations. The role is read from the path so the chrome
 // renders correctly on first paint, with no async role lookup flicker.
@@ -140,7 +142,6 @@ const config = computed(() => SHELLS[role.value])
 
 const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
-const unreadNotifCount = ref(0)
 const quickActionsOpen = ref(false)
 const scrolled = ref(false)
 const activeBottomTab = ref('home')
@@ -231,18 +232,16 @@ onMounted(async () => {
     userInitials.value =
       row?.initials || initialsOf(String(row?.full_name || metadata?.full_name || user.email || 'User'))
 
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .is('read_at', null)
-    unreadNotifCount.value = count || 0
+    // Subscribes once for the session; the notifications page reuses the same
+    // store, so a row marked read there clears this dot immediately.
+    await notifications.start(user.id)
   } catch {
     userInitials.value = 'U'
   }
 })
 
 onUnmounted(() => {
+  notifications.stop()
   window.removeEventListener('scroll', onScroll, true)
   window.removeEventListener('accommo:avatar-change', onAvatarChange)
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)

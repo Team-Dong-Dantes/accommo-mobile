@@ -125,10 +125,21 @@ if (supabaseUrl && supabaseAnonKey) {
     });
   }
 
+  // Realtime no-op. Callers subscribe on mount, so the stub has to be
+  // chainable in the same shape or the layout crashes before it renders.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const demoChannel: any = {
+    on: () => demoChannel,
+    subscribe: () => demoChannel,
+    unsubscribe: () => Promise.resolve('ok'),
+  };
+
   _supabaseInstance = {
     auth,
     from: (table: string) => chain(table),
     rpc: () => Promise.resolve({ data: false, error: null }),
+    channel: () => demoChannel,
+    removeChannel: () => Promise.resolve('ok'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as unknown as SupabaseClient<Database>;
 }
