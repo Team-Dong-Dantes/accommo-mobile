@@ -95,14 +95,6 @@
           </span>
         </div>
       </section>
-
-      <!-- Shortcuts -->
-      <div class="tiles">
-        <button v-for="t in shortcuts" :key="t.route" type="button" class="tile" @click="go(t.route)">
-          <IconifyIcon :icon="t.icon" width="17" class="tile-icon" />
-          <span>{{ t.label }}</span>
-        </button>
-      </div>
     </div>
   </q-page>
 </template>
@@ -148,12 +140,6 @@ const error = ref('')
 const firstName = ref('there')
 const stay = ref<Stay | null>(null)
 const attention = ref<AttentionItem[]>([])
-
-const shortcuts = [
-  { icon: 'lucide:search', label: 'Discover', route: '/student/discover' },
-  { icon: 'lucide:wallet-cards', label: 'Payments', route: '/student/payments' },
-  { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
-] as const
 
 const greeting = computed(() => {
   const h = new Date().getHours()
@@ -600,31 +586,7 @@ onMounted(load)
 .clear-label { color: var(--m-ink); font-size: 14px; font-weight: 700; }
 .clear-hint { color: var(--m-muted); font-size: 12px; }
 
-/* Shortcuts */
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.tile {
-  display: flex;
-  min-height: 58px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 8px 4px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
-}
-.tile:active { transform: scale(0.96); }
-.tile-icon { color: var(--m-primary-dark); }
-
 @media (prefers-reduced-motion: reduce) {
-  .lead-action, .tile { transition: none; }
+  .lead-action { transition: none; }
 }
 </style>
