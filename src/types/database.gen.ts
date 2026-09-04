@@ -1441,6 +1441,10 @@ export type Database = {
         }[]
       }
       is_admin: { Args: { p_uid: string }; Returns: boolean }
+      mark_conversation_read: {
+        Args: { p_conversation: string }
+        Returns: undefined
+      }
       notify_admins: {
         Args: {
           p_body: string

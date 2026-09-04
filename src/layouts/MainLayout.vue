@@ -156,9 +156,9 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
 const subPage = computed(() => matchSecondary(route.path, config.value))
 const isSubPage = computed(() => Boolean(subPage.value))
 
-// Student chat opens a full-width conversation; the FAB would sit on top of it.
+// An open conversation fills the screen; the FAB would sit on top of it.
 const isInConversation = computed(
-  () => route.path.startsWith(`/${role.value}/messages`) && Boolean(route.query.manager),
+  () => route.path.startsWith(`/${role.value}/messages`) && Boolean(route.query.c),
 )
 const showQuickActions = computed(
   () => !isSubPage.value && !isInConversation.value && !chatFullscreen.value,

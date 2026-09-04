@@ -118,7 +118,12 @@
             </span>
           </span>
           <span class="person-actions">
-            <button type="button" class="icon-btn" aria-label="Message manager" @click.stop="go('/student/messages')">
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Message manager"
+              @click.stop="messageManager"
+            >
               <IconifyIcon icon="lucide:message-circle" width="17" />
             </button>
             <a v-if="manager.phone" class="icon-btn" :href="`tel:${manager.phone}`" aria-label="Call manager">
@@ -183,6 +188,7 @@ interface Notice {
 }
 
 interface Manager {
+  id: string
   name: string
   initials: string
   phone: string | null
@@ -253,6 +259,12 @@ function ago(iso: string | null | undefined) {
 
 function go(path: string) {
   void router.push(path)
+}
+
+// ?to= lets Messages find or create the thread with this manager.
+function messageManager() {
+  const id = manager.value?.id
+  void router.push(id ? `/student/messages?to=${id}` : '/student/messages')
 }
 
 async function load() {
@@ -342,6 +354,7 @@ async function load() {
         ])
         if (mgr) {
           manager.value = {
+            id: managerId,
             name: mgr.full_name,
             initials: mgr.initials || initialsOf(mgr.full_name),
             phone: mgr.phone || null,
