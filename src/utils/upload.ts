@@ -1,3 +1,5 @@
+import { supabase } from '@/utils/supabase';
+
 // Cloudinary client-side upload helper (unsigned) — mobile.
 //
 // Mirrors the web app's Cloudinary setup (accommo-web/src/utils/cloudinary.ts)
@@ -131,4 +133,28 @@ export async function uploadDocument(
 ): Promise<string> {
   const result = await performUpload(file);
   return result.url || result.secureUrl;
+}
+
+/**
+ * Uploads a new profile photo and stores it where the app already looks.
+ *
+ * There is no users.avatar_url column: MainLayout reads the avatar from the
+ * auth user's metadata (avatar_url, falling back to Google's `picture` claim),
+ * so writing it there is what actually makes a new photo appear in the app
+ * chrome as well as on the profile. The accommo:avatar-change event refreshes
+ * the bottom-nav avatar without waiting for a reload.
+ */
+export async function uploadAvatar(file: File, _userId: string): Promise<string> {
+  if (!ALLOWED_IMAGE.includes(file.type)) {
+    throw new Error('An avatar must be a JPEG, PNG or WebP image.');
+  }
+
+  const result = await performUpload(file);
+  const url = result.url || result.secureUrl;
+
+  const { error } = await supabase.auth.updateUser({ data: { avatar_url: url } });
+  if (error) throw error;
+
+  window.dispatchEvent(new CustomEvent('accommo:avatar-change', { detail: { url } }));
+  return url;
 }
