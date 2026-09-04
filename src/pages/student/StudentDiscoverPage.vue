@@ -1,26 +1,5 @@
 <template>
   <q-page class="disc">
-    <div class="search">
-      <IconifyIcon icon="lucide:search" width="17" class="search-icon" />
-      <input
-        v-model="query"
-        class="search-input"
-        type="search"
-        placeholder="Search by name or address"
-        aria-label="Search accommodations"
-      />
-      <button
-        type="button"
-        class="search-filter"
-        :class="{ 'search-filter--on': activeFilterCount > 0 }"
-        aria-label="Filters"
-        @click="filtersOpen = true"
-      >
-        <IconifyIcon icon="lucide:sliders-horizontal" width="17" />
-        <span v-if="activeFilterCount" class="search-filter-dot">{{ activeFilterCount }}</span>
-      </button>
-    </div>
-
     <div v-if="loading" class="stack">
       <q-skeleton type="rect" height="96px" class="sk" />
       <q-skeleton type="rect" height="96px" class="sk" />
@@ -60,49 +39,121 @@
       </button>
     </div>
 
-    <div v-else class="stack">
-      <p class="count">{{ results.length }} {{ results.length === 1 ? 'place' : 'places' }}</p>
+    <div v-else class="stack" :class="{ 'stack--grid': view === 'grid' }">
+      <div class="count">
+        <span>{{ results.length }} {{ results.length === 1 ? 'place' : 'places' }}</span>
+        <span class="view" role="group" aria-label="View">
+          <button
+            type="button"
+            class="view-btn"
+            :class="{ 'view-btn--on': view === 'list' }"
+            :aria-pressed="view === 'list'"
+            aria-label="List view"
+            @click="setView('list')"
+          >
+            <IconifyIcon icon="lucide:rows-3" width="15" />
+          </button>
+          <button
+            type="button"
+            class="view-btn"
+            :class="{ 'view-btn--on': view === 'grid' }"
+            :aria-pressed="view === 'grid'"
+            aria-label="Grid view"
+            @click="setView('grid')"
+          >
+            <IconifyIcon icon="lucide:layout-grid" width="15" />
+          </button>
+        </span>
+      </div>
 
+      <!-- Grid: photo-led, two per row -->
+      <div v-if="view === 'grid'" class="grid">
+        <button v-for="item in results" :key="item.id" type="button" class="tile" @click="open(item.id)">
+          <span class="tile-shot">
+            <img v-if="item.image" :src="item.image" :alt="item.name" loading="lazy" />
+            <span v-else class="tile-mono">{{ item.monogram }}</span>
+            <span class="tile-flag" :class="item.vacancies ? 'tile-flag--ok' : 'tile-flag--none'">
+              {{ item.vacancies ? `${item.vacancies} free` : 'Full' }}
+            </span>
+          </span>
+          <span class="tile-body">
+            <span class="tile-name">{{ item.name }}</span>
+            <span class="tile-where">{{ item.distance || item.address }}</span>
+            <span v-if="item.minRent !== null" class="tile-rent">
+              {{ formatPeso(item.minRent) }}<span class="tile-per">/mo</span>
+            </span>
+            <span v-else class="tile-rent tile-rent--none">Rent on request</span>
+          </span>
+        </button>
+      </div>
+
+      <!-- List: text-led, one per row -->
+      <template v-else>
+        <button
+          v-for="item in results"
+          :key="item.id"
+          type="button"
+          class="lst"
+          @click="open(item.id)"
+        >
+          <span class="lst-thumb">
+            <img v-if="item.image" :src="item.image" :alt="item.name" loading="lazy" />
+            <span v-else class="lst-mono">{{ item.monogram }}</span>
+          </span>
+
+          <span class="lst-body">
+            <span class="lst-top">
+              <span class="lst-name">{{ item.name }}</span>
+              <span v-if="item.vacancies" class="lst-free">{{ item.vacancies }} free</span>
+              <span v-else class="lst-full">Full</span>
+            </span>
+
+            <span class="lst-where">{{ item.address }}</span>
+            <span v-if="item.distance" class="lst-dist">
+              <IconifyIcon icon="lucide:map-pin" width="11" />{{ item.distance }}
+            </span>
+
+            <span class="lst-foot">
+              <span v-if="item.minRent !== null" class="lst-rent">
+                {{ formatPeso(item.minRent) }}<span class="lst-per">/mo</span>
+              </span>
+              <span v-else class="lst-rent lst-rent--none">Rent on request</span>
+
+              <span v-if="item.amenities.length" class="lst-am">
+                <IconifyIcon
+                  v-for="a in item.amenities.slice(0, 4)"
+                  :key="a"
+                  :icon="AMENITY_META[a]?.icon || 'lucide:dot'"
+                  width="13"
+                />
+              </span>
+            </span>
+          </span>
+        </button>
+      </template>
+    </div>
+
+    <!-- Search sits on the FAB's baseline so the two read as one control band -->
+    <div v-if="!loading && !error" class="dock">
+      <div class="dock-field">
+        <IconifyIcon icon="lucide:search" width="16" class="dock-icon" />
+        <input
+          v-model="query"
+          class="dock-input"
+          type="search"
+          placeholder="Search places"
+          aria-label="Search accommodations"
+        />
+      </div>
       <button
-        v-for="item in results"
-        :key="item.id"
         type="button"
-        class="lst"
-        @click="open(item.id)"
+        class="dock-btn"
+        :class="{ 'dock-btn--on': activeFilterCount > 0 }"
+        aria-label="Filters"
+        @click="filtersOpen = true"
       >
-        <span class="lst-thumb">
-          <img v-if="item.image" :src="item.image" :alt="item.name" loading="lazy" />
-          <span v-else class="lst-mono">{{ item.monogram }}</span>
-        </span>
-
-        <span class="lst-body">
-          <span class="lst-top">
-            <span class="lst-name">{{ item.name }}</span>
-            <span v-if="item.vacancies" class="lst-free">{{ item.vacancies }} free</span>
-            <span v-else class="lst-full">Full</span>
-          </span>
-
-          <span class="lst-where">{{ item.address }}</span>
-          <span v-if="item.distance" class="lst-dist">
-            <IconifyIcon icon="lucide:map-pin" width="11" />{{ item.distance }}
-          </span>
-
-          <span class="lst-foot">
-            <span v-if="item.minRent !== null" class="lst-rent">
-              {{ formatPeso(item.minRent) }}<span class="lst-per">/mo</span>
-            </span>
-            <span v-else class="lst-rent lst-rent--none">Rent on request</span>
-
-            <span v-if="item.amenities.length" class="lst-am">
-              <IconifyIcon
-                v-for="a in item.amenities.slice(0, 4)"
-                :key="a"
-                :icon="AMENITY_META[a]?.icon || 'lucide:dot'"
-                width="13"
-              />
-            </span>
-          </span>
-        </span>
+        <IconifyIcon icon="lucide:sliders-horizontal" width="17" />
+        <span v-if="activeFilterCount" class="dock-dot">{{ activeFilterCount }}</span>
       </button>
     </div>
 
@@ -177,6 +228,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
+import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
@@ -198,9 +250,12 @@ interface Listing {
 
 const router = useRouter()
 
+const VIEW_KEY = 'accommo:discover-view'
+
 const loading = ref(true)
 const error = ref('')
 const query = ref('')
+const view = ref<'list' | 'grid'>('list')
 const filtersOpen = ref(false)
 const listings = ref<Listing[]>([])
 
@@ -264,6 +319,26 @@ function open(id: string) {
   void router.push(`/student/listing/${id}`)
 }
 
+// Which view a reader prefers is a per-device convenience, and storage can
+// throw outright in a private window, so nothing depends on it succeeding.
+function setView(next: 'list' | 'grid') {
+  view.value = next
+  try {
+    localStorage.setItem(VIEW_KEY, next)
+  } catch {
+    /* preference simply is not remembered */
+  }
+}
+
+function restoreView() {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY)
+    if (saved === 'grid' || saved === 'list') view.value = saved
+  } catch {
+    /* keep the default */
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -319,13 +394,16 @@ async function load() {
     rentBounds.max = Math.max(DEFAULT_MAX, Math.ceil(ceiling / 500) * 500)
     filters.maxRent = rentBounds.max
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Something went wrong.'
+    error.value = errorMessage(e, 'Something went wrong.')
   } finally {
     loading.value = false
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  restoreView()
+  void load()
+})
 </script>
 
 <style scoped>
@@ -333,39 +411,196 @@ onMounted(load)
   background: var(--m-bg);
 }
 
-.search {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Clears the docked search, which sits on the FAB's baseline. */
+  padding: 8px var(--m-page-gutter) 126px;
+}
+.sk {
+  border-radius: var(--m-radius);
+}
+.count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 1px 2px;
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.view {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--m-border);
+}
+.view-btn {
+  display: grid;
+  width: 34px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.view-btn--on {
+  background: var(--m-surface);
+  color: var(--m-primary-dark);
+}
+
+/* Grid — photo-led, two per row */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.tile-shot {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  place-items: center;
+  overflow: hidden;
+  background: var(--m-primary-soft);
+}
+.tile-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Most listings have no photo, so the monogram has to look deliberate. */
+.tile-mono {
+  color: var(--m-primary-dark);
+  font-family: var(--m-font-display);
+  font-size: 34px;
+  font-weight: 800;
+  opacity: 0.55;
+}
+.tile-flag {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.tile-flag--ok {
+  background: var(--m-success);
+  color: #fff;
+}
+.tile-flag--none {
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+}
+.tile-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 9px 10px;
+}
+.tile-name {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tile-where {
+  color: var(--m-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile-rent {
+  margin-top: 2px;
+  color: var(--m-primary-dark);
+  font-family: var(--m-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tile-rent--none {
+  color: var(--m-muted);
+  font-family: var(--m-font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.tile-per {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* Docked search — same baseline and height as the quick-actions FAB, ending
+   where it begins, so the two read as one band. */
+.dock {
+  position: fixed;
+  bottom: 68px;
+  left: var(--m-page-gutter);
+  /* 16px FAB inset + 44px FAB + 8px gap */
+  right: 68px;
+  z-index: 60;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px var(--m-page-gutter);
-  border-bottom: 1px solid var(--m-border);
-  background: var(--m-bg);
 }
-.search-icon {
+.dock-field {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+}
+.dock-icon {
   position: absolute;
-  left: calc(var(--m-page-gutter) + 12px);
+  left: 13px;
   color: var(--m-muted);
   pointer-events: none;
 }
-.search-input {
-  flex: 1 1 auto;
-  min-height: 44px;
-  padding: 0 12px 0 36px;
+.dock-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 35px;
   border: 1px solid var(--m-border);
   border-radius: 999px;
   background: var(--m-surface);
+  box-shadow: var(--m-shadow);
   color: var(--m-ink);
   font: inherit;
   font-size: 13.5px;
 }
-.search-input:focus {
+.dock-input:focus {
   border-color: var(--m-primary);
   outline: none;
 }
-.search-filter {
+.dock-btn {
   position: relative;
   display: grid;
   width: 44px;
@@ -373,17 +608,18 @@ onMounted(load)
   flex: 0 0 44px;
   place-items: center;
   border: 1px solid var(--m-border);
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--m-surface);
+  box-shadow: var(--m-shadow);
   color: var(--m-ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.search-filter--on {
+.dock-btn--on {
   border-color: var(--m-primary);
   color: var(--m-primary-dark);
 }
-.search-filter-dot {
+.dock-dot {
   position: absolute;
   top: -2px;
   right: -2px;
@@ -397,22 +633,6 @@ onMounted(load)
   color: #fff;
   font-size: 10px;
   font-weight: 800;
-}
-
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px var(--m-page-gutter) 20px;
-}
-.sk {
-  border-radius: var(--m-radius);
-}
-.count {
-  margin: 0 0 1px 2px;
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .card {
@@ -564,7 +784,8 @@ onMounted(load)
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 24px var(--m-page-gutter);
+  /* Keeps "Clear filters" clear of the docked search. */
+  padding: 24px var(--m-page-gutter) 126px;
   text-align: center;
 }
 .empty-icon {

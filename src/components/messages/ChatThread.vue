@@ -66,6 +66,7 @@ import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
+import { errorMessage } from '@/utils/errors'
 import { initialsOf } from '@/utils/format'
 import { useMessagesStore } from '@/stores/messages'
 
@@ -168,7 +169,7 @@ async function send() {
   } catch (e) {
     messages.value = messages.value.filter((m) => m.id !== tempId)
     outgoing.value = body
-    error.value = e instanceof Error ? e.message : 'Message not sent.'
+    error.value = errorMessage(e, 'Message not sent.')
   } finally {
     sending.value = false
   }
@@ -227,7 +228,7 @@ async function load() {
 
     void toBottom()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Could not open this conversation.'
+    error.value = errorMessage(e, 'Could not open this conversation.')
   } finally {
     loading.value = false
   }

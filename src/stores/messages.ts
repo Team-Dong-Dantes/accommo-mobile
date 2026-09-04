@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase'
+import { errorMessage } from '@/utils/errors';
 import { initialsOf } from '@/utils/format';
 
 export interface Thread {
@@ -70,7 +71,7 @@ export const useMessagesStore = defineStore('messages', {
           .sort(newestFirst);
         this.ready = true;
       } catch (e) {
-        this.error = e instanceof Error ? e.message : 'Could not load conversations.';
+        this.error = errorMessage(e, 'Could not load conversations.');
       } finally {
         this.loading = false;
       }

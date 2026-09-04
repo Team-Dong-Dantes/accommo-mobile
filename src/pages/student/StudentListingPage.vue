@@ -142,6 +142,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
+import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
@@ -300,7 +301,7 @@ async function load() {
       manager.replyMinutes = profile?.avg_response_minutes ?? null
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Something went wrong.'
+    error.value = errorMessage(e, 'Something went wrong.')
   } finally {
     loading.value = false
   }
