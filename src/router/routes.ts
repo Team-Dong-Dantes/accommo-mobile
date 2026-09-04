@@ -1,21 +1,23 @@
 import type { RouteRecordRaw } from 'vue-router';
-import MainLayout from '@/layouts/MainLayout.vue';
 import authRoutes from '@/router/auth';
-import managerRoutes from '@/router/manager';
-import studentRoutes from '@/router/student';
 
+// Feature routes were stripped for the rebuild. As each role's screens come
+// back, add `src/router/manager.ts` / `src/router/student.ts` and mount them as
+// children of MainLayout:
+//
+//   {
+//     path: '/',
+//     component: MainLayout,
+//     children: [...managerRoutes, ...studentRoutes],
+//   },
+//
+// MainLayout already carries the shell config for both roles.
+// See docs/FEATURES.md for the screen-by-screen specification.
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('@/layouts/AuthLayout.vue'),
     children: authRoutes,
-  },
-
-  // One app shell for both signed-in roles; it configures itself from the path.
-  {
-    path: '/',
-    component: MainLayout,
-    children: [...managerRoutes, ...studentRoutes],
   },
 
   {
