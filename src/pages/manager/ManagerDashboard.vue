@@ -56,88 +56,103 @@
         </div>
       </div>
 
-      <!-- Needs attention: the actual items, not counts of them -->
-      <q-card flat bordered class="card">
-        <div class="card-head">
-          <span class="card-title">Needs attention</span>
-          <span v-if="attention.length" class="card-count">{{ attention.length }}</span>
+      <!-- Needs attention: each item is its own notice, not a table row -->
+      <section class="sec">
+        <div class="sec-head">
+          <h2 class="sec-title">Needs attention</h2>
+          <button
+            v-if="moreAttention > 0"
+            type="button"
+            class="sec-link"
+            @click="go('/manager/osas-compliance')"
+          >
+            +{{ moreAttention }} more
+          </button>
         </div>
 
-        <button
-          v-for="item in visibleAttention"
-          :key="item.id"
-          type="button"
-          class="row"
-          @click="go(item.route)"
-        >
-          <span class="row-icon" :class="`row-icon--${item.tone}`">
-            <IconifyIcon :icon="item.icon" width="14" />
-          </span>
-          <span class="row-body">
-            <span class="row-label">{{ item.label }}</span>
-            <span class="row-hint">{{ item.hint }}</span>
-          </span>
-          <span v-if="item.when" class="row-when">{{ item.when }}</span>
-          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
-        </button>
+        <div class="notices">
+          <button
+            v-for="item in visibleAttention"
+            :key="item.id"
+            type="button"
+            class="notice"
+            :class="`notice--${item.tone}`"
+            @click="go(item.route)"
+          >
+            <span class="notice-icon">
+              <IconifyIcon :icon="item.icon" width="16" />
+            </span>
+            <span class="notice-body">
+              <span class="notice-label">{{ item.label }}</span>
+              <span class="notice-hint">{{ item.hint }}</span>
+            </span>
+            <span v-if="item.when" class="notice-when">{{ item.when }}</span>
+          </button>
 
-        <button v-if="moreAttention > 0" type="button" class="row row--more" @click="go('/manager/osas-compliance')">
-          <span class="row-label row-label--link">+ {{ moreAttention }} more</span>
-        </button>
-
-        <div v-if="!attention.length" class="row row--static">
-          <span class="row-icon row-icon--ok"><IconifyIcon icon="lucide:check" width="14" /></span>
-          <span class="row-body">
-            <span class="row-label">All clear</span>
-            <span class="row-hint">Concerns, applications and renewals land here</span>
-          </span>
+          <div v-if="!attention.length" class="notice notice--ok notice--static">
+            <span class="notice-icon"><IconifyIcon icon="lucide:check" width="16" /></span>
+            <span class="notice-body">
+              <span class="notice-label">All clear</span>
+              <span class="notice-hint">Concerns, applications and renewals land here</span>
+            </span>
+          </div>
         </div>
-      </q-card>
+      </section>
 
-      <!-- Accommodations: ordered by what needs work, keyed on free beds -->
-      <q-card flat bordered class="card">
-        <div class="card-head">
-          <span class="card-title">Accommodations</span>
-          <button v-if="hasAccommodations" type="button" class="card-link" @click="go('/manager/properties')">
+      <!-- Accommodations: a card rail, ordered by what needs work -->
+      <section class="sec">
+        <div class="sec-head">
+          <h2 class="sec-title">Accommodations</h2>
+          <button
+            v-if="hasAccommodations"
+            type="button"
+            class="sec-link"
+            @click="go('/manager/properties')"
+          >
             Manage
           </button>
         </div>
 
-        <button
-          v-for="a in visibleAccommodations"
-          :key="a.id"
-          type="button"
-          class="row"
-          @click="go(`/manager/properties/${a.id}`)"
-        >
-          <span class="row-body">
-            <span class="row-label">{{ a.name }}</span>
-            <span class="row-hint">
-              <i class="pip" :class="`pip--${toneOf(a.status)}`" />{{ statusLabel(a.status) }}
-              <template v-if="a.expired">
-                <span class="row-flag">{{ a.expired }} expired</span>
-              </template>
+        <div class="rail">
+          <button
+            v-for="a in accommodations"
+            :key="a.id"
+            type="button"
+            class="tile"
+            @click="go(`/manager/properties/${a.id}`)"
+          >
+            <span class="tile-top">
+              <span class="tile-status" :class="`tile-status--${toneOf(a.status)}`">
+                {{ statusLabel(a.status) }}
+              </span>
+              <span v-if="a.expired" class="tile-alert">
+                <IconifyIcon icon="lucide:file-warning" width="13" />{{ a.expired }}
+              </span>
             </span>
-          </span>
-          <span class="vac" :class="{ 'vac--full': a.beds > 0 && a.free === 0, 'vac--none': a.beds === 0 }">
-            {{ a.beds === 0 ? 'No rooms' : a.free === 0 ? 'Full' : `${a.free} free` }}
-          </span>
-          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
-        </button>
 
-        <button v-if="moreAccommodations > 0" type="button" class="row row--more" @click="go('/manager/properties')">
-          <span class="row-label row-label--link">+ {{ moreAccommodations }} more</span>
-        </button>
+            <span class="tile-name">{{ a.name }}</span>
 
-        <button v-if="!hasAccommodations" type="button" class="row" @click="go('/manager/properties/new')">
-          <span class="row-icon row-icon--add"><IconifyIcon icon="lucide:plus" width="13" /></span>
-          <span class="row-body">
-            <span class="row-label">Add your first accommodation</span>
-            <span class="row-hint">Rooms, tenants and compliance follow from here</span>
-          </span>
-          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
-        </button>
-      </q-card>
+            <span class="tile-foot">
+              <span class="tile-free" :class="{ 'tile-free--muted': a.beds === 0 || a.free === 0 }">
+                {{ a.beds === 0 ? 'No rooms yet' : a.free === 0 ? 'Full' : `${a.free} free` }}
+              </span>
+              <span class="tile-bar" aria-hidden="true">
+                <span
+                  class="tile-bar-fill"
+                  :style="{ width: `${a.beds === 0 ? 0 : Math.round((a.filled / a.beds) * 100)}%` }"
+                />
+              </span>
+            </span>
+          </button>
+
+          <button type="button" class="tile tile--add" @click="go('/manager/properties/new')">
+            <span class="tile-add-icon"><IconifyIcon icon="lucide:plus" width="18" /></span>
+            <span class="tile-add-label">
+              {{ hasAccommodations ? 'Add another' : 'Add your first accommodation' }}
+            </span>
+          </button>
+        </div>
+      </section>
     </div>
   </q-page>
 </template>
@@ -170,7 +185,6 @@ interface AttentionItem {
   rank: number
 }
 
-const MAX_ACCOMMODATIONS = 4
 const MAX_ATTENTION = 4
 
 const router = useRouter()
@@ -194,10 +208,6 @@ const occupancyRate = computed(() =>
   totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
 )
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
-const visibleAccommodations = computed(() => accommodations.value.slice(0, MAX_ACCOMMODATIONS))
-const moreAccommodations = computed(() =>
-  Math.max(0, accommodations.value.length - MAX_ACCOMMODATIONS),
-)
 const visibleAttention = computed(() => attention.value.slice(0, MAX_ATTENTION))
 const moreAttention = computed(() => Math.max(0, attention.value.length - MAX_ATTENTION))
 
@@ -518,58 +528,111 @@ onMounted(load)
 }
 .strip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 14px 7px; }
-.card-title { color: var(--m-ink); font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
-.card-count { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: var(--m-bg); color: var(--m-muted); font-size: 11px; font-weight: 700; text-align: center; }
-.card-link { border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 0; }
+/* Sections */
+.sec { display: flex; flex-direction: column; gap: 8px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 2px; }
+.sec-title { margin: 0; color: var(--m-ink); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.sec-link { border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 0; }
 
-.row {
+/* Notices: each item is its own surface */
+.notices { display: flex; flex-direction: column; gap: 8px; }
+.notice {
   display: flex;
   width: 100%;
-  min-height: 50px;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
+  gap: 11px;
+  padding: 12px 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
   cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
 }
-.row--static { cursor: default; }
-.row--more { min-height: 42px; }
-.row-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.row-label { color: var(--m-ink); font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row-label--link { color: var(--m-primary-dark); font-size: 12.5px; }
-.row-hint { display: flex; align-items: center; gap: 5px; color: var(--m-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11px; font-weight: 600; }
-.row-chev { color: #c7ccd3; flex: 0 0 auto; }
+.notice:active { transform: scale(0.985); }
+.notice--static { cursor: default; }
+.notice--danger { border-color: color-mix(in srgb, var(--m-danger) 28%, var(--m-border)); background: var(--m-danger-soft); }
+.notice--warn { border-color: color-mix(in srgb, var(--m-warning) 30%, var(--m-border)); background: var(--m-warning-soft); }
+.notice-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 999px; background: rgba(255, 255, 255, 0.72); }
+.notice--danger .notice-icon { color: var(--m-danger); }
+.notice--warn .notice-icon { color: var(--m-warning); }
+.notice--ok .notice-icon { background: var(--m-success-soft); color: var(--m-success); }
+.notice-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 2px; }
+.notice-label { color: var(--m-ink); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-hint { color: var(--m-text); font-size: 12px; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-when { flex: 0 0 auto; align-self: flex-start; margin-top: 2px; color: var(--m-muted); font-size: 11px; font-weight: 600; }
 
-.row-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 8px; }
-.row-icon--danger { background: var(--m-danger-soft); color: var(--m-danger); }
-.row-icon--warn { background: var(--m-warning-soft); color: var(--m-warning); }
-.row-icon--ok { background: var(--m-success-soft); color: var(--m-success); }
-.row-icon--add { border: 1px dashed var(--m-border); background: var(--m-bg); color: var(--m-primary-dark); }
-
-.row-flag { color: var(--m-danger); font-weight: 700; }
-.pip { display: inline-block; width: 6px; height: 6px; flex: 0 0 6px; border-radius: 999px; }
-.pip--ok { background: var(--m-success); }
-.pip--warn { background: var(--m-warning); }
-.pip--danger { background: var(--m-danger); }
-
-.vac {
-  flex: 0 0 auto;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-size: 11.5px;
+/* Accommodation rail */
+.rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px calc(var(--m-page-gutter)) 4px;
+  margin: 0 calc(-1 * var(--m-page-gutter));
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+.tile {
+  display: flex;
+  flex: 0 0 168px;
+  min-height: 132px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  scroll-snap-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.tile:active { transform: scale(0.97); }
+.tile-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.tile-status { padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; }
+.tile-status--ok { background: var(--m-success-soft); color: var(--m-success); }
+.tile-status--warn { background: var(--m-warning-soft); color: var(--m-warning); }
+.tile-status--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.tile-alert { display: inline-flex; align-items: center; gap: 3px; color: var(--m-danger); font-size: 11px; font-weight: 700; }
+.tile-name {
+  flex: 1 1 auto;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
-.vac--full { background: var(--m-bg); color: var(--m-muted); }
-.vac--none { background: var(--m-bg); color: var(--m-muted); }
+.tile-foot { display: flex; flex-direction: column; gap: 6px; }
+.tile-free { color: var(--m-primary-dark); font-size: 12.5px; font-weight: 700; }
+.tile-free--muted { color: var(--m-muted); }
+.tile-bar { display: block; height: 4px; border-radius: 999px; background: var(--m-bg); overflow: hidden; }
+.tile-bar-fill { display: block; height: 100%; border-radius: 999px; background: var(--m-primary); }
+
+.tile--add {
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-style: dashed;
+  background: transparent;
+  text-align: center;
+}
+.tile-add-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 999px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.tile-add-label { color: var(--m-muted); font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ring-fill, .notice, .tile { transition: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ring-fill { transition: none; }
