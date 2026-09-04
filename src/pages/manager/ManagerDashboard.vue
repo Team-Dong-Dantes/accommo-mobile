@@ -56,7 +56,7 @@
         </div>
       </div>
 
-      <!-- Needs attention: each item is its own notice, not a table row -->
+      <!-- Needs attention: one actionable lead, the rest kept quiet -->
       <section class="sec">
         <div class="sec-head">
           <h2 class="sec-title">Needs attention</h2>
@@ -70,32 +70,45 @@
           </button>
         </div>
 
-        <div class="notices">
+        <!-- Lead item: the one thing to deal with first, with its action -->
+        <div v-if="lead" class="lead" :class="`lead--${lead.tone}`">
+          <div class="lead-top">
+            <span class="lead-icon"><IconifyIcon :icon="lead.icon" width="18" /></span>
+            <span class="lead-kind">{{ lead.kind }}</span>
+            <span v-if="lead.when" class="lead-when">{{ lead.when }}</span>
+          </div>
+          <p class="lead-label">{{ lead.label }}</p>
+          <p class="lead-hint">{{ lead.hint }}</p>
+          <button type="button" class="lead-action" @click="go(lead.route)">
+            {{ lead.action }}
+            <IconifyIcon icon="lucide:arrow-right" width="15" />
+          </button>
+        </div>
+
+        <!-- Everything else stays quiet until it is the lead -->
+        <div v-if="rest.length" class="minors">
           <button
-            v-for="item in visibleAttention"
+            v-for="item in rest"
             :key="item.id"
             type="button"
-            class="notice"
-            :class="`notice--${item.tone}`"
+            class="minor"
             @click="go(item.route)"
           >
-            <span class="notice-icon">
-              <IconifyIcon :icon="item.icon" width="16" />
+            <span class="minor-dot" :class="`minor-dot--${item.tone}`" />
+            <span class="minor-text">
+              <span class="minor-label">{{ item.label }}</span>
+              <span class="minor-hint">{{ item.hint }}</span>
             </span>
-            <span class="notice-body">
-              <span class="notice-label">{{ item.label }}</span>
-              <span class="notice-hint">{{ item.hint }}</span>
-            </span>
-            <span v-if="item.when" class="notice-when">{{ item.when }}</span>
+            <span v-if="item.when" class="minor-when">{{ item.when }}</span>
           </button>
+        </div>
 
-          <div v-if="!attention.length" class="notice notice--ok notice--static">
-            <span class="notice-icon"><IconifyIcon icon="lucide:check" width="16" /></span>
-            <span class="notice-body">
-              <span class="notice-label">All clear</span>
-              <span class="notice-hint">Concerns, applications and renewals land here</span>
-            </span>
-          </div>
+        <div v-if="!attention.length" class="clear">
+          <span class="clear-icon"><IconifyIcon icon="lucide:check" width="17" /></span>
+          <span class="clear-text">
+            <span class="clear-label">Nothing needs you</span>
+            <span class="clear-hint">Concerns, applications and renewals land here</span>
+          </span>
         </div>
       </section>
 
@@ -177,15 +190,19 @@ interface AccommodationCard {
 interface AttentionItem {
   id: string
   icon: string
+  /** Short category shown above the lead item. */
+  kind: string
   label: string
   hint: string
   when: string
+  /** What the button offers to do about it. */
+  action: string
   route: string
   tone: 'danger' | 'warn'
   rank: number
 }
 
-const MAX_ATTENTION = 4
+const MAX_MINOR = 3
 
 const router = useRouter()
 
@@ -208,8 +225,9 @@ const occupancyRate = computed(() =>
   totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
 )
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
-const visibleAttention = computed(() => attention.value.slice(0, MAX_ATTENTION))
-const moreAttention = computed(() => Math.max(0, attention.value.length - MAX_ATTENTION))
+const lead = computed<AttentionItem | null>(() => attention.value[0] ?? null)
+const rest = computed(() => attention.value.slice(1, 1 + MAX_MINOR))
+const moreAttention = computed(() => Math.max(0, attention.value.length - 1 - MAX_MINOR))
 
 const STATUS_LABEL: Record<string, string> = {
   accredited: 'Accredited',
@@ -331,9 +349,11 @@ async function load() {
           items.push({
             id: `doc-${d.id}`,
             icon: 'lucide:file-warning',
+            kind: 'Compliance',
             label: `${titleCase(d.doc_type)} expired`,
-            hint: where,
+            hint: `${where} — accreditation is at risk until this is renewed`,
             when: ago(d.expires_at),
+            action: 'Upload renewal',
             route: '/manager/osas-compliance',
             tone: 'danger',
             rank: 1,
@@ -342,9 +362,11 @@ async function load() {
           items.push({
             id: `doc-soon-${d.id}`,
             icon: 'lucide:calendar-clock',
+            kind: 'Compliance',
             label: `${titleCase(d.doc_type)} expires soon`,
-            hint: where,
+            hint: `${where} — renew it before it lapses`,
             when: '',
+            action: 'Renew now',
             route: '/manager/osas-compliance',
             tone: 'warn',
             rank: 3,
@@ -398,10 +420,12 @@ async function load() {
       const where = lease?.rooms?.accommodations?.name
       items.push({
         id: `concern-${c.id}`,
-        icon: 'lucide:triangle-alert',
-        label: `${titleCase(c.category) || 'Concern'} · ${who}`,
-        hint: where ? `Reported at ${where}` : 'Reported by a tenant',
+        icon: 'lucide:message-square-warning',
+        kind: 'Student concern',
+        label: `${titleCase(c.category) || 'Concern'} reported by ${who}`,
+        hint: where ? `At ${where} — awaiting your reply` : 'Awaiting your reply',
         when: ago(c.reported_at),
+        action: 'Reply',
         route: '/manager/support',
         tone: 'danger',
         rank: 0,
@@ -432,9 +456,11 @@ async function load() {
         items.push({
           id: `app-${l.id}`,
           icon: 'lucide:user-plus',
-          label: who,
-          hint: where || 'Wants to move in',
+          kind: 'Application',
+          label: `${who} wants to move in`,
+          hint: where || 'Waiting on your decision',
           when: ago(l.start_date),
+          action: 'Review application',
           route: '/manager/tenants',
           tone: 'warn',
           rank: 2,
@@ -443,9 +469,11 @@ async function load() {
         items.push({
           id: `leave-${l.id}`,
           icon: 'lucide:door-open',
-          label: `${who} wants to leave`,
-          hint: where || 'Awaiting your decision',
+          kind: 'Leave request',
+          label: `${who} wants to move out`,
+          hint: where || 'Waiting on your decision',
           when: ago(l.leave_requested_at),
+          action: 'Review request',
           route: '/manager/tenants',
           tone: 'warn',
           rank: 2,
@@ -534,35 +562,103 @@ onMounted(load)
 .sec-title { margin: 0; color: var(--m-ink); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 .sec-link { border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 0; }
 
-/* Notices: each item is its own surface */
-.notices { display: flex; flex-direction: column; gap: 8px; }
-.notice {
+/* Lead: the single thing to deal with first */
+.lead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  border: 1px solid var(--m-border);
+}
+.lead--danger { border-color: color-mix(in srgb, var(--m-danger) 22%, var(--m-border)); }
+.lead--warn { border-color: color-mix(in srgb, var(--m-warning) 26%, var(--m-border)); }
+.lead-top { display: flex; align-items: center; gap: 8px; }
+.lead-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 999px; }
+.lead--danger .lead-icon { background: var(--m-danger-soft); color: var(--m-danger); }
+.lead--warn .lead-icon { background: var(--m-warning-soft); color: var(--m-warning); }
+.lead-kind {
+  flex: 1 1 auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.lead--danger .lead-kind { color: var(--m-danger); }
+.lead--warn .lead-kind { color: var(--m-warning); }
+.lead-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
+.lead-label {
+  margin: 6px 0 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: pretty;
+}
+.lead-hint { margin: 0; color: var(--m-muted); font-size: 12.5px; line-height: 1.4; text-wrap: pretty; }
+.lead-action {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.lead-action:active { transform: scale(0.97); }
+
+/* Minors: everything still waiting, kept quiet */
+.minors { display: flex; flex-direction: column; gap: 6px; }
+.minor {
   display: flex;
   width: 100%;
+  min-height: 44px;
   align-items: center;
-  gap: 11px;
-  padding: 12px 14px;
-  border: 1px solid var(--m-border);
+  gap: 10px;
+  padding: 8px 12px;
+  border: 0;
   border-radius: var(--m-radius-sm);
   background: var(--m-surface);
   cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
 }
-.notice:active { transform: scale(0.985); }
-.notice--static { cursor: default; }
-.notice--danger { border-color: color-mix(in srgb, var(--m-danger) 28%, var(--m-border)); background: var(--m-danger-soft); }
-.notice--warn { border-color: color-mix(in srgb, var(--m-warning) 30%, var(--m-border)); background: var(--m-warning-soft); }
-.notice-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 999px; background: rgba(255, 255, 255, 0.72); }
-.notice--danger .notice-icon { color: var(--m-danger); }
-.notice--warn .notice-icon { color: var(--m-warning); }
-.notice--ok .notice-icon { background: var(--m-success-soft); color: var(--m-success); }
-.notice-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 2px; }
-.notice-label { color: var(--m-ink); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notice-hint { color: var(--m-text); font-size: 12px; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notice-when { flex: 0 0 auto; align-self: flex-start; margin-top: 2px; color: var(--m-muted); font-size: 11px; font-weight: 600; }
+.minor-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 999px; }
+.minor-dot--danger { background: var(--m-danger); }
+.minor-dot--warn { background: var(--m-warning); }
+.minor-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+.minor-label { color: var(--m-ink); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.minor-hint { color: var(--m-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.minor-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11px; font-weight: 600; }
+
+/* Clear state keeps the block's footprint */
+.clear {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+.clear-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 999px; background: var(--m-success-soft); color: var(--m-success); }
+.clear-text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.clear-label { color: var(--m-ink); font-size: 14px; font-weight: 700; }
+.clear-hint { color: var(--m-muted); font-size: 12px; }
 
 /* Accommodation rail */
 .rail {
@@ -631,7 +727,7 @@ onMounted(load)
 .tile-add-label { color: var(--m-muted); font-size: 12.5px; font-weight: 700; line-height: 1.3; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring-fill, .notice, .tile { transition: none; }
+  .ring-fill, .lead-action, .tile { transition: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
