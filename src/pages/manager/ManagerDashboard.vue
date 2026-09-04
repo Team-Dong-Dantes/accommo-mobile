@@ -1,178 +1,113 @@
 <template>
-  <q-page class="dash q-pb-xl">
-    <header class="dash-head q-px-md q-pt-md">
-      <p class="head-eyebrow">{{ greeting }}</p>
-      <h1 class="head-name">{{ firstName }}</h1>
-    </header>
-
-    <div v-if="loading" class="q-px-md q-pt-md">
-      <q-skeleton type="rect" height="132px" class="sk q-mb-md" />
-      <q-skeleton type="rect" height="92px" class="sk q-mb-md" />
-      <q-skeleton type="rect" height="160px" class="sk" />
+  <q-page class="dash">
+    <div v-if="loading" class="stack">
+      <q-skeleton type="rect" height="128px" class="sk" />
+      <q-skeleton type="rect" height="112px" class="sk" />
+      <q-skeleton type="rect" height="132px" class="sk" />
     </div>
 
-    <div v-else-if="error" class="q-px-md q-pt-md">
-      <q-card flat bordered class="panel text-center q-pa-lg">
-        <IconifyIcon icon="lucide:cloud-off" width="26" class="text-grey-6" />
-        <p class="panel-title q-mt-sm">Couldn't load your dashboard</p>
-        <p class="panel-sub">{{ error }}</p>
-        <q-btn unelevated rounded color="primary" label="Try again" class="q-mt-sm" @click="load" />
+    <div v-else-if="error" class="stack">
+      <q-card flat bordered class="card card--pad text-center">
+        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+        <p class="err-title">Couldn't load your dashboard</p>
+        <p class="err-sub">{{ error }}</p>
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
       </q-card>
     </div>
 
-    <template v-else>
-      <!-- Occupancy: beds, not room.status (room.status is unreliable) -->
-      <section class="q-px-md q-pt-md">
-        <q-card flat class="occ-card" :class="{ 'occ-card--empty': !hasAccommodations }">
-          <div class="occ-top">
-            <span class="occ-caption">Occupancy</span>
-            <span class="occ-rate">{{ hasAccommodations ? `${occupancyRate}%` : '—' }}</span>
-          </div>
-          <div class="occ-track">
-            <div class="occ-fill" :style="{ width: `${occupancyRate}%` }" />
-          </div>
-          <div class="occ-foot">
-            <span v-if="hasAccommodations">
-              {{ filledBeds }} of {{ totalBeds }} beds · {{ accommodations.length }}
-              {{ accommodations.length === 1 ? 'accommodation' : 'accommodations' }}
-            </span>
-            <span v-else>No accommodations yet — your occupancy shows here</span>
-          </div>
-        </q-card>
-      </section>
-
-      <!-- Compliance: the signal with real, urgent data -->
-      <section class="q-px-md q-pt-md">
-        <div class="row-head">
-          <h2 class="sec-title">Compliance</h2>
-          <q-btn
-            flat dense no-caps class="sec-action" label="OSAS"
-            @click="go('/manager/osas-compliance')"
-          />
+    <div v-else class="stack">
+      <!-- 1 · Portfolio. Every headline figure lives here and nowhere else. -->
+      <q-card flat class="hero" :class="{ 'hero--empty': !hasAccommodations }">
+        <div class="hero-top">
+          <span class="hero-cap">Occupancy</span>
+          <span class="hero-rate">{{ hasAccommodations ? `${occupancyRate}%` : '—' }}</span>
         </div>
-        <div class="stat-row">
-          <button
-            type="button" class="stat" :class="{ 'stat--danger': expiredDocs > 0 }"
-            @click="go('/manager/osas-compliance')"
-          >
-            <span class="stat-value">{{ expiredDocs }}</span>
-            <span class="stat-label">Expired</span>
-          </button>
-          <button
-            type="button" class="stat" :class="{ 'stat--warn': expiringDocs > 0 }"
-            @click="go('/manager/osas-compliance')"
-          >
-            <span class="stat-value">{{ expiringDocs }}</span>
-            <span class="stat-label">Expiring</span>
-          </button>
-          <button
-            type="button" class="stat" :class="{ 'stat--warn': notAccredited > 0 }"
-            @click="go('/manager/osas-compliance')"
-          >
-            <span class="stat-value">{{ notAccredited }}</span>
-            <span class="stat-label">Unaccredited</span>
-          </button>
+        <div class="hero-track">
+          <div class="hero-fill" :style="{ width: `${occupancyRate}%` }" />
         </div>
-      </section>
+        <div class="hero-facts">
+          <span>
+            <b>{{ tenants }}</b>/{{ totalBeds }} beds
+          </span>
+          <span class="hero-dot">·</span>
+          <span>
+            <b>{{ accommodations.length }}</b>
+            {{ accommodations.length === 1 ? 'accommodation' : 'accommodations' }}
+          </span>
+          <span class="hero-dot">·</span>
+          <span><b>{{ formatPeso(expectedMonthly) }}</b> expected</span>
+        </div>
+      </q-card>
 
-      <!-- Tenancy -->
-      <section class="q-px-md q-pt-md">
-        <h2 class="sec-title">Tenancy</h2>
-        <div class="stat-row">
-          <button type="button" class="stat stat--wide" @click="go('/manager/tenants')">
-            <span class="stat-value">{{ activeTenants }}</span>
-            <span class="stat-label">Active tenants</span>
-          </button>
-          <button type="button" class="stat stat--wide" @click="go('/manager/tenants')">
-            <span class="stat-value">{{ formatPeso(expectedMonthly) }}</span>
-            <span class="stat-label">Expected rent / month</span>
+      <!-- 2 · One action queue. Compliance, approvals and tickets rank together
+           here rather than each getting its own duplicate counter row. -->
+      <q-card flat bordered class="card">
+        <div class="card-head">
+          <span class="card-title">Needs attention</span>
+          <span v-if="attention.length" class="card-count">{{ attention.length }}</span>
+        </div>
+        <button
+          v-for="item in attention"
+          :key="item.label"
+          type="button"
+          class="row"
+          @click="go(item.route)"
+        >
+          <span class="row-dot" :class="`row-dot--${item.tone}`" />
+          <span class="row-body">
+            <span class="row-label">{{ item.label }}</span>
+            <span class="row-hint">{{ item.hint }}</span>
+          </span>
+          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
+        </button>
+        <div v-if="!attention.length" class="row row--static">
+          <span class="row-dot row-dot--ok" />
+          <span class="row-body">
+            <span class="row-label">All clear</span>
+            <span class="row-hint">Renewals, applications and tickets land here</span>
+          </span>
+        </div>
+      </q-card>
+
+      <!-- 3 · The portfolio itself. Status appears once, per accommodation. -->
+      <q-card flat bordered class="card">
+        <div class="card-head">
+          <span class="card-title">Accommodations</span>
+          <button v-if="hasAccommodations" type="button" class="card-link" @click="go('/manager/properties')">
+            Manage
           </button>
         </div>
-      </section>
 
-      <!-- Needs attention: always present, states its own emptiness -->
-      <section class="q-px-md q-pt-md">
-        <h2 class="sec-title">Needs attention</h2>
-        <q-card flat bordered class="panel list-card">
-          <template v-if="attention.length > 0">
-            <button
-              v-for="(item, i) in attention"
-              :key="item.label"
-              type="button"
-              class="list-row"
-              :class="{ 'list-row--divided': i > 0 }"
-              @click="go(item.route)"
-            >
-              <span class="list-icon" :class="`list-icon--${item.tone}`">
-                <IconifyIcon :icon="item.icon" width="16" />
-              </span>
-              <span class="list-text">
-                <span class="list-label">{{ item.label }}</span>
-                <span class="list-hint">{{ item.hint }}</span>
-              </span>
-              <IconifyIcon icon="lucide:chevron-right" width="16" class="text-grey-5" />
-            </button>
-          </template>
-          <div v-else class="list-row list-row--quiet">
-            <span class="list-icon list-icon--ok">
-              <IconifyIcon icon="lucide:check" width="16" />
+        <button
+          v-for="a in accommodations"
+          :key="a.id"
+          type="button"
+          class="row"
+          @click="go(`/manager/properties/${a.id}`)"
+        >
+          <span class="row-body">
+            <span class="row-label">{{ a.name }}</span>
+            <span class="row-hint">
+              <i class="pip" :class="`pip--${toneOf(a.status)}`" />{{ statusLabel(a.status) }}
+              · {{ a.filled }}/{{ a.beds }}
             </span>
-            <span class="list-text">
-              <span class="list-label">All clear</span>
-              <span class="list-hint">Approvals, renewals and issues appear here</span>
-            </span>
-          </div>
-        </q-card>
-      </section>
+          </span>
+          <span class="meter" aria-hidden="true">
+            <span class="meter-fill" :style="{ width: `${a.rate}%` }" />
+          </span>
+          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
+        </button>
 
-      <!-- Accommodations: scales 1..9, and holds its shape at zero -->
-      <section class="q-px-md q-pt-md">
-        <div class="row-head">
-          <h2 class="sec-title">Accommodations</h2>
-          <q-btn
-            v-if="hasAccommodations"
-            flat dense no-caps class="sec-action" label="View all"
-            @click="go('/manager/properties')"
-          />
-        </div>
-
-        <q-card flat bordered class="panel list-card">
-          <template v-if="hasAccommodations">
-            <button
-              v-for="(a, i) in accommodations"
-              :key="a.id"
-              type="button"
-              class="list-row"
-              :class="{ 'list-row--divided': i > 0 }"
-              @click="go(`/manager/properties/${a.id}`)"
-            >
-              <span class="acc-text">
-                <span class="list-label">{{ a.name }}</span>
-                <span class="list-hint">
-                  {{ a.filled }}/{{ a.beds }} beds · {{ statusLabel(a.status) }}
-                </span>
-              </span>
-              <span class="acc-meter" aria-hidden="true">
-                <span class="acc-meter-fill" :style="{ width: `${a.rate}%` }" />
-              </span>
-              <IconifyIcon icon="lucide:chevron-right" width="16" class="text-grey-5" />
-            </button>
-          </template>
-
-          <!-- Zero state keeps the row shape rather than replacing the section -->
-          <button v-else type="button" class="list-row list-row--add" @click="go('/manager/properties/new')">
-            <span class="list-icon list-icon--add">
-              <IconifyIcon icon="lucide:plus" width="16" />
-            </span>
-            <span class="list-text">
-              <span class="list-label">Add your first accommodation</span>
-              <span class="list-hint">Rooms, tenants and compliance follow from here</span>
-            </span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="text-grey-5" />
-          </button>
-        </q-card>
-      </section>
-    </template>
+        <button v-if="!hasAccommodations" type="button" class="row" @click="go('/manager/properties/new')">
+          <span class="row-dot row-dot--add"><IconifyIcon icon="lucide:plus" width="12" /></span>
+          <span class="row-body">
+            <span class="row-label">Add your first accommodation</span>
+            <span class="row-hint">Rooms, tenants and compliance follow from here</span>
+          </span>
+          <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chev" />
+        </button>
+      </q-card>
+    </div>
   </q-page>
 </template>
 
@@ -196,11 +131,11 @@ const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
-const firstName = ref('there')
 const accommodations = ref<AccommodationCard[]>([])
 const totalBeds = ref(0)
-const filledBeds = ref(0)
-const activeTenants = ref(0)
+// Tenants and filled beds are the same measure (both counted from active
+// leases), so it is stored and shown once.
+const tenants = ref(0)
 const pendingLeases = ref(0)
 const leaveRequests = ref(0)
 const expectedMonthly = ref(0)
@@ -208,62 +143,72 @@ const expiredDocs = ref(0)
 const expiringDocs = ref(0)
 const openTickets = ref(0)
 
-const greeting = computed(() => {
-  const h = new Date().getHours()
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
-})
-
 const hasAccommodations = computed(() => accommodations.value.length > 0)
 const occupancyRate = computed(() =>
-  totalBeds.value === 0 ? 0 : Math.min(100, Math.round((filledBeds.value / totalBeds.value) * 100)),
+  totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
 )
 const notAccredited = computed(
   () => accommodations.value.filter((a) => a.status !== 'accredited').length,
 )
 
-function statusLabel(status: string) {
-  const map: Record<string, string> = {
-    accredited: 'Accredited',
-    pending: 'Pending',
-    reviewing: 'Reviewing',
-    rejected: 'Rejected',
-    delisted: 'Delisted',
-  }
-  return map[status] ?? status
+const STATUS_LABEL: Record<string, string> = {
+  accredited: 'Accredited',
+  pending: 'Pending',
+  reviewing: 'Reviewing',
+  rejected: 'Rejected',
+  delisted: 'Delisted',
+}
+function statusLabel(s: string) {
+  return STATUS_LABEL[s] ?? s
+}
+function toneOf(s: string) {
+  if (s === 'accredited') return 'ok'
+  if (s === 'rejected' || s === 'delisted') return 'danger'
+  return 'warn'
 }
 
 const attention = computed(() => {
-  const items: { icon: string; label: string; hint: string; route: string; tone: string }[] = []
-  if (pendingLeases.value > 0)
+  const items: { label: string; hint: string; route: string; tone: string }[] = []
+  if (expiredDocs.value)
     items.push({
-      icon: 'lucide:user-plus',
+      label: `${expiredDocs.value} expired ${expiredDocs.value === 1 ? 'document' : 'documents'}`,
+      hint: 'Re-upload to keep accreditation',
+      route: '/manager/osas-compliance',
+      tone: 'danger',
+    })
+  if (pendingLeases.value)
+    items.push({
       label: `${pendingLeases.value} pending ${pendingLeases.value === 1 ? 'application' : 'applications'}`,
       hint: 'Waiting on your decision',
       route: '/manager/tenants',
       tone: 'warn',
     })
-  if (leaveRequests.value > 0)
+  if (leaveRequests.value)
     items.push({
-      icon: 'lucide:door-open',
       label: `${leaveRequests.value} leave ${leaveRequests.value === 1 ? 'request' : 'requests'}`,
       hint: 'Tenant wants to move out',
       route: '/manager/tenants',
       tone: 'warn',
     })
-  if (expiredDocs.value > 0)
+  if (openTickets.value)
     items.push({
-      icon: 'lucide:file-warning',
-      label: `${expiredDocs.value} expired ${expiredDocs.value === 1 ? 'document' : 'documents'}`,
-      hint: 'Re-upload to stay accredited',
-      route: '/manager/osas-compliance',
-      tone: 'danger',
-    })
-  if (openTickets.value > 0)
-    items.push({
-      icon: 'lucide:life-buoy',
       label: `${openTickets.value} open ${openTickets.value === 1 ? 'ticket' : 'tickets'}`,
       hint: 'Reported by tenants or OSAS',
       route: '/manager/support',
+      tone: 'warn',
+    })
+  if (expiringDocs.value)
+    items.push({
+      label: `${expiringDocs.value} ${expiringDocs.value === 1 ? 'document expires' : 'documents expire'} soon`,
+      hint: 'Within 30 days',
+      route: '/manager/osas-compliance',
+      tone: 'warn',
+    })
+  if (notAccredited.value)
+    items.push({
+      label: `${notAccredited.value} awaiting accreditation`,
+      hint: 'Not yet approved by OSAS',
+      route: '/manager/osas-compliance',
       tone: 'warn',
     })
   return items
@@ -284,13 +229,6 @@ async function load() {
       return
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('full_name')
-      .eq('id', user.id)
-      .maybeSingle()
-    firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
-
     const { data: accRows, error: accError } = await supabase
       .from('accommodations')
       .select('id, name, status')
@@ -300,12 +238,11 @@ async function load() {
     const accs = accRows || []
     const accIds = accs.map((a) => a.id)
 
-    // Capacity comes from rooms, but occupancy is counted from active leases.
-    // room.status and rooms.current_pax both disagree with the lease data
-    // (current_pax sits at 0 even for accommodations with active tenants),
-    // so leases are the only trustworthy source of who is actually housed.
+    // Capacity comes from rooms; occupancy is counted from active leases.
+    // rooms.current_pax sits at 0 even where tenants exist, and rooms.status
+    // disagrees with the lease data, so leases are the only reliable source.
     let roomRows: { id: string; accommodation_id: string; capacity: number | null }[] = []
-    if (accIds.length > 0) {
+    if (accIds.length) {
       const { data, error: roomError } = await supabase
         .from('rooms')
         .select('id, accommodation_id, capacity')
@@ -322,7 +259,6 @@ async function load() {
     if (leaseError) throw leaseError
 
     const leases = leaseRows || []
-
     const roomToAcc = new Map(roomRows.map((r) => [r.id, r.accommodation_id]))
     const filledByAcc = new Map<string, number>()
     for (const l of leases) {
@@ -332,7 +268,12 @@ async function load() {
     }
 
     totalBeds.value = roomRows.reduce((n, r) => n + Number(r.capacity || 0), 0)
-    filledBeds.value = [...filledByAcc.values()].reduce((n, v) => n + v, 0)
+    tenants.value = leases.filter((l) => l.status === 'active').length
+    pendingLeases.value = leases.filter((l) => l.status === 'pending').length
+    leaveRequests.value = leases.filter((l) => l.status === 'leave_requested').length
+    expectedMonthly.value = leases
+      .filter((l) => l.status === 'active')
+      .reduce((n, l) => n + Number(l.monthly_rent || 0), 0)
 
     accommodations.value = accs.map((a) => {
       const beds = roomRows
@@ -348,14 +289,8 @@ async function load() {
         rate: beds === 0 ? 0 : Math.min(100, Math.round((filled / beds) * 100)),
       }
     })
-    activeTenants.value = leases.filter((l) => l.status === 'active').length
-    pendingLeases.value = leases.filter((l) => l.status === 'pending').length
-    leaveRequests.value = leases.filter((l) => l.status === 'leave_requested').length
-    expectedMonthly.value = leases
-      .filter((l) => l.status === 'active')
-      .reduce((n, l) => n + Number(l.monthly_rent || 0), 0)
 
-    if (accIds.length > 0) {
+    if (accIds.length) {
       const { data: docRows } = await supabase
         .from('accommodation_documents')
         .select('expires_at')
@@ -388,100 +323,107 @@ onMounted(load)
 
 <style scoped>
 .dash { background: var(--m-bg); }
-
-.dash-head { padding-bottom: 2px; }
-.head-eyebrow { margin: 0; color: var(--m-muted); font-size: 13px; font-weight: 600; }
-.head-name {
-  margin: 2px 0 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-.sec-title { margin: 0 0 var(--m-space-2); color: var(--m-ink); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
-.row-head { display: flex; align-items: center; justify-content: space-between; }
-.row-head .sec-title { margin-bottom: var(--m-space-2); }
-.sec-action { color: var(--m-primary-dark); font-weight: 700; }
-
-.sk, .panel { border-radius: var(--m-radius); }
-.panel { background: var(--m-surface); }
-.panel-title { margin: var(--m-space-2) 0 0; color: var(--m-ink); font-weight: 700; }
-.panel-sub { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
-
-/* Occupancy */
-.occ-card { padding: var(--m-space-4); border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
-.occ-card--empty { background: var(--m-surface); border: 1px dashed var(--m-border); color: var(--m-ink); }
-.occ-top { display: flex; align-items: baseline; justify-content: space-between; }
-.occ-caption { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.9; }
-.occ-rate { font-family: var(--m-font-display); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
-.occ-track { margin-top: var(--m-space-3); height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.32); overflow: hidden; }
-.occ-card--empty .occ-track { background: var(--m-bg); }
-.occ-fill { display: block; height: 100%; border-radius: 999px; background: #fff; transition: width 0.4s ease; }
-.occ-card--empty .occ-fill { background: var(--m-border); }
-.occ-foot { margin-top: var(--m-space-2); font-size: 13px; opacity: 0.92; }
-.occ-card--empty .occ-foot { color: var(--m-muted); opacity: 1; }
-
-/* Stats */
-.stat-row { display: flex; gap: var(--m-space-3); }
-.stat {
+.stack {
   display: flex;
-  min-height: 74px;
-  flex: 1 1 0;
-  min-width: 0;
   flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  padding: var(--m-space-3);
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
+  gap: 10px;
+  padding: 10px var(--m-page-gutter) 24px;
 }
-.stat:active { transform: scale(0.97); }
-.stat--warn { border-color: color-mix(in srgb, var(--m-warning) 45%, var(--m-border)); background: var(--m-warning-soft); }
-.stat--danger { border-color: color-mix(in srgb, var(--m-danger) 40%, var(--m-border)); background: var(--m-danger-soft); }
-.stat-value { color: var(--m-ink); font-family: var(--m-font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.stat--wide .stat-value { font-size: 18px; }
-.stat-label { color: var(--m-muted); font-size: 12px; font-weight: 600; }
+.sk { border-radius: var(--m-radius); }
 
-/* Lists */
-.list-card { overflow: hidden; }
-.list-row {
+.card { border-radius: var(--m-radius); background: var(--m-surface); overflow: hidden; }
+.card--pad { padding: 18px 14px; }
+.err-title { margin: 8px 0 0; color: var(--m-ink); font-size: 14px; font-weight: 700; }
+.err-sub { margin: 2px 0 0; color: var(--m-muted); font-size: 12px; }
+
+/* Hero */
+.hero { padding: 14px; border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
+.hero--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
+.hero-top { display: flex; align-items: baseline; justify-content: space-between; }
+.hero-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.9; }
+.hero-rate { font-family: var(--m-font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.hero-track { margin-top: 10px; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.3); overflow: hidden; }
+.hero--empty .hero-track { background: var(--m-bg); }
+.hero-fill { display: block; height: 100%; border-radius: 999px; background: #fff; transition: width 0.4s ease; }
+.hero--empty .hero-fill { background: var(--m-border); }
+.hero-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.94;
+}
+.hero-facts b { font-weight: 700; }
+.hero--empty .hero-facts { color: var(--m-muted); opacity: 1; }
+.hero-dot { opacity: 0.5; }
+
+/* Card head */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 14px 7px;
+}
+.card-title { color: var(--m-ink); font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.card-count {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+.card-link { border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 0; }
+
+/* Rows */
+.row {
   display: flex;
   width: 100%;
-  min-height: 60px;
+  min-height: 48px;
   align-items: center;
-  gap: var(--m-space-3);
-  padding: var(--m-space-3) var(--m-space-4);
+  gap: 10px;
+  padding: 8px 14px;
   border: 0;
+  border-top: 1px solid var(--m-border);
   background: transparent;
   cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
-.list-row--divided { border-top: 1px solid var(--m-border); }
-.list-row--quiet { cursor: default; }
-.list-row--add { cursor: pointer; }
-.list-icon { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border-radius: var(--m-radius-sm); }
-.list-icon--warn { background: var(--m-warning-soft); color: var(--m-warning); }
-.list-icon--danger { background: var(--m-danger-soft); color: var(--m-danger); }
-.list-icon--ok { background: var(--m-success-soft); color: var(--m-success); }
-.list-icon--add { border: 1px dashed var(--m-border); background: var(--m-bg); color: var(--m-primary-dark); }
-.list-text, .acc-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.list-label { color: var(--m-ink); font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.list-hint { color: var(--m-muted); font-size: 12px; }
-.acc-meter { display: block; width: 44px; height: 6px; flex: 0 0 44px; border-radius: 999px; background: var(--m-bg); overflow: hidden; }
-.acc-meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--m-primary); }
+.row--static { cursor: default; }
+.row-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+.row-label { color: var(--m-ink); font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-hint { display: flex; align-items: center; gap: 5px; color: var(--m-muted); font-size: 11.5px; }
+.row-chev { color: #c7ccd3; flex: 0 0 auto; }
+
+.row-dot { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border-radius: 999px; }
+.row-dot--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.row-dot--warn { background: var(--m-warning-soft); color: var(--m-warning); }
+.row-dot--ok { background: var(--m-success-soft); color: var(--m-success); }
+.row-dot--add { border: 1px dashed var(--m-border); background: var(--m-bg); color: var(--m-primary-dark); }
+.row-dot--danger::before, .row-dot--warn::before, .row-dot--ok::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.pip { display: inline-block; width: 6px; height: 6px; border-radius: 999px; }
+.pip--ok { background: var(--m-success); }
+.pip--warn { background: var(--m-warning); }
+.pip--danger { background: var(--m-danger); }
+
+.meter { display: block; width: 38px; height: 5px; flex: 0 0 38px; border-radius: 999px; background: var(--m-bg); overflow: hidden; }
+.meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--m-primary); }
 
 @media (prefers-reduced-motion: reduce) {
-  .stat, .occ-fill { transition: none; }
+  .hero-fill { transition: none; }
 }
 </style>
