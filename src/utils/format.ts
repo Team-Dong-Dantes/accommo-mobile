@@ -33,6 +33,25 @@ export function phNationalDigits(raw: string | number | null | undefined): strin
   return normalizePhPhone(raw).replace(/^\+63/, '')
 }
 
+// Some tables (messages.sent_at, conversations.last_time, etc.) are
+// Postgres `timestamp without time zone` columns. The DB actually stores
+// UTC, but PostgREST serializes these with no timezone suffix, e.g.
+// "2026-09-04T19:15:34.465329". `new Date(...)` on a string like that is
+// parsed as LOCAL time per the ECMAScript Date spec, silently shifting
+// every such timestamp by the viewer's UTC offset — 8 hours off in the
+// Philippines, which is why a message sent seconds ago could read "8h".
+// Append `Z` only to a naive date-*time* string (has a `T`/space time part
+// but no timezone marker) — a bare `date` column like "2026-09-05" is left
+// untouched, since it's already correctly parsed as UTC midnight and adding
+// `Z` to a string with no time part isn't reliably valid across engines.
+// Already-correct `timestamptz` columns (e.g. notifications.created_at)
+// pass through unchanged either way.
+export function parseServerTime(iso: string): Date {
+  const hasTime = /[T ]/.test(iso);
+  const hasTz = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTime && !hasTz ? `${iso}Z` : iso);
+}
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
@@ -55,6 +74,7 @@ export const LEASE_STATUS: Record<string, StatusMeta> = {
   ended: { text: 'Ended', color: 'grey' },
   terminated: { text: 'Terminated', color: 'red' },
   leave_requested: { text: 'Leave Requested', color: 'orange' },
+  rejected: { text: 'Declined', color: 'red' },
 };
 
 
@@ -63,6 +83,30 @@ export const PAYMENT_STATUS: Record<string, StatusMeta> = {
   paid: { text: 'Paid', color: 'green' },
   overdue: { text: 'Overdue', color: 'red' },
   pending_verification: { text: 'Pending Verification', color: 'orange' },
+};
+
+export const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  gcash: 'GCash',
+  maya: 'Maya',
+  bank: 'Bank transfer',
+  cash: 'Cash',
+  others: 'Other',
+};
+
+/** concerns.status: open | acknowledged | in_progress | resolved | rejected */
+export const CONCERN_STATUS: Record<string, StatusMeta> = {
+  open: { text: 'Open', color: 'amber' },
+  acknowledged: { text: 'Acknowledged', color: 'orange' },
+  in_progress: { text: 'In Progress', color: 'orange' },
+  resolved: { text: 'Resolved', color: 'green' },
+  rejected: { text: 'Rejected', color: 'red' },
+};
+
+export const CONCERN_CATEGORY_LABEL: Record<string, string> = {
+  maintenance: 'Maintenance',
+  safety: 'Safety',
+  billing: 'Billing',
+  other: 'Other',
 };
 
 

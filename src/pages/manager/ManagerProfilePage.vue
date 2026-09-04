@@ -202,11 +202,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { useNotify } from '@/utils/notify'
 // If uploadAvatar doesn't exist, comment out the import and usage below
 // import { uploadAvatar } from '@/utils/upload'
 import ProfileField from '@/components/shared/ProfileField.vue'
@@ -223,9 +223,9 @@ interface DocRow {
   when: string
 }
 
-// ----- Router & Quasar -----
+// ----- Router & notifications -----
 const router = useRouter()
-const $q = useQuasar()
+const notify = useNotify()
 
 // ----- Reactive State -----
 const loading = ref(true)
@@ -284,12 +284,9 @@ async function onAvatarSelected(event: Event) {
     // If you have uploadAvatar, uncomment:
     // const url = await uploadAvatar(file, userId.value)
     // avatarUrl.value = url
-    $q.notify({ type: 'positive', message: 'Avatar updated.' })
+    notify.success('Avatar updated.')
   } catch (e) {
-    $q.notify({
-      type: 'negative',
-      message: e instanceof Error ? e.message : 'Could not upload avatar.',
-    })
+    notify.error(e instanceof Error ? e.message : 'Could not upload avatar.')
   }
   input.value = ''
 }
@@ -308,7 +305,7 @@ function cancelEdit() {
 async function save() {
   const name = draft.fullName.trim()
   if (!name) {
-    $q.notify({ type: 'negative', message: 'Your name cannot be empty.' })
+    notify.error('Your name cannot be empty.')
     return
   }
 
@@ -327,9 +324,9 @@ async function save() {
     me.initials = initials
     updatedAt.value = new Date().toISOString()
     editing.value = false
-    $q.notify({ type: 'positive', message: 'Profile updated.' })
+    notify.success('Profile updated.')
   } catch (e) {
-    $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Could not save.' })
+    notify.error(e instanceof Error ? e.message : 'Could not save.')
   } finally {
     saving.value = false
   }

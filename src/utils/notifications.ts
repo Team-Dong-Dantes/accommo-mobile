@@ -6,6 +6,8 @@
 // mobile user, so a link is only used when it names a route this app actually
 // has, and anything else falls back to the best screen for the row's type.
 
+import { parseServerTime } from '@/utils/format';
+
 export type Role = 'manager' | 'student';
 
 export interface NotifLook {
@@ -90,7 +92,7 @@ export function resolveNotifLink(
 
 /** Day bucket used to group the list: 0 today, 1 yesterday, 2 earlier. */
 export function dayBucket(iso: string): 0 | 1 | 2 {
-  const then = new Date(iso);
+  const then = parseServerTime(iso);
   if (Number.isNaN(then.getTime())) return 2;
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -101,17 +103,23 @@ export function dayBucket(iso: string): 0 | 1 | 2 {
 
 export const BUCKET_LABEL = ['Today', 'Yesterday', 'Earlier'] as const;
 
-/** "just now", "3h", "2d", then a date once it stops being recent. */
+/**
+ * "just now", "5m", "2h 15m", "1d 4h", then a date once it stops being
+ * recent. Combines the two most significant units so a 90-minute-old row
+ * reads as "1h 30m" rather than losing the extra 30 minutes to "1h".
+ */
 export function since(iso: string | null | undefined): string {
   if (!iso) return '';
-  const then = new Date(iso).getTime();
+  const then = parseServerTime(iso).getTime();
   if (Number.isNaN(then)) return '';
   const minutes = Math.floor((Date.now() - then) / 60000);
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
+  const remMinutes = minutes % 60;
+  if (hours < 24) return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  const remHours = hours % 24;
+  if (days < 7) return remHours ? `${days}d ${remHours}h` : `${days}d`;
+  return parseServerTime(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }

@@ -188,10 +188,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useQuasar, type QForm } from 'quasar';
+import type { QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase';
 import { normalizePhPhone, phNationalDigits } from '@/utils/format';
+import { useNotify } from '@/utils/notify';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthSelect from '@/components/auth/AuthSelect.vue';
@@ -204,7 +205,7 @@ import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
 
 const router = useRouter();
 const route = useRoute();
-const $q = useQuasar();
+const notify = useNotify();
 const authStore = useAuthStore();
 
 const step = ref(1);
@@ -265,15 +266,7 @@ const loading = ref(false);
 
 onMounted(async () => {
   if (route.query.newUser) {
-    $q.notify({
-      message: 'Account not found. Please complete your application.',
-      position: 'top',
-      color: 'grey-9',
-      textColor: 'white',
-      icon: 'info',
-      iconColor: 'amber-4',
-      classes: 'custom-notify',
-    });
+    notify.info('Account not found. Please complete your application.');
     void router.replace('/register/manager');
   }
 
@@ -302,7 +295,7 @@ async function createAccountNow(): Promise<boolean> {
     return true;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Could not create your account.';
-    $q.notify({ message, position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    notify.error(message);
     return false;
   } finally {
     creatingAccount.value = false;
@@ -324,7 +317,7 @@ async function nextStep() {
     return;
   }
   if (step.value === 3 && !emailVerified.value) {
-    $q.notify({ message: 'Confirm your e-mail before continuing.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
+    notify.info('Confirm your e-mail before continuing.');
     return;
   }
   if (step.value < 4) step.value++;
@@ -339,15 +332,7 @@ async function handleGoogleAuth() {
   try {
     await authStore.loginWithGoogle('/register/manager');
   } catch (error: unknown) {
-    $q.notify({
-      message: error instanceof Error ? error.message : 'An error occurred',
-      position: 'top',
-      color: 'grey-9',
-      textColor: 'white',
-      icon: 'error_outline',
-      iconColor: 'red-4',
-      classes: 'custom-notify',
-    });
+    notify.error(error instanceof Error ? error.message : 'An error occurred');
   }
 }
 
@@ -361,14 +346,7 @@ async function cancelGoogle() {
   form.fullName = '';
   form.emailDomain = 'gmail.com';
 
-  $q.notify({
-    message: 'Google account unlinked.',
-    color: 'grey-9',
-    textColor: 'white',
-    icon: 'info',
-    position: 'top',
-    classes: 'custom-notify',
-  });
+  notify.info('Google account unlinked.');
 }
 
 async function handleRegister() {
@@ -390,15 +368,7 @@ async function handleRegister() {
 
     if (isGoogleMode.value) {
       await authStore.completeGoogleManagerProfile(googleUserId.value, form);
-      $q.notify({
-        message: 'Application submitted successfully!',
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'check_circle',
-        iconColor: 'teal-4',
-        classes: 'custom-notify',
-      });
+      notify.success('Application submitted successfully!');
       void router.push('/manager/dashboard');
     } else {
       if (createdUserId) {
@@ -406,27 +376,11 @@ async function handleRegister() {
       } else {
         await authStore.registerManager(form); // safety fallback (no early account)
       }
-      $q.notify({
-        message: 'Application submitted! OSAS will review your documents. Check your e-mail for updates.',
-        position: 'top',
-        color: 'grey-9',
-        textColor: 'white',
-        icon: 'check_circle',
-        iconColor: 'teal-4',
-        classes: 'custom-notify',
-      });
+      notify.success('Application submitted! OSAS will review your documents. Check your e-mail for updates.');
       void router.push('/login');
     }
   } catch (error: unknown) {
-    $q.notify({
-      message: error instanceof Error ? error.message : 'An unexpected error occurred',
-      position: 'top',
-      color: 'grey-9',
-      textColor: 'white',
-      icon: 'error_outline',
-      iconColor: 'red-4',
-      classes: 'custom-notify',
-    });
+    notify.error(error instanceof Error ? error.message : 'An unexpected error occurred');
   } finally {
     loading.value = false;
   }

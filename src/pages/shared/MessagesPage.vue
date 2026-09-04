@@ -14,11 +14,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useMessagesStore } from '@/stores/messages'
 import { chatFullscreen } from '@/utils/chatFullscreen'
+import { useNotify } from '@/utils/notify'
 import ThreadList from '@/components/messages/ThreadList.vue'
 import ChatThread from '@/components/messages/ChatThread.vue'
 
@@ -26,7 +26,7 @@ const props = defineProps<{ role: 'manager' | 'student'; emptyMessage: string }>
 
 const route = useRoute()
 const router = useRouter()
-const $q = useQuasar()
+const notify = useNotify()
 const store = useMessagesStore()
 
 // ?c=<id> opens a thread over the list; ?to=<userId> is an enquiry that
@@ -51,10 +51,7 @@ async function resolveEnquiry(to: string) {
     const id = await store.findOrCreate(to, props.role)
     await router.replace({ path: route.path, query: { c: id } })
   } catch (e) {
-    $q.notify({
-      type: 'negative',
-      message: errorMessage(e, 'Could not open that conversation.'),
-    })
+    notify.error(errorMessage(e, 'Could not open that conversation.'))
     await router.replace({ path: route.path })
   } finally {
     starting.value = false

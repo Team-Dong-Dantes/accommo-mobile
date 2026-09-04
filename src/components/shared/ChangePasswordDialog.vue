@@ -36,12 +36,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useQuasar } from 'quasar'
 import { supabase } from '@/utils/supabase'
+import { useNotify } from '@/utils/notify'
 
 const open = defineModel<boolean>({ default: false })
 
-const $q = useQuasar()
+const notify = useNotify()
 const password = ref('')
 const confirm = ref('')
 const problem = ref('')
@@ -70,7 +70,7 @@ async function submit() {
     const { error } = await supabase.auth.updateUser({ password: password.value })
     if (error) throw error
     open.value = false
-    $q.notify({ type: 'positive', message: 'Password updated.' })
+    notify.success('Password updated.')
   } catch (e) {
     problem.value = e instanceof Error ? e.message : 'Could not update your password.'
   } finally {

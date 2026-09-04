@@ -1,13 +1,13 @@
 <template>
   <div v-if="open" class="quick-action-layer">
-    <div class="quick-action-backdrop" @click="emit('update:open', false)" />
+    <div class="quick-action-backdrop" @click="toggleOpen(false)" />
     <div :id="menuId" class="quick-action-menu" role="menu" aria-label="Quick actions">
       <button
         v-for="action in actions"
         :key="action.route"
         type="button"
         role="menuitem"
-        @click="emit('navigate', action.route)"
+        @click="navigate(action.route)"
       >
         <span class="quick-action-icon"><IconifyIcon :icon="action.icon" width="18" /></span>
         <span>{{ action.label }}</span>
@@ -21,7 +21,7 @@
     :aria-expanded="open"
     :aria-controls="menuId"
     aria-label="Open quick actions"
-    @click="emit('update:open', !open)"
+    @click="toggleOpen(!open)"
   >
     <IconifyIcon icon="lucide:plus" width="20" />
   </button>
@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import type { QuickAction } from '@/types/app-types'
+import { hapticLight } from '@/utils/haptics'
 
 defineProps<{
   actions: readonly QuickAction[]
@@ -37,6 +38,16 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{ 'update:open': [value: boolean]; navigate: [route: string] }>()
+
+function toggleOpen(value: boolean) {
+  hapticLight()
+  emit('update:open', value)
+}
+
+function navigate(route: string) {
+  hapticLight()
+  emit('navigate', route)
+}
 </script>
 
 <style scoped>

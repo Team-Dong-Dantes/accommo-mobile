@@ -7,19 +7,21 @@
       class="bottom-nav-item"
       :class="{ active: active === tab.name }"
       :aria-label="tab.label"
-      @click="emit('select', tab.name)"
+      @click="onSelect(tab.name)"
     >
       <q-avatar v-if="tab.avatar" size="26px" class="profile-avatar-mini" text-color="white">
         <q-img v-if="avatarUrl" :src="avatarUrl" alt="Profile" />
         <span v-else>{{ initials }}</span>
       </q-avatar>
       <IconifyIcon v-else :icon="tab.icon" width="22" />
+      <span class="bottom-nav-label">{{ tab.label }}</span>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { BottomTab } from '@/types/app-types'
+import { hapticLight } from '@/utils/haptics'
 
 defineProps<{
   tabs: readonly BottomTab[]
@@ -29,6 +31,11 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{ select: [name: string] }>()
+
+function onSelect(name: string) {
+  hapticLight()
+  emit('select', name)
+}
 </script>
 
 <style scoped>
@@ -46,7 +53,7 @@ const emit = defineEmits<{ select: [name: string] }>()
   align-items: center;
   justify-content: center;
   gap: 2px;
-  padding: 0;
+  padding: 4px 0;
   border: 0;
   background: transparent;
   appearance: none;
@@ -71,5 +78,16 @@ const emit = defineEmits<{ select: [name: string] }>()
   background: #00897b;
   font-size: 10.5px;
   font-weight: 800;
+}
+.bottom-nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 </style>

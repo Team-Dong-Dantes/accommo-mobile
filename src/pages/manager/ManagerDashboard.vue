@@ -17,11 +17,13 @@
     </div>
 
     <div v-else class="stack">
+      <!-- Greeting -->
       <div class="greet">
         <span class="greet-time">{{ greeting }},</span>
         <span class="greet-name">{{ firstName }}</span>
       </div>
 
+      <!-- Occupancy Card -->
       <q-card flat class="occ" :class="{ 'occ--empty': !hasAccommodations }">
         <div class="occ-left">
           <span class="occ-cap">Occupancy</span>
@@ -44,11 +46,12 @@
         </div>
       </q-card>
 
+      <!-- Stats strip -->
       <div class="strip">
-        <div class="strip-cell">
+        <button type="button" class="strip-cell strip-cell--link" @click="go('/manager/payments')">
           <span class="strip-value">{{ formatPeso(expectedMonthly) }}</span>
-          <span class="strip-label">Expected / month</span>
-        </div>
+          <span class="strip-label">Expected / month · View payments</span>
+        </button>
         <div class="strip-div" />
         <div class="strip-cell">
           <span class="strip-value">{{ vacantBeds }}</span>
@@ -56,66 +59,60 @@
         </div>
       </div>
 
-      <!-- Needs attention: one actionable lead, the rest kept quiet -->
+      <!-- ===== TENANT PULSE (unchanged) ===== -->
       <section class="sec">
         <div class="sec-head">
-          <h2 class="sec-title">Needs attention</h2>
+          <h2 class="sec-title">Tenant pulse</h2>
           <button
-            v-if="moreAttention > 0"
+            v-if="recentFeedback.length"
             type="button"
             class="sec-link"
-            @click="go('/manager/osas-compliance')"
+            @click="go('/manager/support')"
           >
-            +{{ moreAttention }} more
+            View all
           </button>
         </div>
 
-        <!-- Lead item: the one thing to deal with first, with its action -->
-        <div v-if="lead" class="lead" :class="`lead--${lead.tone}`">
-          <div class="lead-top">
-            <span class="lead-icon"><IconifyIcon :icon="lead.icon" width="18" /></span>
-            <span class="lead-kind">{{ lead.kind }}</span>
-            <span v-if="lead.when" class="lead-when">{{ lead.when }}</span>
-          </div>
-          <p class="lead-label">{{ lead.label }}</p>
-          <p class="lead-hint">{{ lead.hint }}</p>
-          <button type="button" class="lead-action" @click="go(lead.route)">
-            {{ lead.action }}
-            <IconifyIcon icon="lucide:arrow-right" width="15" />
-          </button>
-        </div>
-
-        <!-- Everything else stays quiet until it is the lead -->
-        <div v-if="rest.length" class="minors">
-          <button
-            v-for="item in rest"
+        <div v-if="recentFeedback.length" class="pulse-list">
+          <div
+            v-for="item in recentFeedback"
             :key="item.id"
-            type="button"
-            class="minor"
-            @click="go(item.route)"
+            class="pulse-item"
           >
-            <span class="minor-dot" :class="`minor-dot--${item.tone}`" />
-            <span class="minor-text">
-              <span class="minor-label">{{ item.label }}</span>
-              <span class="minor-hint">{{ item.hint }}</span>
-            </span>
-            <span v-if="item.when" class="minor-when">{{ item.when }}</span>
-          </button>
+            <div class="pulse-icon">
+              <IconifyIcon icon="lucide:message-square" width="16" />
+            </div>
+            <div class="pulse-content">
+              <span class="pulse-label">{{ item.label }}</span>
+              <span class="pulse-meta">
+                <span class="pulse-who">{{ item.kind }}</span>
+                <span v-if="item.when" class="pulse-when">{{ item.when }}</span>
+              </span>
+            </div>
+            <q-btn
+              :label="item.action"
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="primary"
+              class="pulse-action"
+              @click="go(item.route)"
+            />
+          </div>
         </div>
 
-        <div v-if="!attention.length" class="clear">
-          <span class="clear-icon"><IconifyIcon icon="lucide:check" width="17" /></span>
-          <span class="clear-text">
-            <span class="clear-label">Nothing needs you</span>
-            <span class="clear-hint">Concerns, applications and renewals land here</span>
-          </span>
+        <div v-else class="empty-pulse">
+          <IconifyIcon icon="lucide:smile" width="24" class="empty-pulse-icon" />
+          <span class="empty-pulse-label">No recent feedback</span>
+          <span class="empty-pulse-hint">Tenant concerns and reviews appear here</span>
         </div>
       </section>
 
-      <!-- Accommodations: a card rail, ordered by what needs work -->
+      <!-- ===== PROPERTY HEALTH – permits & compliance only ===== -->
       <section class="sec">
         <div class="sec-head">
-          <h2 class="sec-title">Accommodations</h2>
+          <h2 class="sec-title">Property health</h2>
           <button
             v-if="hasAccommodations"
             type="button"
@@ -126,40 +123,45 @@
           </button>
         </div>
 
-        <div class="rail">
+        <div class="grid">
           <button
             v-for="a in accommodations"
             :key="a.id"
             type="button"
             class="tile"
+            :class="`tile--health-${healthTone(a)}`"
             @click="go(`/manager/properties/${a.id}`)"
           >
             <span class="tile-top">
               <span class="tile-status" :class="`tile-status--${toneOf(a.status)}`">
                 {{ statusLabel(a.status) }}
               </span>
-              <span v-if="a.expired" class="tile-alert">
-                <IconifyIcon icon="lucide:file-warning" width="13" />{{ a.expired }}
-              </span>
+              <!-- Health dot moved to top‑right -->
+              <span class="tile-health-dot" :class="`tile-health-dot--${healthTone(a)}`" />
             </span>
 
             <span class="tile-name">{{ a.name }}</span>
 
-            <span class="tile-foot">
-              <span class="tile-free" :class="{ 'tile-free--muted': a.beds === 0 || a.free === 0 }">
-                {{ a.beds === 0 ? 'No rooms yet' : a.free === 0 ? 'Full' : `${a.free} free` }}
+            <!-- Document health summary -->
+            <span class="tile-doc-summary">
+              <span v-if="a.expired > 0" class="tile-doc-expired">
+                <IconifyIcon icon="lucide:file-warning" width="14" />
+                {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
               </span>
-              <span class="tile-bar" aria-hidden="true">
-                <span
-                  class="tile-bar-fill"
-                  :style="{ width: `${a.beds === 0 ? 0 : Math.round((a.filled / a.beds) * 100)}%` }"
-                />
+              <span v-else-if="a.expiringSoon > 0" class="tile-doc-expiring">
+                <IconifyIcon icon="lucide:clock" width="14" />
+                {{ a.expiringSoon }} expiring soon
+              </span>
+              <span v-else class="tile-doc-ok">
+                <IconifyIcon icon="lucide:check-circle" width="14" />
+                All permits up to date
               </span>
             </span>
           </button>
 
+          <!-- Add tile -->
           <button type="button" class="tile tile--add" @click="go('/manager/properties/new')">
-            <span class="tile-add-icon"><IconifyIcon icon="lucide:plus" width="18" /></span>
+            <span class="tile-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
             <span class="tile-add-label">
               {{ hasAccommodations ? 'Add another' : 'Add your first accommodation' }}
             </span>
@@ -176,33 +178,30 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { formatPeso } from '@/utils/format'
+import { ago } from '@/utils/profile'
 
 interface AccommodationCard {
   id: string
   name: string
   status: string
-  beds: number
-  filled: number
-  free: number
-  expired: number
+  expired: number      // count of expired documents
+  expiringSoon: number // count of documents expiring within 30 days
 }
 
 interface AttentionItem {
   id: string
   icon: string
-  /** Short category shown above the lead item. */
   kind: string
   label: string
   hint: string
   when: string
-  /** What the button offers to do about it. */
   action: string
   route: string
   tone: 'danger' | 'warn'
   rank: number
 }
 
-const MAX_MINOR = 3
+const MAX_FEEDBACK = 3
 
 const router = useRouter()
 
@@ -225,9 +224,21 @@ const occupancyRate = computed(() =>
   totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
 )
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
-const lead = computed<AttentionItem | null>(() => attention.value[0] ?? null)
-const rest = computed(() => attention.value.slice(1, 1 + MAX_MINOR))
-const moreAttention = computed(() => Math.max(0, attention.value.length - 1 - MAX_MINOR))
+
+// Tenant Pulse: filter concerns from attention list
+const recentFeedback = computed(() =>
+  attention.value
+    .filter(item => item.kind === 'Student concern')
+    .slice(0, MAX_FEEDBACK),
+)
+
+// Health tone based on document status and accreditation
+function healthTone(a: AccommodationCard): 'good' | 'warn' | 'danger' {
+  if (a.expired > 0) return 'danger'
+  if (a.expiringSoon > 0) return 'warn'
+  if (a.status !== 'accredited') return 'warn'
+  return 'good'
+}
 
 const STATUS_LABEL: Record<string, string> = {
   accredited: 'Accredited',
@@ -248,18 +259,6 @@ function toneOf(s: string) {
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
   return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-}
-
-function ago(iso: string | null | undefined) {
-  if (!iso) return ''
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
-  const days = Math.floor((Date.now() - then) / 86400000)
-  if (days <= 0) return 'today'
-  if (days === 1) return '1d'
-  if (days < 30) return `${days}d`
-  const months = Math.floor(days / 30)
-  return months === 1 ? '1mo' : `${months}mo`
 }
 
 function go(path: string) {
@@ -294,8 +293,6 @@ async function load() {
     const accIds = accs.map((a) => a.id)
     const accName = new Map(accs.map((a) => [a.id, a.name]))
 
-    // Capacity comes from rooms; occupancy is counted from active leases.
-    // rooms.current_pax sits at 0 even where tenants exist, so it is not used.
     let roomRows: { id: string; accommodation_id: string; capacity: number | null }[] = []
     if (accIds.length) {
       const { data, error: roomError } = await supabase
@@ -328,8 +325,9 @@ async function load() {
       .filter((l) => l.status === 'active')
       .reduce((n, l) => n + Number(l.monthly_rent || 0), 0)
 
-    // --- documents: both the per-accommodation flag and the queue items ---
+    // Document tracking
     const expiredByAcc = new Map<string, number>()
+    const expiringSoonByAcc = new Map<string, number>()
     const items: AttentionItem[] = []
 
     if (accIds.length) {
@@ -359,6 +357,7 @@ async function load() {
             rank: 1,
           })
         } else if (t < soon) {
+          expiringSoonByAcc.set(d.accommodation_id, (expiringSoonByAcc.get(d.accommodation_id) || 0) + 1)
           items.push({
             id: `doc-soon-${d.id}`,
             icon: 'lucide:calendar-clock',
@@ -375,32 +374,16 @@ async function load() {
       }
     }
 
-    accommodations.value = accs
-      .map((a) => {
-        const beds = roomRows
-          .filter((r) => r.accommodation_id === a.id)
-          .reduce((n, r) => n + Number(r.capacity || 0), 0)
-        const filled = filledByAcc.get(a.id) || 0
-        return {
-          id: a.id,
-          name: a.name,
-          status: a.status,
-          beds,
-          filled,
-          free: Math.max(0, beds - filled),
-          expired: expiredByAcc.get(a.id) || 0,
-        }
-      })
-      // Surface what needs work: expired paperwork, then unaccredited, then
-      // the ones with beds going unfilled.
-      .sort(
-        (x, y) =>
-          y.expired - x.expired ||
-          Number(x.status === 'accredited') - Number(y.status === 'accredited') ||
-          y.free - x.free,
-      )
+    // Build accommodation cards – now with only document data, no room metrics
+    accommodations.value = accs.map((a) => ({
+      id: a.id,
+      name: a.name,
+      status: a.status,
+      expired: expiredByAcc.get(a.id) || 0,
+      expiringSoon: expiringSoonByAcc.get(a.id) || 0,
+    }))
 
-    // --- student concerns: filed against a lease, so joined through it ---
+    // Rest of attention items (concerns, applications, leave requests)
     const { data: concernRows } = await supabase
       .from('concerns')
       .select(
@@ -432,7 +415,6 @@ async function load() {
       })
     }
 
-    // --- applications and leave requests, named ---
     const { data: peopleRows } = await supabase
       .from('leases')
       .select(
@@ -461,7 +443,7 @@ async function load() {
           hint: where || 'Waiting on your decision',
           when: ago(l.start_date),
           action: 'Review application',
-          route: '/manager/tenants',
+          route: `/manager/tenant/${l.id}`,
           tone: 'warn',
           rank: 2,
         })
@@ -474,7 +456,7 @@ async function load() {
           hint: where || 'Waiting on your decision',
           when: ago(l.leave_requested_at),
           action: 'Review request',
-          route: '/manager/tenants',
+          route: `/manager/tenant/${l.id}`,
           tone: 'warn',
           rank: 2,
         })
@@ -493,6 +475,7 @@ onMounted(load)
 </script>
 
 <style scoped>
+/* (All existing styles remain unchanged) */
 .dash { background: var(--m-bg); }
 .stack {
   display: flex;
@@ -543,6 +526,7 @@ onMounted(load)
 
 .strip { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
 .strip-cell { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 8px 11px; }
+.strip-cell--link { border: 0; background: transparent; text-align: left; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .strip-div { width: 1px; background: var(--m-border); }
 .strip-value {
   color: var(--m-ink);
@@ -556,146 +540,211 @@ onMounted(load)
 }
 .strip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 
-/* Sections */
-.sec { display: flex; flex-direction: column; gap: 5px; }
-.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.sec-title { margin: 0; color: var(--m-ink); font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
-.sec-link { border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 0; }
-
-/* Lead: the single thing to deal with first */
-.lead {
+/* ===== SECTION HEADERS ===== */
+.sec-head {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 11px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  border: 1px solid var(--m-border);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+
+  padding-bottom: 4px;
 }
-.lead--danger { border-color: color-mix(in srgb, var(--m-danger) 22%, var(--m-border)); }
-.lead--warn { border-color: color-mix(in srgb, var(--m-warning) 26%, var(--m-border)); }
-.lead-top { display: flex; align-items: center; gap: 7px; }
-.lead-icon { display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border-radius: 999px; }
-.lead--danger .lead-icon { background: var(--m-danger-soft); color: var(--m-danger); }
-.lead--warn .lead-icon { background: var(--m-warning-soft); color: var(--m-warning); }
-.lead-kind {
-  flex: 1 1 auto;
-  font-size: 11px;
+.sec-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
-.lead--danger .lead-kind { color: var(--m-danger); }
-.lead--warn .lead-kind { color: var(--m-warning); }
-.lead-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
-.lead-label {
-  margin: 3px 0 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 15.5px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  text-wrap: pretty;
-}
-.lead-hint { margin: 0; color: var(--m-muted); font-size: 11.5px; line-height: 1.3; text-wrap: pretty; }
-.lead-action {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 6px;
-  min-height: 38px;
-  margin-top: 7px;
-  padding: 0 14px;
+.sec-link {
   border: 0;
+  background: transparent;
+  color: var(--m-primary-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 4px 8px;
   border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
+  transition: background 0.15s;
 }
-.lead-action:active { transform: scale(0.97); }
-
-/* Minors: everything still waiting, kept quiet */
-.minors { display: flex; flex-direction: column; gap: 3px; }
-.minor {
-  display: flex;
-  width: 100%;
-  min-height: 44px;
-  align-items: center;
-  gap: 9px;
-  padding: 4px 11px;
-  border: 0;
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
+.sec-link:hover {
+  background: var(--m-primary-soft);
 }
-.minor-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 999px; }
-.minor-dot--danger { background: var(--m-danger); }
-.minor-dot--warn { background: var(--m-warning); }
-.minor-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.minor-label { color: var(--m-ink); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.minor-hint { color: var(--m-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.minor-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11px; font-weight: 600; }
 
-/* Clear state keeps the block's footprint */
-.clear {
+/* ===== TENANT PULSE ===== */
+.pulse-list {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 11px;
+  flex-direction: column;
+  gap: 2px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
+  overflow: hidden;
 }
-.clear-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 999px; background: var(--m-success-soft); color: var(--m-success); }
-.clear-text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.clear-label { color: var(--m-ink); font-size: 14px; font-weight: 700; }
-.clear-hint { color: var(--m-muted); font-size: 12px; }
-
-/* Accommodation rail */
-.rail {
+.pulse-item {
   display: flex;
+  align-items: center;
   gap: 8px;
-  overflow-x: auto;
-  padding: 1px calc(var(--m-page-gutter)) 3px;
-  margin: 0 calc(-1 * var(--m-page-gutter));
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  padding: 8px 10px;
+
+  transition: background 0.15s;
 }
-.rail::-webkit-scrollbar { display: none; }
+.pulse-item:last-child {
+  border-bottom: none;
+}
+.pulse-item:hover {
+  background: var(--m-bg);
+}
+.pulse-icon {
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.pulse-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pulse-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--m-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pulse-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--m-muted);
+}
+.pulse-who {
+  font-weight: 600;
+}
+.pulse-when {
+  opacity: 0.8;
+}
+.pulse-action {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  min-height: 28px;
+  font-weight: 700;
+  color: var(--m-primary);
+  border-radius: 4px;
+}
+.pulse-action:hover {
+  background: var(--m-primary-soft);
+}
+
+.empty-pulse {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  text-align: center;
+}
+.empty-pulse-icon {
+  color: var(--m-muted);
+  opacity: 0.5;
+}
+.empty-pulse-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--m-ink);
+}
+.empty-pulse-hint {
+  font-size: 12px;
+  color: var(--m-muted);
+}
+
+/* ===== PROPERTY HEALTH CARDS – permits only ===== */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
 .tile {
   display: flex;
-  flex: 0 0 162px;
-  min-height: 118px;
   flex-direction: column;
   gap: 6px;
-  padding: 11px;
+  padding: 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
   cursor: pointer;
   font: inherit;
   text-align: left;
-  scroll-snap-align: start;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
+  transition: transform 0.12s ease, box-shadow 0.15s, border-color 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  position: relative;
 }
-.tile:active { transform: scale(0.97); }
-.tile-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.tile-status { padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; }
-.tile-status--ok { background: var(--m-success-soft); color: var(--m-success); }
-.tile-status--warn { background: var(--m-warning-soft); color: var(--m-warning); }
-.tile-status--danger { background: var(--m-danger-soft); color: var(--m-danger); }
-.tile-alert { display: inline-flex; align-items: center; gap: 3px; color: var(--m-danger); font-size: 11px; font-weight: 700; }
+.tile:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.tile:active {
+  transform: scale(0.97);
+}
+
+.tile-health-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid var(--m-surface);
+  box-shadow: 0 0 0 1px var(--m-border);
+}
+.tile-health-dot--good {
+  background: var(--m-success);
+}
+.tile-health-dot--warn {
+  background: var(--m-warning);
+}
+.tile-health-dot--danger {
+  background: var(--m-danger);
+}
+
+.tile-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.tile-status {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.tile-status--ok {
+  background: var(--m-success-soft);
+  color: var(--m-success);
+}
+.tile-status--warn {
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+}
+.tile-status--danger {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+}
+
 .tile-name {
   flex: 1 1 auto;
   color: var(--m-ink);
@@ -709,28 +758,57 @@ onMounted(load)
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.tile-foot { display: flex; flex-direction: column; gap: 5px; }
-.tile-free { color: var(--m-primary-dark); font-size: 12.5px; font-weight: 700; }
-.tile-free--muted { color: var(--m-muted); }
-.tile-bar { display: block; height: 4px; border-radius: 999px; background: var(--m-bg); overflow: hidden; }
-.tile-bar-fill { display: block; height: 100%; border-radius: 999px; background: var(--m-primary); }
+
+/* Document summary */
+.tile-doc-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.tile-doc-expired {
+  color: var(--m-danger);
+}
+.tile-doc-expiring {
+  color: var(--m-warning);
+}
+.tile-doc-ok {
+  color: var(--m-success);
+}
 
 .tile--add {
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 10px;
   border-style: dashed;
   background: transparent;
-  text-align: center;
+  box-shadow: none;
 }
-.tile-add-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 999px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
-.tile-add-label { color: var(--m-muted); font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+.tile--add:hover {
+  background: var(--m-surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.tile-add-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.tile-add-label {
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.3;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .ring-fill, .lead-action, .tile { transition: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ring-fill { transition: none; }
+  .ring-fill, .tile, .tile-bar-fill {
+    transition: none !important;
+  }
 }
 </style>

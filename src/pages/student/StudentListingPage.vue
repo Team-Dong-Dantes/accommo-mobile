@@ -28,6 +28,9 @@
       <!-- Photos, or a monogram band when there are none -->
       <div v-if="images.length" class="gal">
         <img v-for="(src, i) in images" :key="i" :src="src" :alt="listing.name" class="gal-img" />
+        <span v-if="images.length > 1" class="gal-count">
+          <IconifyIcon icon="lucide:image" width="11" />{{ images.length }}
+        </span>
       </div>
       <div v-else class="gal-none">
         <span class="gal-mono">{{ monogram }}</span>
@@ -36,6 +39,9 @@
       <div class="head">
         <h1 class="head-name">{{ listing.name }}</h1>
         <p class="head-where">{{ listing.address }}</p>
+        <span class="badge">
+          <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
+        </span>
         <div class="head-tags">
           <span v-if="buildingType" class="tag">{{ buildingType }}</span>
           <span v-if="distance" class="tag tag--soft">
@@ -43,6 +49,11 @@
           </span>
           <span class="tag" :class="vacancies ? 'tag--ok' : 'tag--none'">
             {{ vacancies ? `${vacancies} room${vacancies === 1 ? '' : 's'} free` : 'Currently full' }}
+          </span>
+        </div>
+        <div v-if="facts.length" class="facts">
+          <span v-for="f in facts" :key="f.label" class="fact">
+            <strong>{{ f.value }}</strong>{{ f.label }}
           </span>
         </div>
       </div>
@@ -53,7 +64,18 @@
       <section class="sec">
         <h2 class="sec-title">Rooms</h2>
         <div class="group">
-          <div v-for="room in rooms" :key="room.id" class="room" :class="{ 'room--taken': !room.free }">
+          <button
+            v-for="room in rooms"
+            :key="room.id"
+            type="button"
+            class="room"
+            :class="{ 'room--taken': !room.free }"
+            @click="router.push(`/student/room/${room.id}`)"
+          >
+            <span class="room-thumb">
+              <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
+              <span v-else class="room-thumb-mono">{{ monogram }}</span>
+            </span>
             <span class="room-body">
               <span class="room-name">{{ room.label }}</span>
               <span class="room-meta">{{ room.meta }}</span>
@@ -65,7 +87,7 @@
                 {{ room.free ? 'Available' : 'Taken' }}
               </span>
             </span>
-          </div>
+          </button>
           <p v-if="!rooms.length" class="none">This listing hasn't published any rooms yet</p>
         </div>
       </section>
@@ -77,6 +99,17 @@
           <span v-for="a in amenities" :key="a" class="am">
             <IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="14" />
             {{ AMENITY_META[a]?.label || a }}
+          </span>
+        </div>
+      </section>
+
+      <!-- Shared facilities -->
+      <section v-if="sharedFacilities.length" class="sec">
+        <h2 class="sec-title">Shared facilities</h2>
+        <div class="ams">
+          <span v-for="f in sharedFacilities" :key="f.type + f.label" class="am">
+            <IconifyIcon :icon="FACILITY_META[f.type]?.icon || 'lucide:dot'" width="14" />
+            {{ f.label || FACILITY_META[f.type]?.label || f.type }}
           </span>
         </div>
       </section>
@@ -107,7 +140,7 @@
       <!-- The person to ask -->
       <section v-if="manager.id" class="sec">
         <h2 class="sec-title">Managed by</h2>
-        <div class="mgr">
+        <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
           <span class="mgr-avatar">{{ manager.initials }}</span>
           <span class="mgr-body">
             <span class="mgr-name">{{ manager.name }}</span>
@@ -115,25 +148,14 @@
               {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Accommodation manager' }}
             </span>
           </span>
-        </div>
+        </button>
       </section>
 
       <div class="tail" />
     </div>
 
     <!-- Enquiry hand-off: the conversation is where applying happens -->
-    <div v-if="!loading && !error && manager.id" class="cta">
-      <span class="cta-price">
-        <template v-if="minRent !== null">
-          {{ formatPeso(minRent) }}<span class="cta-per">/mo</span>
-        </template>
-        <template v-else>Rent on request</template>
-      </span>
-      <button type="button" class="cta-btn" @click="messageManager">
-        <IconifyIcon icon="lucide:message-circle" width="17" />
-        Message manager
-      </button>
-    </div>
+    <MessageManagerCta v-if="!loading && !error && manager.id" :manager-id="manager.id" />
   </q-page>
 </template>
 
@@ -146,7 +168,8 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
+import { AMENITY_META, FACILITY_META, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
+import MessageManagerCta from '@/components/student/MessageManagerCta.vue'
 
 interface RoomRow {
   id: string
@@ -154,6 +177,7 @@ interface RoomRow {
   meta: string
   rent: number
   free: boolean
+  image: string
 }
 
 const route = useRoute()
@@ -168,10 +192,14 @@ const listing = reactive({
   type: '' as string | null,
   lat: null as number | null,
   lng: null as number | null,
+  totalFloors: null as number | null,
+  totalRooms: null as number | null,
+  capacity: null as number | null,
 })
 const images = ref<string[]>([])
 const rooms = ref<RoomRow[]>([])
 const amenities = ref<string[]>([])
+const sharedFacilities = ref<{ type: string; label: string | null }[]>([])
 const rules = ref<{ label: string; value: string }[]>([])
 const manager = reactive({ id: '', name: '', initials: '?', replyMinutes: null as number | null })
 
@@ -181,14 +209,13 @@ const buildingType = computed(() => buildingTypeLabel(listing.type))
 const distance = computed(() => campusDistanceLabel(listing.lat, listing.lng))
 const mapUrl = computed(() => staticMapUrl(listing.lat, listing.lng))
 const vacancies = computed(() => rooms.value.filter((r) => r.free).length)
-const minRent = computed(() => {
-  const priced = rooms.value.map((r) => r.rent).filter((n) => n > 0)
-  return priced.length ? Math.min(...priced) : null
-})
-
-function messageManager() {
-  void router.push(`/student/messages?to=${manager.id}`)
-}
+const facts = computed(() =>
+  [
+    listing.totalFloors ? { label: ` floor${listing.totalFloors === 1 ? '' : 's'}`, value: listing.totalFloors } : null,
+    listing.totalRooms ? { label: ` room${listing.totalRooms === 1 ? '' : 's'}`, value: listing.totalRooms } : null,
+    listing.capacity ? { label: ' beds total', value: listing.capacity } : null,
+  ].filter((f): f is { label: string; value: number } => f !== null),
+)
 
 function yesNo(value: boolean | null | undefined): string {
   if (value === null || value === undefined) return ''
@@ -202,7 +229,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'id,name,address,city,barangay,description,accommodation_type,lat,lng,accommodation_manager_id,rooms(id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,status),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,deposit_months,advance_months,min_stay,contract_type)',
+        'id,name,address,city,barangay,description,accommodation_type,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,deposit_months,advance_months,min_stay,contract_type)',
       )
       .eq('id', id.value)
       .eq('status', 'accredited')
@@ -220,6 +247,9 @@ async function load() {
     listing.type = data.accommodation_type
     listing.lat = data.lat
     listing.lng = data.lng
+    listing.totalFloors = data.total_floors
+    listing.totalRooms = data.total_rooms
+    listing.capacity = data.capacity
 
     images.value = [...((data.accommodation_images ?? []) as { url: string; sort_order: number | null }[])]
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -235,24 +265,40 @@ async function load() {
       capacity: number | null
       monthly_rent: number | null
       status: string
+      room_images: { url: string; sort_order: number | null }[] | null
     }[])
-      .map((r) => ({
-        id: r.id,
-        label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
-        meta: [
-          roomTypeLabel(r.custom_room_type || r.room_type),
-          r.capacity ? `sleeps ${r.capacity}` : '',
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        rent: Number(r.monthly_rent ?? 0),
-        free: r.status === 'available',
-      }))
+      .map((r) => {
+        const roomImages = [...(r.room_images ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        return {
+          id: r.id,
+          label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
+          meta: [
+            roomTypeLabel(r.custom_room_type || r.room_type),
+            r.capacity ? `sleeps ${r.capacity}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          rent: Number(r.monthly_rent ?? 0),
+          free: r.status === 'available',
+          image: roomImages[0]?.url ? resolveAsset(roomImages[0].url) : '',
+        }
+      })
       .sort((a, b) => Number(b.free) - Number(a.free) || a.rent - b.rent)
 
     amenities.value = ((data.accommodation_amenities ?? []) as { amenity: string }[]).map(
       (a) => a.amenity,
     )
+
+    sharedFacilities.value = (
+      (data.accommodation_facilities ?? []) as {
+        facility_type: string
+        access_scope: string
+        label: string | null
+        room_id: string | null
+      }[]
+    )
+      .filter((f) => !f.room_id)
+      .map((f) => ({ type: f.facility_type, label: f.label }))
 
     // accommodation_policies is one row per accommodation, but the embed
     // returns it as an array when the relationship is not marked one-to-one.
@@ -347,6 +393,7 @@ onMounted(load)
 
 /* Gallery */
 .gal {
+  position: relative;
   display: flex;
   gap: 6px;
   overflow-x: auto;
@@ -360,6 +407,21 @@ onMounted(load)
   border-radius: var(--m-radius);
   object-fit: cover;
   scroll-snap-align: start;
+}
+.gal-count {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
 }
 .gal-none {
   display: grid;
@@ -389,11 +451,35 @@ onMounted(load)
   color: var(--m-muted);
   font-size: 13px;
 }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--m-success-soft);
+  color: var(--m-success);
+  font-size: 11px;
+  font-weight: 700;
+}
 .head-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  color: var(--m-muted);
+  font-size: 12px;
+}
+.facts strong {
+  color: var(--m-ink);
+  font-weight: 700;
 }
 .tag {
   display: inline-flex;
@@ -460,17 +546,45 @@ onMounted(load)
 /* Rooms */
 .room {
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
+  border: 0;
   border-top: 1px solid var(--m-border);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
 .group > .room:first-child {
   border-top: 0;
 }
 .room--taken {
   opacity: 0.6;
+}
+.room-thumb {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-primary-soft);
+}
+.room-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.room-thumb-mono {
+  color: var(--m-primary-dark);
+  font-family: var(--m-font-display);
+  font-size: 13px;
+  font-weight: 800;
 }
 .room-body {
   display: flex;
@@ -596,12 +710,17 @@ onMounted(load)
 /* Manager */
 .mgr {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 11px;
   padding: 10px 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
 .mgr-avatar {
   display: grid;
@@ -631,47 +750,4 @@ onMounted(load)
   font-size: 11.5px;
 }
 
-/* Sticky enquiry bar */
-.cta {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px var(--m-page-gutter) calc(10px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--m-border);
-  background: var(--m-surface);
-}
-.cta-price {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.cta-per {
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.7;
-}
-.cta-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 46px;
-  padding: 0 20px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
 </style>
