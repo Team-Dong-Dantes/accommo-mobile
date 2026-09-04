@@ -12,7 +12,15 @@ The pre-strip code is not lost: branch `pre-rebuild-snapshot` (commit `a6aec03`)
 
 - App-level UI/routing role is **`manager`** (`/manager/*` routes, `pages/manager/`).
 - The **database role enum** is `accommodation_manager`. `stores/auth.ts` maps between them at the DB boundary — preserve that mapping.
-- The **database schema still uses `landlord_*` identifiers**: `landlord_id`, `landlord_profiles`, `landlord_reviews`, `landlords`. These are the DB contract and must NOT be renamed to `manager_*`. Any remaining "landlord" string in `src/` is one of these DB identifiers and is intentional.
+- The live database is **fully renamed**: `accommodations` (not `properties`), `accommodations.accommodation_manager_id`, `rooms.accommodation_id`, `accommodation_manager_profiles`, `accommodation_documents`. There is **no `landlord_*` identifier anywhere** — if you see one, the types are stale.
+- `src/types/database.gen.ts` is generated from the live project (`xuckyyjzfwtxxiwmxvco`). Regenerate it rather than hand-editing, and regenerate after any migration.
+
+## Data reliability (verified against the live DB)
+
+- **Occupancy must be counted from active leases.** `rooms.current_pax` sits at 0 even for accommodations with active tenants, and `rooms.status` disagrees with the lease data (12 "occupied" rooms vs 32 rooms holding active leases). `rooms.capacity` is reliable for bed totals.
+- **`payments` has ~2 rows** against 100+ active leases. Do not build collection/arrears metrics; state rent as *expected* from `leases.monthly_rent`.
+- **All review tables are empty** (`tenant_reviews`, `accommodation_reviews`, `accommodation_manager_reviews`) — no ratings features.
+- Half of managers have zero accommodations, and the median manager has zero rooms; students hold at most one live lease. Design every screen for the empty and single-item case first.
 
 ## Structure
 

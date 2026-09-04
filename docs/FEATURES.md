@@ -19,9 +19,10 @@ mobile — an admin who signs in on mobile is signed out and told to use the web
 - App-level roles are `student` and `manager`.
 - The database role enum value is `accommodation_manager`; `stores/auth.ts` maps
   it to `manager` at the DB boundary. Keep that mapping.
-- The database schema also still uses `landlord_*` identifiers (`landlord_id`,
-  `landlord_profiles`, `landlord_reviews`, `landlords`). These are the DB contract.
-  Do not rename them.
+- The live database is fully renamed: `accommodations`, `accommodation_manager_id`,
+  `rooms.accommodation_id`, `accommodation_manager_profiles`, `accommodation_documents`.
+  No `landlord_*` identifier exists. (An earlier revision of this document said
+  otherwise; that reflected a stale generated types file, not the database.)
 
 **The domain in one paragraph.** A manager owns one or more *accommodations*
 (properties), each containing *rooms*. A student discovers a room, messages the
@@ -164,7 +165,8 @@ Table: `notifications`.
 The manager's operational home: occupancy and portfolio summary, payment
 activity with a view-all-payments action, tenant and ticket signals, and entry
 points to the compliance workspace.
-Tables: `accommodations`, `rooms`, `leases`, `payments`, `users`, `tickets`.
+Tables: `accommodations`, `rooms`, `leases`, `accommodation_documents`, `users`, `tickets`.
+Occupancy is counted from active leases, not `rooms.current_pax`/`rooms.status`.
 
 ### 4.2 Accommodations — `/manager/properties`
 Portfolio list with a summary header, per-accommodation cards, and loading

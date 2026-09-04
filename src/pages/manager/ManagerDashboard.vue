@@ -1,166 +1,175 @@
 <template>
   <q-page class="dash q-pb-xl">
-    <header class="dash-greeting q-px-md q-pt-md">
-      <p class="greeting-eyebrow">{{ greeting }}</p>
-      <h1 class="greeting-name">{{ firstName }}</h1>
+    <header class="dash-head q-px-md q-pt-md">
+      <p class="head-eyebrow">{{ greeting }}</p>
+      <h1 class="head-name">{{ firstName }}</h1>
     </header>
 
-    <!-- Loading -->
     <div v-if="loading" class="q-px-md q-pt-md">
-      <q-skeleton type="rect" height="104px" class="skeleton-card q-mb-md" />
-      <q-skeleton type="rect" height="140px" class="skeleton-card q-mb-md" />
-      <q-skeleton type="rect" height="120px" class="skeleton-card" />
+      <q-skeleton type="rect" height="132px" class="sk q-mb-md" />
+      <q-skeleton type="rect" height="92px" class="sk q-mb-md" />
+      <q-skeleton type="rect" height="160px" class="sk" />
     </div>
 
-    <!-- Load failure -->
     <div v-else-if="error" class="q-px-md q-pt-md">
-      <q-card flat bordered class="state-card text-center q-pa-lg">
-        <IconifyIcon icon="lucide:cloud-off" width="28" class="text-grey-6" />
-        <p class="state-title q-mt-sm">Couldn't load your dashboard</p>
-        <p class="state-text">{{ error }}</p>
+      <q-card flat bordered class="panel text-center q-pa-lg">
+        <IconifyIcon icon="lucide:cloud-off" width="26" class="text-grey-6" />
+        <p class="panel-title q-mt-sm">Couldn't load your dashboard</p>
+        <p class="panel-sub">{{ error }}</p>
         <q-btn unelevated rounded color="primary" label="Try again" class="q-mt-sm" @click="load" />
       </q-card>
     </div>
 
-    <!-- No properties yet -->
-    <div v-else-if="properties.length === 0" class="q-px-md q-pt-md">
-      <EmptyState
-        icon="lucide:building-2"
-        title="No accommodations yet"
-        message="Add your first accommodation to start tracking rooms, tenants and payments."
-      >
-        <template #actions>
-          <q-btn
-            unelevated
-            rounded
-            color="primary"
-            label="Add accommodation"
-            @click="go('/manager/properties/new')"
-          />
-        </template>
-      </EmptyState>
-    </div>
-
     <template v-else>
-      <!-- Occupancy -->
+      <!-- Occupancy: beds, not room.status (room.status is unreliable) -->
       <section class="q-px-md q-pt-md">
-        <q-card flat class="occupancy-card">
-          <div class="occ-head">
-            <span>Occupancy</span>
-            <span class="occ-rate">{{ occupancyRate }}%</span>
+        <q-card flat class="occ-card" :class="{ 'occ-card--empty': !hasAccommodations }">
+          <div class="occ-top">
+            <span class="occ-caption">Occupancy</span>
+            <span class="occ-rate">{{ hasAccommodations ? `${occupancyRate}%` : '—' }}</span>
           </div>
-          <q-linear-progress
-            :value="occupancyRate / 100"
-            size="8px"
-            rounded
-            track-color="white"
-            color="white"
-            class="occ-bar q-mt-sm"
-          />
-          <div class="occ-meta q-mt-sm">
-            {{ occupiedRooms }} of {{ totalRooms }} rooms occupied
-            across {{ properties.length }}
-            {{ properties.length === 1 ? 'accommodation' : 'accommodations' }}
+          <div class="occ-track">
+            <div class="occ-fill" :style="{ width: `${occupancyRate}%` }" />
+          </div>
+          <div class="occ-foot">
+            <span v-if="hasAccommodations">
+              {{ filledBeds }} of {{ totalBeds }} beds · {{ accommodations.length }}
+              {{ accommodations.length === 1 ? 'accommodation' : 'accommodations' }}
+            </span>
+            <span v-else>No accommodations yet — your occupancy shows here</span>
           </div>
         </q-card>
       </section>
 
-      <!-- Signals -->
+      <!-- Compliance: the signal with real, urgent data -->
       <section class="q-px-md q-pt-md">
-        <h2 class="section-title">At a glance</h2>
-        <div class="glance-grid">
-          <button type="button" class="glance-card" @click="go('/manager/tenants')">
-            <span class="glance-value">{{ activeTenants }}</span>
-            <span class="glance-label">Active tenants</span>
-          </button>
-          <button type="button" class="glance-card" @click="go('/manager/payments')">
-            <span class="glance-value">{{ formatPeso(collectedThisMonth) }}</span>
-            <span class="glance-label">Collected this month</span>
+        <div class="row-head">
+          <h2 class="sec-title">Compliance</h2>
+          <q-btn
+            flat dense no-caps class="sec-action" label="OSAS"
+            @click="go('/manager/osas-compliance')"
+          />
+        </div>
+        <div class="stat-row">
+          <button
+            type="button" class="stat" :class="{ 'stat--danger': expiredDocs > 0 }"
+            @click="go('/manager/osas-compliance')"
+          >
+            <span class="stat-value">{{ expiredDocs }}</span>
+            <span class="stat-label">Expired</span>
           </button>
           <button
-            type="button"
-            class="glance-card"
-            :class="{ 'glance-card--warn': outstandingCount > 0 }"
-            @click="go('/manager/payments')"
+            type="button" class="stat" :class="{ 'stat--warn': expiringDocs > 0 }"
+            @click="go('/manager/osas-compliance')"
           >
-            <span class="glance-value">{{ outstandingCount }}</span>
-            <span class="glance-label">Unpaid dues</span>
+            <span class="stat-value">{{ expiringDocs }}</span>
+            <span class="stat-label">Expiring</span>
           </button>
           <button
-            type="button"
-            class="glance-card"
-            :class="{ 'glance-card--warn': openTickets > 0 }"
-            @click="go('/manager/support')"
+            type="button" class="stat" :class="{ 'stat--warn': notAccredited > 0 }"
+            @click="go('/manager/osas-compliance')"
           >
-            <span class="glance-value">{{ openTickets }}</span>
-            <span class="glance-label">Open tickets</span>
+            <span class="stat-value">{{ notAccredited }}</span>
+            <span class="stat-label">Unaccredited</span>
           </button>
         </div>
       </section>
 
-      <!-- Needs attention -->
-      <section v-if="attention.length > 0" class="q-px-md q-pt-md">
-        <h2 class="section-title">Needs attention</h2>
-        <q-card flat bordered class="attention-card">
-          <button
-            v-for="(item, index) in attention"
-            :key="item.label"
-            type="button"
-            class="attention-row"
-            :class="{ 'attention-row--divided': index > 0 }"
-            @click="go(item.route)"
-          >
-            <span class="attention-icon" :class="`attention-icon--${item.tone}`">
-              <IconifyIcon :icon="item.icon" width="16" />
+      <!-- Tenancy -->
+      <section class="q-px-md q-pt-md">
+        <h2 class="sec-title">Tenancy</h2>
+        <div class="stat-row">
+          <button type="button" class="stat stat--wide" @click="go('/manager/tenants')">
+            <span class="stat-value">{{ activeTenants }}</span>
+            <span class="stat-label">Active tenants</span>
+          </button>
+          <button type="button" class="stat stat--wide" @click="go('/manager/tenants')">
+            <span class="stat-value">{{ formatPeso(expectedMonthly) }}</span>
+            <span class="stat-label">Expected rent / month</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Needs attention: always present, states its own emptiness -->
+      <section class="q-px-md q-pt-md">
+        <h2 class="sec-title">Needs attention</h2>
+        <q-card flat bordered class="panel list-card">
+          <template v-if="attention.length > 0">
+            <button
+              v-for="(item, i) in attention"
+              :key="item.label"
+              type="button"
+              class="list-row"
+              :class="{ 'list-row--divided': i > 0 }"
+              @click="go(item.route)"
+            >
+              <span class="list-icon" :class="`list-icon--${item.tone}`">
+                <IconifyIcon :icon="item.icon" width="16" />
+              </span>
+              <span class="list-text">
+                <span class="list-label">{{ item.label }}</span>
+                <span class="list-hint">{{ item.hint }}</span>
+              </span>
+              <IconifyIcon icon="lucide:chevron-right" width="16" class="text-grey-5" />
+            </button>
+          </template>
+          <div v-else class="list-row list-row--quiet">
+            <span class="list-icon list-icon--ok">
+              <IconifyIcon icon="lucide:check" width="16" />
             </span>
-            <span class="attention-text">
-              <span class="attention-label">{{ item.label }}</span>
-              <span class="attention-hint">{{ item.hint }}</span>
+            <span class="list-text">
+              <span class="list-label">All clear</span>
+              <span class="list-hint">Approvals, renewals and issues appear here</span>
+            </span>
+          </div>
+        </q-card>
+      </section>
+
+      <!-- Accommodations: scales 1..9, and holds its shape at zero -->
+      <section class="q-px-md q-pt-md">
+        <div class="row-head">
+          <h2 class="sec-title">Accommodations</h2>
+          <q-btn
+            v-if="hasAccommodations"
+            flat dense no-caps class="sec-action" label="View all"
+            @click="go('/manager/properties')"
+          />
+        </div>
+
+        <q-card flat bordered class="panel list-card">
+          <template v-if="hasAccommodations">
+            <button
+              v-for="(a, i) in accommodations"
+              :key="a.id"
+              type="button"
+              class="list-row"
+              :class="{ 'list-row--divided': i > 0 }"
+              @click="go(`/manager/properties/${a.id}`)"
+            >
+              <span class="acc-text">
+                <span class="list-label">{{ a.name }}</span>
+                <span class="list-hint">
+                  {{ a.filled }}/{{ a.beds }} beds · {{ statusLabel(a.status) }}
+                </span>
+              </span>
+              <span class="acc-meter" aria-hidden="true">
+                <span class="acc-meter-fill" :style="{ width: `${a.rate}%` }" />
+              </span>
+              <IconifyIcon icon="lucide:chevron-right" width="16" class="text-grey-5" />
+            </button>
+          </template>
+
+          <!-- Zero state keeps the row shape rather than replacing the section -->
+          <button v-else type="button" class="list-row list-row--add" @click="go('/manager/properties/new')">
+            <span class="list-icon list-icon--add">
+              <IconifyIcon icon="lucide:plus" width="16" />
+            </span>
+            <span class="list-text">
+              <span class="list-label">Add your first accommodation</span>
+              <span class="list-hint">Rooms, tenants and compliance follow from here</span>
             </span>
             <IconifyIcon icon="lucide:chevron-right" width="16" class="text-grey-5" />
           </button>
-        </q-card>
-      </section>
-
-      <!-- Payment activity -->
-      <section class="q-px-md q-pt-md">
-        <div class="section-head">
-          <h2 class="section-title q-mb-none">Payment activity</h2>
-          <q-btn
-            flat
-            dense
-            no-caps
-            class="section-action"
-            label="View all"
-            @click="go('/manager/payments')"
-          />
-        </div>
-
-        <q-card v-if="recentPayments.length === 0" flat bordered class="quiet-card">
-          No payments recorded yet.
-        </q-card>
-
-        <q-card v-else flat bordered class="activity-card">
-          <div
-            v-for="(payment, index) in recentPayments"
-            :key="payment.id"
-            class="activity-row"
-            :class="{ 'activity-row--divided': index > 0 }"
-          >
-            <div class="activity-main">
-              <span class="activity-name">{{ payment.studentName }}</span>
-              <span class="activity-meta">{{ formatMonth(payment.month) }}</span>
-            </div>
-            <div class="activity-right">
-              <span class="activity-amount">{{ formatPeso(payment.amount) }}</span>
-              <q-badge
-                :color="statusColor(PAYMENT_STATUS, payment.status)"
-                class="activity-badge"
-              >
-                {{ statusText(PAYMENT_STATUS, payment.status) }}
-              </q-badge>
-            </div>
-          </div>
         </q-card>
       </section>
     </template>
@@ -172,27 +181,15 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
-import {
-  formatPeso,
-  formatMonth,
-  statusText,
-  statusColor,
-  PAYMENT_STATUS,
-} from '@/utils/format'
-import EmptyState from '@/components/shared/EmptyState.vue'
+import { formatPeso } from '@/utils/format'
 
-interface PropertyRow {
+interface AccommodationCard {
   id: string
   name: string
-  accreditationStatus: string | null
-}
-
-interface PaymentRow {
-  id: string
-  amount: number
-  month: string
   status: string
-  studentName: string
+  beds: number
+  filled: number
+  rate: number
 }
 
 const router = useRouter()
@@ -200,68 +197,75 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const firstName = ref('there')
-const properties = ref<PropertyRow[]>([])
-const totalRooms = ref(0)
-const occupiedRooms = ref(0)
+const accommodations = ref<AccommodationCard[]>([])
+const totalBeds = ref(0)
+const filledBeds = ref(0)
 const activeTenants = ref(0)
+const pendingLeases = ref(0)
 const leaveRequests = ref(0)
+const expectedMonthly = ref(0)
+const expiredDocs = ref(0)
+const expiringDocs = ref(0)
 const openTickets = ref(0)
-const recentPayments = ref<PaymentRow[]>([])
-const collectedThisMonth = ref(0)
-const outstandingCount = ref(0)
 
 const greeting = computed(() => {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 })
 
+const hasAccommodations = computed(() => accommodations.value.length > 0)
 const occupancyRate = computed(() =>
-  totalRooms.value === 0 ? 0 : Math.round((occupiedRooms.value / totalRooms.value) * 100),
+  totalBeds.value === 0 ? 0 : Math.min(100, Math.round((filledBeds.value / totalBeds.value) * 100)),
+)
+const notAccredited = computed(
+  () => accommodations.value.filter((a) => a.status !== 'accredited').length,
 )
 
-// Accreditation that is not yet approved is the manager's compliance work.
-const pendingAccreditation = computed(
-  () => properties.value.filter((p) => p.accreditationStatus !== 'approved').length,
-)
+function statusLabel(status: string) {
+  const map: Record<string, string> = {
+    accredited: 'Accredited',
+    pending: 'Pending',
+    reviewing: 'Reviewing',
+    rejected: 'Rejected',
+    delisted: 'Delisted',
+  }
+  return map[status] ?? status
+}
 
 const attention = computed(() => {
-  const items: {
-    icon: string
-    label: string
-    hint: string
-    route: string
-    tone: 'warn' | 'danger'
-  }[] = []
-
-  if (leaveRequests.value > 0) {
+  const items: { icon: string; label: string; hint: string; route: string; tone: string }[] = []
+  if (pendingLeases.value > 0)
     items.push({
-      icon: 'lucide:door-open',
-      label: `${leaveRequests.value} leave ${leaveRequests.value === 1 ? 'request' : 'requests'}`,
+      icon: 'lucide:user-plus',
+      label: `${pendingLeases.value} pending ${pendingLeases.value === 1 ? 'application' : 'applications'}`,
       hint: 'Waiting on your decision',
       route: '/manager/tenants',
       tone: 'warn',
     })
-  }
-  if (outstandingCount.value > 0) {
+  if (leaveRequests.value > 0)
     items.push({
-      icon: 'lucide:wallet-cards',
-      label: `${outstandingCount.value} unpaid ${outstandingCount.value === 1 ? 'due' : 'dues'}`,
-      hint: 'Rent not yet settled',
-      route: '/manager/payments',
-      tone: 'danger',
-    })
-  }
-  if (pendingAccreditation.value > 0) {
-    items.push({
-      icon: 'lucide:shield-check',
-      label: `${pendingAccreditation.value} ${pendingAccreditation.value === 1 ? 'accommodation' : 'accommodations'} not accredited`,
-      hint: 'Check OSAS compliance',
-      route: '/manager/osas-compliance',
+      icon: 'lucide:door-open',
+      label: `${leaveRequests.value} leave ${leaveRequests.value === 1 ? 'request' : 'requests'}`,
+      hint: 'Tenant wants to move out',
+      route: '/manager/tenants',
       tone: 'warn',
     })
-  }
+  if (expiredDocs.value > 0)
+    items.push({
+      icon: 'lucide:file-warning',
+      label: `${expiredDocs.value} expired ${expiredDocs.value === 1 ? 'document' : 'documents'}`,
+      hint: 'Re-upload to stay accredited',
+      route: '/manager/osas-compliance',
+      tone: 'danger',
+    })
+  if (openTickets.value > 0)
+    items.push({
+      icon: 'lucide:life-buoy',
+      label: `${openTickets.value} open ${openTickets.value === 1 ? 'ticket' : 'tickets'}`,
+      hint: 'Reported by tenants or OSAS',
+      route: '/manager/support',
+      tone: 'warn',
+    })
   return items
 })
 
@@ -287,91 +291,91 @@ async function load() {
       .maybeSingle()
     firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
 
-    // NOTE: the DB calls a manager's accommodation a "property", and the owning
-    // column is landlord_id. Both are schema-level names — do not rename.
-    const { data: propertyRows, error: propertyError } = await supabase
-      .from('properties')
-      .select('id, name, accreditation_status')
-      .eq('landlord_id', user.id)
+    const { data: accRows, error: accError } = await supabase
+      .from('accommodations')
+      .select('id, name, status')
+      .eq('accommodation_manager_id', user.id)
+    if (accError) throw accError
 
-    if (propertyError) throw propertyError
+    const accs = accRows || []
+    const accIds = accs.map((a) => a.id)
 
-    properties.value = (propertyRows || []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      accreditationStatus: p.accreditation_status,
-    }))
-
-    if (properties.value.length === 0) {
-      totalRooms.value = 0
-      occupiedRooms.value = 0
-      recentPayments.value = []
-      return
+    // Capacity comes from rooms, but occupancy is counted from active leases.
+    // room.status and rooms.current_pax both disagree with the lease data
+    // (current_pax sits at 0 even for accommodations with active tenants),
+    // so leases are the only trustworthy source of who is actually housed.
+    let roomRows: { id: string; accommodation_id: string; capacity: number | null }[] = []
+    if (accIds.length > 0) {
+      const { data, error: roomError } = await supabase
+        .from('rooms')
+        .select('id, accommodation_id, capacity')
+        .in('accommodation_id', accIds)
+      if (roomError) throw roomError
+      roomRows = data || []
     }
-
-    const propertyIds = properties.value.map((p) => p.id)
-
-    const { data: roomRows, error: roomError } = await supabase
-      .from('rooms')
-      .select('id, status')
-      .in('property_id', propertyIds)
-    if (roomError) throw roomError
-
-    totalRooms.value = roomRows?.length ?? 0
-    occupiedRooms.value = (roomRows || []).filter((r) => r.status === 'occupied').length
 
     const { data: leaseRows, error: leaseError } = await supabase
       .from('leases')
-      .select('id, status, student_id')
-      .eq('landlord_id', user.id)
-      .in('status', ['active', 'leave_requested'])
+      .select('id, status, monthly_rent, room_id')
+      .eq('accommodation_manager_id', user.id)
+      .in('status', ['active', 'pending', 'leave_requested'])
     if (leaseError) throw leaseError
 
-    activeTenants.value = leaseRows?.length ?? 0
-    leaveRequests.value = (leaseRows || []).filter((l) => l.status === 'leave_requested').length
+    const leases = leaseRows || []
 
-    const { count: ticketCount } = await supabase
-      .from('tickets')
-      .select('*', { count: 'exact', head: true })
-      .eq('landlord_id', user.id)
-      .neq('status', 'resolved')
-    openTickets.value = ticketCount || 0
-
-    const leaseIds = (leaseRows || []).map((l) => l.id)
-    if (leaseIds.length === 0) {
-      recentPayments.value = []
-      return
+    const roomToAcc = new Map(roomRows.map((r) => [r.id, r.accommodation_id]))
+    const filledByAcc = new Map<string, number>()
+    for (const l of leases) {
+      if (l.status !== 'active') continue
+      const accId = roomToAcc.get(l.room_id)
+      if (accId) filledByAcc.set(accId, (filledByAcc.get(accId) || 0) + 1)
     }
 
-    const { data: paymentRows, error: paymentError } = await supabase
-      .from('payments')
-      .select('id, amount, month, status, paid_at, lease_id, leases(users(full_name))')
-      .in('lease_id', leaseIds)
-      .order('month', { ascending: false })
-      .limit(20)
-    if (paymentError) throw paymentError
+    totalBeds.value = roomRows.reduce((n, r) => n + Number(r.capacity || 0), 0)
+    filledBeds.value = [...filledByAcc.values()].reduce((n, v) => n + v, 0)
 
-    const rows = paymentRows || []
-
-    outstandingCount.value = rows.filter(
-      (p) => p.status === 'due' || p.status === 'overdue',
-    ).length
-
-    const thisMonth = new Date().toISOString().slice(0, 7)
-    collectedThisMonth.value = rows
-      .filter((p) => p.status === 'paid' && String(p.month || '').startsWith(thisMonth))
-      .reduce((total, p) => total + Number(p.amount || 0), 0)
-
-    recentPayments.value = rows.slice(0, 5).map((p) => {
-      const lease = p.leases as unknown as { users: { full_name: string } | null } | null
+    accommodations.value = accs.map((a) => {
+      const beds = roomRows
+        .filter((r) => r.accommodation_id === a.id)
+        .reduce((n, r) => n + Number(r.capacity || 0), 0)
+      const filled = filledByAcc.get(a.id) || 0
       return {
-        id: p.id,
-        amount: Number(p.amount || 0),
-        month: p.month,
-        status: p.status,
-        studentName: lease?.users?.full_name || 'Tenant',
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        beds,
+        filled,
+        rate: beds === 0 ? 0 : Math.min(100, Math.round((filled / beds) * 100)),
       }
     })
+    activeTenants.value = leases.filter((l) => l.status === 'active').length
+    pendingLeases.value = leases.filter((l) => l.status === 'pending').length
+    leaveRequests.value = leases.filter((l) => l.status === 'leave_requested').length
+    expectedMonthly.value = leases
+      .filter((l) => l.status === 'active')
+      .reduce((n, l) => n + Number(l.monthly_rent || 0), 0)
+
+    if (accIds.length > 0) {
+      const { data: docRows } = await supabase
+        .from('accommodation_documents')
+        .select('expires_at')
+        .in('accommodation_id', accIds)
+      const now = Date.now()
+      const soon = now + 30 * 24 * 60 * 60 * 1000
+      const docs = (docRows || []).filter((d) => d.expires_at)
+      expiredDocs.value = docs.filter((d) => new Date(d.expires_at as string).getTime() < now).length
+      expiringDocs.value = docs.filter((d) => {
+        const t = new Date(d.expires_at as string).getTime()
+        return t >= now && t < soon
+      }).length
+    }
+
+    const { count } = await supabase
+      .from('tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('accommodation_manager_id', user.id)
+      .neq('status', 'resolved')
+    openTickets.value = count || 0
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -385,9 +389,9 @@ onMounted(load)
 <style scoped>
 .dash { background: var(--m-bg); }
 
-.dash-greeting { padding-bottom: 2px; }
-.greeting-eyebrow { margin: 0; color: var(--m-muted); font-size: 13px; font-weight: 600; }
-.greeting-name {
+.dash-head { padding-bottom: 2px; }
+.head-eyebrow { margin: 0; color: var(--m-muted); font-size: 13px; font-weight: 600; }
+.head-name {
   margin: 2px 0 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
@@ -397,31 +401,40 @@ onMounted(load)
   line-height: 1.2;
 }
 
-.section-title { margin: 0 0 var(--m-space-2); color: var(--m-ink); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
-.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--m-space-2); }
-.section-action { color: var(--m-primary-dark); font-weight: 700; }
+.sec-title { margin: 0 0 var(--m-space-2); color: var(--m-ink); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.row-head { display: flex; align-items: center; justify-content: space-between; }
+.row-head .sec-title { margin-bottom: var(--m-space-2); }
+.sec-action { color: var(--m-primary-dark); font-weight: 700; }
 
-.skeleton-card, .state-card, .quiet-card { border-radius: var(--m-radius); }
-.state-title { margin: var(--m-space-2) 0 0; font-weight: 700; color: var(--m-ink); }
-.state-text { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
-.quiet-card { padding: var(--m-space-4); color: var(--m-muted); font-size: 13px; background: var(--m-surface); }
+.sk, .panel { border-radius: var(--m-radius); }
+.panel { background: var(--m-surface); }
+.panel-title { margin: var(--m-space-2) 0 0; color: var(--m-ink); font-weight: 700; }
+.panel-sub { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; }
 
 /* Occupancy */
-.occupancy-card { padding: var(--m-space-4); border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
-.occ-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.92; }
-.occ-rate { font-family: var(--m-font-display); font-size: 28px; letter-spacing: -0.02em; opacity: 1; text-transform: none; }
-.occ-bar { opacity: 0.9; }
-.occ-meta { font-size: 13px; opacity: 0.92; }
+.occ-card { padding: var(--m-space-4); border-radius: var(--m-radius); background: var(--m-primary); color: #fff; }
+.occ-card--empty { background: var(--m-surface); border: 1px dashed var(--m-border); color: var(--m-ink); }
+.occ-top { display: flex; align-items: baseline; justify-content: space-between; }
+.occ-caption { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.9; }
+.occ-rate { font-family: var(--m-font-display); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+.occ-track { margin-top: var(--m-space-3); height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.32); overflow: hidden; }
+.occ-card--empty .occ-track { background: var(--m-bg); }
+.occ-fill { display: block; height: 100%; border-radius: 999px; background: #fff; transition: width 0.4s ease; }
+.occ-card--empty .occ-fill { background: var(--m-border); }
+.occ-foot { margin-top: var(--m-space-2); font-size: 13px; opacity: 0.92; }
+.occ-card--empty .occ-foot { color: var(--m-muted); opacity: 1; }
 
-/* Glance */
-.glance-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--m-space-3); }
-.glance-card {
+/* Stats */
+.stat-row { display: flex; gap: var(--m-space-3); }
+.stat {
   display: flex;
-  min-height: 76px;
+  min-height: 74px;
+  flex: 1 1 0;
+  min-width: 0;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  padding: var(--m-space-4);
+  padding: var(--m-space-3);
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
@@ -431,14 +444,16 @@ onMounted(load)
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.12s ease;
 }
-.glance-card:active { transform: scale(0.97); }
-.glance-card--warn { border-color: color-mix(in srgb, var(--m-warning) 40%, var(--m-border)); background: var(--m-warning-soft); }
-.glance-value { color: var(--m-ink); font-family: var(--m-font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.glance-label { color: var(--m-muted); font-size: 12px; font-weight: 600; }
+.stat:active { transform: scale(0.97); }
+.stat--warn { border-color: color-mix(in srgb, var(--m-warning) 45%, var(--m-border)); background: var(--m-warning-soft); }
+.stat--danger { border-color: color-mix(in srgb, var(--m-danger) 40%, var(--m-border)); background: var(--m-danger-soft); }
+.stat-value { color: var(--m-ink); font-family: var(--m-font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.stat--wide .stat-value { font-size: 18px; }
+.stat-label { color: var(--m-muted); font-size: 12px; font-weight: 600; }
 
-/* Attention */
-.attention-card { border-radius: var(--m-radius); background: var(--m-surface); overflow: hidden; }
-.attention-row {
+/* Lists */
+.list-card { overflow: hidden; }
+.list-row {
   display: flex;
   width: 100%;
   min-height: 60px;
@@ -452,26 +467,21 @@ onMounted(load)
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
-.attention-row--divided { border-top: 1px solid var(--m-border); }
-.attention-icon { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border-radius: var(--m-radius-sm); }
-.attention-icon--warn { background: var(--m-warning-soft); color: var(--m-warning); }
-.attention-icon--danger { background: var(--m-danger-soft); color: var(--m-danger); }
-.attention-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.attention-label { color: var(--m-ink); font-size: 14px; font-weight: 700; }
-.attention-hint { color: var(--m-muted); font-size: 12px; }
-
-/* Activity */
-.activity-card { border-radius: var(--m-radius); background: var(--m-surface); overflow: hidden; }
-.activity-row { display: flex; align-items: center; justify-content: space-between; gap: var(--m-space-3); padding: var(--m-space-3) var(--m-space-4); }
-.activity-row--divided { border-top: 1px solid var(--m-border); }
-.activity-main { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
-.activity-name { color: var(--m-ink); font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.activity-meta { color: var(--m-muted); font-size: 12px; }
-.activity-right { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; gap: 4px; }
-.activity-amount { color: var(--m-ink); font-size: 14px; font-weight: 700; }
-.activity-badge { border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+.list-row--divided { border-top: 1px solid var(--m-border); }
+.list-row--quiet { cursor: default; }
+.list-row--add { cursor: pointer; }
+.list-icon { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border-radius: var(--m-radius-sm); }
+.list-icon--warn { background: var(--m-warning-soft); color: var(--m-warning); }
+.list-icon--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.list-icon--ok { background: var(--m-success-soft); color: var(--m-success); }
+.list-icon--add { border: 1px dashed var(--m-border); background: var(--m-bg); color: var(--m-primary-dark); }
+.list-text, .acc-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+.list-label { color: var(--m-ink); font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-hint { color: var(--m-muted); font-size: 12px; }
+.acc-meter { display: block; width: 44px; height: 6px; flex: 0 0 44px; border-radius: 999px; background: var(--m-bg); overflow: hidden; }
+.acc-meter-fill { display: block; height: 100%; border-radius: 999px; background: var(--m-primary); }
 
 @media (prefers-reduced-motion: reduce) {
-  .glance-card { transition: none; }
+  .stat, .occ-fill { transition: none; }
 }
 </style>
