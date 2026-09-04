@@ -131,6 +131,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     secondaryPages: [
       { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
       { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
+      { path: /^\/student\/listing\/[^/]+$/, title: 'Listing', back: '/student/discover', backLabel: 'discover' },
     ],
   },
 }

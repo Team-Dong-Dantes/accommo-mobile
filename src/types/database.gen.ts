@@ -1484,6 +1484,7 @@ export type Database = {
         | "terminated"
         | "leave_requested"
         | "pending"
+        | "rejected"
       msg_status: "sent" | "delivered" | "read"
       office: "osas" | "registrar" | "housing"
       payment_method: "gcash" | "maya" | "bank" | "cash" | "others"
@@ -1650,6 +1651,7 @@ export const Constants = {
         "terminated",
         "leave_requested",
         "pending",
+        "rejected",
       ],
       msg_status: ["sent", "delivered", "read"],
       office: ["osas", "registrar", "housing"],

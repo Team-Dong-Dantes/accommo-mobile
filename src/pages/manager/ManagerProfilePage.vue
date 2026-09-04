@@ -3,7 +3,7 @@
     <!-- Loading -->
     <div v-if="loading" class="loading-stack">
       <q-skeleton type="rect" height="180px" class="sk" />
-      <q-skeleton type="rect" height="100px" class="sk" />
+      <q-skeleton type="rect" height="120px" class="sk" />
       <q-skeleton type="rect" height="80px" class="sk" />
       <q-skeleton type="rect" height="80px" class="sk" />
     </div>
@@ -22,165 +22,184 @@
 
     <!-- Profile Content -->
     <div v-else class="content-stack">
-      <!-- ===== Improved Hero Card ===== -->
-      <div class="hero-card">
-        <!-- Cover gradient -->
-        <div class="hero-cover" />
-
-        <div class="hero-body">
-          <!-- Avatar with upload overlay -->
-          <div class="hero-avatar" @click="openAvatarPicker">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
-            <span v-else>{{ me.initials || '?' }}</span>
-            <div class="avatar-overlay">
-              <IconifyIcon icon="lucide:camera" width="16" />
-            </div>
-          </div>
-          <input
-            ref="avatarInput"
-            type="file"
-            accept="image/*"
-            class="hidden-input"
-            @change="onAvatarSelected"
-          />
-
-          <!-- Name, role, status -->
-          <div class="hero-info">
-            <h1 class="hero-name">{{ me.fullName || 'Your name' }}</h1>
-            <div class="hero-meta">
-              <span class="hero-role">Accommodation Manager</span>
-              <span class="hero-tag" :class="`tag-${status.tone || 'warn'}`">
-                <IconifyIcon v-if="status.tone === 'ok'" icon="lucide:check-circle" width="12" />
-                <IconifyIcon v-else-if="status.tone === 'warn'" icon="lucide:clock" width="12" />
-                <IconifyIcon v-else icon="lucide:alert-circle" width="12" />
-                {{ status.label || 'Unverified' }}
-              </span>
-            </div>
+      <!-- ===== PROFILE HEADER ===== -->
+      <div class="profile-header">
+        <div class="header-avatar" @click="openAvatarPicker">
+          <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
+          <span v-else>{{ me.initials || '?' }}</span>
+          <div class="avatar-overlay">
+            <IconifyIcon icon="lucide:camera" width="16" />
           </div>
         </div>
+        <input
+          ref="avatarInput"
+          type="file"
+          accept="image/*"
+          class="hidden-input"
+          @change="onAvatarSelected"
+        />
 
-        <!-- Stats row -->
-        <div class="hero-stats">
-          <div class="stat-item">
-            <span class="stat-number">{{ accommodationCount }}</span>
-            <span class="stat-label">{{ accommodationCount === 1 ? 'Accommodation' : 'Accommodations' }}</span>
+        <div class="header-info">
+          <h1 class="header-name">{{ me.fullName || 'Your name' }}</h1>
+          <div class="header-meta">
+            <span class="header-role">Accommodation Manager</span>
+            <span class="status-badge" :class="`badge-${status.tone || 'warn'}`">
+              <IconifyIcon
+                v-if="status.tone === 'ok'"
+                icon="lucide:check-circle"
+                width="12"
+              />
+              <IconifyIcon
+                v-else-if="status.tone === 'warn'"
+                icon="lucide:clock"
+                width="12"
+              />
+              <IconifyIcon v-else icon="lucide:alert-circle" width="12" />
+              {{ status.label || 'Unverified' }}
+            </span>
           </div>
-          <div class="stat-divider" />
-          <div class="stat-item">
-            <span class="stat-number">{{ tenantCount }}</span>
-            <span class="stat-label">{{ tenantCount === 1 ? 'Tenant' : 'Tenants' }}</span>
-          </div>
-          <div class="stat-divider" />
-          <div class="stat-item">
-            <span class="stat-number">{{ responseRate !== null ? responseRate + '%' : '—' }}</span>
-            <span class="stat-label">Reply rate</span>
-          </div>
-          <div class="stat-divider" />
-          <button class="stat-action" @click="go('/manager/profile/qr-scanner')">
-            <IconifyIcon icon="lucide:scan" width="18" />
+          <p class="header-since">
+            Member since {{ memberSinceLabel || 'recently' }}
+            <span v-if="updatedAt" class="updated">· Updated {{ ago(updatedAt) }}</span>
+          </p>
+        </div>
+
+        <div class="header-action">
+          <button class="action-btn scan-btn" @click="go('/manager/profile/qr-scanner')">
+            <IconifyIcon icon="lucide:scan" width="16" />
             <span>Scan QR</span>
           </button>
         </div>
       </div>
 
-      <!-- Details Section -->
-      <section class="profile-section">
-        <div class="section-header">
-          <IconifyIcon icon="lucide:user" width="18" class="section-icon" />
-          <h2 class="section-title">Your details</h2>
-        </div>
-        <div class="section-body">
-          <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
-          <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
-          <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
-        </div>
-        <div class="edit-row">
-          <button v-if="!editing" class="edit-button" @click="startEdit">
-            <IconifyIcon icon="lucide:pencil" width="16" />
-            Edit profile
-          </button>
-          <div v-else class="edit-actions">
-            <button class="edit-cancel" :disabled="saving" @click="cancelEdit">Cancel</button>
-            <button class="edit-save" :disabled="saving" @click="save">
-              {{ saving ? 'Saving…' : 'Save changes' }}
-            </button>
+      <!-- ===== STATS ROW ===== -->
+      <div class="stats-row">
+        <div class="stat-item">
+          <IconifyIcon icon="lucide:building-2" width="20" class="stat-icon" />
+          <div>
+            <span class="stat-number">{{ accommodationCount }}</span>
+            <span class="stat-label">Accommodations</span>
           </div>
-          <p class="member-since">
-            Member since {{ memberSinceLabel || 'recently' }}
-            <span v-if="updatedAt" class="updated">· Updated {{ ago(updatedAt) }}</span>
-          </p>
         </div>
-      </section>
+        <div class="stat-divider" />
+        <div class="stat-item">
+          <IconifyIcon icon="lucide:users" width="20" class="stat-icon" />
+          <div>
+            <span class="stat-number">{{ tenantCount }}</span>
+            <span class="stat-label">Tenants</span>
+          </div>
+        </div>
+        <div class="stat-divider" />
+        <div class="stat-item">
+          <IconifyIcon icon="lucide:message-square" width="20" class="stat-icon" />
+          <div>
+            <span class="stat-number">{{ responseRate !== null ? responseRate + '%' : '—' }}</span>
+            <span class="stat-label">Reply rate</span>
+          </div>
+        </div>
+      </div>
 
-      <!-- Verification Section -->
-      <section class="profile-section">
-        <div class="section-header">
-          <IconifyIcon icon="lucide:shield-check" width="18" class="section-icon" />
-          <h2 class="section-title">Verification</h2>
-          <span v-if="pendingDocs > 0" class="badge">{{ pendingDocs }} pending</span>
-        </div>
-        <div class="section-body">
-          <div v-if="documents.length" class="doc-list">
-            <div v-for="doc in documents" :key="doc.id" class="doc-item">
-              <span class="doc-icon" :class="`doc-${doc.tone}`">
-                <IconifyIcon :icon="doc.icon" width="14" />
-              </span>
-              <div class="doc-info">
-                <span class="doc-name">{{ doc.label }}</span>
-                <span class="doc-when">{{ doc.when }}</span>
-              </div>
-              <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
+      <!-- ===== TWO-COLUMN GRID ===== -->
+      <div class="grid-2">
+        <!-- Left Column -->
+        <div class="grid-left">
+          <!-- Details Card -->
+          <section class="profile-card">
+            <div class="card-header">
+              <IconifyIcon icon="lucide:user" width="18" class="card-icon" />
+              <h2 class="card-title">Personal details</h2>
+              <button v-if="!editing" class="edit-trigger" @click="startEdit">
+                <IconifyIcon icon="lucide:pencil" width="14" />
+                Edit
+              </button>
             </div>
-          </div>
-          <p v-else class="empty-text">You haven't submitted any documents yet</p>
-          <button class="link-button" @click="go('/manager/osas-compliance')">
-            <IconifyIcon icon="lucide:arrow-right" width="16" />
-            <span>Open OSAS compliance</span>
-          </button>
-        </div>
-      </section>
+            <div class="card-body">
+              <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
+              <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
+              <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
+            </div>
+            <div v-if="editing" class="card-actions">
+              <button class="action-cancel" :disabled="saving" @click="cancelEdit">Cancel</button>
+              <button class="action-save" :disabled="saving" @click="save">
+                {{ saving ? 'Saving…' : 'Save changes' }}
+              </button>
+            </div>
+          </section>
 
-      <!-- Accommodations Section -->
-      <section class="profile-section">
-        <div class="section-header">
-          <IconifyIcon icon="lucide:building-2" width="18" class="section-icon" />
-          <h2 class="section-title">Your accommodations</h2>
-          <button class="icon-action" @click="go('/manager/properties/new')">
-            <IconifyIcon icon="lucide:plus" width="16" />
-          </button>
+          <!-- Verification Card -->
+          <section class="profile-card">
+            <div class="card-header">
+              <IconifyIcon icon="lucide:shield-check" width="18" class="card-icon" />
+              <h2 class="card-title">Verification</h2>
+              <span v-if="pendingDocs > 0" class="badge-pending">{{ pendingDocs }} pending</span>
+            </div>
+            <div class="card-body">
+              <div v-if="documents.length" class="doc-list">
+                <div v-for="doc in documents" :key="doc.id" class="doc-item">
+                  <span class="doc-icon" :class="`doc-${doc.tone}`">
+                    <IconifyIcon :icon="doc.icon" width="14" />
+                  </span>
+                  <div class="doc-info">
+                    <span class="doc-name">{{ doc.label }}</span>
+                    <span class="doc-when">{{ doc.when }}</span>
+                  </div>
+                  <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
+                </div>
+              </div>
+              <p v-else class="empty-text">No documents submitted yet</p>
+              <button class="link-button" @click="go('/manager/osas-compliance')">
+                <IconifyIcon icon="lucide:arrow-right" width="16" />
+                <span>Open OSAS compliance</span>
+              </button>
+            </div>
+          </section>
         </div>
-        <div class="section-body">
-          <button class="link-button" @click="go('/manager/properties')">
-            <IconifyIcon icon="lucide:list" width="16" />
-            <span>Manage {{ accommodationCount }} {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}</span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-          </button>
-          <button class="link-button" @click="go('/manager/tenants')">
-            <IconifyIcon icon="lucide:users" width="16" />
-            <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'tenant' : 'tenants' }}</span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-          </button>
-        </div>
-      </section>
 
-      <!-- Settings Section -->
-      <section class="profile-section">
-        <div class="section-header">
-          <IconifyIcon icon="lucide:settings" width="18" class="section-icon" />
-          <h2 class="section-title">Settings</h2>
+        <!-- Right Column -->
+        <div class="grid-right">
+          <!-- Accommodations Card -->
+          <section class="profile-card">
+            <div class="card-header">
+              <IconifyIcon icon="lucide:building-2" width="18" class="card-icon" />
+              <h2 class="card-title">Accommodations</h2>
+              <button class="icon-action" @click="go('/manager/properties/new')">
+                <IconifyIcon icon="lucide:plus" width="16" />
+              </button>
+            </div>
+            <div class="card-body">
+              <button class="link-button" @click="go('/manager/properties')">
+                <IconifyIcon icon="lucide:list" width="16" />
+                <span>Manage {{ accommodationCount }} {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}</span>
+                <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+              </button>
+              <button class="link-button" @click="go('/manager/tenants')">
+                <IconifyIcon icon="lucide:users" width="16" />
+                <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'tenant' : 'tenants' }}</span>
+                <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+              </button>
+            </div>
+          </section>
+
+          <!-- Settings Card -->
+          <section class="profile-card">
+            <div class="card-header">
+              <IconifyIcon icon="lucide:settings" width="18" class="card-icon" />
+              <h2 class="card-title">Settings</h2>
+            </div>
+            <div class="card-body">
+              <button class="link-button" @click="passwordOpen = true">
+                <IconifyIcon icon="lucide:lock" width="16" />
+                <span>Change password</span>
+                <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+              </button>
+              <button class="link-button link-danger" @click="signOut">
+                <IconifyIcon icon="lucide:log-out" width="16" />
+                <span>Sign out</span>
+              </button>
+            </div>
+          </section>
         </div>
-        <div class="section-body">
-          <button class="link-button" @click="passwordOpen = true">
-            <IconifyIcon icon="lucide:lock" width="16" />
-            <span>Change password</span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-          </button>
-          <button class="link-button link-danger" @click="signOut">
-            <IconifyIcon icon="lucide:log-out" width="16" />
-            <span>Sign out</span>
-          </button>
-        </div>
-      </section>
+      </div>
     </div>
 
     <ChangePasswordDialog v-model="passwordOpen" />
@@ -195,12 +214,13 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
-// If uploadAvatar doesn't exist, comment this out and the related function
+// If uploadAvatar doesn't exist, comment out the import and usage below
 // import { uploadAvatar } from '@/utils/upload'
 import ProfileField from '@/components/shared/ProfileField.vue'
 import ChangePasswordDialog from '@/components/shared/ChangePasswordDialog.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
 
+// ----- Types -----
 interface DocRow {
   id: string
   label: string
@@ -210,10 +230,11 @@ interface DocRow {
   when: string
 }
 
+// ----- Router & Quasar -----
 const router = useRouter()
 const $q = useQuasar()
 
-// === STATE ===
+// ----- Reactive State -----
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
@@ -224,7 +245,7 @@ const userId = ref('')
 const avatarUrl = ref<string | null>(null)
 const avatarInput = ref<HTMLInputElement | null>(null)
 
-// These are reactive objects that must be defined before the template renders
+// User data – must be defined before render
 const me = reactive({
   fullName: '',
   email: '',
@@ -232,6 +253,8 @@ const me = reactive({
   initials: '?',
   status: 'unverified',
 })
+
+// Draft for editing
 const draft = reactive({
   fullName: '',
   phone: '',
@@ -245,12 +268,12 @@ const accommodationCount = ref(0)
 const tenantCount = ref(0)
 const documents = ref<DocRow[]>([])
 
-// === COMPUTED ===
+// ----- Computed -----
 const status = computed(() => statusPresentation(me.status))
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
 
-// === METHODS ===
+// ----- Methods -----
 function go(path: string) {
   void router.push(path)
 }
@@ -265,7 +288,7 @@ async function onAvatarSelected(event: Event) {
   if (!file) return
 
   try {
-    // If uploadAvatar is not available, skip this or use a placeholder
+    // If you have uploadAvatar, uncomment:
     // const url = await uploadAvatar(file, userId.value)
     // avatarUrl.value = url
     $q.notify({ type: 'positive', message: 'Avatar updated.' })
@@ -324,6 +347,7 @@ async function signOut() {
   void router.push('/login')
 }
 
+// ----- Load Data -----
 async function load() {
   loading.value = true
   error.value = ''
@@ -358,7 +382,7 @@ async function load() {
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
 
-    // Avatar from auth metadata
+    // Avatar from metadata
     const metadata = user.user_metadata as Record<string, unknown> | undefined
     const picture =
       typeof metadata?.avatar_url === 'string'
@@ -371,7 +395,7 @@ async function load() {
 
     Object.assign(draft, { fullName: me.fullName, phone: me.phone, email: me.email })
 
-    // Count accommodations
+    // Accommodations count
     const { data: accommodations } = await supabase
       .from('accommodations')
       .select('id')
@@ -379,7 +403,7 @@ async function load() {
     const accommodationIds = (accommodations || []).map((a) => a.id)
     accommodationCount.value = accommodationIds.length
 
-    // Count tenants
+    // Tenant count
     if (accommodationIds.length) {
       const { data: rooms } = await supabase
         .from('rooms')
@@ -396,7 +420,7 @@ async function load() {
       }
     }
 
-    // Get verification documents
+    // Verification documents
     const { data: docs } = await supabase
       .from('verification_documents')
       .select('id, doc_type, status, uploaded_at, verified_at')
@@ -425,420 +449,389 @@ onMounted(load)
 </script>
 
 <style scoped>
+/* ===== BASE ===== */
 .profile-page {
-  background: var(--m-bg);
-  padding-bottom: 20px;
+  background: #f8fafc;
+  padding-bottom: 40px;
   min-height: 100vh;
 }
+
 .loading-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px var(--m-page-gutter) 80px;
-}
-.sk {
-  border-radius: var(--m-radius);
+  gap: 16px;
+  padding: 16px var(--m-page-gutter) 80px;
 }
 
-/* Error state */
+.sk {
+  border-radius: 12px;
+}
+
 .error-state {
   display: flex;
   justify-content: center;
   padding: 40px var(--m-page-gutter);
 }
+
 .error-card {
   max-width: 360px;
   width: 100%;
-  padding: 24px 20px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
+  padding: 28px 24px;
+  border-radius: 16px;
+  background: white;
   text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
 }
+
 .error-icon {
-  color: var(--m-muted);
+  color: #94a3b8;
   margin-bottom: 8px;
 }
+
 .error-title {
   margin: 0 0 4px;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
-  color: var(--m-ink);
-}
-.error-message {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: var(--m-muted);
+  color: #0f172a;
 }
 
+.error-message {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+/* ===== CONTENT ===== */
 .content-stack {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px var(--m-page-gutter) 40px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px var(--m-page-gutter) 80px;
+  gap: 20px;
 }
 
-/* ===== HERO CARD – improved ===== */
-.hero-card {
-  background: var(--m-surface);
-  border-radius: var(--m-radius);
-  border: 1px solid var(--m-border);
-  overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-}
-.hero-cover {
-  height: 72px;
-  background: linear-gradient(135deg, var(--m-primary) 0%, var(--m-primary-dark) 80%);
-}
-.hero-body {
+/* ===== PROFILE HEADER ===== */
+.profile-header {
   display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  padding: 0 16px 14px;
-  margin-top: -36px;
+  align-items: center;
+  gap: 18px;
+  background: white;
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  border: 1px solid #e9edf2;
+  flex-wrap: wrap;
 }
-.hero-avatar {
+
+.header-avatar {
   position: relative;
-  flex: 0 0 76px;
-  width: 76px;
-  height: 76px;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
   border-radius: 999px;
-  border: 3px solid var(--m-surface);
-  background: var(--m-primary);
-  color: #fff;
-  font-size: 30px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: white;
+  font-size: 28px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 10px rgba(37,99,235,0.2);
   transition: transform 0.2s;
 }
-.hero-avatar:hover {
-  transform: scale(1.02);
+
+.header-avatar:hover {
+  transform: scale(1.03);
 }
-.hero-avatar img {
+
+.header-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
 .avatar-overlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  color: #fff;
+  background: rgba(0,0,0,0.35);
+  color: white;
   opacity: 0;
   transition: opacity 0.2s;
-  backdrop-filter: blur(2px);
 }
-.hero-avatar:hover .avatar-overlay {
+
+.header-avatar:hover .avatar-overlay {
   opacity: 1;
 }
+
 .hidden-input {
   display: none;
 }
-.hero-info {
+
+.header-info {
   flex: 1;
-  min-width: 0;
-  padding-bottom: 4px;
+  min-width: 180px;
 }
-.hero-name {
+
+.header-name {
   margin: 0;
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 700;
-  color: var(--m-ink);
+  color: #0f172a;
   line-height: 1.2;
 }
-.hero-meta {
+
+.header-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 12px;
-  margin-top: 2px;
+  gap: 8px 14px;
+  margin-top: 4px;
 }
-.hero-role {
-  font-size: 13px;
-  color: var(--m-muted);
+
+.header-role {
+  font-size: 14px;
+  color: #64748b;
 }
-.hero-tag {
+
+.status-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 12px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.tag-ok {
-  background: var(--m-success-soft);
-  color: var(--m-success);
+
+.badge-ok {
+  background: #dcfce7;
+  color: #16a34a;
 }
-.tag-idle {
+.badge-idle {
   background: var(--m-bg);
   color: var(--m-muted);
 }
-.tag-warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
+.badge-warn {
+  background: #fef9c3;
+  color: #ca8a04;
 }
-.tag-bad {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-
-/* Stats */
-.hero-stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px 14px;
-  border-top: 1px solid var(--m-border);
-  flex-wrap: wrap;
-}
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 4px;
-}
-.stat-number {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--m-ink);
-  line-height: 1.2;
-}
-.stat-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--m-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.stat-divider {
-  width: 1px;
-  height: 32px;
-  background: var(--m-border);
-}
-.stat-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: auto;
-  padding: 6px 14px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.stat-action:hover {
-  background: var(--m-primary-soft);
-  border-color: var(--m-primary);
-  transform: translateY(-1px);
+.badge-bad {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
-/* ===== Profile Sections ===== */
-.profile-section {
-  background: var(--m-surface);
-  border-radius: var(--m-radius);
-  border: 1px solid var(--m-border);
-  overflow: hidden;
+.header-since {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
 }
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--m-border);
-}
-.section-icon {
-  color: var(--m-primary-dark);
+
+.header-since .updated {
+  color: #94a3b8;
   opacity: 0.7;
 }
-.section-title {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--m-ink);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  flex: 1;
-}
-.badge {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
-}
-.icon-action {
-  display: flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--m-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.icon-action:hover {
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.section-body {
-  padding: 2px 0;
-}
-.section-body > * {
-  border-bottom: 1px solid var(--m-border);
-  padding: 8px 14px;
-}
-.section-body > *:last-child {
-  border-bottom: none;
-}
 
-/* Docs */
-.doc-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.doc-icon {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-.doc-good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.doc-warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.doc-danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.doc-info {
-  flex: 1;
-  min-width: 0;
-}
-.doc-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--m-ink);
-}
-.doc-when {
-  font-size: 11px;
-  color: var(--m-muted);
-}
-.doc-status {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.status-good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.status-warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.status-danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.empty-text {
-  margin: 0;
-  font-size: 13px;
-  color: var(--m-muted);
-  text-align: center;
-  padding: 16px 0;
-}
-
-/* Link buttons */
-.link-button {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 10px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  color: var(--m-ink);
-  transition: background 0.12s;
-  padding: 8px 14px;
-}
-.link-button:hover {
-  background: var(--m-bg);
-}
-.link-button .chevron {
+.header-action {
   margin-left: auto;
-  color: var(--m-muted);
-}
-.link-danger {
-  color: var(--m-danger);
-}
-.link-danger:hover {
-  background: var(--m-danger-soft);
 }
 
-/* Edit row */
-.edit-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 14px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.edit-button {
+.scan-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 20px;
-  border: 1px solid var(--m-border);
+  padding: 8px 20px;
+  border: 1px solid #e9edf2;
   border-radius: 999px;
-  background: var(--m-surface);
+  background: white;
   font-size: 13px;
   font-weight: 600;
-  color: var(--m-primary-dark);
+  color: #1e293b;
   cursor: pointer;
   transition: all 0.15s;
 }
-.edit-button:hover {
-  background: var(--m-primary-soft);
-  border-color: var(--m-primary);
+
+.scan-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
-.edit-actions {
+
+/* ===== STATS ROW ===== */
+.stats-row {
   display: flex;
-  gap: 8px;
-  width: 100%;
-  justify-content: flex-end;
+  align-items: stretch;
+  background: white;
+  border-radius: 16px;
+  padding: 16px 24px;
+  border: 1px solid #e9edf2;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  gap: 16px;
 }
-.edit-cancel,
-.edit-save {
-  padding: 6px 18px;
+
+.stat-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.stat-item > div {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.stat-icon {
+  color: #2563eb;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.stat-number {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-divider {
+  width: 1px;
+  background: #e9edf2;
+  flex-shrink: 0;
+}
+
+/* ===== GRID LAYOUT ===== */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ===== CARDS ===== */
+.profile-card {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e9edf2;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e9edf2;
+  background: #fafcfd;
+}
+
+.card-icon {
+  color: #2563eb;
+  opacity: 0.7;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  flex: 1;
+  letter-spacing: 0.02em;
+}
+
+.badge-pending {
+  background: #fef9c3;
+  color: #ca8a04;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.edit-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+
+.edit-trigger:hover {
+  background: #eff6ff;
+}
+
+.icon-action {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e9edf2;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.icon-action:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.card-body {
+  padding: 4px 0;
+}
+
+.card-body > * {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 10px 20px;
+}
+
+.card-body > *:last-child {
+  border-bottom: none;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #e9edf2;
+  background: #fafcfd;
+}
+
+.action-cancel,
+.action-save {
+  padding: 6px 20px;
   border: 0;
   border-radius: 999px;
   font-size: 13px;
@@ -846,39 +839,172 @@ onMounted(load)
   cursor: pointer;
   transition: background 0.15s;
 }
-.edit-cancel {
+
+.action-cancel {
   background: transparent;
-  color: var(--m-muted);
+  color: #64748b;
 }
-.edit-cancel:hover {
-  background: var(--m-bg);
+.action-cancel:hover {
+  background: #f1f5f9;
 }
-.edit-save {
-  background: var(--m-primary);
-  color: #fff;
+
+.action-save {
+  background: #2563eb;
+  color: white;
 }
-.edit-save:hover {
-  background: var(--m-primary-dark);
+.action-save:hover {
+  background: #1d4ed8;
 }
-.edit-cancel:disabled,
-.edit-save:disabled {
+
+.action-cancel:disabled,
+.action-save:disabled {
   opacity: 0.5;
   pointer-events: none;
 }
-.member-since {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--m-muted);
-}
-.updated {
-  color: var(--m-muted);
-  opacity: 0.7;
+
+/* ===== DOCS ===== */
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .hero-avatar,
-  .stat-action {
-    transition: none !important;
+.doc-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.doc-ok {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.doc-idle {
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.doc-warn {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+.doc-bad {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.doc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  display: block;
+}
+
+.doc-when {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.doc-status {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-ok {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.status-idle {
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.status-warn {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+.status-bad {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.empty-text {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* ===== LINK BUTTONS ===== */
+.link-button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: #0f172a;
+  transition: background 0.12s;
+  padding: 10px 20px;
+}
+
+.link-button:hover {
+  background: #f8fafc;
+}
+
+.link-button .chevron {
+  margin-left: auto;
+  color: #94a3b8;
+}
+
+.link-danger {
+  color: #dc2626;
+}
+.link-danger:hover {
+  background: #fef2f2;
+}
+
+/* ===== RESPONSIVE TWEAKS ===== */
+@media (max-width: 600px) {
+  .profile-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .header-action {
+    margin-left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .stats-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .stat-divider {
+    display: none;
+  }
+
+  .stat-item {
+    justify-content: center;
   }
 }
 </style>
