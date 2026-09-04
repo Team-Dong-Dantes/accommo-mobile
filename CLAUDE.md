@@ -2,9 +2,15 @@
 
 Student and accommodation-manager client. Quasar, Vue 3, TypeScript, Pinia, Supabase, Capacitor. Shares one Supabase backend with the sibling `accommo-web` repo (see `../AGENTS.md` if present).
 
+## Current state: rebuild in progress
+
+The feature screens were deliberately stripped. Only auth, the app shell, and shared infrastructure remain. **`docs/FEATURES.md` is the specification for everything being rebuilt** — read it before building any screen; it records each screen's purpose, flows, tables, and the UI patterns worth building once and reusing.
+
+The pre-strip code is not lost: branch `pre-rebuild-snapshot` (commit `a6aec03`) has every original screen. Pull up a reference implementation with `git show pre-rebuild-snapshot:src/pages/student/StudentDiscover.vue`.
+
 ## Role terminology — read before renaming anything
 
-- App-level UI/routing role is **`manager`** (`/manager/*` routes, `pages/manager/`, `stores/manager.ts`).
+- App-level UI/routing role is **`manager`** (`/manager/*` routes, `pages/manager/`).
 - The **database role enum** is `accommodation_manager`. `stores/auth.ts` maps between them at the DB boundary — preserve that mapping.
 - The **database schema still uses `landlord_*` identifiers**: `landlord_id`, `landlord_profiles`, `landlord_reviews`, `landlords`. These are the DB contract and must NOT be renamed to `manager_*`. Any remaining "landlord" string in `src/` is one of these DB identifiers and is intentional.
 
@@ -12,44 +18,42 @@ Student and accommodation-manager client. Quasar, Vue 3, TypeScript, Pinia, Supa
 
 ```
 src/
-  boot/            Quasar boot files
+  boot/            Quasar boot files (deeplink, iconify, keyboard, notify, pinia)
   css/
   layouts/         AuthLayout · MainLayout (one shell for both signed-in roles)
   pages/
     auth/          GetStarted, Login, Register, ManagerRegister, RoleSelect
-    manager/       Manager*.vue  (manager nav destinations)
-    student/       Student*.vue  (all student screens)
-    UIBible.vue (dev-only style guide) · ErrorNotFound.vue
+    UIBible.vue (dev-only style reference) · ErrorNotFound.vue
   components/
     auth/          Auth* form primitives, ConnectedGoogleBox, EmailVerifyInline
     layout/        BottomNav · QuickActions
-    manager/       AddPropertyWizard · PropertyDetail · QRScanner · TenantProfile
-                   · AccommodationPhotoPicker
     shared/        EmptyState
-  router/          index.ts · routes.ts (root) · auth.ts · manager.ts · student.ts
-  stores/          auth · chat · manager · qr · tenant-billing
+  router/          index.ts (guards) · routes.ts · auth.ts
+  stores/          auth
   shared/
     types/         database.gen.ts (generated) · forms.ts · app-types.ts
-    utils/         supabase, avatar, format, upload, validation, env, config, …
+    utils/         supabase, format, upload, cloudinaryUrl, chatFullscreen, config, transition
 ```
 
-`pages/` holds **nav destinations** only — the screens reachable from the bottom nav or quick actions. Drill-down views (a detail screen, a wizard, a scanner) are components under `components/<role>/`, even though the router points at them; deep links to them still work. Naming follows the folder: files in `pages/<role>/` carry the role prefix (`ManagerDashboard.vue`, `StudentDiscover.vue`), files in `components/<role>/` do not (`PropertyDetail.vue`, `QRScanner.vue`) and never take a `Page` suffix. Route registration lives in `src/router/<role>.ts`; the root `routes.ts` only composes layouts and spreads those. Do not redeclare a route in both places — the root file's copy is silently shadowed.
+As features return: pages go in `src/pages/<role>/` with the role prefix (`ManagerDashboard.vue`, `StudentDiscover.vue`); drill-down views (detail screens, wizards, scanners) go in `src/components/<role>/` **without** the prefix and without a `Page` suffix (`PropertyDetail.vue`, `QRScanner.vue`). `pages/` is nav destinations only. Route registration goes in `src/router/<role>.ts`, mounted as children of MainLayout in `routes.ts` — never redeclare a route in both places, the root file's copy is silently shadowed.
 
 ## The app shell
 
-`layouts/MainLayout.vue` serves both signed-in roles. It reads the role from the path prefix (`/manager` vs `/student`) and drives everything — bottom tabs, quick actions, and back-button sub-pages — from the `SHELLS` config object at the top of its script block. To add a tab, quick action, or a screen that needs a back-arrow header, edit that config; do not fork the layout. Header/nav markup lives in `components/layout/BottomNav.vue` and `components/layout/QuickActions.vue`.
+`layouts/MainLayout.vue` serves both signed-in roles. It reads the role from the path prefix (`/manager` vs `/student`) and drives bottom tabs, quick actions, and back-button sub-pages from the `SHELLS` config object at the top of its script block. To add a tab, quick action, or a screen needing a back-arrow header, edit that config; do not fork the layout. Nav markup lives in `components/layout/`.
+
+Note: MainLayout is currently unmounted — `routes.ts` has no children for it until feature routes return. The router guards in `index.ts` still redirect signed-in users to `/manager/dashboard` and `/student/home`, which 404 until those routes are rebuilt. That is expected mid-rebuild.
 
 Admin/OSAS has no surface in this app — it lives in `accommo-web`. Do not add admin routes here.
 
 ## Efficient Workflow
 
-1. Resolve manager vs. student (vs. auth/shared) before searching — don't scan both page trees.
+1. Resolve manager vs. student (vs. auth/shared) before searching.
 2. Read only matched files and relevant line ranges. Never `Read` a whole large file when a targeted grep + offset/limit read will do.
 3. **`src/shared/types/database.gen.ts` (1600+ lines, generated):** never read in full. Grep for the specific table/interface name only.
-4. **Files over ~500 lines** — grep for the target section/function first, then Read with offset/limit. Current large files: `components/manager/PropertyDetail.vue` (~2900 lines), `pages/student/StudentDiscover.vue` (~1860), `pages/manager/ManagerDashboard.vue` (~1450), `pages/manager/ManagerOSASCompliancePage.vue` (~1280), `pages/student/StudentMessages.vue` (~1240), `components/manager/TenantProfile.vue` (~1070), `pages/student/StudentProfile.vue` (~1040), `pages/student/StudentSupport.vue` (~1030).
+4. For files over ~500 lines, grep for the target section first, then Read with offset/limit.
 5. Reuse existing components, utilities, types, and visual patterns. Make the smallest correct patch; avoid unrelated refactors.
 6. Batch equivalent student and manager edits into one implementation and one verification pass.
-7. Never modify `.env`, generated output (`database.gen.ts`), or unrelated worktree changes.
+7. Never modify `.env` or generated output (`database.gen.ts`).
 
 ## Verification Budget
 
@@ -61,6 +65,6 @@ Admin/OSAS has no surface in this app — it lives in `accommo-web`. Do not add 
 
 ## Shared Backend Changes
 
-If a change touches a table, field, enum, RLS assumption, notification target, or end-to-end workflow shared with `accommo-web`, search usages in both apps, update the migration, update queries/generated types, and verify the end-to-end flow. See `../AGENTS.md` for the shared table list.
+The backend is unchanged by the rebuild. If a change touches a table, field, enum, RLS assumption, notification target, or end-to-end workflow shared with `accommo-web`, search usages in both apps, update the migration, update queries/generated types, and verify the end-to-end flow.
 
 Do not commit, push, or create a pull request unless explicitly requested.
