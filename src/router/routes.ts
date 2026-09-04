@@ -1,76 +1,32 @@
 import type { RouteRecordRaw } from 'vue-router';
-import landlordRoutes from '@/modules/landlord/router/routes';
-import studentRoutes from '@/modules/student/router/routes';
-import authRoutes from '@/modules/auth/router/routes';
-import osasRoutes from '@/modules/osas/router/routes';
+import MainLayout from '@/layouts/MainLayout.vue';
+import authRoutes from '@/router/auth';
+import managerRoutes from '@/router/manager';
+import studentRoutes from '@/router/student';
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('@/layouts/AuthLayout.vue'),
-    children: [
-      ...authRoutes,
-    ],
-  },
-  {
-    path: '/',
-    component: () => import('@/modules/student/layouts/MainLayout.vue'),
-    children: [
-      ...studentRoutes,
-    ],
+    children: authRoutes,
   },
 
+  // One app shell for both signed-in roles; it configures itself from the path.
   {
     path: '/',
-    component: () => import('@/layouts/MainLayout.vue'),
-    children: [
-      ...landlordRoutes,
-      {
-        path: '/profile',
-        component: () => import('@/shared/pages/ProfilePage.vue'),
-      },
-      {
-        path: '/landlord/dashboard',
-        component: () => import('@/modules/landlord/pages/LandlordDashboard.vue'),
-      },
-      {
-        path: '/landlord/chat',
-        component: () => import('@/modules/landlord/pages/ChatPage.vue'),
-      },
-      {
-        path: '/landlord/tenant/:tenantId',
-        component: () => import('@/modules/landlord/pages/TenantProfilePage.vue'),
-      },
-      {
-        path: '/landlord/notifications',
-        component: () => import('@/modules/landlord/pages/LandlordNotifications.vue'),
-      },
-      {
-        path: '/landlord/support',
-        component: () => import('@/modules/landlord/pages/LandlordSupportPage.vue'),
-      },
-      {
-        path: '/landlord/osas-compliance',
-        component: () => import('@/modules/landlord/pages/LandlordOSASCompliancePage.vue'),
-      },
-      {
-        path: '/landlord/properties',
-        component: () => import('@/modules/landlord/pages/LandlordPropertiesPage.vue'),
-      },
-      ...osasRoutes,
-    ],
+    component: MainLayout,
+    children: [...managerRoutes, ...studentRoutes],
   },
 
   {
     path: '/ui-bible',
-    component: () => import('@/shared/pages/UIBible.vue'),
+    component: () => import('@/pages/UIBible.vue'),
   },
 
   {
     path: '/:catchAll(.*)*',
-    component: () => import('@/shared/pages/ErrorNotFound.vue'),
+    component: () => import('@/pages/ErrorNotFound.vue'),
   },
 ];
 
 export default routes;
-

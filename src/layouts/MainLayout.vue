@@ -1,25 +1,28 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header v-if="!chatFullscreen" class="bg-transparent text-grey-9 app-header" :class="{ 'is-scrolled': scrolled, 'app-header--subpage': isSecondaryPage }">
+    <q-header
+      v-if="!chatFullscreen"
+      class="bg-transparent text-grey-9 app-header"
+      :class="{ 'is-scrolled': scrolled, 'app-header--subpage': isSubPage }"
+    >
       <div class="header-row q-px-md">
-        <template v-if="isAccommodationSetup || isAccommodationDetail">
-          <q-btn flat round dense class="setup-back-button" aria-label="Back to accommodations" @click="goToAccommodations">
+        <template v-if="subPage">
+          <q-btn
+            flat
+            round
+            dense
+            class="setup-back-button"
+            :aria-label="`Back to ${subPage.backLabel}`"
+            @click="goBack"
+          >
             <IconifyIcon icon="lucide:arrow-left" width="20" />
           </q-btn>
-          <div class="setup-page-title text-black text-weight-bold">{{ isAccommodationDetail ? 'Accommodation Details' : 'New Accommodation' }}</div>
-        </template>
-        
-        <template v-else-if="isSecondaryPage">
-          <q-btn flat round dense class="setup-back-button" :aria-label="`Back to ${secondaryBackLabel}`" @click="goBack">
-            <IconifyIcon icon="lucide:arrow-left" width="20" />
-          </q-btn>
-          <h1 class="setup-page-title text-black text-weight-bold">{{ secondaryTitle }}</h1>
+          <h1 class="setup-page-title text-black text-weight-bold">{{ subPage.title }}</h1>
           <span class="header-balance" aria-hidden="true" />
         </template>
-        
+
         <template v-else>
           <div class="app-title text-black text-weight-bold">accommo</div>
-          <!-- Header Bell Icon -> Opens Notifications -->
           <q-btn
             flat
             round
@@ -45,112 +48,132 @@
       </div>
     </q-page-container>
 
-    <q-footer v-if="!isSecondaryPage && !chatFullscreen" bordered class="bg-white text-grey-8 bottom-footer" :class="{ 'bottom-footer--setup': isAccommodationSetup }">
-      <div class="bottom-nav">
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'home' }" aria-label="Home" @click="goToTab('home')">
-          <IconifyIcon icon="lucide:house" width="22" />
-        </button>
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'tenants' }" aria-label="Tenants" @click="goToTab('tenants')">
-          <IconifyIcon icon="lucide:users" width="22" />
-        </button>
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'messages' }" aria-label="Messages" @click="goToTab('messages')">
-          <IconifyIcon icon="lucide:message-circle" width="22" />
-        </button>
-        <!-- Bottom Tab: Profile (Icon-only) -->
-        <button type="button" class="bottom-nav-item" :class="{ active: activeBottomTab === 'profile' }" aria-label="Profile" @click="goToTab('profile')">
-          <q-avatar size="26px" class="profile-avatar-mini" text-color="white">
-            <q-img v-if="profileImageUrl" :src="profileImageUrl" alt="Profile" />
-            <span v-else>{{ userInitials }}</span>
-          </q-avatar>
-        </button>
-      </div>
-
-      <div v-if="quickActionsOpen" class="quick-action-layer">
-        <div class="quick-action-backdrop" @click="quickActionsOpen = false" />
-        <div id="landlord-quick-actions" class="quick-action-menu" role="menu" aria-label="Quick actions">
-          <button type="button" role="menuitem" @click="navigateQuickAction('/landlord/osas-compliance')">
-            <span class="quick-action-icon"><IconifyIcon icon="lucide:shield-check" width="18" /></span>
-            <span>OSAS</span>
-          </button>
-          <button type="button" role="menuitem" @click="navigateQuickAction('/landlord/support')">
-            <span class="quick-action-icon"><IconifyIcon icon="lucide:triangle-alert" width="18" /></span>
-            <span>Concerns</span>
-          </button>
-          <button type="button" role="menuitem" @click="navigateQuickAction('/landlord/properties')">
-            <span class="quick-action-icon"><IconifyIcon icon="lucide:building-2" width="18" /></span>
-            <span>Accommodations</span>
-          </button>
-        </div>
-      </div>
-      <button
-        v-if="showQuickActions"
-        type="button"
-        class="bottom-fab"
-        :class="{ 'bottom-fab--open': quickActionsOpen }"
-        :aria-expanded="quickActionsOpen"
-        aria-controls="landlord-quick-actions"
-        aria-label="Open quick actions"
-        @click="quickActionsOpen = !quickActionsOpen"
-      >
-        <IconifyIcon icon="lucide:plus" width="20" />
-      </button>
+    <q-footer
+      v-if="!isSubPage && !chatFullscreen"
+      bordered
+      class="bg-white text-grey-8 bottom-footer"
+    >
+      <BottomNav
+        :tabs="config.tabs"
+        :active="activeBottomTab"
+        :avatar-url="profileImageUrl"
+        :initials="userInitials"
+        @select="goToTab"
+      />
     </q-footer>
+
+    <QuickActions
+      v-if="showQuickActions"
+      v-model:open="quickActionsOpen"
+      :actions="config.quickActions"
+      :menu-id="`${role}-quick-actions`"
+      @navigate="navigateQuickAction"
+    />
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { supabase } from '../shared/utils/supabase'
+import { supabase } from '@/shared/utils/supabase'
 import { initialsOf } from '@/shared/utils/format'
+import { resolveAsset } from '@/shared/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/shared/utils/chatFullscreen'
+import BottomNav from '@/components/layout/BottomNav.vue'
+import QuickActions from '@/components/layout/QuickActions.vue'
+import type { SecondaryPage, ShellConfig } from '@/shared/types/app-types'
 
 const router = useRouter()
 const route = useRoute()
-const activeBottomTab = ref<BottomTabName>('home')
+
+// One shell, two configurations. The role is read from the path so the chrome
+// renders correctly on first paint, with no async role lookup flicker.
+const SHELLS: Record<'manager' | 'student', ShellConfig> = {
+  manager: {
+    home: '/manager/dashboard',
+    notifications: '/manager/notifications',
+    tabs: [
+      { name: 'home', route: '/manager/dashboard', icon: 'lucide:house', label: 'Home' },
+      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'Tenants' },
+      { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages', match: ['/manager/chat'] },
+      { name: 'profile', route: '/manager/profile', icon: '', label: 'Profile', avatar: true },
+    ],
+    quickActions: [
+      { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas-compliance' },
+      { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
+      { icon: 'lucide:building-2', label: 'Accommodations', route: '/manager/properties' },
+    ],
+    secondaryPages: [
+      { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
+      { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
+      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'accommodations', stacked: true },
+      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'accommodations', stacked: true },
+    ],
+  },
+  student: {
+    home: '/student/home',
+    notifications: '/student/notifications',
+    tabs: [
+      { name: 'home', route: '/student/home', icon: 'lucide:house', label: 'Home' },
+      { name: 'discover', route: '/student/discover', icon: 'lucide:search', label: 'Discover' },
+      { name: 'messages', route: '/student/messages', icon: 'lucide:message-circle', label: 'Messages' },
+      { name: 'profile', route: '/student/profile', icon: '', label: 'Profile', avatar: true },
+    ],
+    quickActions: [
+      { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
+      { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
+      { icon: 'lucide:wallet-cards', label: 'Payments', route: '/student/payments' },
+    ],
+    secondaryPages: [
+      { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
+      { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
+    ],
+  },
+}
+
+const role = computed<'manager' | 'student'>(() =>
+  route.path.startsWith('/manager') ? 'manager' : 'student',
+)
+const config = computed(() => SHELLS[role.value])
+
 const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
 const unreadNotifCount = ref(0)
-const isProfilePage = computed(() => route.path === '/landlord/profile')
-const isQrScanner = computed(() => route.path === '/landlord/profile/qr-scanner')
-const isNotificationsPage = computed(() => route.path === '/landlord/notifications')
-const isTenantDetail = computed(() => /^\/landlord\/tenant\/[^/]+$/.test(route.path))
-const isSecondaryPage = computed(() => isProfilePage.value || isQrScanner.value || isNotificationsPage.value || isTenantDetail.value)
-const isAccommodationSetup = computed(() => route.path === '/landlord/properties/new')
-const isAccommodationDetail = computed(() => /^\/landlord\/properties\/[^/]+$/.test(route.path))
 const quickActionsOpen = ref(false)
 const scrolled = ref(false)
-const showQuickActions = computed(() => !isSecondaryPage.value && !isAccommodationSetup.value && !isAccommodationDetail.value)
-const secondaryTitle = computed(() => (isNotificationsPage.value ? 'Notifications' : isQrScanner.value ? 'QR scanner' : isTenantDetail.value ? 'Tenant' : 'Profile'))
-const secondaryBackLabel = computed(() => (isQrScanner.value ? 'profile' : isTenantDetail.value ? 'tenants' : 'dashboard'))
+const activeBottomTab = ref('home')
 const pageTransition = ref('page-fade')
 
-const bottomTabs = [
-  { name: 'home', route: '/landlord/dashboard' },
-  { name: 'tenants', route: '/landlord/tenants' },
-  { name: 'messages', route: '/landlord/messages' },
-  { name: 'profile', route: '/landlord/profile' },
-] as const
-
-type BottomTabName = 'home' | 'tenants' | 'messages' | 'profile'
-
-const goToTab = (tabName: string | number) => {
-  const selectedTab = bottomTabs.find(item => item.name === tabName)
-  if (selectedTab) {
-    void router.push(selectedTab.route)
-  }
+function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undefined {
+  return shell.secondaryPages.find((entry) =>
+    typeof entry.path === 'string' ? entry.path === path : entry.path.test(path),
+  )
 }
 
-const goToNotifications = () => {
-  void router.push('/landlord/notifications')
+const subPage = computed(() => matchSecondary(route.path, config.value))
+const isSubPage = computed(() => Boolean(subPage.value))
+
+// Student chat opens a full-width conversation; the FAB would sit on top of it.
+const isInConversation = computed(
+  () => route.path.startsWith(`/${role.value}/messages`) && Boolean(route.query.manager),
+)
+const showQuickActions = computed(
+  () => !isSubPage.value && !isInConversation.value && !chatFullscreen.value,
+)
+
+function goToTab(tabName: string) {
+  const tab = config.value.tabs.find((item) => item.name === tabName)
+  if (tab) void router.push(tab.route)
 }
 
-const goBack = () => {
-  void router.push(isQrScanner.value ? '/landlord/profile' : isTenantDetail.value ? '/landlord/tenants' : '/landlord/dashboard')
+function goToNotifications() {
+  void router.push(config.value.notifications)
 }
 
-const goToAccommodations = () => {
-  void router.push('/landlord/properties')
+function goBack() {
+  void router.push(subPage.value?.back ?? config.value.home)
 }
 
 function navigateQuickAction(path: string) {
@@ -160,15 +183,21 @@ function navigateQuickAction(path: string) {
 
 watch(
   () => route.path,
-  (value, previousValue) => {
-    const enteringSecondaryPage = value === '/landlord/profile' || value === '/landlord/notifications' || value === '/landlord/profile/qr-scanner'
-    const leavingSecondaryPage = previousValue === '/landlord/profile' || previousValue === '/landlord/notifications' || previousValue === '/landlord/profile/qr-scanner'
-    pageTransition.value = enteringSecondaryPage && !leavingSecondaryPage ? 'page-slide-left' : leavingSecondaryPage && !enteringSecondaryPage ? 'page-slide-right' : 'page-fade'
-    if (value.startsWith('/landlord/notifications') || value === '/landlord/profile' || value === '/landlord/properties/new' || /^\/landlord\/properties\/[^/]+$/.test(value)) quickActionsOpen.value = false
-    if (value.startsWith('/landlord/dashboard')) activeBottomTab.value = 'home'
-    else if (value.startsWith('/landlord/tenants')) activeBottomTab.value = 'tenants'
-    else if (value.startsWith('/landlord/messages') || value.startsWith('/landlord/chat')) activeBottomTab.value = 'messages'
-    else if (value.startsWith('/landlord/profile')) activeBottomTab.value = 'profile'
+  (path, previousPath) => {
+    const shell = SHELLS[path.startsWith('/manager') ? 'manager' : 'student']
+
+    // Slide when moving between the main shell and a sub-page; fade otherwise.
+    const entering = Boolean(matchSecondary(path, shell))
+    const leaving = Boolean(previousPath && matchSecondary(previousPath, shell))
+    pageTransition.value =
+      entering && !leaving ? 'page-slide-left' : leaving && !entering ? 'page-slide-right' : 'page-fade'
+
+    if (entering) quickActionsOpen.value = false
+
+    const active = shell.tabs.find((tab) =>
+      [tab.route, ...(tab.match ?? [])].some((prefix) => path.startsWith(prefix)),
+    )
+    activeBottomTab.value = active?.name ?? 'home'
   },
   { immediate: true },
 )
@@ -181,35 +210,33 @@ onMounted(async () => {
   try {
     const { data } = await supabase.auth.getUser()
     const user = data?.user
+    if (!user) return
 
-    if (user) {
-      const metadata = user.user_metadata as Record<string, unknown> | undefined
-      const picture = typeof metadata?.avatar_url === 'string'
+    const metadata = user.user_metadata as Record<string, unknown> | undefined
+    const picture =
+      typeof metadata?.avatar_url === 'string'
         ? metadata.avatar_url
-        : (typeof metadata?.picture === 'string' ? metadata.picture : '')
-      profileImageUrl.value = picture || null
+        : typeof metadata?.picture === 'string'
+          ? metadata.picture
+          : ''
+    profileImageUrl.value = picture ? resolveAsset(picture) : null
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('initials, full_name')
-        .eq('id', user.id)
-        .maybeSingle()
+    const { data: userData } = await supabase
+      .from('users')
+      .select('initials, full_name')
+      .eq('id', user.id)
+      .maybeSingle()
 
-      if (userData) {
-        userInitials.value =
-          userData.initials || initialsOf(String(userData.full_name || user.email || 'User'))
-      } else {
-        userInitials.value = initialsOf(String(metadata?.full_name || user.email || 'User'))
-      }
+    const row = userData as { initials: string | null; full_name: string | null } | null
+    userInitials.value =
+      row?.initials || initialsOf(String(row?.full_name || metadata?.full_name || user.email || 'User'))
 
-      // Check unread notifications count
-      const { count } = await (supabase as any)
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .is('read_at', null)
-      unreadNotifCount.value = count || 0
-    }
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .is('read_at', null)
+    unreadNotifCount.value = count || 0
   } catch {
     userInitials.value = 'U'
   }
@@ -223,7 +250,7 @@ onUnmounted(() => {
 
 function onAvatarChange(event: Event) {
   const url = (event as CustomEvent<{ url: string }>).detail?.url
-  if (url) profileImageUrl.value = url
+  if (url) profileImageUrl.value = resolveAsset(url)
 }
 
 function onScroll() {
@@ -272,7 +299,9 @@ function onScroll() {
 }
 .app-title {
   font-size: 28px;
+  font-weight: 700;
   letter-spacing: -0.04em;
+  text-transform: lowercase;
 }
 .setup-page-title {
   flex: 1 1 auto;
@@ -292,7 +321,6 @@ function onScroll() {
   margin-left: -8px;
   color: #111827;
 }
-
 .header-notif-button {
   position: relative;
   min-width: 40px;
@@ -309,153 +337,16 @@ function onScroll() {
   background: var(--m-danger, #b42318);
   border: 1.5px solid #ffffff;
 }
-
-.profile-avatar-mini {
-  width: 24px;
-  height: 24px;
-  background: #00897b;
-  font-size: 10.5px;
-  font-weight: 800;
-}
-
 .bottom-footer {
   min-height: 52px;
   height: calc(52px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   position: fixed;
+  right: 0;
   bottom: 0;
   left: 0;
-  right: 0;
   z-index: 50;
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
-}
-.bottom-footer--setup {
-  box-shadow: none;
-}
-.bottom-nav {
-  height: 100%;
-  display: flex;
-  align-items: stretch;
-}
-.bottom-nav-item {
-  flex: 1 1 0;
-  min-width: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  appearance: none;
-  -webkit-appearance: none;
-  outline: none;
-  cursor: pointer;
-  color: #9CA3AF;
-  font-family: inherit;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-  transition: transform 0.12s ease, color 0.12s ease;
-}
-.bottom-nav-item:active {
-  transform: scale(0.9);
-}
-.bottom-nav-item.active {
-  color: #00897B;
-}
-.bottom-nav-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-}
-.bottom-fab {
-  position: fixed;
-  right: 16px;
-  bottom: 68px;
-  z-index: 60;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  place-items: center;
-  border: 1px solid var(--m-primary-dark);
-  border-radius: 50%;
-  background: var(--m-primary-dark);
-  box-shadow: 0 4px 12px rgba(0, 105, 92, 0.22);
-  color: #fff;
-  cursor: pointer;
-  transition: background-color 180ms ease-out, box-shadow 180ms ease-out;
-}
-.bottom-fab svg {
-  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.bottom-fab--open svg {
-  transform: rotate(45deg);
-}
-.bottom-fab--open {
-  border-color: var(--m-danger);
-  background: var(--m-danger);
-  box-shadow: 0 4px 12px rgba(180, 35, 24, 0.24);
-}
-.bottom-fab:focus-visible,
-.quick-action-menu button:focus-visible {
-  outline: 2px solid var(--m-primary);
-  outline-offset: 3px;
-}
-.quick-action-layer {
-  position: fixed;
-  z-index: 55;
-  top: 0;
-  right: 0;
-  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  left: 0;
-}
-.quick-action-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(23, 32, 42, 0.28);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-}
-.quick-action-menu {
-  position: absolute;
-  right: 12px;
-  bottom: 72px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--m-space-2);
-  animation: quick-actions-in 200ms ease-out both;
-}
-.quick-action-menu button {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: var(--m-space-2);
-  padding: var(--m-space-1) var(--m-space-2) var(--m-space-1) var(--m-space-1);
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-  color: var(--m-ink);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  text-align: left;
-}
-.quick-action-menu button:hover { background: var(--m-primary-soft); }
-.quick-action-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border-radius: var(--m-radius-sm);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
 }
 .page-stage { position: relative; min-height: 100%; overflow-x: clip; }
 .page-slide-left-enter-active,
@@ -477,18 +368,11 @@ function onScroll() {
 .page-fade-leave-active { transition: opacity 120ms ease-out; }
 .page-fade-enter-from,
 .page-fade-leave-to { opacity: 0; }
-@keyframes quick-actions-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 @media (prefers-reduced-motion: reduce) {
-  .bottom-fab,
-  .bottom-fab svg,
   .page-slide-left-enter-active,
   .page-slide-left-leave-active,
   .page-slide-right-leave-active,
   .page-fade-enter-active,
   .page-fade-leave-active { transition: none; }
-  .quick-action-menu { animation: none; }
 }
 </style>

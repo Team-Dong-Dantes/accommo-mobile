@@ -37,7 +37,7 @@ const route = useRoute();
 const isSplash = computed(() => route.path === '/');
 const isLogin = computed(() => route.path === '/login');
 
-// CHANGED: Now triggers for BOTH '/register' and '/register/landlord'
+// CHANGED: Now triggers for BOTH '/register' and '/register/manager'
 const isRegister = computed(() => route.path.startsWith('/register'));
 
 // Controls the direction of the animation
@@ -47,7 +47,7 @@ const transitionName = ref('splash-to-login');
 watch(
   () => route.path,
   (to, from) => {
-    // CHANGED: Role picker sets a horizontal direction (Student=left, Landlord=right).
+    // CHANGED: Role picker sets a horizontal direction (Student=left, Manager=right).
     if (to.startsWith('/register')) {
       const dir = transitionDir.value;
       transitionDir.value = null;
@@ -235,7 +235,7 @@ watch(
   transform: translateY(100dvh);
 }
 
-/* Horizontal pick from the role screen: Student slides LEFT, Landlord slides RIGHT. */
+/* Horizontal pick from the role screen: Student slides LEFT, Manager slides RIGHT. */
 .slide-left-enter-from {
   transform: translateX(100%);
 }

@@ -23,9 +23,9 @@ export const useQrStore = defineStore('qr', {
         }
 
         // Look up the student profile by school student_id. RLS
-        // (landlords_read_lease_student_profiles) only returns a row when this
-        // landlord actually has a lease with the student, so a null result means
-        // the scanned student is not this landlord's tenant.
+        // (managers_read_lease_student_profiles) only returns a row when this
+        // manager actually has a lease with the student, so a null result means
+        // the scanned student is not this manager's tenant.
         const { data: profile, error: profileError } = await supabase
           .from('student_profiles')
           .select('user_id, program, college, year_level, osas_verified_at')
@@ -39,14 +39,14 @@ export const useQrStore = defineStore('qr', {
 
         const userId = profile.user_id as string
 
-        // User record (RLS: only when linked by a lease to this landlord).
+        // User record (RLS: only when linked by a lease to this manager).
         const { data: userRow } = await supabase
           .from('users')
           .select('full_name, initials')
           .eq('id', userId)
           .maybeSingle()
 
-        // Leases between this landlord and the student (RLS enforces landlord_id).
+        // Leases between this manager and the student (RLS enforces landlord_id).
         const { data: leases } = await (supabase as any)
           .from('leases')
           .select(
