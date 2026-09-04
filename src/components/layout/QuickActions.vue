@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import type { QuickAction } from '@/shared/types/app-types'
+import type { QuickAction } from '@/types/app-types'
 
 defineProps<{
   actions: readonly QuickAction[]

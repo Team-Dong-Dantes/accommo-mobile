@@ -1,4 +1,4 @@
-import { supabase } from '@/shared/utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 // Use the same demo mode check pattern as the rest of the app
 // supabase.ts checks: const demoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';

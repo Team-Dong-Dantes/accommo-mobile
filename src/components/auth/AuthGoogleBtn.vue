@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import { EXTERNAL_URLS } from '@/shared/utils/config';
+import { EXTERNAL_URLS } from '@/utils/config';
 const GOOGLE_ICON = EXTERNAL_URLS.GOOGLE_ICON;
 </script>
 

@@ -321,7 +321,7 @@ import { reactive, ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar, type QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/shared/utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthSelect from '@/components/auth/AuthSelect.vue';
@@ -331,7 +331,7 @@ import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
 import AuthDivider from '@/components/auth/AuthDivider.vue';
 import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
 import ConnectedGoogleBox from '@/components/auth/ConnectedGoogleBox.vue';
-import { normalizePhPhone, phNationalDigits } from '@/shared/utils/format';
+import { normalizePhPhone, phNationalDigits } from '@/utils/format';
 
 const router = useRouter();
 const route = useRoute();

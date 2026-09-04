@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { Capacitor } from '@capacitor/core';
-import { supabase } from '@/shared/utils/supabase';
-import { uploadDocument } from '@/shared/utils/upload';
-import type { RegisterForm } from '@/shared/types/forms';
+import { supabase } from '@/utils/supabase';
+import { uploadDocument } from '@/utils/upload';
+import type { RegisterForm } from '@/types/forms';
 
 // The database role enum uses 'accommodation_manager' where the app's UI and
 // routing use 'manager' (the leader's terminology change). Map between them
