@@ -497,8 +497,8 @@ onMounted(load)
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 6px var(--m-page-gutter) 20px;
+  gap: 7px;
+  padding: 5px var(--m-page-gutter) 16px;
 }
 .sk { border-radius: var(--m-radius); }
 
@@ -522,7 +522,7 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 13px 14px;
+  padding: 12px 13px;
   border-radius: var(--m-radius);
   background: var(--m-primary);
   color: #fff;
@@ -542,7 +542,7 @@ onMounted(load)
 .occ--empty .ring-fill { stroke: var(--m-border); }
 
 .strip { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
-.strip-cell { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 9px 12px; }
+.strip-cell { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 8px 11px; }
 .strip-div { width: 1px; background: var(--m-border); }
 .strip-value {
   color: var(--m-ink);
@@ -557,17 +557,17 @@ onMounted(load)
 .strip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 
 /* Sections */
-.sec { display: flex; flex-direction: column; gap: 6px; }
+.sec { display: flex; flex-direction: column; gap: 5px; }
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.sec-title { margin: 0; color: var(--m-ink); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.sec-title { margin: 0; color: var(--m-ink); font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
 .sec-link { border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 0; }
 
 /* Lead: the single thing to deal with first */
 .lead {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px;
+  gap: 1px;
+  padding: 11px;
   border-radius: var(--m-radius);
   background: var(--m-surface);
   border: 1px solid var(--m-border);
@@ -575,7 +575,7 @@ onMounted(load)
 .lead--danger { border-color: color-mix(in srgb, var(--m-danger) 22%, var(--m-border)); }
 .lead--warn { border-color: color-mix(in srgb, var(--m-warning) 26%, var(--m-border)); }
 .lead-top { display: flex; align-items: center; gap: 7px; }
-.lead-icon { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; border-radius: 999px; }
+.lead-icon { display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border-radius: 999px; }
 .lead--danger .lead-icon { background: var(--m-danger-soft); color: var(--m-danger); }
 .lead--warn .lead-icon { background: var(--m-warning-soft); color: var(--m-warning); }
 .lead-kind {
@@ -589,24 +589,24 @@ onMounted(load)
 .lead--warn .lead-kind { color: var(--m-warning); }
 .lead-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 .lead-label {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
   text-wrap: pretty;
 }
-.lead-hint { margin: 1px 0 0; color: var(--m-muted); font-size: 12px; line-height: 1.35; text-wrap: pretty; }
+.lead-hint { margin: 0; color: var(--m-muted); font-size: 11.5px; line-height: 1.3; text-wrap: pretty; }
 .lead-action {
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
-  margin-top: 9px;
-  padding: 0 15px;
+  min-height: 38px;
+  margin-top: 7px;
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
   background: var(--m-primary);
@@ -621,14 +621,14 @@ onMounted(load)
 .lead-action:active { transform: scale(0.97); }
 
 /* Minors: everything still waiting, kept quiet */
-.minors { display: flex; flex-direction: column; gap: 4px; }
+.minors { display: flex; flex-direction: column; gap: 3px; }
 .minor {
   display: flex;
   width: 100%;
   min-height: 44px;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 9px;
+  padding: 4px 11px;
   border: 0;
   border-radius: var(--m-radius-sm);
   background: var(--m-surface);
@@ -649,8 +649,8 @@ onMounted(load)
 .clear {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 12px;
+  gap: 10px;
+  padding: 10px 11px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
