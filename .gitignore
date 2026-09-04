@@ -49,3 +49,6 @@ room_out.json
 .claude/settings.local.json
 .claude/*.log
 .mcp-auth/
+
+# Local audit/scratch reports, not shared team docs
+docs/audits/

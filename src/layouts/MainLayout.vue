@@ -103,6 +103,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     quickActions: [
       { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas-compliance' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
+      { icon: 'lucide:wallet-cards', label: 'Payments', route: '/manager/payments' },
       { icon: 'lucide:building-2', label: 'Accommodations', route: '/manager/properties' },
     ],
     secondaryPages: [
@@ -132,6 +133,9 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
       { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
       { path: /^\/student\/listing\/[^/]+$/, title: 'Listing', back: '/student/discover', backLabel: 'discover' },
+      { path: '/student/properties', title: 'Properties', back: '/student/discover', backLabel: 'discover' },
+      { path: /^\/student\/room\/[^/]+$/, title: 'Room', back: '/student/discover', backLabel: 'discover' },
+      { path: /^\/student\/manager\/[^/]+$/, title: 'Manager', back: '/student/discover', backLabel: 'discover' },
     ],
   },
 }

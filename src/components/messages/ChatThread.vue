@@ -67,7 +67,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf } from '@/utils/format'
+import { initialsOf, parseServerTime } from '@/utils/format'
 import { useMessagesStore } from '@/stores/messages'
 
 const props = defineProps<{ conversationId: string; role: 'manager' | 'student' }>()
@@ -108,14 +108,14 @@ const grouped = computed(() => {
       ...m,
       mine: m.senderId === me.value,
       read: m.status === 'read',
-      time: new Date(m.sentAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }),
+      time: parseServerTime(m.sentAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }),
     })
   }
   return out
 })
 
 function dayLabel(iso: string) {
-  const date = new Date(iso)
+  const date = parseServerTime(iso)
   const start = new Date()
   start.setHours(0, 0, 0, 0)
   if (date.getTime() >= start.getTime()) return 'Today'

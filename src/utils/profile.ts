@@ -1,6 +1,8 @@
 // Presentation helpers shared by the two profile pages, so a manager and a
 // student never see the same underlying status described two different ways.
 
+import { parseServerTime } from '@/utils/format';
+
 /** Friendly names for the doc_type strings written during registration. */
 export const DOC_LABEL: Record<string, string> = {
   government_id: 'Government ID',
@@ -44,7 +46,7 @@ export function statusPresentation(status: string | null | undefined): Presentat
 /** "August 2026" — the month is precise enough for a profile. */
 export function memberSince(iso: string | null | undefined): string {
   if (!iso) return '—';
-  const date = new Date(iso);
+  const date = parseServerTime(iso);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
 }
@@ -52,7 +54,7 @@ export function memberSince(iso: string | null | undefined): string {
 /** Compact relative age: "today", "3d", "2mo". */
 export function ago(iso: string | null | undefined): string {
   if (!iso) return '';
-  const then = new Date(iso).getTime();
+  const then = parseServerTime(iso).getTime();
   if (Number.isNaN(then)) return '';
   const days = Math.floor((Date.now() - then) / 86400000);
   if (days <= 0) return 'today';

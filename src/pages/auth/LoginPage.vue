@@ -43,9 +43,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useQuasar, type QForm } from 'quasar';
+import type { QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase';
+import { useNotify } from '@/utils/notify';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
@@ -54,7 +55,7 @@ import AuthDivider from '@/components/auth/AuthDivider.vue';
 
 const router = useRouter();
 const route = useRoute();
-const $q = useQuasar();
+const notify = useNotify();
 const authStore = useAuthStore();
 
 const email = ref('');
@@ -66,10 +67,7 @@ const loginFormRef = ref<QForm | null>(null);
 
 onMounted(() => {
   if (route.query.accountExists) {
-    $q.notify({
-      message: 'Account already exists. Please log in.',
-      position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify'
-    });
+    notify.info('Account already exists. Please log in.');
     void router.replace('/login');
   }
 });
@@ -78,7 +76,7 @@ async function handleGoogleAuth() {
   try {
     await authStore.loginWithGoogle('/login');
   } catch (error: unknown) {
-    $q.notify({ message: error instanceof Error ? error.message : 'An error occurred', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    notify.error(error instanceof Error ? error.message : 'An error occurred');
   }
 }
 
@@ -86,26 +84,25 @@ async function handleLogin() {
   if (!loginFormRef.value) return;
   const success = await loginFormRef.value.validate();
   if (!success) {
-    $q.notify({ message: 'Please enter your email and password.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'warning', iconColor: 'amber-4', classes: 'custom-notify' });
+    notify.warning('Please enter your email and password.');
     return;
   }
 
   try {
     loading.value = true;
     const { role } = await authStore.login(email.value, password.value);
-    $q.notify({ message: 'Welcome back!', position: 'top', color: 'grey-9', textColor: 'white', icon: 'check_circle', iconColor: 'teal-4', classes: 'custom-notify' });
+    notify.success('Welcome back!');
 
     if (role === 'student') void router.push('/student/home');
     else if (role === 'manager') void router.push('/manager/dashboard');
     else if (role === 'admin') void router.push('/admin/dashboard');
     else {
-
-      $q.notify({ message: 'Your account role is not set. Please complete registration.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
+      notify.info('Your account role is not set. Please complete registration.');
       await supabase.auth.signOut();
       void router.push('/register?newUser=true');
     }
   } catch (error: unknown) {
-    $q.notify({ message: error instanceof Error ? error.message : 'An unexpected error occurred', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    notify.error(error instanceof Error ? error.message : 'An unexpected error occurred');
   } finally {
     loading.value = false;
   }
@@ -113,7 +110,7 @@ async function handleLogin() {
 
 async function handleForgotPassword() {
   if (!email.value) {
-    $q.notify({ message: 'Please enter your email address first.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'info', iconColor: 'amber-4', classes: 'custom-notify' });
+    notify.info('Please enter your email address first.');
     return;
   }
 
@@ -123,9 +120,9 @@ async function handleForgotPassword() {
         redirectTo: window.location.origin + '/#/login',
       });
     if (error) throw error;
-    $q.notify({ message: 'Password reset link sent to your email.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'check_circle', iconColor: 'teal-4', classes: 'custom-notify' });
+    notify.success('Password reset link sent to your email.');
   } catch {
-    $q.notify({ message: 'Failed to send reset email. Please try again.', position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    notify.error('Failed to send reset email. Please try again.');
   } finally {
     forgotPasswordLoading.value = false;
   }

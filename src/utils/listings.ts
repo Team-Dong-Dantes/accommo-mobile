@@ -13,6 +13,17 @@ export const AMENITY_META: Record<string, { icon: string; label: string }> = {
 
 export const AMENITY_KEYS = Object.keys(AMENITY_META);
 
+export const FACILITY_META: Record<string, { icon: string; label: string }> = {
+  bathroom: { icon: 'lucide:bath', label: 'Bathroom' },
+  kitchen: { icon: 'lucide:cooking-pot', label: 'Kitchen' },
+  laundry: { icon: 'lucide:washing-machine', label: 'Laundry area' },
+  balcony: { icon: 'lucide:door-open', label: 'Balcony' },
+  common_area: { icon: 'lucide:sofa', label: 'Common area' },
+  study_area: { icon: 'lucide:book-open', label: 'Study area' },
+  parking: { icon: 'lucide:car', label: 'Parking' },
+  other: { icon: 'lucide:box', label: 'Facility' },
+};
+
 export const ROOM_TYPE_LABEL: Record<string, string> = {
   solo: 'Solo',
   duo: 'Duo',
@@ -29,7 +40,7 @@ export function roomTypeLabel(value: string | null | undefined): string {
 // accommodation_type holds a mix of real building types and, on some rows, a
 // room type that was written into the wrong field. Only recognised building
 // types get rendered; anything else is dropped rather than shown as a lie.
-const BUILDING_TYPE_LABEL: Record<string, string> = {
+export const BUILDING_TYPE_LABEL: Record<string, string> = {
   boarding_house: 'Boarding house',
   apartment_building: 'Apartment',
   residence_hall: 'Residence hall',

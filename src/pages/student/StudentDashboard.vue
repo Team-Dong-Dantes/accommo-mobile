@@ -155,6 +155,7 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { formatPeso, formatDate, initialsOf } from '@/utils/format'
+import { ago } from '@/utils/profile'
 
 interface Stay {
   id: string
@@ -243,18 +244,6 @@ function statusLabel(s: string) {
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
   return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-}
-
-function ago(iso: string | null | undefined) {
-  if (!iso) return ''
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
-  const days = Math.floor((Date.now() - then) / 86400000)
-  if (days <= 0) return 'today'
-  if (days === 1) return '1d'
-  if (days < 30) return `${days}d`
-  const months = Math.floor(days / 30)
-  return months === 1 ? '1mo' : `${months}mo`
 }
 
 function go(path: string) {

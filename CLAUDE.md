@@ -2,6 +2,14 @@
 
 Student and accommodation-manager client. Quasar, Vue 3, TypeScript, Pinia, Supabase, Capacitor. Shares one Supabase backend with the sibling `accommo-web` repo (see `../AGENTS.md` if present).
 
+## Commands
+
+- `npm run dev` — Quasar dev server (web target, HMR).
+- `npm run build` — production web build.
+- `npm run typecheck` — `vue-tsc --noEmit`; run after any routing/type/multi-file change.
+- No test suite and no lint script are configured.
+- Env: copy `.env.example` to `.env` and fill `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. `.env.local` (gitignored) overrides `.env` — set `VITE_DEMO_MODE=true` there to bypass all auth/role guards in `router/index.ts` for screen-by-screen UI work with no backend. `VITE_MAPBOX_TOKEN` is also read for map features. `quasar.config.ts` inlines these four via `build.define`, so a new env var must be added there too or it won't reach client code.
+
 ## Current state: rebuild in progress
 
 The feature screens were deliberately stripped. Only auth, the app shell, and shared infrastructure remain. **`docs/FEATURES.md` is the specification for everything being rebuilt** — read it before building any screen; it records each screen's purpose, flows, tables, and the UI patterns worth building once and reusing.
@@ -48,7 +56,7 @@ As features return: pages go in `src/pages/<role>/` with the role prefix (`Manag
 
 `layouts/MainLayout.vue` serves both signed-in roles. It reads the role from the path prefix (`/manager` vs `/student`) and drives bottom tabs, quick actions, and back-button sub-pages from the `SHELLS` config object at the top of its script block. To add a tab, quick action, or a screen needing a back-arrow header, edit that config; do not fork the layout. Nav markup lives in `components/layout/`.
 
-Note: MainLayout is currently unmounted — `routes.ts` has no children for it until feature routes return. The router guards in `index.ts` still redirect signed-in users to `/manager/dashboard` and `/student/home`, which 404 until those routes are rebuilt. That is expected mid-rebuild.
+`routes.ts` mounts MainLayout with `[...managerRoutes, ...studentRoutes]` from `router/manager.ts` / `router/student.ts` — register new screens in those files, not in `routes.ts` directly. Router guards in `index.ts` resolve the signed-in user's role via a `users.role` lookup (cached on `authStore.cachedRole`) and redirect `/manager/*` vs `/student/*` accordingly; a route not yet added to those files 404s even for an authenticated user of the right role.
 
 Admin/OSAS has no surface in this app — it lives in `accommo-web`. Do not add admin routes here.
 

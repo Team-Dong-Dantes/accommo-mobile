@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors';
-import { initialsOf } from '@/utils/format';
+import { initialsOf, parseServerTime } from '@/utils/format';
 
 export interface Thread {
   id: string;
@@ -22,8 +22,12 @@ interface Person {
 // A live connection, not reactive state — see stores/notifications.ts.
 let channel: RealtimeChannel | null = null;
 
+function toMs(lastTime: string | null): number {
+  return lastTime ? parseServerTime(lastTime).getTime() : 0;
+}
+
 function newestFirst(a: Thread, b: Thread) {
-  return new Date(b.lastTime ?? 0).getTime() - new Date(a.lastTime ?? 0).getTime();
+  return toMs(b.lastTime) - toMs(a.lastTime);
 }
 
 export const useMessagesStore = defineStore('messages', {

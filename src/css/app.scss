@@ -89,3 +89,78 @@ h4 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ==========================================================================
+   Native feel — kill "web-in-a-box" gestures (global, minimal downside)
+   ========================================================================== */
+
+/* No grey/blue flash when tapping buttons, list rows, cards, nav. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* No iOS/Android long-press callout (copy / "open link" bubble). Scoped so we
+   can restore the long-press copy menu on real text content (see below). */
+* {
+  -webkit-touch-callout: none;
+}
+
+/* Let the app shell own scroll so the page never rubber-bands past the edges
+   (pull-to-refresh blank space / elastic overscroll). Auth keeps its own
+   contain so the register form scroll is unaffected. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Selection policy: disable text-select on chrome/app chrome surfaces so a
+   sustained tap on a button/card never triggers the native select popup,
+   but keep text selectable where users actually read/copy it (messages,
+   profiles, forms, addresses).  `*` off + explicit re-enable below is the
+   safe shell-wide default. */
+button,
+[role='button'],
+.q-btn,
+.q-item,
+.q-tab,
+.q-fab,
+.q-card,
+.sec,
+.card,
+.notice,
+.header-notif-button {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Typing + copy must keep working inside real text surfaces. `text-selectable`
+   is the escape hatch for future content screens (message bodies, addresses,
+   ids) that SHOULD allow long-press selection + copy. */
+input,
+textarea,
+select,
+[contenteditable='true'],
+.text-selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* ---- Unified toast notifications ----
+   Every toast (useNotify() in src/utils/notify.ts) tags the element with
+   `.custom-notify`. This MUST be a global (non-scoped) rule: Quasar portals
+   notifications to <body>, so a scoped class on a component never reaches
+   them. One pill everywhere — brand radius, soft shadow, comfortable
+   padding — regardless of which page fired it. Mirrors accommo-web's
+   src/css/app.css `.custom-notify`. */
+.custom-notify {
+  border-radius: var(--m-radius-sm) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
+  font-family: var(--m-font-body) !important;
+  font-size: 14px !important;
+  padding: 12px 16px !important;
+}
+.custom-notify .q-notification__icon {
+  font-size: 22px !important;
+}
+

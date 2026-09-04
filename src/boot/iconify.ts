@@ -1,5 +1,12 @@
 import { defineBoot } from '#q-app'
-import { Icon, addIcon } from '@iconify/vue'
+import { Icon, addIcon, addCollection } from '@iconify/vue'
+import { icons as lucideIcons } from '@iconify-json/lucide'
+
+// Register the full Lucide set up front. The shell + dashboards + future
+// feature screens author against `lucide:<name>`; without this every such icon
+// renders as a blank box (addIcon-only boot never resolved unbundled sets).
+// The material-icons names below stay individually registered for the auth flow.
+addCollection(lucideIcons)
 
 addIcon('material-icons:arrow_forward', { width: 24, height: 24, body: '<path fill="currentColor" d="m12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>' })
 addIcon('material-icons:arrow_back', { width: 24, height: 24, body: '<path fill="currentColor" d="m20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' })

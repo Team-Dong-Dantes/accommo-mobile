@@ -319,9 +319,10 @@
 <script setup lang="ts">
 import { reactive, ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useQuasar, type QForm } from 'quasar';
+import type { QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase';
+import { useNotify } from '@/utils/notify';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthSelect from '@/components/auth/AuthSelect.vue';
@@ -336,7 +337,7 @@ import { yearOptions, collegePrograms } from '@/constants/academics';
 
 const router = useRouter();
 const route = useRoute();
-const $q = useQuasar();
+const notify = useNotify();
 const authStore = useAuthStore();
 
 const step = ref(1);
@@ -410,7 +411,7 @@ async function createAccountNow(): Promise<boolean> {
     return true;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Could not create your account.';
-    $q.notify({ message, position: 'top', color: 'grey-9', textColor: 'white', icon: 'error_outline', iconColor: 'red-4', classes: 'custom-notify' });
+    notify.error(message);
     return false;
   } finally {
     creatingAccount.value = false;
@@ -431,15 +432,7 @@ function syncFullName() {
 
 onMounted(async () => {
   if (route.query.newUser) {
-    $q.notify({
-      message: 'Account not found. Please complete registration.',
-      position: 'top',
-      color: 'grey-9',
-      textColor: 'white',
-      icon: 'info',
-      iconColor: 'amber-4',
-      classes: 'custom-notify',
-    });
+    notify.info('Account not found. Please complete registration.');
     void router.replace('/register');
   }
 
@@ -475,15 +468,7 @@ async function nextStep() {
   }
 
   if (step.value === 3 && !emailVerified.value) {
-    $q.notify({
-      message: 'Confirm your e-mail before continuing.',
-      position: 'top',
-      color: 'grey-9',
-      textColor: 'white',
-      icon: 'info',
-      iconColor: 'amber-4',
-      classes: 'custom-notify',
-    });
+    notify.info('Confirm your e-mail before continuing.');
     return;
   }
   if (step.value < 5) step.value++;
@@ -502,15 +487,7 @@ async function handleGoogleAuth() {
     if (error instanceof Error) {
       errorMsg = error.message;
     }
-    $q.notify({
-      message: errorMsg,
-      position: 'top',
-      color: 'grey-9',
-      textColor: 'white',
-      icon: 'error_outline',
-      iconColor: 'red-4',
-      classes: 'custom-notify',
-    });
+    notify.error(errorMsg);
   }
 }
 
@@ -524,14 +501,7 @@ async function cancelGoogle() {
   form.firstName = '';
   form.lastName = '';
   form.fullName = '';
-  $q.notify({
-    message: 'Google account unlinked.',
-    color: 'grey-9',
-    textColor: 'white',
-    icon: 'info',
-    position: 'top',
-    classes: 'custom-notify',
-  });
+  notify.info('Google account unlinked.');
 }
 
 async function handleRegister(skipVerification: boolean = false) {
@@ -555,15 +525,7 @@ async function handleRegister(skipVerification: boolean = false) {
       });
 
       if (data) {
-        $q.notify({
-          message: 'This Student ID is already registered. Please double check or sign in.',
-          position: 'top',
-          color: 'grey-9',
-          textColor: 'white',
-          icon: 'error_outline',
-          iconColor: 'red-4',
-          classes: 'custom-notify',
-        });
+        notify.error('This Student ID is already registered. Please double check or sign in.');
         loading.value = false;
         return;
       }
@@ -575,43 +537,19 @@ async function handleRegister(skipVerification: boolean = false) {
    try {
      if (isGoogleMode.value) {
        await authStore.completeGoogleProfile(googleUserId.value, form);
-       $q.notify({
-         message: 'Profile completed successfully!',
-         position: 'top',
-         color: 'grey-9',
-         textColor: 'white',
-         icon: 'check_circle',
-         iconColor: 'teal-4',
-         classes: 'custom-notify',
-       });
+       notify.success('Profile completed successfully!');
      } else {
         if (createdUserId) {
         await authStore.finalizeStudentAccount(createdUserId, form as any);
       } else {
         await authStore.register(form); // safety fallback (no early account)
       }
-        $q.notify({
-          message: 'Account created successfully!',
-          position: 'top',
-          color: 'grey-9',
-          textColor: 'white',
-         icon: 'check_circle',
-         iconColor: 'teal-4',
-        classes: 'custom-notify',
-       });
+        notify.success('Account created successfully!');
      }
       finishRegistration();
     } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'An unexpected error occurred';
-    $q.notify({
-      message,
-      position: 'top',
-      color: 'grey-9',
-      textColor: 'white',
-      icon: 'error_outline',
-      iconColor: 'red-4',
-      classes: 'custom-notify',
-    });
+    notify.error(message);
   } finally {
     loading.value = false;
   }

@@ -45,6 +45,10 @@
             <IconifyIcon icon="lucide:home" width="18" class="stay-icon" />
             <span class="stay-name">{{ stay ? stay.accommodationName : 'No active stay' }}</span>
             <span v-if="stay && stay.roomNumber" class="stay-room">· Room {{ stay.roomNumber }}</span>
+            <span v-if="stayStatusNote" class="stay-note">{{ stayStatusNote }}</span>
+            <button v-if="stay?.status === 'active'" type="button" class="stay-leave" @click="leaveDialog = true">
+              Request to leave
+            </button>
           </div>
           <button class="stat-action" @click="qrDialog = true">
             <IconifyIcon icon="lucide:qr-code" width="18" />
@@ -224,18 +228,37 @@
         </div>
       </div>
     </q-dialog>
+
+    <q-dialog v-model="leaveDialog" position="bottom">
+      <q-card class="leave-sheet">
+        <h3 class="leave-title">Request to leave?</h3>
+        <p class="leave-body">
+          Your manager will be notified and needs to approve this before your stay ends. You'll stay on your
+          current lease until then.
+        </p>
+        <div class="leave-actions">
+          <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
+            Cancel
+          </button>
+          <button type="button" class="leave-btn" :disabled="leaving" @click="requestLeave">
+            {{ leaving ? 'Sending…' : 'Request to leave' }}
+          </button>
+        </div>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { uploadAvatar } from '@/utils/upload'
+import { useNotify } from '@/utils/notify'
+import { createNotification } from '@/boot/notify'
 import ProfileField from '@/components/shared/ProfileField.vue'
 import ChangePasswordDialog from '@/components/shared/ChangePasswordDialog.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago, period } from '@/utils/profile'
@@ -262,12 +285,15 @@ interface HistoryRow {
   period: string
 }
 interface Stay {
+  leaseId: string
+  managerId: string
   accommodationName: string
   roomNumber: string | null
+  status: 'active' | 'pending' | 'leave_requested'
 }
 
 const router = useRouter()
-const $q = useQuasar()
+const notify = useNotify()
 
 const loading = ref(true)
 const saving = ref(false)
@@ -275,6 +301,8 @@ const error = ref('')
 const editing = ref(false)
 const passwordOpen = ref(false)
 const qrDialog = ref(false)
+const leaveDialog = ref(false)
+const leaving = ref(false)
 
 const userId = ref('')
 const avatarUrl = ref<string | null>(null)
@@ -319,6 +347,11 @@ const documents = ref<DocRow[]>([])
 const history = ref<HistoryRow[]>([])
 
 const status = computed(() => statusPresentation(me.status))
+const stayStatusNote = computed(() => {
+  if (stay.value?.status === 'pending') return 'Application pending — awaiting manager decision'
+  if (stay.value?.status === 'leave_requested') return 'Leave requested — awaiting manager decision'
+  return ''
+})
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
 
@@ -355,12 +388,9 @@ async function onAvatarSelected(event: Event) {
   try {
     const url = await uploadAvatar(file, userId.value)
     avatarUrl.value = url
-    $q.notify({ type: 'positive', message: 'Avatar updated.' })
+    notify.success('Avatar updated.')
   } catch (e) {
-    $q.notify({
-      type: 'negative',
-      message: e instanceof Error ? e.message : 'Could not upload avatar.',
-    })
+    notify.error(e instanceof Error ? e.message : 'Could not upload avatar.')
   }
   input.value = ''
 }
@@ -388,7 +418,7 @@ function cancelEdit() {
 async function save() {
   const name = draft.fullName.trim()
   if (!name) {
-    $q.notify({ type: 'negative', message: 'Your name cannot be empty.' })
+    notify.error('Your name cannot be empty.')
     return
   }
 
@@ -434,9 +464,9 @@ async function save() {
     updatedAt.value = new Date().toISOString()
 
     editing.value = false
-    $q.notify({ type: 'positive', message: 'Profile updated.' })
+    notify.success('Profile updated.')
   } catch (e) {
-    $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Could not save.' })
+    notify.error(e instanceof Error ? e.message : 'Could not save.')
   } finally {
     saving.value = false
   }
@@ -445,6 +475,35 @@ async function save() {
 async function signOut() {
   await supabase.auth.signOut()
   void router.push('/login')
+}
+
+async function requestLeave() {
+  if (leaving.value || !stay.value) return
+  leaving.value = true
+  try {
+    const { error: updateError } = await supabase
+      .from('leases')
+      .update({ status: 'leave_requested', leave_requested_at: new Date().toISOString() })
+      .eq('id', stay.value.leaseId)
+      .eq('student_id', userId.value)
+    if (updateError) throw updateError
+
+    void createNotification(
+      stay.value.managerId,
+      'Leave request',
+      `${me.fullName || 'A student'} requested to leave ${stay.value.accommodationName}.`,
+      'lease',
+      `/manager/tenant/${stay.value.leaseId}`,
+    )
+
+    stay.value = { ...stay.value, status: 'leave_requested' }
+    leaveDialog.value = false
+    notify.success('Leave request sent.')
+  } catch (e) {
+    notify.error(e instanceof Error ? e.message : 'Could not send your leave request.')
+  } finally {
+    leaving.value = false
+  }
 }
 
 async function downloadQR() {
@@ -459,9 +518,9 @@ async function downloadQR() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-    $q.notify({ type: 'positive', message: 'QR code downloaded.' })
+    notify.success('QR code downloaded.')
   } catch {
-    $q.notify({ type: 'negative', message: 'Could not download QR code.' })
+    notify.error('Could not download QR code.')
   }
 }
 
@@ -537,7 +596,7 @@ async function load() {
 
     const { data: leaseRow } = await supabase
       .from('leases')
-      .select('rooms(room_number, accommodations(name))')
+      .select('id, status, accommodation_manager_id, rooms(room_number, accommodations(name))')
       .eq('student_id', user.id)
       .in('status', ['active', 'pending', 'leave_requested'])
       .order('start_date', { ascending: false })
@@ -550,8 +609,11 @@ async function load() {
         accommodations: { name: string } | null
       } | null
       stay.value = {
+        leaseId: leaseRow.id,
+        managerId: leaseRow.accommodation_manager_id,
         accommodationName: room?.accommodations?.name || 'Your accommodation',
         roomNumber: room?.room_number ?? null,
+        status: leaseRow.status as Stay['status'],
       }
     }
 
@@ -978,6 +1040,7 @@ onMounted(load)
 }
 .stay-info {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   flex: 1;
@@ -993,6 +1056,76 @@ onMounted(load)
 .stay-room {
   color: var(--m-muted);
   font-size: 13px;
+}
+.stay-note {
+  flex-basis: 100%;
+  color: var(--m-warning);
+  font-size: 12px;
+  font-weight: 600;
+}
+.stay-leave {
+  flex-basis: 100%;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--m-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.leave-sheet {
+  display: flex;
+  width: 100%;
+  max-width: 480px;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 auto;
+  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
+  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
+}
+.leave-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.leave-body {
+  margin: 0;
+  color: var(--m-text);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.leave-actions {
+  display: flex;
+  gap: 8px;
+}
+.leave-btn {
+  flex: 1;
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.leave-btn:disabled {
+  opacity: 0.6;
+}
+.leave-btn--ghost {
+  border: 1px solid var(--m-border);
+  background: var(--m-bg);
+  color: var(--m-text);
 }
 .history-row {
   display: flex;
