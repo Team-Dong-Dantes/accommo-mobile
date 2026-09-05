@@ -20,9 +20,15 @@
       <p class="empty-text">{{ emptyMessage }}</p>
     </div>
 
+    <div v-else-if="!visibleThreads.length" class="empty">
+      <span class="empty-icon"><IconifyIcon icon="lucide:search-x" width="26" /></span>
+      <p class="empty-title">Nothing matches</p>
+      <p class="empty-text">Try a different search or filter.</p>
+    </div>
+
     <div v-else class="stack">
       <button
-        v-for="thread in store.threads"
+        v-for="thread in visibleThreads"
         :key="thread.id"
         type="button"
         class="thread"
@@ -47,14 +53,27 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useMessagesStore } from '@/stores/messages'
 import { since } from '@/utils/notifications'
 
-defineProps<{ emptyMessage: string }>()
+const props = withDefaults(
+  defineProps<{ emptyMessage: string; query?: string; filter?: 'all' | 'unread' }>(),
+  { query: '', filter: 'all' },
+)
 const emit = defineEmits<{ open: [string] }>()
 
 const store = useMessagesStore()
+
+const visibleThreads = computed(() => {
+  const q = props.query.trim().toLowerCase()
+  return store.threads.filter((t) => {
+    if (props.filter === 'unread' && !t.unread) return false
+    if (!q) return true
+    return t.otherName.toLowerCase().includes(q) || t.lastMessage.toLowerCase().includes(q)
+  })
+})
 </script>
 
 <style scoped>
@@ -66,7 +85,8 @@ const store = useMessagesStore()
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 8px var(--m-page-gutter) 20px;
+  /* Clears the docked search, which sits on the FAB's baseline. */
+  padding: 8px var(--m-page-gutter) 126px;
 }
 .sk {
   border-radius: var(--m-radius);

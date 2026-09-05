@@ -20,182 +20,111 @@
     <!-- Profile Content -->
     <div v-else class="stack">
       <!-- Hero Header -->
-      <div class="hero">
-        <div class="hero-cover" />
-        <div class="hero-content">
-          <div class="hero-avatar-wrapper" @click="openAvatarPicker">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" class="hero-avatar" />
-            <span v-else class="hero-avatar">{{ me.initials || '?' }}</span>
-            <span class="hero-avatar-overlay">
-              <IconifyIcon icon="lucide:camera" width="16" />
-            </span>
-          </div>
-          <input ref="avatarInput" type="file" accept="image/*" class="hidden-input" @change="onAvatarSelected" />
-
-          <div class="hero-meta">
-            <h1 class="hero-name">{{ me.fullName || 'Your name' }}</h1>
-            <p class="hero-role">{{ courseLine || 'Student' }}</p>
-            <span class="hero-tag" :class="`hero-tag--${status.tone || 'warn'}`">{{ status.label || 'Unverified' }}</span>
-          </div>
-        </div>
-
-        <!-- Stay & QR -->
-        <div class="hero-stats">
-          <div class="stay-info">
-            <IconifyIcon icon="lucide:home" width="18" class="stay-icon" />
+      <ProfileHero
+        v-model:avatar-url="avatarUrl"
+        :initials="me.initials"
+        :user-id="userId"
+        :name="me.fullName || 'Your name'"
+        :subtitle="courseLine || 'Student'"
+        :status-tone="status.tone || 'warn'"
+        :status-label="status.label || 'Unverified'"
+        action-icon="lucide:qr-code"
+        action-label="My QR"
+        @action="qrDialog = true"
+      >
+        <component :is="stay ? 'button' : 'div'" class="stay-info" v-bind="stay ? { type: 'button' } : {}" @click="stay && go('/student/stay')">
+          <span class="stay-badge">
+            <IconifyIcon icon="lucide:home" width="18" />
+          </span>
+          <div class="stay-text">
             <span class="stay-name">{{ stay ? stay.accommodationName : 'No active stay' }}</span>
-            <span v-if="stay && stay.roomNumber" class="stay-room">· Room {{ stay.roomNumber }}</span>
+            <span v-if="stay && stay.roomNumber" class="stay-room">Room {{ stay.roomNumber }}</span>
             <span v-if="stayStatusNote" class="stay-note">{{ stayStatusNote }}</span>
-            <button v-if="stay?.status === 'active'" type="button" class="stay-leave" @click="leaveDialog = true">
-              Request to leave
-            </button>
           </div>
-          <button class="stat-action" @click="qrDialog = true">
-            <IconifyIcon icon="lucide:qr-code" width="18" />
-            <span>My QR</span>
-          </button>
-        </div>
-      </div>
+          <IconifyIcon v-if="stay" icon="lucide:chevron-right" width="16" class="stay-chevron" />
+        </component>
+      </ProfileHero>
 
-      <!-- Details Card -->
-      <section class="card-section">
-        <div class="card-header">
-          <IconifyIcon icon="lucide:user" width="18" class="card-icon" />
-          <h2 class="card-title">Your details</h2>
-        </div>
-        <div class="card-body">
-          <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
-          <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
-          <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
-        </div>
-      </section>
+      <!-- Profile -->
+      <ProfileCard>
+        <template #always>
+          <ProfileBlock icon="lucide:user" title="Your details">
+            <template #actions>
+              <EditButton v-if="!editing" @click="startEdit" />
+            </template>
+            <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
+            <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
+            <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
+          </ProfileBlock>
+        </template>
 
-      <!-- Edit button & member since -->
-      <div class="edit-row">
-        <button v-if="!editing" class="edit-btn" @click="startEdit">
-          <IconifyIcon icon="lucide:pencil" width="16" />
-          Edit profile
-        </button>
-        <p class="member-since">
+        <template #more>
+          <ProfileBlock icon="lucide:graduation-cap" title="Academics">
+            <ProfileField v-model="draft.studentId" label="Student ID" readonly :editing="editing" placeholder="Not set" />
+            <ProfileField
+              :model-value="draft.college"
+              label="College"
+              type="select"
+              :options="collegeOptions"
+              :editing="editing"
+              @update:model-value="onCollegeChange"
+            />
+            <ProfileField
+              v-model="draft.program"
+              label="Program"
+              type="select"
+              :options="programOptions"
+              :editing="editing"
+            />
+            <ProfileField
+              v-model="draft.yearLevel"
+              label="Year level"
+              type="select"
+              :options="yearOptions"
+              :editing="editing"
+            />
+          </ProfileBlock>
+
+          <ProfileBlock icon="lucide:phone-forwarded" title="Emergency contact">
+            <ProfileField v-model="draft.emergencyName" label="Name" :editing="editing" />
+            <ProfileField v-model="draft.emergencyRelation" label="Relationship" :editing="editing" placeholder="Parent, guardian…" />
+            <ProfileField v-model="draft.emergencyPhone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
+          </ProfileBlock>
+
+          <ProfileBlock icon="lucide:shield-check" title="Verification" :badge="pendingDocs > 0 ? `${pendingDocs} pending` : ''">
+            <div v-if="documents.length">
+              <div v-for="doc in documents" :key="doc.id" class="doc-row">
+                <span class="doc-icon" :class="`doc-icon--${doc.tone}`">
+                  <IconifyIcon :icon="doc.icon" width="14" />
+                </span>
+                <div class="doc-info">
+                  <span class="doc-name">{{ doc.label }}</span>
+                  <span class="doc-when">{{ doc.when }}</span>
+                </div>
+                <span class="doc-tag" :class="`doc-tag--${doc.tone}`">{{ doc.statusLabel }}</span>
+              </div>
+            </div>
+            <p v-else class="empty-message">You haven't submitted any documents yet</p>
+            <button class="row-link" @click="go('/student/support')">
+              <IconifyIcon icon="lucide:arrow-right" width="16" />
+              <span>Open OSAS verification</span>
+            </button>
+          </ProfileBlock>
+
+        </template>
+
+        <template #footer>
           Member since {{ memberSinceLabel || 'recently' }}
           <span v-if="updatedAt" class="updated">· Updated {{ ago(updatedAt) }}</span>
-        </p>
-      </div>
+        </template>
+      </ProfileCard>
 
-      <!-- Academics Card -->
-      <section class="card-section">
-        <div class="card-header">
-          <IconifyIcon icon="lucide:graduation-cap" width="18" class="card-icon" />
-          <h2 class="card-title">Academics</h2>
-        </div>
-        <div class="card-body">
-          <ProfileField v-model="draft.studentId" label="Student ID" readonly :editing="editing" placeholder="Not set" />
-          <ProfileField
-            :model-value="draft.college"
-            label="College"
-            type="select"
-            :options="collegeOptions"
-            :editing="editing"
-            @update:model-value="onCollegeChange"
-          />
-          <ProfileField
-            v-model="draft.program"
-            label="Program"
-            type="select"
-            :options="programOptions"
-            :editing="editing"
-          />
-          <ProfileField
-            v-model="draft.yearLevel"
-            label="Year level"
-            type="select"
-            :options="yearOptions"
-            :editing="editing"
-          />
-        </div>
-      </section>
-
-      <!-- Emergency Contact Card -->
-      <section class="card-section">
-        <div class="card-header">
-          <IconifyIcon icon="lucide:phone-forwarded" width="18" class="card-icon" />
-          <h2 class="card-title">Emergency contact</h2>
-        </div>
-        <div class="card-body">
-          <ProfileField v-model="draft.emergencyName" label="Name" :editing="editing" />
-          <ProfileField v-model="draft.emergencyRelation" label="Relationship" :editing="editing" placeholder="Parent, guardian…" />
-          <ProfileField v-model="draft.emergencyPhone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
-        </div>
-      </section>
-
-      <!-- Verification Card -->
-      <section class="card-section">
-        <div class="card-header">
-          <IconifyIcon icon="lucide:shield-check" width="18" class="card-icon" />
-          <h2 class="card-title">Verification</h2>
-          <span v-if="pendingDocs > 0" class="badge">{{ pendingDocs }} pending</span>
-        </div>
-        <div class="card-body">
-          <div v-if="documents.length">
-            <div v-for="doc in documents" :key="doc.id" class="doc-row">
-              <span class="doc-icon" :class="`doc-icon--${doc.tone}`">
-                <IconifyIcon :icon="doc.icon" width="14" />
-              </span>
-              <div class="doc-info">
-                <span class="doc-name">{{ doc.label }}</span>
-                <span class="doc-when">{{ doc.when }}</span>
-              </div>
-              <span class="doc-tag" :class="`doc-tag--${doc.tone}`">{{ doc.statusLabel }}</span>
-            </div>
-          </div>
-          <p v-else class="empty-message">You haven't submitted any documents yet</p>
-          <button class="row-link" @click="go('/student/support')">
-            <IconifyIcon icon="lucide:arrow-right" width="16" />
-            <span>Open OSAS verification</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- History Card -->
-      <section v-if="history.length" class="card-section">
-        <div class="card-header">
-          <IconifyIcon icon="lucide:clock" width="18" class="card-icon" />
-          <h2 class="card-title">Where you've stayed</h2>
-        </div>
-        <div class="card-body">
-          <div v-for="row in history" :key="row.id" class="history-row">
-            <div class="history-info">
-              <span class="history-name">{{ row.name }}</span>
-              <span class="history-meta">{{ row.meta }}</span>
-            </div>
-            <span class="history-when">{{ row.period }}</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Settings Card -->
-      <section class="card-section">
-        <div class="card-header">
-          <IconifyIcon icon="lucide:settings" width="18" class="card-icon" />
-          <h2 class="card-title">Settings</h2>
-        </div>
-        <div class="card-body">
-          <button class="row-link" @click="go('/student/payments')">
-            <IconifyIcon icon="lucide:wallet-cards" width="16" />
-            <span>Payments</span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-          </button>
-          <button class="row-link" @click="passwordOpen = true">
-            <IconifyIcon icon="lucide:lock" width="16" />
-            <span>Change password</span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-          </button>
-          <button class="row-link row-danger" @click="signOut">
-            <IconifyIcon icon="lucide:log-out" width="16" />
-            <span>Sign out</span>
-          </button>
-        </div>
-      </section>
+      <!-- Settings -->
+      <ProfileSettingsSection
+        :user-id="userId"
+        :email="me.email"
+        :notification-prefs="notificationPrefs"
+      />
 
       <!-- Edit bar -->
       <div v-if="editing" class="edit-bar">
@@ -206,46 +135,46 @@
       </div>
     </div>
 
-    <ChangePasswordDialog v-model="passwordOpen" />
-
-    <!-- Improved QR Dialog -->
-    <q-dialog v-model="qrDialog" position="top" class="qr-dialog">
+    <!-- My QR -->
+    <q-dialog v-model="qrDialog" position="bottom" class="qr-dialog">
       <div class="qr-card">
-        <div class="qr-header">
-          <IconifyIcon icon="lucide:shield-check" width="24" class="qr-header-icon" />
-          <h3 class="qr-title">Verification QR</h3>
-        </div>
-        <p class="qr-sub">
-          Scan this code to verify your identity with OSAS or your accommodation manager.
-        </p>
-        <div class="qr-image-wrapper">
-          <img :src="qrImageUrl" alt="Verification QR Code" class="qr-image" width="220" height="220" loading="lazy" />
-        </div>
-        <p class="qr-id">ID: {{ userId }}</p>
-        <div class="qr-actions">
-          <q-btn flat dense no-caps color="primary" label="Download" class="qr-download" @click="downloadQR" />
-          <q-btn flat dense no-caps color="grey-7" label="Close" class="qr-close" @click="qrDialog = false" />
-        </div>
+        <span class="qr-grip" aria-hidden="true" />
+        <template v-if="osasVerified && qrDataUrl">
+          <div class="qr-header">
+            <IconifyIcon icon="lucide:shield-check" width="24" class="qr-header-icon" />
+            <h3 class="qr-title">My student QR</h3>
+          </div>
+          <p class="qr-sub">
+            Show this code at check-in so your manager can confirm you're an active, verified student.
+          </p>
+          <div class="qr-image-wrapper">
+            <img :src="qrDataUrl" alt="Your student QR code" class="qr-image" width="220" height="220" />
+          </div>
+          <p class="qr-id">ID: {{ academics.studentId }}</p>
+          <div class="qr-actions">
+            <q-btn flat dense no-caps color="primary" label="Download" class="qr-download" @click="downloadQR" />
+            <q-btn flat dense no-caps color="grey-7" label="Close" class="qr-close" @click="qrDialog = false" />
+          </div>
+        </template>
+        <template v-else-if="!osasVerified">
+          <div class="qr-locked">
+            <span class="qr-locked-icon"><IconifyIcon icon="lucide:lock-keyhole" width="26" /></span>
+            <p class="qr-locked-title">QR code locked</p>
+            <p class="qr-locked-sub">Get verified by OSAS to unlock your student QR code.</p>
+            <q-btn unelevated no-caps color="primary" class="qr-locked-cta" label="Verify with OSAS" @click="qrDialog = false; go('/student/support')" />
+          </div>
+        </template>
+        <template v-else>
+          <div class="qr-locked">
+            <span class="qr-locked-icon"><IconifyIcon icon="lucide:circle-alert" width="26" /></span>
+            <p class="qr-locked-title">Student ID missing</p>
+            <p class="qr-locked-sub">Your account doesn't have a student ID on file yet, so a QR code can't be generated. Contact OSAS to have it added.</p>
+            <q-btn unelevated no-caps color="primary" class="qr-locked-cta" label="Contact OSAS" @click="qrDialog = false; go('/student/support')" />
+          </div>
+        </template>
       </div>
     </q-dialog>
 
-    <q-dialog v-model="leaveDialog" position="bottom">
-      <q-card class="leave-sheet">
-        <h3 class="leave-title">Request to leave?</h3>
-        <p class="leave-body">
-          Your manager will be notified and needs to approve this before your stay ends. You'll stay on your
-          current lease until then.
-        </p>
-        <div class="leave-actions">
-          <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
-            Cancel
-          </button>
-          <button type="button" class="leave-btn" :disabled="leaving" @click="requestLeave">
-            {{ leaving ? 'Sending…' : 'Request to leave' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -253,15 +182,18 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import QRCode from 'qrcode'
 import { supabase } from '@/utils/supabase'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { uploadAvatar } from '@/utils/upload'
 import { useNotify } from '@/utils/notify'
-import { createNotification } from '@/boot/notify'
 import ProfileField from '@/components/shared/ProfileField.vue'
-import ChangePasswordDialog from '@/components/shared/ChangePasswordDialog.vue'
-import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago, period } from '@/utils/profile'
+import ProfileHero from '@/components/shared/ProfileHero.vue'
+import ProfileCard from '@/components/shared/ProfileCard.vue'
+import ProfileBlock from '@/components/shared/ProfileBlock.vue'
+import EditButton from '@/components/shared/EditButton.vue'
+import ProfileSettingsSection from '@/components/student/ProfileSettingsSection.vue'
+import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
 import {
   collegeOptions,
   collegePrograms,
@@ -278,12 +210,6 @@ interface DocRow {
   icon: string
   when: string
 }
-interface HistoryRow {
-  id: string
-  name: string
-  meta: string
-  period: string
-}
 interface Stay {
   leaseId: string
   managerId: string
@@ -299,14 +225,11 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const editing = ref(false)
-const passwordOpen = ref(false)
 const qrDialog = ref(false)
-const leaveDialog = ref(false)
-const leaving = ref(false)
 
 const userId = ref('')
 const avatarUrl = ref<string | null>(null)
-const avatarInput = ref<HTMLInputElement | null>(null)
+const notificationPrefs = reactive({ push: true, email: true })
 
 const me = reactive({
   fullName: '',
@@ -344,7 +267,6 @@ const createdAt = ref<string | null>(null)
 const updatedAt = ref<string | null>(null)
 const stay = ref<Stay | null>(null)
 const documents = ref<DocRow[]>([])
-const history = ref<HistoryRow[]>([])
 
 const status = computed(() => statusPresentation(me.status))
 const stayStatusNote = computed(() => {
@@ -355,10 +277,26 @@ const stayStatusNote = computed(() => {
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
 
-const qrImageUrl = computed(() => {
-  if (!userId.value) return ''
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(userId.value)}`
-})
+const osasVerifiedAt = ref<string | null>(null)
+const osasVerified = computed(() => !!osasVerifiedAt.value)
+const qrDataUrl = ref('')
+
+async function generateQr() {
+  const id = academics.studentId
+  if (!id) {
+    qrDataUrl.value = ''
+    return
+  }
+  try {
+    qrDataUrl.value = await QRCode.toDataURL(id, {
+      width: 220,
+      margin: 1,
+      color: { dark: '#111827', light: '#ffffff' },
+    })
+  } catch {
+    qrDataUrl.value = ''
+  }
+}
 
 const courseLine = computed(() => {
   const parts = [academics.program, yearLevelToLabel(Number(academics.yearLevel) || null)].filter(Boolean)
@@ -374,25 +312,6 @@ function onCollegeChange(next: string) {
 
 function go(path: string) {
   void router.push(path)
-}
-
-function openAvatarPicker() {
-  avatarInput.value?.click()
-}
-
-async function onAvatarSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  try {
-    const url = await uploadAvatar(file, userId.value)
-    avatarUrl.value = url
-    notify.success('Avatar updated.')
-  } catch (e) {
-    notify.error(e instanceof Error ? e.message : 'Could not upload avatar.')
-  }
-  input.value = ''
 }
 
 function startEdit() {
@@ -472,56 +391,15 @@ async function save() {
   }
 }
 
-async function signOut() {
-  await supabase.auth.signOut()
-  void router.push('/login')
-}
-
-async function requestLeave() {
-  if (leaving.value || !stay.value) return
-  leaving.value = true
-  try {
-    const { error: updateError } = await supabase
-      .from('leases')
-      .update({ status: 'leave_requested', leave_requested_at: new Date().toISOString() })
-      .eq('id', stay.value.leaseId)
-      .eq('student_id', userId.value)
-    if (updateError) throw updateError
-
-    void createNotification(
-      stay.value.managerId,
-      'Leave request',
-      `${me.fullName || 'A student'} requested to leave ${stay.value.accommodationName}.`,
-      'lease',
-      `/manager/tenant/${stay.value.leaseId}`,
-    )
-
-    stay.value = { ...stay.value, status: 'leave_requested' }
-    leaveDialog.value = false
-    notify.success('Leave request sent.')
-  } catch (e) {
-    notify.error(e instanceof Error ? e.message : 'Could not send your leave request.')
-  } finally {
-    leaving.value = false
-  }
-}
-
-async function downloadQR() {
-  try {
-    const response = await fetch(qrImageUrl.value)
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `verification-qr-${userId.value}.png`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    notify.success('QR code downloaded.')
-  } catch {
-    notify.error('Could not download QR code.')
-  }
+function downloadQR() {
+  if (!qrDataUrl.value) return
+  const link = document.createElement('a')
+  link.href = qrDataUrl.value
+  link.download = `student-qr-${academics.studentId}.png`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  notify.success('QR code downloaded.')
 }
 
 async function load() {
@@ -539,12 +417,12 @@ async function load() {
     const [{ data: profile, error: profileError }, { data: studentProfile }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, email, phone, initials, status, created_at, updated_at')
+        .select('full_name, email, phone, initials, status, created_at, updated_at, notification_prefs')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
         .from('student_profiles')
-        .select('student_id, college, program, year_level, emergency_contact_json')
+        .select('student_id, college, program, year_level, emergency_contact_json, osas_verified_at')
         .eq('user_id', user.id)
         .maybeSingle(),
     ])
@@ -557,6 +435,10 @@ async function load() {
     me.status = profile?.status || 'unverified'
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
+
+    const prefs = (profile?.notification_prefs ?? null) as { push?: boolean; email?: boolean } | null
+    notificationPrefs.push = prefs?.push ?? true
+    notificationPrefs.email = prefs?.email ?? true
 
     const metadata = user.user_metadata as Record<string, unknown> | undefined
     const picture =
@@ -571,6 +453,12 @@ async function load() {
     academics.college = studentProfile?.college || ''
     academics.program = studentProfile?.program || ''
     academics.yearLevel = yearLevelToLabel(studentProfile?.year_level)
+
+    osasVerifiedAt.value = studentProfile?.osas_verified_at ?? null
+    qrDataUrl.value = ''
+    if (osasVerified.value && academics.studentId) {
+      await generateQr()
+    }
 
     const contact = (studentProfile?.emergency_contact_json ?? null) as {
       name?: string
@@ -617,19 +505,11 @@ async function load() {
       }
     }
 
-    const [{ data: docs }, { data: past }] = await Promise.all([
-      supabase
-        .from('verification_documents')
-        .select('id, doc_type, status, uploaded_at, verified_at')
-        .eq('user_id', user.id)
-        .order('uploaded_at', { ascending: false }),
-      supabase
-        .from('boarding_history')
-        .select('id, accommodation_name, room_type, period_start, period_end, end_reason')
-        .eq('student_id', user.id)
-        .order('period_start', { ascending: false })
-        .limit(5),
-    ])
+    const { data: docs } = await supabase
+      .from('verification_documents')
+      .select('id, doc_type, status, uploaded_at, verified_at')
+      .eq('user_id', user.id)
+      .order('uploaded_at', { ascending: false })
 
     documents.value = (docs || []).map((d) => {
       const presentation = docPresentation(d.status)
@@ -642,13 +522,6 @@ async function load() {
         when: d.verified_at ? `Reviewed ${ago(d.verified_at)}` : `Sent ${ago(d.uploaded_at)}`,
       }
     })
-
-    history.value = (past || []).map((h) => ({
-      id: h.id,
-      name: h.accommodation_name || 'Accommodation',
-      meta: [h.room_type, h.end_reason].filter(Boolean).join(' · ') || 'Stay',
-      period: period(h.period_start, h.period_end),
-    }))
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -691,220 +564,6 @@ onMounted(load)
   margin: 2px 0 0;
   color: var(--m-muted);
   font-size: 12px;
-}
-.hero {
-  background: var(--m-surface);
-  border-radius: var(--m-radius);
-  border: 1px solid var(--m-border);
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-}
-.hero-cover {
-  height: 60px;
-  background: linear-gradient(135deg, var(--m-primary) 0%, var(--m-primary-dark) 100%);
-}
-.hero-content {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 14px 12px;
-  margin-top: -30px;
-}
-.hero-avatar-wrapper {
-  position: relative;
-  flex: 0 0 72px;
-  width: 72px;
-  height: 72px;
-  border-radius: 999px;
-  border: 3px solid var(--m-surface);
-  background: var(--m-primary);
-  cursor: pointer;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-.hero-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.hero-avatar-wrapper .hero-avatar {
-  font-size: 28px;
-  font-weight: 700;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.hero-avatar-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.35);
-  color: #fff;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.hero-avatar-wrapper:hover .hero-avatar-overlay {
-  opacity: 1;
-}
-.hidden-input {
-  display: none;
-}
-.hero-meta {
-  flex: 1;
-  min-width: 0;
-}
-.hero-name {
-  margin: 0;
-  font-family: var(--m-font-display);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--m-ink);
-  line-height: 1.2;
-}
-.hero-role {
-  margin: 0;
-  font-size: 13px;
-  color: var(--m-muted);
-}
-.hero-tag {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.hero-tag--good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.hero-tag--idle {
-  background: rgba(255, 255, 255, 0.22);
-  color: #fff;
-}
-.hero-tag--warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.hero-tag--danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.hero-stats {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px 12px;
-  border-top: 1px solid var(--m-border);
-  flex-wrap: wrap;
-}
-.stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--m-ink);
-  line-height: 1.2;
-}
-.stat-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--m-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.stat-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--m-border);
-}
-.stat-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 4px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.stat-action:hover {
-  background: var(--m-primary-soft);
-}
-.card-section {
-  background: var(--m-surface);
-  border-radius: var(--m-radius);
-  border: 1px solid var(--m-border);
-  overflow: hidden;
-}
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--m-border);
-}
-.card-icon {
-  color: var(--m-primary-dark);
-  opacity: 0.7;
-}
-.card-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--m-ink);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  flex: 1;
-}
-.badge {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
-}
-.icon-btn {
-  display: flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--m-muted);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.icon-btn:hover {
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.card-body {
-  padding: 4px 0;
-}
-.card-body > * {
-  border-bottom: 1px solid var(--m-border);
-  padding: 8px 14px;
-}
-.card-body > *:last-child {
-  border-bottom: none;
 }
 .doc-row {
   display: flex;
@@ -995,59 +654,39 @@ onMounted(load)
 .row-link:hover {
   background: var(--m-bg);
 }
-.row-link .chevron {
-  margin-left: auto;
-  color: var(--m-muted);
-}
-.row-danger {
-  color: var(--m-danger);
-}
-.row-danger:hover {
-  background: var(--m-danger-soft);
-}
-.edit-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  margin-top: -4px;
-}
-.edit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 18px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.edit-btn:hover {
-  background: var(--m-primary-soft);
-}
-.member-since {
-  margin: 0;
-  font-size: 12px;
-  color: var(--m-muted);
-}
 .updated {
   color: var(--m-muted);
   opacity: 0.7;
 }
 .stay-info {
   display: flex;
-  flex-wrap: wrap;
+  width: 100%;
   align-items: center;
-  gap: 6px;
-  flex: 1;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
 }
-.stay-icon {
+.stay-badge {
+  display: flex;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
   color: var(--m-primary-dark);
-  opacity: 0.7;
+}
+.stay-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
 }
 .stay-name {
   font-weight: 600;
@@ -1058,100 +697,18 @@ onMounted(load)
   font-size: 13px;
 }
 .stay-note {
-  flex-basis: 100%;
   color: var(--m-warning);
   font-size: 12px;
   font-weight: 600;
 }
-.stay-leave {
-  flex-basis: 100%;
-  margin-top: 2px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--m-danger);
+.stay-chevron {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+}
+button.stay-info {
   cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: left;
-  text-decoration: underline;
-  -webkit-tap-highlight-color: transparent;
 }
 
-.leave-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.leave-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.leave-body {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.leave-actions {
-  display: flex;
-  gap: 8px;
-}
-.leave-btn {
-  flex: 1;
-  min-height: 46px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.leave-btn:disabled {
-  opacity: 0.6;
-}
-.leave-btn--ghost {
-  border: 1px solid var(--m-border);
-  background: var(--m-bg);
-  color: var(--m-text);
-}
-.history-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.history-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.history-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--m-ink);
-}
-.history-meta {
-  font-size: 11px;
-  color: var(--m-muted);
-}
-.history-when {
-  font-size: 11px;
-  color: var(--m-muted);
-  white-space: nowrap;
-}
 .edit-bar {
   position: fixed;
   right: 0;
@@ -1218,13 +775,56 @@ onMounted(load)
   background: rgba(0,0,0,0.5);
 }
 .qr-card {
-  margin: 10% auto 0;
-  max-width: 360px;
-  padding: 24px 20px 20px;
-  border-radius: var(--m-radius);
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 10px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
   background: var(--m-surface);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.15);
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.14);
   text-align: center;
+}
+.qr-grip {
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 14px;
+  border-radius: 999px;
+  background: var(--m-border);
+}
+.qr-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0 4px;
+}
+.qr-locked-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 12px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.qr-locked-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--m-ink);
+}
+.qr-locked-sub {
+  margin: 6px 0 16px;
+  font-size: 13px;
+  color: var(--m-muted);
+  line-height: 1.4;
+}
+.qr-locked-cta {
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--m-radius-sm);
+  font-weight: 700;
 }
 .qr-header {
   display: flex;

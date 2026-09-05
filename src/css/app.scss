@@ -35,6 +35,30 @@
   --m-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+// Dark appearance — toggled by adding/removing `.dark` on <html> (see
+// src/utils/theme.ts). Same custom-property names, dark-safe values, so every
+// component that already consumes var(--m-*) picks this up with no other change.
+:root.dark {
+  --m-primary: #26a69a;
+  --m-primary-dark: #1e857b;
+  --m-primary-soft: #123734;
+  --m-ink: #f3f4f6;
+  --m-text: #cbd5e1;
+  --m-muted: #94a3b8;
+  --m-bg: #101216;
+  --m-surface: #1a1d23;
+  --m-border: #2a2e37;
+  --m-success: #4ade80;
+  --m-success-soft: #12321f;
+  --m-warning: #fbbf24;
+  --m-warning-soft: #3a2a0d;
+  --m-danger: #f87171;
+  --m-danger-soft: #3a1414;
+  --m-info: #60a5fa;
+  --m-info-soft: #132a42;
+  --m-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
 body {
   font-family: var(--m-font-body);
 }

@@ -625,7 +625,7 @@ onMounted(load)
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
-.notice-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 999px; background: #fff; color: var(--m-info); }
+.notice-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 999px; background: var(--m-surface); color: var(--m-info); }
 .notice-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
 .notice-title { color: var(--m-ink); font-size: 13px; font-weight: 700; line-height: 1.25; }
 .notice-text {

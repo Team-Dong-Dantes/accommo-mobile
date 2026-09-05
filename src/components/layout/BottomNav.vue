@@ -59,7 +59,7 @@ function onSelect(name: string) {
   appearance: none;
   -webkit-appearance: none;
   outline: none;
-  color: #9ca3af;
+  color: var(--m-muted);
   cursor: pointer;
   font-family: inherit;
   -webkit-tap-highlight-color: transparent;
@@ -70,12 +70,12 @@ function onSelect(name: string) {
   transform: scale(0.9);
 }
 .bottom-nav-item.active {
-  color: #00897b;
+  color: var(--m-primary);
 }
 .profile-avatar-mini {
   width: 24px;
   height: 24px;
-  background: #00897b;
+  background: var(--m-primary);
   font-size: 10.5px;
   font-weight: 800;
 }

@@ -2,7 +2,7 @@
   <q-layout view="hHh Lpr fFf">
     <q-header
       v-if="!chatFullscreen"
-      class="bg-transparent text-grey-9 app-header"
+      class="app-header"
       :class="{ 'is-scrolled': scrolled, 'app-header--subpage': isSubPage }"
     >
       <div class="header-row q-px-md">
@@ -17,12 +17,12 @@
           >
             <IconifyIcon icon="lucide:arrow-left" width="20" />
           </q-btn>
-          <h1 class="setup-page-title text-black text-weight-bold">{{ subPage.title }}</h1>
+          <h1 class="setup-page-title text-weight-bold">{{ subPage.title }}</h1>
           <span class="header-balance" aria-hidden="true" />
         </template>
 
         <template v-else>
-          <div class="app-title text-black text-weight-bold">accommo</div>
+          <div class="app-title text-weight-bold">accommo</div>
           <q-btn
             flat
             round
@@ -38,7 +38,7 @@
       </div>
     </q-header>
 
-    <q-page-container class="bg-grey-1">
+    <q-page-container class="page-container">
       <div class="page-stage">
         <router-view v-slot="{ Component }">
           <transition :name="pageTransition">
@@ -51,7 +51,7 @@
     <q-footer
       v-if="!isSubPage && !chatFullscreen"
       bordered
-      class="bg-white text-grey-8 bottom-footer"
+      class="bottom-footer"
     >
       <BottomNav
         :tabs="config.tabs"
@@ -101,7 +101,6 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { name: 'profile', route: '/manager/profile', icon: '', label: 'Profile', avatar: true },
     ],
     quickActions: [
-      { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas-compliance' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
       { icon: 'lucide:wallet-cards', label: 'Payments', route: '/manager/payments' },
       { icon: 'lucide:building-2', label: 'Accommodations', route: '/manager/properties' },
@@ -109,6 +108,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     secondaryPages: [
       { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
+      { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
       { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'accommodations', stacked: true },
@@ -125,12 +125,13 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { name: 'profile', route: '/student/profile', icon: '', label: 'Profile', avatar: true },
     ],
     quickActions: [
-      { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
+      { icon: 'lucide:home', label: 'My Stay', route: '/student/stay' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
       { icon: 'lucide:wallet-cards', label: 'Payments', route: '/student/payments' },
     ],
     secondaryPages: [
       { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
+      { path: '/student/profile/history', title: 'History', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
       { path: /^\/student\/listing\/[^/]+$/, title: 'Listing', back: '/student/discover', backLabel: 'discover' },
       { path: '/student/properties', title: 'Properties', back: '/student/discover', backLabel: 'discover' },
@@ -269,6 +270,7 @@ function onScroll() {
   border: 1px solid transparent;
   border-radius: var(--m-radius-lg);
   background: transparent;
+  color: var(--m-ink);
   box-shadow: none !important;
   transition: background-color .25s ease, backdrop-filter .25s ease, -webkit-backdrop-filter .25s ease, border-color .25s ease, box-shadow .25s ease;
 }
@@ -306,6 +308,7 @@ function onScroll() {
   font-weight: 700;
   letter-spacing: -0.04em;
   text-transform: lowercase;
+  color: var(--m-ink);
 }
 .setup-page-title {
   flex: 1 1 auto;
@@ -316,6 +319,7 @@ function onScroll() {
   font-size: 18px;
   line-height: 1;
   letter-spacing: -0.02em;
+  color: var(--m-ink);
 }
 .header-balance { width: 44px; height: 44px; }
 .setup-back-button {
@@ -323,13 +327,13 @@ function onScroll() {
   min-width: 44px;
   min-height: 44px;
   margin-left: -8px;
-  color: #111827;
+  color: var(--m-ink);
 }
 .header-notif-button {
   position: relative;
   min-width: 40px;
   min-height: 40px;
-  color: #111827;
+  color: var(--m-ink);
 }
 .header-notif-dot {
   position: absolute;
@@ -339,7 +343,7 @@ function onScroll() {
   height: 8px;
   border-radius: 50%;
   background: var(--m-danger, #b42318);
-  border: 1.5px solid #ffffff;
+  border: 1.5px solid var(--m-surface);
 }
 .bottom-footer {
   min-height: 52px;
@@ -350,7 +354,12 @@ function onScroll() {
   bottom: 0;
   left: 0;
   z-index: 50;
+  background: var(--m-surface);
+  color: var(--m-text);
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
+}
+.page-container {
+  background: var(--m-bg);
 }
 .page-stage { position: relative; min-height: 100%; overflow-x: clip; }
 .page-slide-left-enter-active,

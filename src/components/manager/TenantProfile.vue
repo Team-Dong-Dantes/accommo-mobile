@@ -45,6 +45,13 @@
           Approve leave
         </button>
       </div>
+      <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && tenantReview" class="rated">
+        <StarRating :model-value="tenantReview.rating" :size="16" />
+        <span class="rated-label">You rated this tenant</span>
+      </div>
+      <div v-else-if="lease.status === 'ended' || lease.status === 'terminated'" class="decide">
+        <button type="button" class="decide-btn" @click="openReview">Rate this tenant</button>
+      </div>
 
       <div class="tabs">
         <button
@@ -156,6 +163,27 @@
         />
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="reviewOpen" position="bottom">
+      <q-card class="pay-sheet">
+        <h3 class="pay-title">Rate {{ lease.studentName }}</h3>
+        <StarRating v-model="reviewForm.rating" interactive :size="26" />
+        <label class="pay-field">
+          <span class="pay-label">Notes (optional)</span>
+          <textarea v-model="reviewForm.comment" class="pay-input review-textarea" rows="3" placeholder="How was this tenant to have?" />
+        </label>
+        <q-btn
+          unelevated
+          rounded
+          no-caps
+          color="primary"
+          class="pay-submit"
+          :loading="submittingReview"
+          label="Submit"
+          @click="submitTenantReview"
+        />
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -168,6 +196,8 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, statusText, statusColor } from '@/utils/format'
 import { createNotification } from '@/boot/notify'
 import { useNotify } from '@/utils/notify'
+import { respondToApplication } from '@/utils/applications'
+import StarRating from '@/components/shared/StarRating.vue'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -201,6 +231,7 @@ const lease = reactive({
 })
 const payments = ref<{ id: string; month: string; amount: number; status: string }[]>([])
 const history = ref<{ id: string; accommodationName: string; roomType: string | null; periodStart: string; periodEnd: string }[]>([])
+const tenantReview = ref<{ rating: number; comment: string } | null>(null)
 
 const leaseId = computed(() => String(route.params.leaseId || ''))
 
@@ -264,6 +295,15 @@ async function load() {
       periodStart: h.period_start,
       periodEnd: h.period_end,
     }))
+
+    if (data.status === 'ended' || data.status === 'terminated') {
+      const { data: reviewRow } = await supabase
+        .from('tenant_reviews')
+        .select('rating,comment')
+        .eq('lease_id', leaseId.value)
+        .maybeSingle()
+      tenantReview.value = reviewRow ? { rating: reviewRow.rating, comment: reviewRow.comment || '' } : null
+    }
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -275,18 +315,8 @@ async function decide(next: 'active' | 'rejected') {
   if (deciding.value) return
   deciding.value = true
   try {
-    const { error: updateError } = await supabase.from('leases').update({ status: next }).eq('id', leaseId.value)
-    if (updateError) throw updateError
+    await respondToApplication(leaseId.value, lease.studentId, lease.roomLabel, next)
     lease.status = next
-    void createNotification(
-      lease.studentId,
-      next === 'active' ? 'Application accepted' : 'Application declined',
-      next === 'active'
-        ? `You're in! Your application for ${lease.roomLabel} was accepted.`
-        : `Your application for ${lease.roomLabel} was declined.`,
-      'lease',
-      '/student/profile',
-    )
     notify.success(next === 'active' ? 'Application accepted.' : 'Application declined.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not update this application.'))
@@ -336,7 +366,7 @@ async function declineLeave() {
       .eq('id', leaseId.value)
     if (updateError) throw updateError
     lease.status = 'active'
-    void createNotification(lease.studentId, 'Leave request declined', `Your request to leave ${lease.roomLabel} was declined.`, 'lease', '/student/profile')
+    void createNotification(lease.studentId, 'Leave request declined', `Your request to leave ${lease.roomLabel} was declined.`, 'lease', '/student/stay')
     notify.success('Leave request declined.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not update the leave request.'))
@@ -408,6 +438,47 @@ async function verifyPayment(paymentId: string) {
     notify.error(errorMessage(e, 'Could not verify this payment.'))
   } finally {
     verifying.value = ''
+  }
+}
+
+const reviewOpen = ref(false)
+const submittingReview = ref(false)
+const reviewForm = reactive({ rating: 0, comment: '' })
+
+function openReview() {
+  reviewForm.rating = 0
+  reviewForm.comment = ''
+  reviewOpen.value = true
+}
+
+async function submitTenantReview() {
+  if (submittingReview.value) return
+  if (!reviewForm.rating) {
+    notify.error('Give a star rating.')
+    return
+  }
+  submittingReview.value = true
+  try {
+    const { data: authData } = await supabase.auth.getUser()
+    const managerId = authData?.user?.id
+    if (!managerId) throw new Error('Not signed in.')
+
+    const { error: insertError } = await supabase.from('tenant_reviews').insert({
+      lease_id: leaseId.value,
+      student_id: lease.studentId,
+      accommodation_manager_id: managerId,
+      rating: reviewForm.rating,
+      comment: reviewForm.comment.trim() || null,
+    })
+    if (insertError) throw insertError
+
+    tenantReview.value = { rating: reviewForm.rating, comment: reviewForm.comment.trim() }
+    reviewOpen.value = false
+    notify.success('Review submitted.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not submit your review.'))
+  } finally {
+    submittingReview.value = false
   }
 }
 
@@ -525,6 +596,18 @@ onMounted(load)
 .decide {
   display: flex;
   gap: 8px;
+}
+.rated {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+.rated-label {
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 .decide-btn {
   flex: 1;
@@ -697,5 +780,10 @@ onMounted(load)
 .pay-submit {
   min-height: 48px;
   font-weight: 700;
+}
+.review-textarea {
+  min-height: 70px;
+  padding: 10px 12px;
+  resize: vertical;
 }
 </style>

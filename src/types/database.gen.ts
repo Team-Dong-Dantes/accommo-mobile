@@ -1300,6 +1300,7 @@ export type Database = {
           initials: string
           is_superadmin: boolean
           last_login_at: string | null
+          notification_prefs: Json
           onboarding_complete: boolean
           phone: string
           role: Database["public"]["Enums"]["user_role"]
@@ -1317,6 +1318,7 @@ export type Database = {
           initials: string
           is_superadmin?: boolean
           last_login_at?: string | null
+          notification_prefs?: Json
           onboarding_complete?: boolean
           phone: string
           role: Database["public"]["Enums"]["user_role"]
@@ -1334,6 +1336,7 @@ export type Database = {
           initials?: string
           is_superadmin?: boolean
           last_login_at?: string | null
+          notification_prefs?: Json
           onboarding_complete?: boolean
           phone?: string
           role?: Database["public"]["Enums"]["user_role"]
@@ -1452,6 +1455,10 @@ export type Database = {
           p_title: string
           p_type: string
         }
+        Returns: undefined
+      }
+      recompute_room_occupancy: {
+        Args: { p_room_id: string }
         Returns: undefined
       }
       resubmit_verification: { Args: never; Returns: undefined }

@@ -11,6 +11,40 @@
       </span>
     </header>
 
+    <div v-if="application" class="app-card">
+      <div class="app-card-body">
+        <IconifyIcon icon="lucide:file-check-2" width="16" />
+        <span class="app-card-text">Application for {{ application.roomLabel }}</span>
+      </div>
+      <div v-if="role === 'manager'" class="app-card-actions">
+        <button type="button" class="app-btn app-btn--ghost" :disabled="deciding" @click="decideApplication('rejected')">
+          Decline
+        </button>
+        <button type="button" class="app-btn" :disabled="deciding" @click="decideApplication('active')">
+          Accept
+        </button>
+      </div>
+      <span v-else class="app-card-status">Awaiting response</span>
+    </div>
+
+    <div v-else-if="applyRoom" class="app-card">
+      <div class="app-card-body">
+        <IconifyIcon icon="lucide:file-check-2" width="16" />
+        <span class="app-card-text">{{ applyRoom.label }} · {{ formatPeso(applyRoom.rent) }}/mo</span>
+      </div>
+      <label class="app-field">
+        <span class="app-field-label">Move-in date</span>
+        <input v-model="applyForm.startDate" type="date" class="app-date" :min="todayStr()" />
+      </label>
+      <button type="button" class="app-btn app-btn--submit" :disabled="applying" @click="submitApplication">
+        {{ applying ? 'Submitting…' : 'Submit application' }}
+      </button>
+    </div>
+
+    <div v-else-if="applyUnavailable" class="app-card">
+      <span class="app-card-text">This room is no longer available.</span>
+    </div>
+
     <div ref="scroller" class="feed">
       <div v-if="loading" class="feed-note">Loading…</div>
       <div v-else-if="error" class="feed-note feed-note--bad">{{ error }}</div>
@@ -67,10 +101,13 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf, parseServerTime } from '@/utils/format'
+import { initialsOf, parseServerTime, formatDate, formatPeso } from '@/utils/format'
 import { useMessagesStore } from '@/stores/messages'
+import { useNotify } from '@/utils/notify'
+import { createNotification } from '@/boot/notify'
+import { respondToApplication } from '@/utils/applications'
 
-const props = defineProps<{ conversationId: string; role: 'manager' | 'student' }>()
+const props = defineProps<{ conversationId: string; role: 'manager' | 'student'; roomId?: string | undefined }>()
 const emit = defineEmits<{ close: [] }>()
 
 interface Msg {
@@ -83,6 +120,7 @@ interface Msg {
 }
 
 const store = useMessagesStore()
+const notify = useNotify()
 
 const loading = ref(true)
 const error = ref('')
@@ -90,10 +128,31 @@ const sending = ref(false)
 const outgoing = ref('')
 const scroller = ref<HTMLElement | null>(null)
 const me = ref('')
+const otherId = ref('')
 const messages = ref<Msg[]>([])
 const other = reactive({ name: 'Conversation', initials: '?', role: '' })
 
+interface RoomBrief { id: string; label: string; rent: number; minStay: number }
+const application = ref<{ leaseId: string; roomLabel: string } | null>(null)
+const applyRoom = ref<RoomBrief | null>(null)
+const applyUnavailable = ref(false)
+const applyForm = reactive({ startDate: todayStr() })
+const applying = ref(false)
+const deciding = ref(false)
+
 let channel: RealtimeChannel | null = null
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr)
+  d.setMonth(d.getMonth() + months)
+  return d.toISOString().slice(0, 10)
+}
+
+const applyEndDate = computed(() => addMonths(applyForm.startDate || todayStr(), applyRoom.value?.minStay || 12))
 
 const grouped = computed(() => {
   const out: { day: string; items: (Msg & { mine: boolean; read: boolean; time: string })[] }[] = []
@@ -195,6 +254,7 @@ async function load() {
 
     if (convo) {
       const mine = convo.user_a_id === user.id
+      otherId.value = mine ? convo.user_b_id : convo.user_a_id
       const person = (mine ? convo.b : convo.a) as unknown as {
         full_name: string | null
         initials: string | null
@@ -227,10 +287,158 @@ async function load() {
     store.clearUnread(props.conversationId)
 
     void toBottom()
+    void loadApplicationState()
   } catch (e) {
     error.value = errorMessage(e, 'Could not open this conversation.')
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * A student holds at most one non-terminal lease at a time, and there is one
+ * conversation per (student, manager) pair — so the pending application "for
+ * this thread", if any, is just the student's pending lease with this manager.
+ */
+async function loadApplicationState() {
+  const studentId = props.role === 'student' ? me.value : otherId.value
+  const managerId = props.role === 'student' ? otherId.value : me.value
+  if (!studentId || !managerId) return
+
+  const { data: pending } = await supabase
+    .from('leases')
+    .select('id,rooms(label,room_number)')
+    .eq('student_id', studentId)
+    .eq('accommodation_manager_id', managerId)
+    .eq('status', 'pending')
+    .maybeSingle()
+
+  if (pending) {
+    const r = pending.rooms as unknown as { label: string | null; room_number: string | null } | null
+    application.value = {
+      leaseId: pending.id,
+      roomLabel: r?.label || (r?.room_number ? `Room ${r.room_number}` : 'this room'),
+    }
+    return
+  }
+
+  application.value = null
+  if (props.roomId && props.role === 'student') await loadApplyRoom(props.roomId)
+}
+
+async function loadApplyRoom(roomId: string) {
+  const { data } = await supabase
+    .from('rooms')
+    .select(
+      'id,label,room_number,monthly_rent,status,accommodations(accommodation_manager_id,accommodation_policies(min_stay))',
+    )
+    .eq('id', roomId)
+    .maybeSingle()
+
+  const acc = data?.accommodations as unknown as {
+    accommodation_manager_id: string | null
+    accommodation_policies: unknown
+  } | null
+
+  if (!data || !acc || acc.accommodation_manager_id !== otherId.value || data.status !== 'available') {
+    applyRoom.value = null
+    applyUnavailable.value = Boolean(data)
+    return
+  }
+
+  const policyRows = acc.accommodation_policies as unknown
+  const policyRow = (Array.isArray(policyRows) ? policyRows[0] : policyRows) as { min_stay: number | null } | null
+
+  applyForm.startDate = todayStr()
+  applyRoom.value = {
+    id: data.id,
+    label: data.label || (data.room_number ? `Room ${data.room_number}` : 'Room'),
+    rent: Number(data.monthly_rent ?? 0),
+    minStay: policyRow?.min_stay ?? 12,
+  }
+}
+
+async function postSystemMessage(body: string) {
+  const { data, error: sendError } = await supabase
+    .from('messages')
+    .insert({ conversation_id: props.conversationId, sender_id: me.value, body })
+    .select('id, body, sender_id, sent_at, status')
+    .single()
+  if (sendError) throw sendError
+  messages.value.push({
+    id: data.id,
+    body: data.body,
+    senderId: data.sender_id,
+    sentAt: data.sent_at,
+    status: data.status,
+  })
+  void toBottom()
+}
+
+async function submitApplication() {
+  if (applying.value || !applyRoom.value) return
+  applying.value = true
+  try {
+    const { data: studentProfile } = await supabase
+      .from('student_profiles')
+      .select('osas_verified_at')
+      .eq('user_id', me.value)
+      .maybeSingle()
+    if (!studentProfile?.osas_verified_at) {
+      notify.warning('Get OSAS-verified before applying for a room.')
+      return
+    }
+
+    const room = applyRoom.value
+    const { data: created, error: insertError } = await supabase
+      .from('leases')
+      .insert({
+        room_id: room.id,
+        student_id: me.value,
+        accommodation_manager_id: otherId.value,
+        start_date: applyForm.startDate,
+        end_date: applyEndDate.value,
+        monthly_rent: room.rent,
+        status: 'pending',
+      })
+      .select('id')
+      .single()
+    if (insertError) throw insertError
+
+    void createNotification(
+      otherId.value,
+      'New application',
+      `Applied for ${room.label}`,
+      'lease',
+      `/manager/messages?to=${me.value}`,
+    )
+
+    await postSystemMessage(`Applied for ${room.label} — move-in ${formatDate(applyForm.startDate)}.`)
+    application.value = { leaseId: created.id, roomLabel: room.label }
+    applyRoom.value = null
+    notify.success('Application submitted.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not submit your application.'))
+  } finally {
+    applying.value = false
+  }
+}
+
+async function decideApplication(next: 'active' | 'rejected') {
+  if (deciding.value || !application.value) return
+  deciding.value = true
+  try {
+    const { leaseId, roomLabel } = application.value
+    await respondToApplication(leaseId, otherId.value, roomLabel, next)
+    await postSystemMessage(
+      next === 'active' ? `Accepted your application for ${roomLabel}.` : `Declined your application for ${roomLabel}.`,
+    )
+    application.value = null
+    notify.success(next === 'active' ? 'Application accepted.' : 'Application declined.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not update this application.'))
+  } finally {
+    deciding.value = false
   }
 }
 
@@ -354,6 +562,83 @@ onUnmounted(() => {
 .bar-role {
   color: var(--m-muted);
   font-size: 11.5px;
+}
+
+.app-card {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px var(--m-page-gutter);
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-primary-soft);
+}
+.app-card-body {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--m-primary-dark);
+}
+.app-card-text {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.app-card-status {
+  margin-left: auto;
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.app-card-actions {
+  display: flex;
+  margin-left: auto;
+  gap: 8px;
+}
+.app-field {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 8px;
+}
+.app-field-label {
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.app-date {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 13px;
+}
+.app-btn {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-btn:disabled {
+  opacity: 0.6;
+}
+.app-btn--ghost {
+  background: var(--m-surface);
+  color: var(--m-text);
+  border: 1px solid var(--m-border);
+}
+.app-btn--submit {
+  flex: 1 1 100%;
 }
 
 .feed {

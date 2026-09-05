@@ -1,35 +1,29 @@
 <template>
   <q-dialog v-model="open" @hide="reset">
     <q-card flat class="pw">
-      <h2 class="pw-title">Change password</h2>
-      <p class="pw-sub">You stay signed in on this device.</p>
+      <template v-if="!sent">
+        <h2 class="pw-title">Change password</h2>
+        <p class="pw-sub">We'll email you a link to set a new password. You stay signed in on this device.</p>
 
-      <input
-        v-model="password"
-        class="pw-input"
-        type="password"
-        placeholder="New password"
-        autocomplete="new-password"
-      />
-      <input
-        v-model="confirm"
-        class="pw-input"
-        type="password"
-        placeholder="Confirm new password"
-        autocomplete="new-password"
-        @keyup.enter="submit"
-      />
+        <p v-if="problem" class="pw-error">{{ problem }}</p>
 
-      <p v-if="problem" class="pw-error">{{ problem }}</p>
+        <div class="pw-actions">
+          <button type="button" class="pw-btn pw-btn--ghost" :disabled="busy" @click="open = false">
+            Cancel
+          </button>
+          <button type="button" class="pw-btn pw-btn--go" :disabled="busy" @click="submit">
+            {{ busy ? 'Sending…' : 'Send reset link' }}
+          </button>
+        </div>
+      </template>
 
-      <div class="pw-actions">
-        <button type="button" class="pw-btn pw-btn--ghost" :disabled="busy" @click="open = false">
-          Cancel
-        </button>
-        <button type="button" class="pw-btn pw-btn--go" :disabled="busy" @click="submit">
-          {{ busy ? 'Saving…' : 'Update' }}
-        </button>
-      </div>
+      <template v-else>
+        <h2 class="pw-title">Check your inbox</h2>
+        <p class="pw-sub">We sent a password reset link to {{ email }}. Follow it to set a new password.</p>
+        <div class="pw-actions">
+          <button type="button" class="pw-btn pw-btn--go" @click="open = false">Done</button>
+        </div>
+      </template>
     </q-card>
   </q-dialog>
 </template>
@@ -37,42 +31,38 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { supabase } from '@/utils/supabase'
-import { useNotify } from '@/utils/notify'
 
 const open = defineModel<boolean>({ default: false })
 
-const notify = useNotify()
-const password = ref('')
-const confirm = ref('')
 const problem = ref('')
 const busy = ref(false)
+const sent = ref(false)
+const email = ref('')
 
 function reset() {
-  password.value = ''
-  confirm.value = ''
   problem.value = ''
   busy.value = false
+  sent.value = false
+  email.value = ''
 }
 
 async function submit() {
   problem.value = ''
-  if (password.value.length < 8) {
-    problem.value = 'Use at least 8 characters.'
-    return
-  }
-  if (password.value !== confirm.value) {
-    problem.value = 'The two passwords do not match.'
-    return
-  }
-
   busy.value = true
   try {
-    const { error } = await supabase.auth.updateUser({ password: password.value })
+    const { data } = await supabase.auth.getUser()
+    const userEmail = data.user?.email
+    if (!userEmail) throw new Error('No email on file for this account.')
+
+    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+      redirectTo: window.location.origin + '/#/login',
+    })
     if (error) throw error
-    open.value = false
-    notify.success('Password updated.')
+
+    email.value = userEmail
+    sent.value = true
   } catch (e) {
-    problem.value = e instanceof Error ? e.message : 'Could not update your password.'
+    problem.value = e instanceof Error ? e.message : 'Could not send reset link.'
   } finally {
     busy.value = false
   }
@@ -99,22 +89,7 @@ async function submit() {
   margin: 3px 0 12px;
   color: var(--m-muted);
   font-size: 12.5px;
-}
-.pw-input {
-  width: 100%;
-  min-height: 44px;
-  margin-bottom: 8px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-bg);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13.5px;
-}
-.pw-input:focus {
-  border-color: var(--m-primary);
-  outline: none;
+  line-height: 1.4;
 }
 .pw-error {
   margin: 2px 0 0;
