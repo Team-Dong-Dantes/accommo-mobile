@@ -81,7 +81,7 @@
               <span class="room-meta">{{ room.meta }}</span>
             </span>
             <span class="room-side">
-              <span v-if="room.rent" class="room-rent">{{ formatPeso(room.rent) }}<span class="room-per">/mo</span></span>
+              <span v-if="room.rent" class="room-rent">{{ formatPeso(room.rent) }}<span class="room-per">/mo{{ room.rentBasis === 'person' ? ' per person' : '' }}</span></span>
               <span v-else class="room-rent room-rent--none">On request</span>
               <span class="room-tag" :class="room.free ? 'room-tag--ok' : 'room-tag--none'">
                 {{ room.free ? 'Available' : 'Taken' }}
@@ -176,6 +176,7 @@ interface RoomRow {
   label: string
   meta: string
   rent: number
+  rentBasis: 'room' | 'person'
   free: boolean
   image: string
 }
@@ -229,7 +230,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'id,name,address,city,barangay,description,accommodation_type,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,deposit_months,advance_months,min_stay,contract_type)',
+        'id,name,address,city,barangay,description,accommodation_type,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,min_stay,contract_type)',
       )
       .eq('id', id.value)
       .eq('status', 'accredited')
@@ -264,6 +265,7 @@ async function load() {
       custom_room_type: string | null
       capacity: number | null
       monthly_rent: number | null
+      rent_basis: string | null
       status: string
       room_images: { url: string; sort_order: number | null }[] | null
     }[])
@@ -279,6 +281,7 @@ async function load() {
             .filter(Boolean)
             .join(' · '),
           rent: Number(r.monthly_rent ?? 0),
+          rentBasis: (r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room') as 'room' | 'person',
           free: r.status === 'available',
           image: roomImages[0]?.url ? resolveAsset(roomImages[0].url) : '',
         }
@@ -315,14 +318,6 @@ async function load() {
         { label: 'Laundry', value: yesNo(policy.laundry as boolean | null) },
         { label: 'Pets', value: yesNo(policy.pets as boolean | null) },
         { label: 'Smoking', value: yesNo(policy.smoking as boolean | null) },
-        {
-          label: 'Deposit',
-          value: policy.deposit_months ? `${policy.deposit_months} month(s)` : '',
-        },
-        {
-          label: 'Advance',
-          value: policy.advance_months ? `${policy.advance_months} month(s)` : '',
-        },
         { label: 'Minimum stay', value: policy.min_stay ? `${policy.min_stay} month(s)` : '' },
       ]
       rules.value = built.filter((r) => r.value)

@@ -4,8 +4,8 @@
 // question nobody is asking. "How far is this from school?" is the real one,
 // and it needs no location permission.
 
-/** Isabela State University — Echague campus. */
-export const CAMPUS = { lat: 16.7051, lng: 121.6764, label: 'ISU Echague' };
+/** Isabela State University — Echague campus gate. */
+export const CAMPUS = { lat: 16.721560301578872, lng: 121.68526268921849, label: 'ISU Echague' };
 
 const EARTH_KM = 6371;
 

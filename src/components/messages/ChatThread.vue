@@ -30,7 +30,9 @@
     <div v-else-if="applyRoom" class="app-card">
       <div class="app-card-body">
         <IconifyIcon icon="lucide:file-check-2" width="16" />
-        <span class="app-card-text">{{ applyRoom.label }} · {{ formatPeso(applyRoom.rent) }}/mo</span>
+        <span class="app-card-text">
+          {{ applyRoom.label }} · {{ formatPeso(applyRoom.rent) }}/mo{{ applyRoom.rentBasis === 'person' && applyRoom.capacity > 1 ? ' per person' : '' }}
+        </span>
       </div>
       <label class="app-field">
         <span class="app-field-label">Move-in date</span>
@@ -132,7 +134,7 @@ const otherId = ref('')
 const messages = ref<Msg[]>([])
 const other = reactive({ name: 'Conversation', initials: '?', role: '' })
 
-interface RoomBrief { id: string; label: string; rent: number; minStay: number }
+interface RoomBrief { id: string; label: string; rent: number; minStay: number; capacity: number; rentBasis: 'room' | 'person' }
 const application = ref<{ leaseId: string; roomLabel: string } | null>(null)
 const applyRoom = ref<RoomBrief | null>(null)
 const applyUnavailable = ref(false)
@@ -330,7 +332,7 @@ async function loadApplyRoom(roomId: string) {
   const { data } = await supabase
     .from('rooms')
     .select(
-      'id,label,room_number,monthly_rent,status,accommodations(accommodation_manager_id,accommodation_policies(min_stay))',
+      'id,label,room_number,monthly_rent,capacity,rent_basis,status,accommodations(accommodation_manager_id,accommodation_policies(min_stay))',
     )
     .eq('id', roomId)
     .maybeSingle()
@@ -355,6 +357,8 @@ async function loadApplyRoom(roomId: string) {
     label: data.label || (data.room_number ? `Room ${data.room_number}` : 'Room'),
     rent: Number(data.monthly_rent ?? 0),
     minStay: policyRow?.min_stay ?? 12,
+    capacity: data.capacity ?? 1,
+    rentBasis: data.rent_basis === 'person' ? 'person' : 'room',
   }
 }
 
@@ -398,7 +402,10 @@ async function submitApplication() {
         accommodation_manager_id: otherId.value,
         start_date: applyForm.startDate,
         end_date: applyEndDate.value,
-        monthly_rent: room.rent,
+        // ponytail: "whole room" rent is split evenly assuming full occupancy;
+        // a partially-filled room still charges this rate per tenant rather
+        // than rebalancing existing co-tenants' leases as others join/leave.
+        monthly_rent: room.rentBasis === 'person' ? room.rent : room.rent / (room.capacity || 1),
         status: 'pending',
       })
       .select('id')

@@ -96,7 +96,7 @@
               <span class="tile-name">{{ room.label }}</span>
               <span class="tile-where">{{ room.propertyName }}</span>
               <span v-if="room.rent" class="tile-rent">
-                {{ formatPeso(room.rent) }}<span class="tile-per">/mo</span>
+                {{ formatPeso(room.rent) }}<span class="tile-per">/mo{{ room.rentBasis === 'person' ? ' per person' : '' }}</span>
               </span>
               <span v-else class="tile-rent tile-rent--none">Rent on request</span>
             </span>
@@ -236,6 +236,7 @@ interface RoomTile {
   monogram: string
   propertyName: string
   rent: number
+  rentBasis: 'room' | 'person'
   free: boolean
   roomType: string
   amenities: string[]
@@ -334,7 +335,7 @@ async function loadProperties() {
   const { data, error: loadError } = await supabase
     .from('accommodations')
     .select(
-      'id,name,address,city,barangay,lat,lng,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
+      'id,name,address,city,barangay,lat,lng,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
     )
     .eq('status', 'accredited')
   if (loadError) throw loadError
@@ -350,7 +351,9 @@ async function loadProperties() {
       room_number: string | null
       room_type: string | null
       custom_room_type: string | null
+      capacity: number | null
       monthly_rent: number | null
+      rent_basis: string | null
       status: string
       room_images: { url: string; sort_order: number | null }[] | null
     }[]
@@ -390,6 +393,7 @@ async function loadProperties() {
         monogram,
         propertyName: name,
         rent,
+        rentBasis: r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room',
         free: r.status === 'available',
         roomType,
         amenities,
