@@ -82,9 +82,12 @@
             class="tile"
             @click="openRoom(room.id)"
           >
-            <span class="tile-shot">
+            <span class="tile-shot" :class="{ 'tile-shot--empty': !room.image }">
               <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
-              <span v-else class="tile-mono">{{ room.monogram }}</span>
+              <span v-else class="shot-empty">
+                <IconifyIcon icon="lucide:image-off" width="22" />
+                <span class="shot-empty-label">No photo</span>
+              </span>
               <span class="tile-flag" :class="room.free ? 'tile-flag--ok' : 'tile-flag--none'">
                 {{ room.free ? 'Available' : 'Taken' }}
               </span>
@@ -785,13 +788,17 @@ onMounted(() => {
   height: 100%;
   object-fit: cover;
 }
-.tile-mono {
-  color: var(--m-primary-dark);
-  font-family: var(--m-font-display);
-  font-size: 34px;
-  font-weight: 800;
-  opacity: 0.55;
+.tile-shot--empty {
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
 }
+.shot-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--m-muted);
+}
+.shot-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
 .tile-flag {
   position: absolute;
   top: 7px;
