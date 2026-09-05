@@ -32,6 +32,14 @@ export const ROOM_TYPE_LABEL: Record<string, string> = {
   studio: 'Studio',
 };
 
+// Solo/Duo/Triple have an implied bed count; Bedspace/Studio/Custom don't, so
+// only these three get a locked (non-editable) capacity in the room form.
+export const ROOM_TYPE_DEFAULT_CAPACITY: Record<string, number> = {
+  solo: 1,
+  duo: 2,
+  triple: 3,
+};
+
 export function roomTypeLabel(value: string | null | undefined): string {
   if (!value) return 'Room';
   return ROOM_TYPE_LABEL[value] ?? value;

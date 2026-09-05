@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -84,6 +84,7 @@ export type Database = {
           accommodation_id: string
           description: string | null
           facility_type: string
+          floor: number | null
           id: string
           label: string | null
           room_id: string | null
@@ -94,6 +95,7 @@ export type Database = {
           accommodation_id: string
           description?: string | null
           facility_type: string
+          floor?: number | null
           id?: string
           label?: string | null
           room_id?: string | null
@@ -104,6 +106,7 @@ export type Database = {
           accommodation_id?: string
           description?: string | null
           facility_type?: string
+          floor?: number | null
           id?: string
           label?: string | null
           room_id?: string | null
@@ -151,6 +154,32 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "accommodation_facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accommodation_floors: {
+        Row: {
+          accommodation_id: string
+          created_at: string
+          floor_number: number
+        }
+        Insert: {
+          accommodation_id: string
+          created_at?: string
+          floor_number: number
+        }
+        Update: {
+          accommodation_id?: string
+          created_at?: string
+          floor_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accommodation_floors_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
             referencedColumns: ["id"]
           },
         ]
@@ -996,39 +1025,48 @@ export type Database = {
       rooms: {
         Row: {
           accommodation_id: string
+          advance_months: number | null
           capacity: number | null
           current_pax: number | null
           custom_room_type: string | null
+          deposit_months: number | null
           floor: number | null
           id: string
           label: string | null
           monthly_rent: number | null
+          rent_basis: string
           room_number: string | null
           room_type: string | null
           status: Database["public"]["Enums"]["room_status"]
         }
         Insert: {
           accommodation_id: string
+          advance_months?: number | null
           capacity?: number | null
           current_pax?: number | null
           custom_room_type?: string | null
+          deposit_months?: number | null
           floor?: number | null
           id?: string
           label?: string | null
           monthly_rent?: number | null
+          rent_basis?: string
           room_number?: string | null
           room_type?: string | null
           status: Database["public"]["Enums"]["room_status"]
         }
         Update: {
           accommodation_id?: string
+          advance_months?: number | null
           capacity?: number | null
           current_pax?: number | null
           custom_room_type?: string | null
+          deposit_months?: number | null
           floor?: number | null
           id?: string
           label?: string | null
           monthly_rent?: number | null
+          rent_basis?: string
           room_number?: string | null
           room_type?: string | null
           status?: Database["public"]["Enums"]["room_status"]

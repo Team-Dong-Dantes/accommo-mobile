@@ -32,20 +32,15 @@
             <input v-model="form.city" type="text" class="field-input" />
           </label>
         </div>
-        <div class="field-row">
-          <label class="field">
-            <span class="field-label">Floors</span>
-            <input v-model.number="form.totalFloors" type="number" min="0" class="field-input" />
-          </label>
-          <label class="field">
-            <span class="field-label">Total rooms</span>
-            <input v-model.number="form.totalRooms" type="number" min="0" class="field-input" />
-          </label>
-          <label class="field">
-            <span class="field-label">Capacity</span>
-            <input v-model.number="form.capacity" type="number" min="0" class="field-input" />
-          </label>
+
+        <div class="location-row">
+          <img v-if="locationPreviewUrl" :src="locationPreviewUrl" alt="Picked location preview" class="location-preview" />
+          <button type="button" class="location-btn" @click="locationPickerOpen = true">
+            <IconifyIcon icon="lucide:map-pin" width="15" />
+            {{ form.lat != null ? 'Change location on map' : 'Set location on map' }}
+          </button>
         </div>
+
         <label class="field">
           <span class="field-label">Description</span>
           <textarea v-model="form.description" class="field-input field-textarea" rows="4" placeholder="What makes this place worth staying at?" />
@@ -81,20 +76,11 @@
           <span class="field-label">Visitor policy</span>
           <input v-model="form.visitorPolicy" type="text" class="field-input" placeholder="e.g. Visitors allowed until 8 PM" />
         </label>
-        <div class="field-row">
-          <label class="field">
-            <span class="field-label">Advance (months)</span>
-            <input v-model.number="form.advanceMonths" type="number" min="0" class="field-input" />
-          </label>
-          <label class="field">
-            <span class="field-label">Deposit (months)</span>
-            <input v-model.number="form.depositMonths" type="number" min="0" class="field-input" />
-          </label>
-          <label class="field">
-            <span class="field-label">Min. stay (months)</span>
-            <input v-model.number="form.minStay" type="number" min="0" class="field-input" />
-          </label>
-        </div>
+        <label class="field">
+          <span class="field-label">Min. stay (months)</span>
+          <input v-model.number="form.minStay" type="number" min="0" class="field-input" />
+        </label>
+        <p class="sec-hint">Advance and deposit are set per room once you add rooms.</p>
         <div class="toggles">
           <label v-for="t in RULE_TOGGLES" :key="t.key" class="toggle-row">
             <span>{{ t.label }}</span>
@@ -159,11 +145,19 @@
         {{ submitting ? 'Creating…' : 'Create accommodation' }}
       </button>
     </div>
+
+    <LocationPicker
+      v-if="locationPickerOpen"
+      v-model="locationPickerOpen"
+      :initial-lat="form.lat"
+      :initial-lng="form.lng"
+      @confirm="onLocationConfirmed"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -171,7 +165,12 @@ import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument } from '@/utils/upload'
 import { AMENITY_META, AMENITY_KEYS, BUILDING_TYPE_LABEL } from '@/utils/listings'
+import { staticMapUrl } from '@/utils/geo'
 import type { Database } from '@/types/database.gen'
+
+// Loaded on demand — mapbox-gl (pulled in only by this component) is by far
+// the heaviest dependency in the app, and the picker is opened rarely.
+const LocationPicker = defineAsyncComponent(() => import('@/components/manager/LocationPicker.vue'))
 
 type AmenityKey = Database['public']['Enums']['amenity']
 
@@ -204,22 +203,30 @@ const form = reactive({
   address: '',
   barangay: '',
   city: '',
-  totalFloors: null as number | null,
-  totalRooms: null as number | null,
-  capacity: null as number | null,
   description: '',
+  lat: null as number | null,
+  lng: null as number | null,
   amenities: [] as string[],
   curfewTime: '',
   quietHours: '',
   visitorPolicy: '',
-  advanceMonths: 1,
-  depositMonths: 1,
   minStay: 1,
   cooking: true,
   laundry: true,
   pets: false,
   smoking: false,
 })
+
+const locationPickerOpen = ref(false)
+const locationPreviewUrl = computed(() => staticMapUrl(form.lat, form.lng, 160, 90))
+
+function onLocationConfirmed(payload: { lat: number; lng: number; address: string; barangay: string; city: string }) {
+  form.lat = payload.lat
+  form.lng = payload.lng
+  if (!form.address.trim() && payload.address) form.address = payload.address
+  if (!form.barangay.trim() && payload.barangay) form.barangay = payload.barangay
+  if (!form.city.trim() && payload.city) form.city = payload.city
+}
 
 function toggle(list: string[], value: string) {
   const i = list.indexOf(value)
@@ -280,10 +287,9 @@ async function submit() {
         address: form.address.trim() || null,
         barangay: form.barangay.trim() || null,
         city: form.city.trim() || null,
-        total_floors: form.totalFloors,
-        total_rooms: form.totalRooms,
-        capacity: form.capacity,
         description: form.description.trim() || null,
+        lat: form.lat,
+        lng: form.lng,
         status: 'pending',
       })
       .select('id')
@@ -300,8 +306,6 @@ async function submit() {
 
     const { error: policyError } = await supabase.from('accommodation_policies').insert({
       accommodation_id: accommodationId,
-      advance_months: form.advanceMonths || null,
-      deposit_months: form.depositMonths || null,
       min_stay: form.minStay || null,
       curfew_time: form.curfewTime.trim() || null,
       quiet_hours: form.quietHours.trim() || null,
@@ -420,6 +424,36 @@ async function submit() {
   min-height: 90px;
   padding: 10px 12px;
   resize: vertical;
+}
+
+.location-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.location-preview {
+  width: 56px;
+  height: 40px;
+  flex: 0 0 56px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  object-fit: cover;
+}
+.location-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .chips {

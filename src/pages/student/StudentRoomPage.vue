@@ -44,7 +44,7 @@
           <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
         </span>
         <p v-if="room.rent" class="head-price">
-          {{ formatPeso(room.rent) }}<span class="head-price-per">/mo</span>
+          {{ formatPeso(room.rent) }}<span class="head-price-per">/mo{{ perPersonSuffix }}</span>
         </p>
         <p v-else class="head-price head-price--none">Rent on request</p>
         <div class="head-tags">
@@ -158,6 +158,7 @@ const room = reactive({
   capacity: null as number | null,
   floor: null as number | null,
   rent: 0,
+  rentBasis: 'room' as 'room' | 'person',
   free: false,
   lat: null as number | null,
   lng: null as number | null,
@@ -165,7 +166,7 @@ const room = reactive({
 const images = ref<string[]>([])
 const amenities = ref<string[]>([])
 const facilities = ref<{ type: string; label: string | null }[]>([])
-const policy = reactive({ advanceMonths: 0, depositMonths: 0, minStay: 0 })
+const policy = reactive({ advanceMonths: 0, depositMonths: 0 })
 const manager = reactive({ id: '', name: '', initials: '?', replyMinutes: null as number | null })
 const myLease = reactive({ hasAny: false, onThisRoom: false })
 
@@ -173,6 +174,7 @@ const id = computed(() => String(route.params.id || ''))
 const monogram = computed(() => listingMonogram(room.propertyName))
 const typeLabel = computed(() => (room.type ? roomTypeLabel(room.type) : ''))
 const distance = computed(() => campusDistanceLabel(room.lat, room.lng))
+const perPersonSuffix = computed(() => (room.rentBasis === 'person' && (room.capacity ?? 0) > 1 ? ' per person' : ''))
 const moveIn = computed(() => {
   if (!room.rent || (!policy.advanceMonths && !policy.depositMonths)) return null
   const advance = policy.advanceMonths * room.rent
@@ -193,7 +195,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('rooms')
       .select(
-        'id,label,room_number,room_type,custom_room_type,capacity,floor,monthly_rent,status,room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,accommodation_manager_id,status,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(advance_months,deposit_months,min_stay))',
+        'id,label,room_number,room_type,custom_room_type,capacity,floor,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,accommodation_manager_id,status,accommodation_amenities(amenity),accommodation_images(url,sort_order))',
       )
       .eq('id', id.value)
       .maybeSingle()
@@ -209,7 +211,6 @@ async function load() {
           lng: number | null
           accommodation_amenities: { amenity: string }[] | null
           accommodation_images: { url: string; sort_order: number | null }[] | null
-          accommodation_policies: unknown
         }
       | null
     if (!data || !property || property.status !== 'accredited') {
@@ -224,6 +225,7 @@ async function load() {
     room.capacity = data.capacity
     room.floor = data.floor
     room.rent = Number(data.monthly_rent ?? 0)
+    room.rentBasis = data.rent_basis === 'person' ? 'person' : 'room'
     room.free = data.status === 'available'
     room.lat = property.lat
     room.lng = property.lng
@@ -233,15 +235,8 @@ async function load() {
     facilities.value = ((data.accommodation_facilities ?? []) as { facility_type: string; label: string | null }[])
       .map((f) => ({ type: f.facility_type, label: f.label }))
 
-    // accommodation_policies is one row per accommodation, but the embed
-    // returns it as an array when the relationship is not marked one-to-one.
-    const policyRows = property.accommodation_policies as unknown
-    const policyRow = (Array.isArray(policyRows) ? policyRows[0] : policyRows) as
-      | { advance_months: number | null; deposit_months: number | null; min_stay: number | null }
-      | null
-    policy.advanceMonths = policyRow?.advance_months ?? 0
-    policy.depositMonths = policyRow?.deposit_months ?? 0
-    policy.minStay = policyRow?.min_stay ?? 0
+    policy.advanceMonths = data.advance_months ?? 0
+    policy.depositMonths = data.deposit_months ?? 0
 
     // Most rooms have no photos of their own yet — fall back to the
     // property's photos rather than showing a bare monogram.
