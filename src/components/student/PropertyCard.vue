@@ -1,8 +1,11 @@
 <template>
   <button v-if="variant === 'carousel'" type="button" class="car" @click="emit('open', id)">
-    <span class="car-shot">
+    <span class="car-shot" :class="{ 'car-shot--empty': !image }">
       <img v-if="image" :src="image" :alt="name" loading="lazy" />
-      <span v-else class="car-mono">{{ monogram }}</span>
+      <span v-else class="shot-empty">
+        <IconifyIcon icon="lucide:image-off" width="24" />
+        <span class="shot-empty-label">No photo</span>
+      </span>
       <span class="car-flag" :class="vacancies ? 'car-flag--ok' : 'car-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
       </span>
@@ -14,9 +17,12 @@
   </button>
 
   <button v-else type="button" class="tile" @click="emit('open', id)">
-    <span class="tile-shot">
+    <span class="tile-shot" :class="{ 'tile-shot--empty': !image }">
       <img v-if="image" :src="image" :alt="name" loading="lazy" />
-      <span v-else class="tile-mono">{{ monogram }}</span>
+      <span v-else class="shot-empty">
+        <IconifyIcon icon="lucide:image-off" width="22" />
+        <span class="shot-empty-label">No photo</span>
+      </span>
       <span class="tile-flag" :class="vacancies ? 'tile-flag--ok' : 'tile-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
       </span>
@@ -75,12 +81,8 @@ const emit = defineEmits<{ open: [id: string] }>()
   height: 100%;
   object-fit: cover;
 }
-.tile-mono {
-  color: var(--m-primary-dark);
-  font-family: var(--m-font-display);
-  font-size: 34px;
-  font-weight: 800;
-  opacity: 0.55;
+.tile-shot--empty {
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
 }
 .tile-flag {
   position: absolute;
@@ -152,12 +154,8 @@ const emit = defineEmits<{ open: [id: string] }>()
   height: 100%;
   object-fit: cover;
 }
-.car-mono {
-  color: var(--m-primary-dark);
-  font-family: var(--m-font-display);
-  font-size: 30px;
-  font-weight: 800;
-  opacity: 0.55;
+.car-shot--empty {
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
 }
 .car-flag {
   position: absolute;
@@ -199,4 +197,14 @@ const emit = defineEmits<{ open: [id: string] }>()
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Shared "no photo" placeholder for both variants */
+.shot-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--m-muted);
+}
+.shot-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
 </style>

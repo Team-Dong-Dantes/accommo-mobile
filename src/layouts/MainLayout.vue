@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -111,8 +111,9 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
-      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'accommodations', stacked: true },
-      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'accommodations', stacked: true },
+      { path: '/manager/properties', title: 'My Properties', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'my properties', stacked: true },
+      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'my properties', stacked: true },
     ],
   },
   student: {
@@ -205,6 +206,14 @@ watch(
       [tab.route, ...(tab.match ?? [])].some((prefix) => path.startsWith(prefix)),
     )
     activeBottomTab.value = active?.name ?? 'home'
+
+    // Vue Router doesn't reset scroll on navigation, so a page you'd
+    // scrolled down on leaves the next one visually mid-scroll too — and the
+    // header keeps its scrolled border since the viewport genuinely is still
+    // scrolled. Every tab/page should start at its own top.
+    window.scrollTo(0, 0)
+    document.querySelector('.q-page-container')?.scrollTo(0, 0)
+    void nextTick(onScroll)
   },
   { immediate: true },
 )
