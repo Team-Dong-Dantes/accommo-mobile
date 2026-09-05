@@ -268,7 +268,7 @@ onMounted(reload)
   color: var(--m-info);
 }
 .item--unread .item-icon {
-  background: #fff;
+  background: var(--m-surface);
 }
 
 .item-body {

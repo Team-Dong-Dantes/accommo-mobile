@@ -123,7 +123,7 @@
         <IconifyIcon icon="lucide:message-circle" width="17" />
         Message
       </button>
-      <button v-if="room.free && !myLease.hasAny" type="button" class="cta-btn" @click="openApply">
+      <button v-if="room.free && !myLease.hasAny" type="button" class="cta-btn" @click="goApply">
         <IconifyIcon icon="lucide:file-check-2" width="17" />
         Apply for this room
       </button>
@@ -131,43 +131,12 @@
       <span v-else-if="myLease.hasAny" class="cta-note">You already have a stay</span>
       <span v-else class="cta-note">This room is taken</span>
     </div>
-
-    <q-dialog v-model="applyOpen" position="bottom">
-      <q-card class="apply-sheet">
-        <h3 class="apply-title">Apply for {{ room.label }}</h3>
-        <label class="apply-field">
-          <span class="apply-label">Move-in date</span>
-          <input v-model="applyForm.startDate" type="date" class="apply-date" :min="todayStr()" />
-        </label>
-        <div class="group">
-          <div class="rule">
-            <span class="rule-label">Lease term ends</span>
-            <span class="rule-value">{{ applyEndDate }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Monthly rent</span>
-            <span class="rule-value">{{ formatPeso(room.rent) }}</span>
-          </div>
-        </div>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          color="primary"
-          class="apply-submit"
-          :loading="applying"
-          label="Submit application"
-          @click="submitApplication"
-        />
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useNotify } from '@/utils/notify'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
@@ -175,11 +144,9 @@ import { formatPeso, initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
 import { AMENITY_META, FACILITY_META, roomTypeLabel, listingMonogram } from '@/utils/listings'
-import { createNotification } from '@/boot/notify'
 
 const route = useRoute()
 const router = useRouter()
-const notify = useNotify()
 
 const loading = ref(true)
 const error = ref('')
@@ -201,9 +168,6 @@ const facilities = ref<{ type: string; label: string | null }[]>([])
 const policy = reactive({ advanceMonths: 0, depositMonths: 0, minStay: 0 })
 const manager = reactive({ id: '', name: '', initials: '?', replyMinutes: null as number | null })
 const myLease = reactive({ hasAny: false, onThisRoom: false })
-const applyOpen = ref(false)
-const applying = ref(false)
-const applyForm = reactive({ startDate: todayStr() })
 
 const id = computed(() => String(route.params.id || ''))
 const monogram = computed(() => listingMonogram(room.propertyName))
@@ -221,18 +185,6 @@ const moveIn = computed(() => {
     total: advance + deposit,
   }
 })
-
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function addMonths(dateStr: string, months: number): string {
-  const d = new Date(dateStr)
-  d.setMonth(d.getMonth() + months)
-  return d.toISOString().slice(0, 10)
-}
-
-const applyEndDate = computed(() => addMonths(applyForm.startDate || todayStr(), policy.minStay || 12))
 
 async function load() {
   loading.value = true
@@ -339,65 +291,8 @@ async function load() {
   }
 }
 
-function openApply() {
-  applyForm.startDate = todayStr()
-  applyOpen.value = true
-}
-
-async function submitApplication() {
-  if (applying.value) return
-  applying.value = true
-  try {
-    const { data: authData } = await supabase.auth.getUser()
-    const uid = authData?.user?.id
-    if (!uid) {
-      void router.push('/login')
-      return
-    }
-
-    const [{ data: studentProfile }, { data: person }] = await Promise.all([
-      supabase.from('student_profiles').select('osas_verified_at').eq('user_id', uid).maybeSingle(),
-      supabase.from('users').select('full_name').eq('id', uid).maybeSingle(),
-    ])
-    if (!studentProfile?.osas_verified_at) {
-      applyOpen.value = false
-      notify.warning('Get OSAS-verified before applying for a room.')
-      void router.push('/student/support')
-      return
-    }
-
-    const { data: created, error: insertError } = await supabase
-      .from('leases')
-      .insert({
-        room_id: id.value,
-        student_id: uid,
-        accommodation_manager_id: manager.id,
-        start_date: applyForm.startDate,
-        end_date: applyEndDate.value,
-        monthly_rent: room.rent,
-        status: 'pending',
-      })
-      .select('id')
-      .single()
-    if (insertError) throw insertError
-
-    void createNotification(
-      manager.id,
-      'New application',
-      `${person?.full_name || 'A student'} applied for ${room.label}`,
-      'lease',
-      `/manager/tenant/${created.id}`,
-    )
-
-    myLease.hasAny = true
-    myLease.onThisRoom = true
-    applyOpen.value = false
-    notify.success('Application submitted.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not submit your application.'))
-  } finally {
-    applying.value = false
-  }
+function goApply() {
+  void router.push(`/student/messages?to=${manager.id}&room=${id.value}`)
 }
 
 onMounted(load)
@@ -726,47 +621,4 @@ onMounted(load)
   text-align: center;
 }
 
-.apply-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.apply-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.apply-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.apply-label {
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.apply-date {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 14px;
-}
-.apply-submit {
-  min-height: 48px;
-  font-weight: 700;
-}
 </style>

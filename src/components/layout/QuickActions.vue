@@ -55,7 +55,7 @@ function navigate(route: string) {
   position: fixed;
   right: 16px;
   bottom: 68px;
-  z-index: 60;
+  z-index: 2002;
   display: grid;
   width: 44px;
   height: 44px;
@@ -74,7 +74,10 @@ function navigate(route: string) {
 .bottom-fab--open svg { transform: rotate(45deg); }
 .bottom-fab:focus-visible,
 .quick-action-menu button:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 3px; }
-.quick-action-layer { position: fixed; z-index: 55; top: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 0; }
+/* Above the header's default Quasar z-index (2000) so it blurs behind it too,
+   but stops exactly at the footer's own height (see .bottom-footer in
+   MainLayout.vue) so the nav bar stays sharp and clickable with no gap. */
+.quick-action-layer { position: fixed; z-index: 2001; top: 0; right: 0; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); left: 0; }
 .quick-action-backdrop { position: absolute; inset: 0; background: rgba(23, 32, 42, 0.28); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
 .quick-action-menu { position: absolute; right: 12px; bottom: 72px; display: flex; flex-direction: column; align-items: flex-end; gap: var(--m-space-2); animation: quick-actions-in 200ms ease-out both; }
 .quick-action-menu button { display: flex; min-height: 44px; align-items: center; gap: var(--m-space-2); padding: var(--m-space-1) var(--m-space-2) var(--m-space-1) var(--m-space-1); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); color: var(--m-ink); cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; text-align: left; }

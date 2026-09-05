@@ -23,6 +23,7 @@ const LOOK: Record<string, NotifLook> = {
   leave: { icon: 'lucide:door-open', tone: 'warn' },
   payment: { icon: 'lucide:wallet-cards', tone: 'good' },
   ticket: { icon: 'lucide:triangle-alert', tone: 'warn' },
+  review: { icon: 'lucide:star', tone: 'good' },
 };
 
 export function notifLook(type: string | null | undefined): NotifLook {
@@ -47,6 +48,7 @@ const ROUTES = new Set([
   '/student/support',
   '/student/concerns',
   '/student/payments',
+  '/student/stay',
 ]);
 
 /** Where each type belongs when its own link_url is unusable here. */
@@ -59,17 +61,17 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     leave: '/manager/tenants',
     payment: '/manager/tenants',
     ticket: '/manager/support',
+    review: '/manager/profile',
   },
   student: {
     verification: '/student/support',
     accommodation: '/student/discover',
-    // The seeded rows point at /student/stay, which this app has no route for;
-    // the dashboard is where a student's lease actually surfaces.
-    application: '/student/home',
-    lease: '/student/home',
-    leave: '/student/home',
+    application: '/student/stay',
+    lease: '/student/stay',
+    leave: '/student/stay',
     payment: '/student/payments',
     ticket: '/student/concerns',
+    review: '/student/profile',
   },
 };
 

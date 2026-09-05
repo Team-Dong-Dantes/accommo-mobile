@@ -34,6 +34,10 @@ const studentRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/student/StudentProfilePage.vue'),
   },
   {
+    path: '/student/profile/history',
+    component: () => import('@/pages/student/StudentHistoryPage.vue'),
+  },
+  {
     path: '/student/notifications',
     component: () => import('@/pages/student/StudentNotificationsPage.vue'),
   },
@@ -48,6 +52,10 @@ const studentRoutes: RouteRecordRaw[] = [
   {
     path: '/student/payments',
     component: () => import('@/pages/student/StudentPaymentsPage.vue'),
+  },
+  {
+    path: '/student/stay',
+    component: () => import('@/pages/student/StudentStayPage.vue'),
   },
   // Legacy path kept so old links and the auth guard both land somewhere real.
   {

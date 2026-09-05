@@ -1,29 +1,5 @@
 <template>
   <q-page class="cp">
-    <div v-if="!loading && !error" class="dock">
-      <div class="dock-field">
-        <IconifyIcon icon="lucide:search" width="16" class="dock-icon" />
-        <input v-model="query" class="dock-input" type="search" placeholder="Search concerns" aria-label="Search concerns" />
-      </div>
-      <button type="button" class="dock-btn" :disabled="!activeLease" @click="openNew">
-        <IconifyIcon icon="lucide:plus" width="16" />
-        New
-      </button>
-    </div>
-
-    <div v-if="!loading && !error" class="chips">
-      <button
-        v-for="f in FILTERS"
-        :key="f.key"
-        type="button"
-        class="chip"
-        :class="{ 'chip--on': filter === f.key }"
-        @click="filter = f.key"
-      >
-        {{ f.label }}
-      </button>
-    </div>
-
     <div v-if="loading" class="stack">
       <q-skeleton type="rect" height="72px" class="sk" />
       <q-skeleton type="rect" height="72px" class="sk" />
@@ -72,6 +48,52 @@
         </button>
       </div>
     </div>
+
+    <!-- Search sits on the FAB's baseline so the two read as one control band -->
+    <div v-if="!loading && !error" class="dock">
+      <button
+        type="button"
+        class="dock-btn"
+        :class="{ 'dock-btn--on': filter !== 'all' }"
+        aria-label="Filters"
+        @click="filtersOpen = true"
+      >
+        <IconifyIcon icon="lucide:sliders-horizontal" width="17" />
+        <span v-if="filter !== 'all'" class="dock-dot">1</span>
+      </button>
+      <div class="dock-field">
+        <IconifyIcon icon="lucide:search" width="16" class="dock-icon" />
+        <input v-model="query" class="dock-input" type="search" placeholder="Search concerns" aria-label="Search concerns" />
+      </div>
+      <button type="button" class="dock-btn" :disabled="!activeLease" aria-label="Report a concern" @click="openNew">
+        <IconifyIcon icon="lucide:plus" width="18" />
+      </button>
+    </div>
+
+    <q-dialog v-model="filtersOpen" position="bottom">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h2 class="sheet-title">Filters</h2>
+          <button type="button" class="sheet-clear" @click="filter = 'all'">Reset</button>
+        </div>
+        <div class="sheet-block">
+          <span class="sheet-label">Status</span>
+          <div class="chips">
+            <button
+              v-for="f in FILTERS"
+              :key="f.key"
+              type="button"
+              class="chip"
+              :class="{ 'chip--on': filter === f.key }"
+              @click="filter = f.key"
+            >
+              {{ f.label }}
+            </button>
+          </div>
+        </div>
+        <button type="button" class="sheet-done" @click="filtersOpen = false">Done</button>
+      </div>
+    </q-dialog>
 
     <q-dialog v-model="detailOpen" position="bottom">
       <q-card v-if="selected" class="detail-sheet">
@@ -160,6 +182,7 @@ const error = ref('')
 const rows = ref<Concern[]>([])
 const query = ref('')
 const filter = ref<(typeof FILTERS)[number]['key']>('all')
+const filtersOpen = ref(false)
 
 const activeLease = ref<{ id: string; managerId: string } | null>(null)
 
@@ -303,7 +326,8 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px var(--m-page-gutter) 24px;
+  /* Clears the docked search, which sits on the FAB's baseline. */
+  padding: 10px var(--m-page-gutter) 126px;
 }
 .sk {
   border-radius: var(--m-radius);
@@ -328,63 +352,131 @@ onMounted(load)
   font-size: 12px;
 }
 
+/* Docked search — same baseline and height as the quick-actions FAB, ending
+   where it begins, so the two read as one band. */
 .dock {
+  position: fixed;
+  bottom: 68px;
+  left: var(--m-page-gutter);
+  /* 16px FAB inset + 44px FAB + 8px gap */
+  right: 68px;
+  z-index: 60;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px var(--m-page-gutter) 0;
 }
 .dock-field {
+  position: relative;
   display: flex;
-  flex: 1;
+  min-width: 0;
+  flex: 1 1 auto;
   align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 0 12px;
+}
+.dock-icon {
+  position: absolute;
+  left: 13px;
+  color: var(--m-muted);
+  pointer-events: none;
+}
+.dock-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 35px;
   border: 1px solid var(--m-border);
   border-radius: 999px;
   background: var(--m-surface);
-}
-.dock-icon {
-  color: var(--m-muted);
-  flex: 0 0 auto;
-}
-.dock-input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: 14px;
+  box-shadow: var(--m-shadow);
   color: var(--m-ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+.dock-input:focus {
+  border-color: var(--m-primary);
   outline: none;
 }
 .dock-btn {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  min-height: 42px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
+  position: relative;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border: 1px solid var(--m-border);
+  border-radius: 50%;
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow);
+  color: var(--m-ink);
   cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
   -webkit-tap-highlight-color: transparent;
 }
 .dock-btn:disabled {
   opacity: 0.5;
 }
+.dock-btn--on {
+  border-color: var(--m-primary);
+  color: var(--m-primary-dark);
+}
+.dock-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
 
+/* Filter sheet */
+.sheet {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
+  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
+  background: var(--m-surface);
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sheet-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.sheet-clear {
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+.sheet-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.sheet-label {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 10px var(--m-page-gutter) 0;
 }
 .chip {
   padding: 6px 12px;
@@ -402,6 +494,17 @@ onMounted(load)
   border-color: var(--m-primary);
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
+}
+.sheet-done {
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .group {

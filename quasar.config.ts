@@ -19,6 +19,7 @@ export default defineConfig((/* ctx */) => {
       'keyboard',
       'deeplink',
       'splash',
+      'theme',
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
