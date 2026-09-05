@@ -22,6 +22,10 @@
         <span class="greet-time">{{ greeting }},</span>
         <span class="greet-name">{{ firstName }}</span>
       </div>
+      <span v-if="reviewCount > 0" class="rating-badge">
+        <IconifyIcon icon="lucide:star" width="12" />
+        {{ ratingAvg?.toFixed(1) }} · {{ reviewCount }} {{ reviewCount === 1 ? 'review' : 'reviews' }}
+      </span>
 
       <!-- Occupancy Card -->
       <q-card flat class="occ" :class="{ 'occ--empty': !hasAccommodations }">
@@ -46,73 +50,89 @@
         </div>
       </q-card>
 
-      <!-- Stats strip -->
-      <div class="strip">
-        <button type="button" class="strip-cell strip-cell--link" @click="go('/manager/payments')">
-          <span class="strip-value">{{ formatPeso(expectedMonthly) }}</span>
-          <span class="strip-label">Expected / month · View payments</span>
+      <!-- Stat chips -->
+      <div class="chips">
+        <button type="button" class="chip chip--link" @click="go('/manager/payments')">
+          <span class="chip-value">{{ formatPeso(expectedMonthly) }}</span>
+          <span class="chip-label">Expected/mo</span>
         </button>
-        <div class="strip-div" />
-        <div class="strip-cell">
-          <span class="strip-value">{{ vacantBeds }}</span>
-          <span class="strip-label">{{ vacantBeds === 1 ? 'Bed free' : 'Beds free' }}</span>
+        <div class="chip-div" />
+        <div class="chip">
+          <span class="chip-value">{{ vacantBeds }}</span>
+          <span class="chip-label">{{ vacantBeds === 1 ? 'Bed free' : 'Beds free' }}</span>
         </div>
       </div>
 
-      <!-- ===== TENANT PULSE (unchanged) ===== -->
+      <!-- Needs attention -->
       <section class="sec">
         <div class="sec-head">
-          <h2 class="sec-title">Tenant pulse</h2>
-          <button
-            v-if="recentFeedback.length"
-            type="button"
-            class="sec-link"
-            @click="go('/manager/support')"
-          >
-            View all
-          </button>
+          <h2 class="sec-title">Needs attention</h2>
         </div>
 
-        <div v-if="recentFeedback.length" class="pulse-list">
-          <div
-            v-for="item in recentFeedback"
-            :key="item.id"
-            class="pulse-item"
+        <template v-if="attention.length">
+          <q-carousel
+            v-model="carouselSlide"
+            class="lead-carousel"
+            animated
+            transition-prev="slide-right"
+            transition-next="slide-left"
+            autoplay
+            :interval="3000"
+            infinite
+            swipeable
           >
-            <div class="pulse-icon">
-              <IconifyIcon icon="lucide:message-square" width="16" />
-            </div>
-            <div class="pulse-content">
-              <span class="pulse-label">{{ item.label }}</span>
-              <span class="pulse-meta">
-                <span class="pulse-who">{{ item.kind }}</span>
-                <span v-if="item.when" class="pulse-when">{{ item.when }}</span>
-              </span>
-            </div>
-            <q-btn
-              :label="item.action"
-              flat
-              dense
-              no-caps
-              size="sm"
-              color="primary"
-              class="pulse-action"
-              @click="go(item.route)"
+            <q-carousel-slide
+              v-for="item in attention"
+              :key="item.id"
+              :name="item.id"
+              class="lead-slide"
+            >
+              <div class="lead" :class="`lead--${item.tone}`">
+                <div class="lead-top">
+                  <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
+                  <span class="lead-kind">{{ item.kind }}</span>
+                  <span v-if="item.when" class="lead-when">{{ item.when }}</span>
+                </div>
+                <div class="lead-row">
+                  <div class="lead-body">
+                    <p class="lead-label">{{ item.label }}</p>
+                    <p class="lead-hint">{{ item.hint }}</p>
+                  </div>
+                  <button type="button" class="lead-action" @click="go(item.route)">
+                    {{ item.action }}
+                    <IconifyIcon icon="lucide:arrow-right" width="15" />
+                  </button>
+                </div>
+              </div>
+            </q-carousel-slide>
+          </q-carousel>
+
+          <div v-if="attention.length > 1" class="dots">
+            <button
+              v-for="item in attention"
+              :key="item.id"
+              type="button"
+              class="dot"
+              :class="{ 'dot--active': item.id === carouselSlide }"
+              :aria-label="`Show ${item.kind}`"
+              @click="carouselSlide = item.id"
             />
           </div>
-        </div>
+        </template>
 
-        <div v-else class="empty-pulse">
-          <IconifyIcon icon="lucide:smile" width="24" class="empty-pulse-icon" />
-          <span class="empty-pulse-label">No recent feedback</span>
-          <span class="empty-pulse-hint">Tenant concerns and reviews appear here</span>
+        <div v-if="!attention.length" class="clear">
+          <IconifyIcon icon="lucide:smile" width="24" class="clear-icon" />
+          <span class="clear-text">
+            <span class="clear-label">Nothing needs you</span>
+            <span class="clear-hint">Concerns, applications and compliance land here</span>
+          </span>
         </div>
       </section>
 
-      <!-- ===== PROPERTY HEALTH – permits & compliance only ===== -->
+      <!-- Property health -->
       <section class="sec">
         <div class="sec-head">
-          <h2 class="sec-title">Property health</h2>
+          <h2 class="sec-title">Your properties</h2>
           <button
             v-if="hasAccommodations"
             type="button"
@@ -123,46 +143,70 @@
           </button>
         </div>
 
-        <div class="grid">
+        <div class="plist">
           <button
             v-for="a in accommodations"
             :key="a.id"
             type="button"
-            class="tile"
-            :class="`tile--health-${healthTone(a)}`"
+            class="pcard"
             @click="go(`/manager/properties/${a.id}`)"
           >
-            <span class="tile-top">
-              <span class="tile-status" :class="`tile-status--${toneOf(a.status)}`">
+            <span class="pcard-photo" :class="{ 'pcard-photo--empty': !a.photoUrl }">
+              <img v-if="a.photoUrl" :src="a.photoUrl" alt="" />
+              <span v-else class="pcard-photo-empty">
+                <IconifyIcon icon="lucide:image-off" width="24" />
+                <span class="pcard-photo-empty-label">No photo</span>
+              </span>
+              <span class="pcard-status" :class="`pcard-status--${toneOf(a.status)}`">
+                <IconifyIcon :icon="statusIcon(a.status)" width="10" />
                 {{ statusLabel(a.status) }}
               </span>
-              <!-- Health dot moved to top‑right -->
-              <span class="tile-health-dot" :class="`tile-health-dot--${healthTone(a)}`" />
+              <span class="pcard-health-dot" :class="`pcard-health-dot--${healthTone(a)}`" />
             </span>
 
-            <span class="tile-name">{{ a.name }}</span>
+            <span class="pcard-body">
+              <span class="pcard-head">
+                <span class="pcard-name">{{ a.name }}</span>
+                <span v-if="a.type" class="pcard-type">{{ a.type }}</span>
+              </span>
+              <span v-if="a.address" class="pcard-address">
+                <IconifyIcon icon="lucide:map-pin" width="12" />
+                {{ a.address }}
+              </span>
 
-            <!-- Document health summary -->
-            <span class="tile-doc-summary">
-              <span v-if="a.expired > 0" class="tile-doc-expired">
-                <IconifyIcon icon="lucide:file-warning" width="14" />
-                {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
+              <span class="facts">
+                <span class="fact">
+                  <span class="fact-value">{{ a.roomCount ?? '—' }}</span>
+                  <span class="fact-label">{{ a.roomCount === 1 ? 'Room' : 'Rooms' }}</span>
+                </span>
+                <span class="fact-div" />
+                <span class="fact">
+                  <span class="fact-value">{{ a.filled }}/{{ a.capacity }}</span>
+                  <span class="fact-label">Beds filled</span>
+                </span>
               </span>
-              <span v-else-if="a.expiringSoon > 0" class="tile-doc-expiring">
-                <IconifyIcon icon="lucide:clock" width="14" />
-                {{ a.expiringSoon }} expiring soon
-              </span>
-              <span v-else class="tile-doc-ok">
-                <IconifyIcon icon="lucide:check-circle" width="14" />
-                All permits up to date
+
+              <span class="pcard-doc-summary">
+                <span v-if="a.expired > 0" class="doc-expired">
+                  <IconifyIcon icon="lucide:file-warning" width="14" />
+                  {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
+                </span>
+                <span v-else-if="a.expiringSoon > 0" class="doc-expiring">
+                  <IconifyIcon icon="lucide:clock" width="14" />
+                  {{ a.expiringSoon }} expiring soon
+                </span>
+                <span v-else class="doc-ok">
+                  <IconifyIcon icon="lucide:check-circle" width="14" />
+                  All permits up to date
+                </span>
               </span>
             </span>
           </button>
 
-          <!-- Add tile -->
-          <button type="button" class="tile tile--add" @click="go('/manager/properties/new')">
-            <span class="tile-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
-            <span class="tile-add-label">
+          <!-- Add card -->
+          <button type="button" class="pcard pcard--add" @click="go('/manager/properties/new')">
+            <span class="pcard-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
+            <span class="pcard-add-label">
               {{ hasAccommodations ? 'Add another' : 'Add your first accommodation' }}
             </span>
           </button>
@@ -179,12 +223,19 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { formatPeso } from '@/utils/format'
 import { ago } from '@/utils/profile'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
 
 interface AccommodationCard {
   id: string
   name: string
   status: string
-  expired: number      // count of expired documents
+  type: string
+  address: string
+  roomCount: number | null
+  capacity: number
+  filled: number
+  photoUrl: string
+  expired: number // count of expired documents
   expiringSoon: number // count of documents expiring within 30 days
 }
 
@@ -201,8 +252,6 @@ interface AttentionItem {
   rank: number
 }
 
-const MAX_FEEDBACK = 3
-
 const router = useRouter()
 
 const loading = ref(true)
@@ -210,9 +259,12 @@ const error = ref('')
 const firstName = ref('there')
 const accommodations = ref<AccommodationCard[]>([])
 const attention = ref<AttentionItem[]>([])
+const carouselSlide = ref('')
 const totalBeds = ref(0)
 const tenants = ref(0)
 const expectedMonthly = ref(0)
+const ratingAvg = ref<number | null>(null)
+const reviewCount = ref(0)
 
 const greeting = computed(() => {
   const h = new Date().getHours()
@@ -224,13 +276,6 @@ const occupancyRate = computed(() =>
   totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
 )
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
-
-// Tenant Pulse: filter concerns from attention list
-const recentFeedback = computed(() =>
-  attention.value
-    .filter(item => item.kind === 'Student concern')
-    .slice(0, MAX_FEEDBACK),
-)
 
 // Health tone based on document status and accreditation
 function healthTone(a: AccommodationCard): 'good' | 'warn' | 'danger' {
@@ -250,9 +295,20 @@ const STATUS_LABEL: Record<string, string> = {
 function statusLabel(s: string) {
   return STATUS_LABEL[s] ?? s
 }
+const STATUS_ICON: Record<string, string> = {
+  accredited: 'lucide:badge-check',
+  pending: 'lucide:hourglass',
+  reviewing: 'lucide:search',
+  rejected: 'lucide:x-circle',
+  delisted: 'lucide:archive',
+}
+function statusIcon(s: string) {
+  return STATUS_ICON[s] ?? 'lucide:circle'
+}
 function toneOf(s: string) {
   if (s === 'accredited') return 'ok'
-  if (s === 'rejected' || s === 'delisted') return 'danger'
+  if (s === 'rejected') return 'danger'
+  if (s === 'delisted') return 'grey'
   return 'warn'
 }
 
@@ -285,7 +341,7 @@ async function load() {
 
     const { data: accRows, error: accError } = await supabase
       .from('accommodations')
-      .select('id, name, status')
+      .select('id, name, status, address, barangay, city, accommodation_type, total_rooms')
       .eq('accommodation_manager_id', user.id)
     if (accError) throw accError
 
@@ -319,11 +375,33 @@ async function load() {
       if (accId) filledByAcc.set(accId, (filledByAcc.get(accId) || 0) + 1)
     }
 
+    const capacityByAcc = new Map<string, number>()
+    const roomCountByAcc = new Map<string, number>()
+    for (const r of roomRows) {
+      capacityByAcc.set(r.accommodation_id, (capacityByAcc.get(r.accommodation_id) || 0) + Number(r.capacity || 0))
+      roomCountByAcc.set(r.accommodation_id, (roomCountByAcc.get(r.accommodation_id) || 0) + 1)
+    }
+
     totalBeds.value = roomRows.reduce((n, r) => n + Number(r.capacity || 0), 0)
     tenants.value = leases.filter((l) => l.status === 'active').length
     expectedMonthly.value = leases
       .filter((l) => l.status === 'active')
       .reduce((n, l) => n + Number(l.monthly_rent || 0), 0)
+
+    // A photo per accommodation, fetched once for the whole portfolio.
+    const photoByAcc = new Map<string, string>()
+    if (accIds.length) {
+      const { data: imageRows } = await supabase
+        .from('accommodation_images')
+        .select('accommodation_id, url, sort_order')
+        .in('accommodation_id', accIds)
+        .order('sort_order', { ascending: true })
+      for (const img of imageRows || []) {
+        if (!photoByAcc.has(img.accommodation_id)) {
+          photoByAcc.set(img.accommodation_id, resolveAsset(img.url))
+        }
+      }
+    }
 
     // Document tracking
     const expiredByAcc = new Map<string, number>()
@@ -374,11 +452,17 @@ async function load() {
       }
     }
 
-    // Build accommodation cards – now with only document data, no room metrics
+    // Build accommodation cards
     accommodations.value = accs.map((a) => ({
       id: a.id,
       name: a.name,
       status: a.status,
+      type: titleCase(a.accommodation_type),
+      address: a.address || [a.barangay, a.city].filter(Boolean).join(', '),
+      roomCount: a.total_rooms ?? roomCountByAcc.get(a.id) ?? null,
+      capacity: capacityByAcc.get(a.id) || 0,
+      filled: filledByAcc.get(a.id) || 0,
+      photoUrl: photoByAcc.get(a.id) || '',
       expired: expiredByAcc.get(a.id) || 0,
       expiringSoon: expiringSoonByAcc.get(a.id) || 0,
     }))
@@ -464,6 +548,17 @@ async function load() {
     }
 
     attention.value = items.sort((a, b) => a.rank - b.rank)
+    carouselSlide.value = attention.value[0]?.id ?? ''
+
+    // Self rating — hidden until at least one review exists.
+    const { data: reviewRows } = await supabase
+      .from('accommodation_manager_reviews')
+      .select('rating')
+      .eq('accommodation_manager_id', user.id)
+    const reviews = reviewRows || []
+    reviewCount.value = reviews.length
+    ratingAvg.value =
+      reviews.length > 0 ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length : null
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -475,7 +570,6 @@ onMounted(load)
 </script>
 
 <style scoped>
-/* (All existing styles remain unchanged) */
 .dash { background: var(--m-bg); }
 .stack {
   display: flex;
@@ -498,6 +592,19 @@ onMounted(load)
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+.rating-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 2px 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+  font-size: 11.5px;
+  font-weight: 700;
 }
 
 .occ {
@@ -524,11 +631,12 @@ onMounted(load)
 .ring-fill { fill: none; stroke: #fff; stroke-width: 11; stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
 .occ--empty .ring-fill { stroke: var(--m-border); }
 
-.strip { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
-.strip-cell { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 8px 11px; }
-.strip-cell--link { border: 0; background: transparent; text-align: left; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.strip-div { width: 1px; background: var(--m-border); }
-.strip-value {
+/* Stat chips */
+.chips { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
+.chip { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 8px 11px; }
+.chip-div { width: 1px; background: var(--m-border); }
+.chip--link { border: 0; background: transparent; cursor: pointer; font: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
+.chip-value {
   color: var(--m-ink);
   font-family: var(--m-font-display);
   font-size: 17px;
@@ -538,7 +646,7 @@ onMounted(load)
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.strip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
+.chip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 
 /* ===== SECTION HEADERS ===== */
 .sec-head {
@@ -574,223 +682,299 @@ onMounted(load)
   background: var(--m-primary-soft);
 }
 
-/* ===== TENANT PULSE ===== */
-.pulse-list {
+/* ===== NEEDS ATTENTION ===== */
+.sec { display: flex; flex-direction: column; gap: 5px; }
+.lead {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  border: 1px solid var(--m-border);
+  gap: 1px;
+  padding: 11px;
   border-radius: var(--m-radius);
   background: var(--m-surface);
-  overflow: hidden;
+  border: 1px solid var(--m-border);
 }
-.pulse-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-
-  transition: background 0.15s;
-}
-.pulse-item:last-child {
-  border-bottom: none;
-}
-.pulse-item:hover {
-  background: var(--m-bg);
-}
-.pulse-icon {
-  flex: 0 0 28px;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.pulse-content {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.pulse-label {
-  font-size: 13px;
-  font-weight: 600;
+.lead--danger { border-color: color-mix(in srgb, var(--m-danger) 22%, var(--m-border)); }
+.lead--warn { border-color: color-mix(in srgb, var(--m-warning) 26%, var(--m-border)); }
+.lead-top { display: flex; align-items: center; gap: 7px; }
+.lead-icon { display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border-radius: 999px; }
+.lead--danger .lead-icon { background: var(--m-danger-soft); color: var(--m-danger); }
+.lead--warn .lead-icon { background: var(--m-warning-soft); color: var(--m-warning); }
+.lead-kind { flex: 1 1 auto; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.lead--danger .lead-kind { color: var(--m-danger); }
+.lead--warn .lead-kind { color: var(--m-warning); }
+.lead-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
+.lead-label {
+  margin: 0;
   color: var(--m-ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-family: var(--m-font-display);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-wrap: pretty;
 }
-.pulse-meta {
-  display: flex;
+.lead-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.lead-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+.lead-hint { margin: 0; color: var(--m-muted); font-size: 11.5px; line-height: 1.3; text-wrap: pretty; }
+.lead-action {
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  color: var(--m-muted);
-}
-.pulse-who {
-  font-weight: 600;
-}
-.pulse-when {
-  opacity: 0.8;
-}
-.pulse-action {
-  flex: 0 0 auto;
-  padding: 0 10px;
-  min-height: 28px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--m-primary);
-  border-radius: 4px;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
 }
-.pulse-action:hover {
-  background: var(--m-primary-soft);
-}
+.lead-action:active { transform: scale(0.97); }
 
-.empty-pulse {
+.lead-carousel {
+  height: 128px;
+  background: transparent;
+}
+.lead-carousel :deep(.q-carousel__slide) {
+  padding: 0;
+}
+.lead-slide {
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
+  height: 100%;
+  padding: 0;
+}
+.lead-slide .lead { width: 100%; }
+
+.dots { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 8px; }
+.dot {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-border);
+  cursor: pointer;
+  transition: width 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.dot--active { width: 14px; background: var(--m-primary); }
+
+.clear {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 20px 14px;
+  gap: 10px;
+  padding: 14px 11px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
-  text-align: center;
 }
-.empty-pulse-icon {
-  color: var(--m-muted);
-  opacity: 0.5;
-}
-.empty-pulse-label {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--m-ink);
-}
-.empty-pulse-hint {
-  font-size: 12px;
-  color: var(--m-muted);
-}
+.clear-icon { color: var(--m-muted); opacity: 0.6; }
+.clear-text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.clear-label { color: var(--m-ink); font-size: 14px; font-weight: 700; }
+.clear-hint { color: var(--m-muted); font-size: 12px; }
 
-/* ===== PROPERTY HEALTH CARDS – permits only ===== */
-.grid {
+/* ===== PROPERTY CARDS ===== */
+.plist {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-.tile {
+.pcard {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 0;
+  padding: 0 0 11px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
   cursor: pointer;
   font: inherit;
   text-align: left;
+  overflow: hidden;
   transition: transform 0.12s ease, box-shadow 0.15s, border-color 0.15s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.02);
   position: relative;
 }
-.tile:hover {
+.pcard:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }
-.tile:active {
-  transform: scale(0.97);
+.pcard:active {
+  transform: scale(0.985);
 }
 
-.tile-health-dot {
+.pcard-photo {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  overflow: hidden;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.pcard-photo img { width: 100%; height: 100%; object-fit: cover; }
+.pcard-photo--empty { background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%); }
+.pcard-photo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--m-muted);
+}
+.pcard-photo-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
+.pcard-status {
   position: absolute;
   top: 8px;
-  right: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.pcard-status--ok {
+  background: var(--m-success);
+  color: #fff;
+}
+.pcard-status--warn {
+  background: var(--m-warning);
+  color: #fff;
+}
+.pcard-status--danger {
+  background: var(--m-danger);
+  color: #fff;
+}
+.pcard-status--grey {
+  background: rgba(23, 32, 42, 0.78);
+  color: #fff;
+}
+.pcard-health-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  border: 2px solid var(--m-surface);
-  box-shadow: 0 0 0 1px var(--m-border);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
-.tile-health-dot--good {
+.pcard-health-dot--good {
   background: var(--m-success);
 }
-.tile-health-dot--warn {
+.pcard-health-dot--warn {
   background: var(--m-warning);
 }
-.tile-health-dot--danger {
+.pcard-health-dot--danger {
   background: var(--m-danger);
 }
 
-.tile-top {
+.pcard-body {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 0;
 }
-.tile-status {
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-}
-.tile-status--ok {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.tile-status--warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.tile-status--danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-
-.tile-name {
-  flex: 1 1 auto;
+.pcard-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pcard-name {
+  min-width: 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.25;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-/* Document summary */
-.tile-doc-summary {
+.pcard-type {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.pcard-address {
   display: flex;
   align-items: center;
   gap: 4px;
+  color: var(--m-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.facts {
+  display: flex;
+  align-items: stretch;
+  margin-top: 4px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+}
+.fact { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; align-items: center; gap: 0; padding: 6px 4px; text-align: center; }
+.fact-div { width: 1px; background: var(--m-border); }
+.fact-value {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.fact-label { color: var(--m-muted); font-size: 10px; font-weight: 600; }
+
+/* Document summary */
+.pcard-doc-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
   font-size: 12px;
   font-weight: 600;
-  margin-top: 2px;
 }
-.tile-doc-expired {
+.doc-expired {
   color: var(--m-danger);
 }
-.tile-doc-expiring {
+.doc-expiring {
   color: var(--m-warning);
 }
-.tile-doc-ok {
+.doc-ok {
   color: var(--m-success);
 }
 
-.tile--add {
+.pcard--add {
   align-items: center;
   justify-content: center;
   gap: 10px;
+  flex-direction: row;
+  padding: 20px 12px;
   border-style: dashed;
   background: transparent;
   box-shadow: none;
 }
-.tile--add:hover {
+.pcard--add:hover {
   background: var(--m-surface);
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
-.tile-add-icon {
+.pcard-add-icon {
   display: grid;
   width: 40px;
   height: 40px;
@@ -799,15 +983,15 @@ onMounted(load)
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
 }
-.tile-add-label {
+.pcard-add-label {
   color: var(--m-muted);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.3;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring-fill, .tile, .tile-bar-fill {
+  .ring-fill, .pcard, .lead-action {
     transition: none !important;
   }
 }
