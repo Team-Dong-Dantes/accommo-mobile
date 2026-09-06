@@ -145,12 +145,13 @@
 
         <!-- ROOMS & FACILITIES, both floor-accurate -->
         <q-tab-panel name="rooms" class="sec">
+          <p v-if="!canAddInventory" class="sec-hint">This accommodation is delisted — reactivate it to add rooms, facilities, or floors.</p>
           <template v-if="roomsByFloor.length">
             <div v-for="grp in roomsByFloor" :key="grp.floor ?? 'none'" class="floor-group">
               <div class="sec-head">
                 <h3 class="floor-title">{{ grp.label }} ({{ grp.rooms.length + grp.facilities.length }})</h3>
                 <div v-if="grp.floor !== null" class="floor-actions">
-                  <button type="button" class="sec-link" @click="openAddChoice(grp.floor)">Add room/facility</button>
+                  <button type="button" class="sec-link" :disabled="!canAddInventory" @click="openAddChoice(grp.floor)">Add room/facility</button>
                   <button
                     type="button"
                     class="floor-del"
@@ -200,7 +201,7 @@
               v-if="floorCount < MAX_FLOORS"
               type="button"
               class="sec-link add-floor-link"
-              :disabled="addingFloor"
+              :disabled="addingFloor || !canAddInventory"
               @click="addFloor"
             >
               Add floor
@@ -215,7 +216,7 @@
             message="Add a floor to start adding rooms and facilities."
           >
             <template #actions>
-              <q-btn unelevated rounded no-caps color="primary" label="Add floor" :loading="addingFloor" @click="addFloor" />
+              <q-btn unelevated rounded no-caps color="primary" label="Add floor" :loading="addingFloor" :disable="!canAddInventory" @click="addFloor" />
             </template>
           </EmptyState>
         </q-tab-panel>
@@ -574,6 +575,7 @@
                   v-if="roomDialogMode === 'create' || roomViewMode === 'edit'"
                   type="button"
                   class="sec-link"
+                  :disabled="!canAddInventory"
                   @click="openFacilityAddDialog('private', editingRoomId)"
                 >
                   Add
@@ -1066,6 +1068,9 @@ const coverUrl = computed(() => (images.value[0]?.url ? resolveAsset(images.valu
 const occupiedRoomIds = ref<string[]>([])
 const occupiedRoomCount = computed(() => occupiedRoomIds.value.length)
 const vacantRoomCount = computed(() => Math.max(rooms.value.length - occupiedRoomCount.value, 0))
+// Delisted accommodations are hidden from students — don't let managers keep
+// building out inventory (rooms, facilities, floors) behind a dead listing.
+const canAddInventory = computed(() => acc.status !== 'delisted')
 const distance = computed(() => campusDistanceLabel(acc.lat, acc.lng))
 const mapUrl = computed(() => staticMapUrl(acc.lat, acc.lng))
 const locationPickerOpen = ref(false)
@@ -2359,6 +2364,10 @@ onMounted(load)
   font-size: 12.5px;
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
+}
+.sec-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .sec-hint {
   color: var(--m-muted);

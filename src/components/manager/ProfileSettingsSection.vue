@@ -50,7 +50,6 @@
       <p class="settings-group-label">Support</p>
       <SettingsRow icon="lucide:shield-check" label="OSAS compliance" @click="go('/manager/osas-compliance')" />
       <SettingsRow icon="lucide:message-square-warning" label="Concerns" @click="go('/manager/support')" />
-      <SettingsRow icon="lucide:wallet-cards" label="Payments" @click="go('/manager/payments')" />
     </div>
 
     <div class="settings-group">

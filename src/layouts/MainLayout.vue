@@ -54,7 +54,7 @@
       class="bottom-footer"
     >
       <BottomNav
-        :tabs="config.tabs"
+        :tabs="displayTabs"
         :active="activeBottomTab"
         :avatar-url="profileImageUrl"
         :initials="userInitials"
@@ -77,6 +77,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useMessagesStore } from '@/stores/messages'
 import { initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
@@ -87,6 +88,7 @@ import type { SecondaryPage, ShellConfig } from '@/types/app-types'
 const router = useRouter()
 const route = useRoute()
 const notifications = useNotificationsStore()
+const messagesStore = useMessagesStore()
 
 // One shell, two configurations. The role is read from the path so the chrome
 // renders correctly on first paint, with no async role lookup flicker.
@@ -97,13 +99,12 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     tabs: [
       { name: 'home', route: '/manager/dashboard', icon: 'lucide:house', label: 'Home' },
       { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'Tenants' },
-      { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages', match: ['/manager/chat'] },
+      { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages' },
       { name: 'profile', route: '/manager/profile', icon: '', label: 'Profile', avatar: true },
     ],
     quickActions: [
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
-      { icon: 'lucide:wallet-cards', label: 'Payments', route: '/manager/payments' },
-      { icon: 'lucide:building-2', label: 'Accommodations', route: '/manager/properties' },
+      { icon: 'lucide:building-2', label: 'My Properties', route: '/manager/properties' },
     ],
     secondaryPages: [
       { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
@@ -146,6 +147,15 @@ const role = computed<'manager' | 'student'>(() =>
   route.path.startsWith('/manager') ? 'manager' : 'student',
 )
 const config = computed(() => SHELLS[role.value])
+
+// Same tabs, with the live unread count from the messages store folded onto
+// the 'messages' entry — kept separate from SHELLS so that config stays a
+// plain static lookup.
+const displayTabs = computed(() =>
+  config.value.tabs.map((tab) =>
+    tab.name === 'messages' ? { ...tab, badge: messagesStore.totalUnread } : tab,
+  ),
+)
 
 const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
@@ -250,6 +260,10 @@ onMounted(async () => {
     // Subscribes once for the session; the notifications page reuses the same
     // store, so a row marked read there clears this dot immediately.
     await notifications.start(user.id)
+    // Same idea for the Messages tab's unread badge — MessagesPage.vue reuses
+    // this same store instance, so start() here is a no-op once that page
+    // also calls it (see the userId/channel guard in stores/messages.ts).
+    await messagesStore.start(user.id)
   } catch {
     userInitials.value = 'U'
   }
@@ -257,6 +271,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   notifications.stop()
+  messagesStore.stop()
   window.removeEventListener('scroll', onScroll, true)
   window.removeEventListener('accommo:avatar-change', onAvatarChange)
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
@@ -277,6 +292,10 @@ function onScroll() {
 .app-header {
   margin: 6px 12px 0;
   border: 1px solid transparent;
+  /* Quasar's dark-mode chrome puts a translucent white border-color on
+     q-header by default — override it explicitly or it shows through as an
+     outline even though this rule already sets the border transparent. */
+  border-color: transparent !important;
   border-radius: var(--m-radius-lg);
   background: transparent;
   color: var(--m-ink);
@@ -287,7 +306,7 @@ function onScroll() {
   display: none;
 }
 .app-header.is-scrolled {
-  border-color: var(--m-border);
+  border-color: var(--m-border) !important;
   background: color-mix(in srgb, var(--m-bg) 72%, transparent);
   box-shadow: 0 6px 18px rgba(15, 23, 42, .06) !important;
   -webkit-backdrop-filter: blur(14px) saturate(140%);

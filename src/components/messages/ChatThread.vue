@@ -4,7 +4,7 @@
       <button type="button" class="bar-back" aria-label="Back to messages" @click="emit('close')">
         <IconifyIcon icon="lucide:arrow-left" width="20" />
       </button>
-      <span class="bar-avatar">{{ other.initials }}</span>
+      <span class="bar-avatar" :class="other.color ? [`bg-${other.color}`, 'text-white'] : []">{{ other.initials }}</span>
       <span class="bar-id">
         <span class="bar-name">{{ other.name }}</span>
         <span class="bar-role">{{ other.role }}</span>
@@ -62,12 +62,15 @@
           class="msg"
           :class="{ 'msg--mine': msg.mine, 'msg--pending': msg.pending }"
         >
-          <span class="msg-bubble">{{ msg.body }}</span>
+          <span class="msg-bubble" :class="{ 'msg-bubble--media': msg.attachmentUrl }">
+            <img v-if="msg.attachmentUrl" :src="msg.attachmentUrl" alt="" class="msg-img" />
+            <template v-if="msg.body">{{ msg.body }}</template>
+          </span>
           <span class="msg-meta">
             {{ msg.time }}
             <IconifyIcon
               v-if="msg.mine"
-              :icon="msg.pending ? 'lucide:clock' : msg.read ? 'lucide:check-check' : 'lucide:check'"
+              :icon="msg.pending ? 'lucide:clock' : msg.read || msg.delivered ? 'lucide:check-check' : 'lucide:check'"
               width="13"
               :class="{ 'tick-read': msg.read }"
             />
@@ -76,19 +79,55 @@
       </template>
     </div>
 
+    <p v-if="otherTyping" class="typing-note">{{ other.name }} is typing…</p>
+
     <form class="composer" @submit.prevent="send">
+      <div class="composer-attach-wrap">
+        <button
+          type="button"
+          class="composer-attach"
+          :class="{ 'composer-attach--open': attachMenuOpen }"
+          aria-label="Add a photo"
+          :disabled="sending || loading"
+          @click="attachMenuOpen = !attachMenuOpen"
+        >
+          <IconifyIcon icon="lucide:plus" width="20" />
+        </button>
+        <template v-if="attachMenuOpen">
+          <div class="composer-attach-backdrop" @click="attachMenuOpen = false" />
+          <div class="composer-attach-menu" role="menu" aria-label="Add a photo">
+            <button type="button" role="menuitem" @click="onTakePhotoClick">
+              <IconifyIcon icon="lucide:camera" width="16" />
+              Take photo
+            </button>
+            <button type="button" role="menuitem" @click="onUploadClick">
+              <IconifyIcon icon="lucide:image-plus" width="16" />
+              Upload photo
+            </button>
+          </div>
+        </template>
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/*"
+          class="composer-attach-input-hidden"
+          :disabled="sending || loading"
+          @change="onAttach"
+        />
+      </div>
       <textarea
         v-model="outgoing"
         class="composer-input"
         rows="1"
         placeholder="Message…"
-        :disabled="sending"
+        :disabled="sending || loading"
         @keydown.enter.exact.prevent="send"
+        @input="notifyTyping"
       />
       <button
         type="submit"
         class="composer-send"
-        :disabled="!outgoing.trim() || sending"
+        :disabled="!outgoing.trim() || sending || loading"
         aria-label="Send"
       >
         <IconifyIcon icon="lucide:send-horizontal" width="18" />
@@ -108,6 +147,8 @@ import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
 import { respondToApplication } from '@/utils/applications'
+import { uploadToCloudinary } from '@/utils/upload'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 
 const props = defineProps<{ conversationId: string; role: 'manager' | 'student'; roomId?: string | undefined }>()
 const emit = defineEmits<{ close: [] }>()
@@ -119,6 +160,7 @@ interface Msg {
   sentAt: string
   status: string
   pending?: boolean
+  attachmentUrl?: string | undefined
 }
 
 const store = useMessagesStore()
@@ -128,11 +170,14 @@ const loading = ref(true)
 const error = ref('')
 const sending = ref(false)
 const outgoing = ref('')
+const pendingFile = ref<File | null>(null)
+const attachMenuOpen = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 const scroller = ref<HTMLElement | null>(null)
 const me = ref('')
 const otherId = ref('')
 const messages = ref<Msg[]>([])
-const other = reactive({ name: 'Conversation', initials: '?', role: '' })
+const other = reactive({ name: 'Conversation', initials: '?', role: '', color: '' as string | null })
 
 interface RoomBrief { id: string; label: string; rent: number; minStay: number; capacity: number; rentBasis: 'room' | 'person' }
 const application = ref<{ leaseId: string; roomLabel: string } | null>(null)
@@ -141,8 +186,11 @@ const applyUnavailable = ref(false)
 const applyForm = reactive({ startDate: todayStr() })
 const applying = ref(false)
 const deciding = ref(false)
+const otherTyping = ref(false)
 
 let channel: RealtimeChannel | null = null
+let typingSendAt = 0
+let typingClearTimer: ReturnType<typeof setTimeout> | null = null
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -157,7 +205,7 @@ function addMonths(dateStr: string, months: number): string {
 const applyEndDate = computed(() => addMonths(applyForm.startDate || todayStr(), applyRoom.value?.minStay || 12))
 
 const grouped = computed(() => {
-  const out: { day: string; items: (Msg & { mine: boolean; read: boolean; time: string })[] }[] = []
+  const out: { day: string; items: (Msg & { mine: boolean; read: boolean; delivered: boolean; time: string })[] }[] = []
   for (const m of messages.value) {
     const day = dayLabel(m.sentAt)
     let bucket = out[out.length - 1]
@@ -169,6 +217,7 @@ const grouped = computed(() => {
       ...m,
       mine: m.senderId === me.value,
       read: m.status === 'read',
+      delivered: m.status === 'delivered',
       time: parseServerTime(m.sentAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }),
     })
   }
@@ -190,16 +239,57 @@ async function toBottom() {
   if (el) el.scrollTop = el.scrollHeight
 }
 
+function onAttach(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  pendingFile.value = file
+  void send()
+}
+
+async function takePhoto() {
+  try {
+    const photo = await Camera.getPhoto({
+      source: CameraSource.Camera,
+      resultType: CameraResultType.Uri,
+      quality: 80,
+    })
+    if (!photo.webPath) return
+    const blob = await (await fetch(photo.webPath)).blob()
+    const ext = photo.format || 'jpeg'
+    pendingFile.value = new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` })
+    void send()
+  } catch {
+    // ponytail: user cancelling the camera (or denying permission) throws the
+    // same way — swallow it, no error toast for a cancel.
+  }
+}
+
+function onTakePhotoClick() {
+  attachMenuOpen.value = false
+  void takePhoto()
+}
+
+function onUploadClick() {
+  attachMenuOpen.value = false
+  fileInputRef.value?.click()
+}
+
 async function send() {
   const body = outgoing.value.trim()
-  if (!body || sending.value) return
+  const file = pendingFile.value
+  if ((!body && !file) || sending.value || !me.value) return
 
   sending.value = true
   outgoing.value = ''
+  pendingFile.value = null
 
-  // Optimistic: the bubble appears at once and is replaced by the row the
-  // insert returns, so a slow network never looks like a dropped message.
+  // Optimistic: the bubble appears at once (a local object URL stands in for
+  // the attachment until the real Cloudinary URL comes back) and is replaced
+  // by the row the insert returns, so a slow network never looks dropped.
   const tempId = `pending-${Date.now()}`
+  const localPreview = file ? URL.createObjectURL(file) : undefined
   messages.value.push({
     id: tempId,
     body,
@@ -207,14 +297,22 @@ async function send() {
     sentAt: new Date().toISOString(),
     status: 'sent',
     pending: true,
+    attachmentUrl: localPreview,
   })
   void toBottom()
 
   try {
+    let attachmentUrl: string | null = null
+    if (file) {
+      const [uploaded] = await uploadToCloudinary(file)
+      if (!uploaded) throw new Error('Upload failed.')
+      attachmentUrl = uploaded.url
+    }
+
     const { data, error: sendError } = await supabase
       .from('messages')
-      .insert({ conversation_id: props.conversationId, sender_id: me.value, body })
-      .select('id, body, sender_id, sent_at, status')
+      .insert({ conversation_id: props.conversationId, sender_id: me.value, body, attachment_url: attachmentUrl })
+      .select('id, body, sender_id, sent_at, status, attachment_url')
       .single()
     if (sendError) throw sendError
 
@@ -225,12 +323,24 @@ async function send() {
       senderId: data.sender_id,
       sentAt: data.sent_at,
       status: data.status,
+      attachmentUrl: data.attachment_url ?? undefined,
     }
     if (at !== -1) messages.value[at] = saved
+    if (localPreview) URL.revokeObjectURL(localPreview)
+
+    const recipientRolePath = props.role === 'student' ? '/manager' : '/student'
+    void createNotification(
+      otherId.value,
+      'New message',
+      body ? (body.length > 100 ? `${body.slice(0, 100)}…` : body) : '📷 Photo',
+      'message',
+      `${recipientRolePath}/messages?c=${props.conversationId}`,
+    )
   } catch (e) {
     messages.value = messages.value.filter((m) => m.id !== tempId)
+    if (localPreview) URL.revokeObjectURL(localPreview)
     outgoing.value = body
-    error.value = errorMessage(e, 'Message not sent.')
+    error.value = errorMessage(e, file ? 'Photo not sent.' : 'Message not sent.')
   } finally {
     sending.value = false
   }
@@ -249,7 +359,7 @@ async function load() {
       .from('conversations')
       // Must stay one literal for postgrest-js to type the result.
       // eslint-disable-next-line max-len
-      .select('user_a_id,user_b_id,a:users!conversations_user_a_id_fkey(full_name,initials,role),b:users!conversations_user_b_id_fkey(full_name,initials,role)')
+      .select('user_a_id,user_b_id,a:users!conversations_user_a_id_fkey(full_name,initials,role,avatar_color),b:users!conversations_user_b_id_fkey(full_name,initials,role,avatar_color)')
       .eq('id', props.conversationId)
       .maybeSingle()
     if (convoError) throw convoError
@@ -261,15 +371,17 @@ async function load() {
         full_name: string | null
         initials: string | null
         role: string | null
+        avatar_color: string | null
       } | null
       other.name = person?.full_name || 'Conversation'
       other.initials = person?.initials || initialsOf(other.name)
       other.role = person?.role === 'accommodation_manager' ? 'Accommodation manager' : 'Student'
+      other.color = person?.avatar_color ?? null
     }
 
     const { data: rows, error: rowsError } = await supabase
       .from('messages')
-      .select('id, body, sender_id, sent_at, status')
+      .select('id, body, sender_id, sent_at, status, attachment_url')
       .eq('conversation_id', props.conversationId)
       .order('sent_at', { ascending: true })
       .limit(200)
@@ -281,6 +393,7 @@ async function load() {
       senderId: m.sender_id,
       sentAt: m.sent_at,
       status: m.status,
+      attachmentUrl: m.attachment_url ?? undefined,
     }))
 
     // Zeroes my counter and flips the other side's messages to read, which
@@ -469,6 +582,7 @@ function listen() {
             sender_id: string
             sent_at: string
             status: string
+            attachment_url: string | null
           }
           if (messages.value.some((m) => m.id === row.id)) return
           messages.value.push({
@@ -477,6 +591,7 @@ function listen() {
             senderId: row.sender_id,
             sentAt: row.sent_at,
             status: row.status,
+            attachmentUrl: row.attachment_url ?? undefined,
           })
           void toBottom()
           // Their message arrived while the thread is open, so it is read.
@@ -492,7 +607,26 @@ function listen() {
         }
       },
     )
+    // Ephemeral typing signal — broadcast, not a DB write, so it never
+    // touches `messages` and there's nothing to clean up if it's missed.
+    .on('broadcast', { event: 'typing' }, (msg) => {
+      const from = (msg.payload as { from?: string } | undefined)?.from
+      if (from !== otherId.value) return
+      otherTyping.value = true
+      if (typingClearTimer) clearTimeout(typingClearTimer)
+      typingClearTimer = setTimeout(() => { otherTyping.value = false }, 3000)
+    })
     .subscribe()
+}
+
+// Fires at most once every ~1.5s while the user is actively typing, so a
+// whole sentence doesn't turn into a broadcast per keystroke.
+function notifyTyping() {
+  if (!channel || !outgoing.value.trim()) return
+  const now = Date.now()
+  if (now - typingSendAt < 1500) return
+  typingSendAt = now
+  void channel.send({ type: 'broadcast', event: 'typing', payload: { from: me.value } })
 }
 
 onMounted(async () => {
@@ -505,6 +639,7 @@ onUnmounted(() => {
     void supabase.removeChannel(channel)
     channel = null
   }
+  if (typingClearTimer) clearTimeout(typingClearTimer)
 })
 </script>
 
@@ -668,6 +803,14 @@ onUnmounted(() => {
   color: var(--m-danger);
 }
 
+.typing-note {
+  margin: 0;
+  padding: 2px var(--m-page-gutter) 0;
+  color: var(--m-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
 .day {
   display: flex;
   justify-content: center;
@@ -708,6 +851,16 @@ onUnmounted(() => {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.msg-bubble--media {
+  padding: 4px;
+}
+.msg-img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 12px;
+  object-fit: cover;
+}
 .msg--mine .msg-bubble {
   border-color: transparent;
   border-radius: 16px 16px 4px 16px;
@@ -735,6 +888,81 @@ onUnmounted(() => {
   padding: 8px var(--m-page-gutter) calc(8px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--m-border);
   background: var(--m-surface);
+}
+.composer-attach-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+.composer-attach {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.composer-attach svg {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.composer-attach--open svg {
+  transform: rotate(45deg);
+}
+.composer-attach-input-hidden {
+  display: none;
+}
+.composer-attach-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+}
+.composer-attach-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  animation: composer-attach-menu-in 160ms ease-out both;
+}
+.composer-attach-menu button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--m-radius-sm);
+  background: transparent;
+  color: var(--m-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: left;
+}
+.composer-attach-menu button:hover {
+  background: var(--m-primary-soft);
+}
+@keyframes composer-attach-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .composer-input {
   flex: 1 1 auto;

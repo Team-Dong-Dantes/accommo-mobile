@@ -13,7 +13,10 @@
         <q-img v-if="avatarUrl" :src="avatarUrl" alt="Profile" />
         <span v-else>{{ initials }}</span>
       </q-avatar>
-      <IconifyIcon v-else :icon="tab.icon" width="22" />
+      <span v-else class="bottom-nav-icon">
+        <IconifyIcon :icon="tab.icon" width="22" />
+        <span v-if="tab.badge" class="bottom-nav-badge">{{ tab.badge > 9 ? '9+' : tab.badge }}</span>
+      </span>
       <span class="bottom-nav-label">{{ tab.label }}</span>
     </button>
   </div>
@@ -71,6 +74,25 @@ function onSelect(name: string) {
 }
 .bottom-nav-item.active {
   color: var(--m-primary);
+}
+.bottom-nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+.bottom-nav-badge {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  display: grid;
+  min-width: 15px;
+  height: 15px;
+  place-items: center;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--m-danger, #b42318);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
 }
 .profile-avatar-mini {
   width: 24px;

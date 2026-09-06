@@ -9,6 +9,7 @@ export interface Thread {
   otherId: string;
   otherName: string;
   otherInitials: string;
+  otherColor: string | null;
   lastMessage: string;
   lastTime: string | null;
   unread: number;
@@ -17,10 +18,12 @@ export interface Thread {
 interface Person {
   full_name: string | null;
   initials: string | null;
+  avatar_color: string | null;
 }
 
-// A live connection, not reactive state — see stores/notifications.ts.
+// Live connections, not reactive state — see stores/notifications.ts.
 let channel: RealtimeChannel | null = null;
+let deliveryChannel: RealtimeChannel | null = null;
 
 function toMs(lastTime: string | null): number {
   return lastTime ? parseServerTime(lastTime).getTime() : 0;
@@ -53,7 +56,7 @@ export const useMessagesStore = defineStore('messages', {
           // One string literal: postgrest-js parses the select at type level,
           // and a concatenated expression widens to `string` and stops typing.
           // eslint-disable-next-line max-len
-          .select('id,user_a_id,user_b_id,last_message,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials),b:users!conversations_user_b_id_fkey(full_name,initials)')
+          .select('id,user_a_id,user_b_id,last_message,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color)')
           .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`);
         if (error) throw error;
 
@@ -67,6 +70,7 @@ export const useMessagesStore = defineStore('messages', {
               otherId: mine ? row.user_b_id : row.user_a_id,
               otherName: name,
               otherInitials: other?.initials || initialsOf(name),
+              otherColor: other?.avatar_color ?? null,
               lastMessage: row.last_message || '',
               lastTime: row.last_time,
               unread: Number((mine ? row.unread_a : row.unread_b) || 0),
@@ -129,12 +133,34 @@ export const useMessagesStore = defineStore('messages', {
           onChange,
         )
         .subscribe();
+
+      // Marks an incoming message 'delivered' the moment this device receives
+      // it, even outside the thread it belongs to (ChatThread's own listener
+      // already marks 'read' when that specific thread is open — the
+      // status='sent' guard here means this can never clobber that).
+      deliveryChannel = supabase
+        .channel(`deliveries:${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          (payload) => {
+            const row = payload.new as { id: string; conversation_id: string; sender_id: string };
+            if (row.sender_id === userId) return;
+            if (!this.threads.some((t) => t.id === row.conversation_id)) return;
+            void supabase.from('messages').update({ status: 'delivered' }).eq('id', row.id).eq('status', 'sent');
+          },
+        )
+        .subscribe();
     },
 
     stop() {
       if (channel) {
         void supabase.removeChannel(channel);
         channel = null;
+      }
+      if (deliveryChannel) {
+        void supabase.removeChannel(deliveryChannel);
+        deliveryChannel = null;
       }
       this.userId = '';
       this.ready = false;

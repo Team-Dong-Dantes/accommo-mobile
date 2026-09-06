@@ -34,7 +34,9 @@
         class="thread"
         @click="emit('open', thread.id)"
       >
-        <span class="thread-avatar">{{ thread.otherInitials }}</span>
+        <span class="thread-avatar" :class="thread.otherColor ? [`bg-${thread.otherColor}`, 'text-white'] : []">
+          {{ thread.otherInitials }}
+        </span>
         <span class="thread-body">
           <span class="thread-top">
             <span class="thread-name">{{ thread.otherName }}</span>
