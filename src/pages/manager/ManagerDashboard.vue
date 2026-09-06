@@ -52,10 +52,10 @@
 
       <!-- Stat chips -->
       <div class="chips">
-        <button type="button" class="chip chip--link" @click="go('/manager/payments')">
+        <div class="chip">
           <span class="chip-value">{{ formatPeso(expectedMonthly) }}</span>
           <span class="chip-label">Expected/mo</span>
-        </button>
+        </div>
         <div class="chip-div" />
         <div class="chip">
           <span class="chip-value">{{ vacantBeds }}</span>
@@ -635,7 +635,6 @@ onMounted(load)
 .chips { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
 .chip { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 8px 11px; }
 .chip-div { width: 1px; background: var(--m-border); }
-.chip--link { border: 0; background: transparent; cursor: pointer; font: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
 .chip-value {
   color: var(--m-ink);
   font-family: var(--m-font-display);

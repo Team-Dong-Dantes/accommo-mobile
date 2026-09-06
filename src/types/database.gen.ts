@@ -817,6 +817,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          attachment_url: string | null
           body: string
           conversation_id: string
           id: string
@@ -825,6 +826,7 @@ export type Database = {
           status: Database["public"]["Enums"]["msg_status"]
         }
         Insert: {
+          attachment_url?: string | null
           body: string
           conversation_id: string
           id?: string
@@ -833,6 +835,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["msg_status"]
         }
         Update: {
+          attachment_url?: string | null
           body?: string
           conversation_id?: string
           id?: string

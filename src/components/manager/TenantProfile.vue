@@ -15,154 +15,156 @@
     </div>
 
     <div v-else class="stack">
-      <div class="head">
-        <span class="head-avatar">{{ lease.studentInitials }}</span>
-        <span class="head-name">{{ lease.studentName }}</span>
-        <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">
-          {{ statusText(LEASE_STATUS, lease.status) }}
-        </span>
-        <span class="head-sub">{{ lease.roomLabel }} · {{ lease.accommodationName }}</span>
-        <button type="button" class="head-msg" @click="router.push(`/manager/messages?to=${lease.studentId}`)">
-          <IconifyIcon icon="lucide:message-circle" width="14" />
-          Message
-        </button>
-      </div>
-
-      <!-- Decisions -->
-      <div v-if="lease.status === 'pending'" class="decide">
-        <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decide('rejected')">
-          Decline
-        </button>
-        <button type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
-          Accept
-        </button>
-      </div>
-      <div v-else-if="lease.status === 'leave_requested'" class="decide">
-        <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="declineLeave">
-          Keep tenant
-        </button>
-        <button type="button" class="decide-btn" :disabled="deciding" @click="approveLeave">
-          Approve leave
-        </button>
-      </div>
-      <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && tenantReview" class="rated">
-        <StarRating :model-value="tenantReview.rating" :size="16" />
-        <span class="rated-label">You rated this tenant</span>
-      </div>
-      <div v-else-if="lease.status === 'ended' || lease.status === 'terminated'" class="decide">
-        <button type="button" class="decide-btn" @click="openReview">Rate this tenant</button>
-      </div>
-
-      <div class="tabs">
-        <button
-          v-for="t in TABS"
-          :key="t.key"
-          type="button"
-          class="tab"
-          :class="{ 'tab--on': tab === t.key }"
-          @click="tab = t.key"
-        >
-          {{ t.label }}
-        </button>
-      </div>
-
-      <section v-if="tab === 'overview'" class="sec">
-        <div class="group">
-          <div class="rule">
-            <span class="rule-label">Move-in</span>
-            <span class="rule-value">{{ formatDate(lease.startDate) }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Lease ends</span>
-            <span class="rule-value">{{ formatDate(lease.endDate) }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Monthly rent</span>
-            <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
-          </div>
-          <div v-if="lease.email" class="rule">
-            <span class="rule-label">Email</span>
-            <span class="rule-value">{{ lease.email }}</span>
-          </div>
-          <div v-if="lease.phone" class="rule">
-            <span class="rule-label">Phone</span>
-            <span class="rule-value">{{ lease.phone }}</span>
-          </div>
+      <div class="tabbed">
+        <div class="hero">
+          <img v-if="coverUrl" :src="coverUrl" alt="" class="hero-img" />
+          <div class="hero-scrim" />
+          <button type="button" class="hero-msg" aria-label="Message tenant" @click="router.push(`/manager/messages?to=${lease.studentId}`)">
+            <IconifyIcon icon="lucide:message-circle" width="16" />
+          </button>
         </div>
-      </section>
 
-      <section v-else-if="tab === 'payments'" class="sec">
-        <div class="sec-head">
-          <h2 class="sec-title">Payments</h2>
-          <button type="button" class="sec-link" @click="openLogPayment">Log payment</button>
-        </div>
-        <div v-if="payments.length" class="group">
-          <div v-for="p in payments" :key="p.id" class="rule">
-            <span class="rule-label">{{ formatMonth(p.month) }}</span>
-            <span class="rule-value">
-              {{ formatPeso(p.amount) }} · {{ statusText(PAYMENT_STATUS, p.status) }}
-              <button
-                v-if="p.status === 'pending_verification'"
-                type="button"
-                class="rule-verify"
-                :disabled="verifying === p.id"
-                @click="verifyPayment(p.id)"
-              >
-                {{ verifying === p.id ? 'Verifying…' : 'Mark verified' }}
-              </button>
+        <div class="body-card">
+          <div class="head">
+            <span class="head-avatar">{{ lease.studentInitials }}</span>
+            <span class="head-name">{{ lease.studentName }}</span>
+            <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">
+              {{ statusText(LEASE_STATUS, lease.status) }}
             </span>
+            <span class="head-sub">{{ lease.roomLabel }} · {{ lease.accommodationName }}</span>
           </div>
         </div>
-        <p v-else class="none">No payments logged yet.</p>
-      </section>
 
-      <section v-else class="sec">
-        <h2 class="sec-title">Boarding history</h2>
-        <div v-if="history.length" class="group">
-          <div v-for="h in history" :key="h.id" class="rule">
-            <span class="rule-label">{{ h.accommodationName }} · {{ h.roomType || 'Room' }}</span>
-            <span class="rule-value">{{ formatDate(h.periodStart) }} – {{ formatDate(h.periodEnd) }}</span>
-          </div>
+        <div class="tabs">
+          <button
+            v-for="t in TABS"
+            :key="t.key"
+            type="button"
+            class="tab"
+            :class="{ 'tab--on': tab === t.key }"
+            @click="tab = t.key"
+          >
+            {{ t.label }}
+          </button>
         </div>
-        <p v-else class="none">No prior stays on record.</p>
-      </section>
 
-      <div class="tail" />
+        <div class="panel">
+          <q-tab-panels v-model="tab" animated swipeable class="panels">
+            <q-tab-panel name="overview" class="sec">
+            <!-- Decisions -->
+            <div v-if="lease.status === 'pending'" class="decide-box decide">
+              <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decide('rejected')">
+                Decline
+              </button>
+              <button type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
+                Accept
+              </button>
+            </div>
+            <div v-else-if="lease.status === 'leave_requested'" class="decide-box decide">
+              <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="declineLeave">
+                Keep tenant
+              </button>
+              <button type="button" class="decide-btn" :disabled="deciding" @click="approveLeave">
+                Approve leave
+              </button>
+            </div>
+            <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && tenantReview" class="decide-box rated">
+              <StarRating :model-value="tenantReview.rating" :size="16" />
+              <span class="rated-label">You rated this tenant</span>
+            </div>
+            <div v-else-if="lease.status === 'ended' || lease.status === 'terminated'" class="decide-box decide">
+              <button type="button" class="decide-btn" @click="openReview">Rate this tenant</button>
+            </div>
+
+            <div class="sec-head">
+              <h2 class="sec-title">Stay</h2>
+            </div>
+            <div class="group">
+              <div class="rule">
+                <span class="rule-label">Move-in</span>
+                <span class="rule-value">{{ formatDate(lease.startDate) }}</span>
+              </div>
+              <div class="rule">
+                <span class="rule-label">Lease ends</span>
+                <span class="rule-value">{{ formatDate(lease.endDate) }}</span>
+              </div>
+              <div class="rule">
+                <span class="rule-label">Monthly rent</span>
+                <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
+              </div>
+            </div>
+
+            <template v-if="lease.email || lease.phone">
+              <div class="sec-head">
+                <h2 class="sec-title">Contact</h2>
+              </div>
+              <div class="group">
+                <div v-if="lease.email" class="rule">
+                  <span class="rule-label">Email</span>
+                  <span class="rule-value">{{ lease.email }}</span>
+                </div>
+                <div v-if="lease.phone" class="rule">
+                  <span class="rule-label">Phone</span>
+                  <span class="rule-value">{{ lease.phone }}</span>
+                </div>
+              </div>
+            </template>
+          </q-tab-panel>
+
+          <q-tab-panel name="payments" class="sec">
+            <div class="sec-head">
+              <h2 class="sec-title">Payments</h2>
+              <button v-if="payments.length > 3" type="button" class="sec-link" @click="paymentsExpanded = !paymentsExpanded">
+                {{ paymentsExpanded ? 'Show less' : `Show all (${payments.length})` }}
+              </button>
+            </div>
+
+            <div v-if="payments.length" class="group">
+              <div v-for="p in visiblePayments" :key="p.id" class="pay-row">
+                <div class="pay-row-main">
+                  <span class="pay-row-month">{{ formatMonth(p.month) }}</span>
+                  <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
+                </div>
+                <div class="pay-row-sub">
+                  <span class="pay-row-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
+                  <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
+                    {{ statusText(PAYMENT_STATUS, p.status) }}
+                  </span>
+                </div>
+                <button
+                  v-if="p.status === 'pending_verification'"
+                  type="button"
+                  class="rule-verify"
+                  :disabled="verifying === p.id"
+                  @click="verifyPayment(p.id)"
+                >
+                  {{ verifying === p.id ? 'Verifying…' : 'Mark verified' }}
+                </button>
+              </div>
+            </div>
+            <EmptyState
+              v-else
+              variant="compact"
+              icon="lucide:receipt"
+              title="No payments yet"
+              message="Log a payment for this tenant from the tenants list to start their history."
+            />
+          </q-tab-panel>
+
+          <q-tab-panel name="history" class="sec">
+            <h2 class="sec-title">Boarding history</h2>
+            <div v-if="history.length" class="group">
+              <div v-for="h in history" :key="h.id" class="rule">
+                <span class="rule-label">{{ h.accommodationName }} · {{ h.roomType || 'Room' }}</span>
+                <span class="rule-value">{{ formatDate(h.periodStart) }} – {{ formatDate(h.periodEnd) }}</span>
+              </div>
+            </div>
+            <p v-else class="none">No prior stays on record.</p>
+          </q-tab-panel>
+          </q-tab-panels>
+        </div>
+      </div>
     </div>
-
-    <q-dialog v-model="paymentOpen" position="bottom">
-      <q-card class="pay-sheet">
-        <h3 class="pay-title">Log a payment</h3>
-        <label class="pay-field">
-          <span class="pay-label">Month</span>
-          <input v-model="paymentForm.month" type="month" class="pay-input" />
-        </label>
-        <label class="pay-field">
-          <span class="pay-label">Amount</span>
-          <input v-model.number="paymentForm.amount" type="number" min="0" step="0.01" class="pay-input" />
-        </label>
-        <label class="pay-field">
-          <span class="pay-label">Method</span>
-          <select v-model="paymentForm.method" class="pay-input">
-            <option value="cash">Cash</option>
-            <option value="gcash">GCash</option>
-            <option value="maya">Maya</option>
-            <option value="bank">Bank transfer</option>
-            <option value="others">Other</option>
-          </select>
-        </label>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          color="primary"
-          class="pay-submit"
-          :loading="logging"
-          label="Log payment"
-          @click="submitPayment"
-        />
-      </q-card>
-    </q-dialog>
 
     <q-dialog v-model="reviewOpen" position="bottom">
       <q-card class="pay-sheet">
@@ -193,11 +195,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, statusText, statusColor } from '@/utils/format'
+import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { createNotification } from '@/boot/notify'
 import { useNotify } from '@/utils/notify'
 import { respondToApplication } from '@/utils/applications'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
 import StarRating from '@/components/shared/StarRating.vue'
+import EmptyState from '@/components/shared/EmptyState.vue'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -229,7 +233,10 @@ const lease = reactive({
   endDate: '',
   monthlyRent: 0,
 })
-const payments = ref<{ id: string; month: string; amount: number; status: string }[]>([])
+const coverUrl = ref('')
+const payments = ref<{ id: string; month: string; amount: number; status: string; method: string }[]>([])
+const paymentsExpanded = ref(false)
+const visiblePayments = computed(() => (paymentsExpanded.value ? payments.value : payments.value.slice(0, 3)))
 const history = ref<{ id: string; accommodationName: string; roomType: string | null; periodStart: string; periodEnd: string }[]>([])
 const tenantReview = ref<{ rating: number; comment: string } | null>(null)
 
@@ -242,7 +249,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,student_id,room_id,users!leases_student_id_fkey(full_name,initials,email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name))',
+        'id,status,start_date,end_date,monthly_rent,student_id,room_id,users!leases_student_id_fkey(full_name,initials,email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -258,7 +265,7 @@ async function load() {
       room_number: string | null
       room_type: string | null
       accommodation_id: string
-      accommodations: { name: string | null } | null
+      accommodations: { name: string | null; accommodation_images: { url: string; sort_order: number | null }[] | null } | null
     } | null
 
     lease.status = data.status
@@ -271,6 +278,11 @@ async function load() {
     lease.accommodationId = room?.accommodation_id || ''
     lease.accommodationName = room?.accommodations?.name || 'Accommodation'
     lease.roomType = room?.room_type || ''
+
+    const cover = [...(room?.accommodations?.accommodation_images ?? [])].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+    )[0]
+    coverUrl.value = cover?.url ? resolveAsset(cover.url) : ''
     lease.startDate = data.start_date
     lease.endDate = data.end_date
     lease.monthlyRent = Number(data.monthly_rent ?? 0)
@@ -278,7 +290,7 @@ async function load() {
     const [{ data: paymentRows }, { data: historyRows }] = await Promise.all([
       supabase
         .from('payments')
-        .select('id,month,amount,status')
+        .select('id,month,amount,status,method')
         .eq('lease_id', leaseId.value)
         .order('month', { ascending: false }),
       supabase
@@ -287,7 +299,7 @@ async function load() {
         .eq('student_id', data.student_id)
         .order('period_start', { ascending: false }),
     ])
-    payments.value = (paymentRows ?? []).map((p) => ({ id: p.id, month: p.month, amount: Number(p.amount), status: p.status }))
+    payments.value = (paymentRows ?? []).map((p) => ({ id: p.id, month: p.month, amount: Number(p.amount), status: p.status, method: p.method }))
     history.value = (historyRows ?? []).map((h) => ({
       id: h.id,
       accommodationName: h.accommodation_name || 'Accommodation',
@@ -375,48 +387,6 @@ async function declineLeave() {
   }
 }
 
-const paymentOpen = ref(false)
-const logging = ref(false)
-const paymentForm = reactive({
-  month: new Date().toISOString().slice(0, 7),
-  amount: 0,
-  method: 'cash' as 'cash' | 'gcash' | 'maya' | 'bank' | 'others',
-})
-
-function openLogPayment() {
-  paymentForm.month = new Date().toISOString().slice(0, 7)
-  paymentForm.amount = lease.monthlyRent
-  paymentForm.method = 'cash'
-  paymentOpen.value = true
-}
-
-async function submitPayment() {
-  if (logging.value) return
-  logging.value = true
-  try {
-    const { data: created, error: insertError } = await supabase
-      .from('payments')
-      .insert({
-        lease_id: leaseId.value,
-        month: `${paymentForm.month}-01`,
-        amount: paymentForm.amount,
-        method: paymentForm.method,
-        status: 'paid',
-        paid_at: new Date().toISOString(),
-      })
-      .select('id,month,amount,status')
-      .single()
-    if (insertError) throw insertError
-    payments.value = [{ id: created.id, month: created.month, amount: Number(created.amount), status: created.status }, ...payments.value]
-    paymentOpen.value = false
-    notify.success('Payment logged.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not log this payment.'))
-  } finally {
-    logging.value = false
-  }
-}
-
 const verifying = ref('')
 
 async function verifyPayment(paymentId: string) {
@@ -487,10 +457,14 @@ onMounted(load)
 
 <style scoped>
 .tprof {
+  display: flex;
+  flex-direction: column;
   background: var(--m-bg);
 }
 .stack {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
   gap: 12px;
   padding: 8px var(--m-page-gutter) 0;
@@ -498,10 +472,6 @@ onMounted(load)
 .sk {
   border-radius: var(--m-radius);
 }
-.tail {
-  height: 24px;
-}
-
 .card {
   padding: 18px 14px;
   border-radius: var(--m-radius);
@@ -520,26 +490,87 @@ onMounted(load)
   font-size: 12px;
 }
 
+.tabbed {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  margin: -8px calc(var(--m-page-gutter) * -1) 0;
+}
+/* Cover band — bleeds to the very top of the page (cancels .stack's own
+   top padding via .tabbed's negative margin) and to both edges. No text
+   sits on it; the avatar straddling its bottom edge is the only thing
+   that touches it directly. */
+.hero {
+  position: relative;
+  flex: 0 0 auto;
+  height: 170px;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
+}
+.hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0) 70%);
+}
+.hero-msg {
+  position: absolute;
+  top: 10px;
+  right: var(--m-page-gutter);
+  z-index: 2;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.55);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Profile info only — the avatar pulls up into the hero via a negative
+   margin so it straddles the seam, cover-photo style. Tabs and their
+   content live in separate elements below, not nested in this card. */
+.body-card {
+  position: relative;
+  margin: -85px var(--m-page-gutter) 0;
+  padding: 0 var(--m-page-gutter) 14px;
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow);
+}
 .head {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 8px 0 4px;
+  padding-top: 8px;
   text-align: center;
 }
 .head-avatar {
   display: grid;
-  width: 56px;
-  height: 56px;
+  width: 84px;
+  height: 84px;
   place-items: center;
+  margin-top: -42px;
   margin-bottom: 4px;
+  border: 4px solid var(--m-surface);
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-family: var(--m-font-display);
-  font-size: 19px;
+  font-size: 24px;
   font-weight: 800;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
 }
 .head-name {
   color: var(--m-ink);
@@ -576,23 +607,64 @@ onMounted(load)
   color: var(--m-muted);
   font-size: 12.5px;
 }
-.head-msg {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 8px;
-  padding: 6px 14px;
+
+/* Rounded-top pill tabs rising into the bordered panel below — same
+   tab-folder shape as accommodation detail, recolored for a plain white
+   card instead of a photo backdrop (no gradient sits behind these). */
+.tabs {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  margin: 14px var(--m-page-gutter) -1px;
+}
+.tab {
+  min-height: 38px;
+  padding: 0 14px;
   border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: var(--m-bg);
+  color: var(--m-muted);
   cursor: pointer;
   font: inherit;
   font-size: 12.5px;
   font-weight: 700;
+  transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
+.tab--on {
+  background: var(--m-surface);
+  color: var(--m-primary-dark);
+}
+/* Its own card, distinct from .body-card above — not a shared surface. The
+   active tab's background matches this panel's, so the -1px overlap above
+   fuses them with no visible seam, while unselected tabs still show the
+   border. Bleeds to the page edges and fills to the bottom, same as
+   accommodation detail's own .panel. */
+.panel {
+  display: flex;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  padding: 0 var(--m-page-gutter) 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius) var(--m-radius) 0 0;
+  background: var(--m-surface);
+}
+.panels { background: transparent; }
+.panels :deep(.q-tab-panel) { padding: 0; }
 
+/* Same treatment as accommodation detail's status-box — its own bordered
+   card for anything decision-related, not a bare row of buttons. */
+.decide-box {
+  padding: 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+}
 .decide {
   display: flex;
   gap: 8px;
@@ -631,28 +703,6 @@ onMounted(load)
   border: 1px solid var(--m-border);
 }
 
-.tabs {
-  display: flex;
-  gap: 6px;
-  border-bottom: 1px solid var(--m-border);
-}
-.tab {
-  padding: 8px 4px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--m-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.tab--on {
-  border-bottom-color: var(--m-primary);
-  color: var(--m-primary-dark);
-}
-
 .sec {
   display: flex;
   flex-direction: column;
@@ -682,12 +732,14 @@ onMounted(load)
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
 }
+/* Cancels .body-card's own side padding so this card reaches its left and
+   right edges instead of sitting doubly inset (card padding + card padding). */
 .group {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
-  background: var(--m-surface);
+  background: var(--m-bg);
   overflow: hidden;
 }
 .rule {
@@ -729,6 +781,55 @@ onMounted(load)
 }
 .rule-verify:disabled {
   opacity: 0.6;
+}
+
+.pay-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--m-border);
+}
+.group > .pay-row:first-child {
+  border-top: 0;
+}
+.pay-row-main,
+.pay-row-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pay-row-month,
+.pay-row-amount {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.pay-row-method {
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.pay-chip {
+  flex: 0 0 auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.pay-chip--green {
+  background: var(--m-success-soft);
+  color: var(--m-success);
+}
+.pay-chip--amber,
+.pay-chip--orange {
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+}
+.pay-chip--red {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
 }
 .none {
   padding: 14px 12px;

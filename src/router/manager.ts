@@ -53,10 +53,6 @@ const managerRoutes: RouteRecordRaw[] = [
     path: '/manager/properties/:id',
     component: () => import('@/components/manager/AccommodationDetail.vue'),
   },
-  {
-    path: '/manager/payments',
-    component: () => import('@/pages/manager/ManagerPaymentsPage.vue'),
-  },
 ]
 
 export default managerRoutes

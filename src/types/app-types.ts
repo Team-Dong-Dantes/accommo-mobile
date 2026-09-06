@@ -102,6 +102,8 @@ export interface BottomTab {
   avatar?: boolean
   /** Extra path prefixes that should light this tab up. */
   match?: readonly string[]
+  /** Unread-style count shown as a small pill on the tab; hidden when falsy. */
+  badge?: number
 }
 
 export interface QuickAction {
