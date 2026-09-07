@@ -45,53 +45,34 @@
       <div
         v-if="hasMapToken"
         class="map-region"
-        :class="{ 'map-region--dragging': dragging }"
-        :style="{ height: mapFillHeight }"
+        :style="mapRegionStyle"
         @transitionend="onMapRegionTransitionEnd"
       >
         <div ref="mapEl" class="map-el" aria-label="Map of accommodations" />
-      </div>
-      <div
-        v-if="hasMapToken"
-        class="map-handle"
-        role="separator"
-        aria-label="Drag to resize the map"
-        aria-orientation="horizontal"
-        @pointerdown="onHandlePointerDown"
-        @pointermove="onHandlePointerMove"
-        @pointerup="onHandlePointerUp"
-        @pointercancel="onHandlePointerUp"
-        :style="{ top: mapFillHeight }"
-      >
-        <span class="map-handle-icon" aria-hidden="true">
-          <IconifyIcon icon="lucide:chevrons-up-down" width="15" />
-        </span>
+        <button v-if="!mapExpanded" type="button" class="map-expand-btn" @click="toggleMapExpanded(true)">
+          <IconifyIcon icon="lucide:maximize-2" width="15" />
+          <span>Map view</span>
+        </button>
       </div>
 
-      <!-- Full map: the in-flow handle is now off past the bottom of the
-           screen, so this floating copy — same drag, same threshold — is
-           what actually gets you back; parked just under the header where
-           the rail/info card below can never cover it. -->
-      <div
-        v-if="hasMapToken && mapHeightVh === SNAP_FULL"
-        class="map-return-handle"
-        role="separator"
-        aria-label="Drag to resize the map"
-        aria-orientation="horizontal"
-        :style="{ top: (headerOffsetPx + 10) + 'px' }"
-        @pointerdown="onHandlePointerDown"
-        @pointermove="onHandlePointerMove"
-        @pointerup="onHandlePointerUp"
-        @pointercancel="onHandlePointerUp"
+      <!-- Full map: the preview button above is now covered by the fixed
+           full-screen map, so this is the way back — parked just under the
+           header where the rail/info card below can never cover it. -->
+      <button
+        v-if="hasMapToken && mapExpanded"
+        type="button"
+        class="map-collapse-btn"
+        :style="{ top: (headerReservedPx + 16) + 'px' }"
+        @click="toggleMapExpanded(false)"
       >
-        <IconifyIcon icon="lucide:chevrons-up-down" width="15" />
-        <span>Drag to resize</span>
-      </div>
+        <IconifyIcon icon="lucide:x" width="16" />
+        <span>List view</span>
+      </button>
 
       <!-- Full-map mode: a floating recommendations rail above the search
            dock; picking one flies the map to it and swaps the rail for that
            item's info + a way straight into it. -->
-      <div v-if="hasMapToken && mapHeightVh === SNAP_FULL" class="map-float">
+      <div v-if="hasMapToken && mapExpanded" class="map-float">
         <div v-if="!selectedPin" class="map-float-rail">
           <PropertyCard
             v-for="item in properties.slice(0, 10)"
@@ -338,7 +319,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, onDeactivated, nextTick } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -403,26 +384,17 @@ const properties = ref<Property[]>([])
 const rooms = ref<RoomTile[]>([])
 const managers = ref<ManagerRow[]>([])
 
-// Map + draggable divider — the map's height is a plain vh slice of the page,
-// so it lives in normal document flow above the list and the existing page
-// scroll (see MainLayout's .q-page-container) keeps working unchanged; no
-// special fixed-height layout is needed for "drag it open to fill the page".
-//
-// Three snap points, not a free drag: the map follows the finger live while
-// dragging (feedback), but on release it commits to whichever point is past
-// a small threshold from wherever the gesture started — so a short drag from
-// the default snaps straight to full or collapsed, and the same threshold
-// works in reverse to come back. CSS transition is off during the live drag
-// (must track the finger exactly) and only turned on for the settle.
+// Map preview + full-screen toggle — the map's height is a plain vh slice of
+// the page, so it lives in normal document flow above the list and the
+// existing page scroll (see MainLayout's .q-page-container) keeps working
+// unchanged; no special fixed-height layout is needed for "expand it to fill
+// the page". Two states, switched by pressing a button rather than dragging
+// a handle — a plain height transition (CSS) between them.
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const hasMapToken = Boolean(MAPBOX_TOKEN)
-const SNAP_COLLAPSED = 0
-const SNAP_DEFAULT = 32
-const SNAP_FULL = 100
-const SNAP_THRESHOLD_PX = 40
+const MAP_PREVIEW_VH = 32
 const mapEl = ref<HTMLElement | null>(null)
-const mapHeightVh = ref(SNAP_DEFAULT)
-const dragging = ref(false)
+const mapExpanded = ref(false)
 
 // 100vh overshoots: the header eats into the viewport before the scroll
 // container (.q-page-container) even starts, so a literal 100vh map runs
@@ -431,6 +403,11 @@ const dragging = ref(false)
 // nominal size, so it can't drift out of sync with it.
 const headerOffsetPx = ref(0)
 const pageViewportPx = ref(0)
+// The floating header reserves this much space via padding-top on
+// .q-page-container rather than pushing it down in normal flow (it's
+// `position: fixed`). Reused to pull the map's own top edge up by the same
+// amount, so it runs behind the header instead of starting below it.
+const headerReservedPx = ref(0)
 
 function measureViewport() {
   const container = document.querySelector('.q-page-container') as HTMLElement | null
@@ -438,15 +415,33 @@ function measureViewport() {
   const rect = container.getBoundingClientRect()
   headerOffsetPx.value = rect.top
   pageViewportPx.value = rect.height
+  headerReservedPx.value = parseFloat(getComputedStyle(container).paddingTop) || 0
 }
 
-/** The height applied to both the map and its sticky handle's offset, so
- * they always end at the exact same edge. */
+/** The height applied to the map. Expanded uses the whole window (header
+ * height + container height), not just the container's own visible slice,
+ * so it fills the screen edge to edge. Both states stay `position: sticky`
+ * (see mapRegionStyle below) rather than switching to `fixed` for expanded —
+ * a CSS transition can animate a height change smoothly, but position type
+ * itself can't be animated at all, so that switch made expanding look like
+ * an instant jump cut instead of a resize. */
 const mapFillHeight = computed(() =>
-  mapHeightVh.value === SNAP_FULL && pageViewportPx.value > 0
-    ? `${pageViewportPx.value}px`
-    : `${mapHeightVh.value}vh`,
+  mapExpanded.value && pageViewportPx.value > 0
+    ? `${headerOffsetPx.value + pageViewportPx.value}px`
+    : `${MAP_PREVIEW_VH}vh`,
 )
+
+// Sticky, in normal flow, in both states — so it starts below the header's
+// reserved padding by default. Pulling only its static (pre-scroll)
+// position up by that amount lets it run behind the floating header too;
+// the sticky pin itself stays at the default `top: 0` from the CSS class,
+// since that offset is resolved against the scrollport's padding edge and
+// already nets out correctly once the negative margin is factored in —
+// also offsetting `top` here would double-count it.
+const mapRegionStyle = computed(() => ({
+  height: mapFillHeight.value,
+  marginTop: `-${headerReservedPx.value}px`,
+}))
 
 interface SelectedPin {
   kind: 'property' | 'room'
@@ -459,9 +454,6 @@ const selectedPin = ref<SelectedPin | null>(null)
 
 let map: mapboxgl.Map | null = null
 let markers: mapboxgl.Marker[] = []
-let dragStartY = 0
-let dragStartVh = 0
-let dragStartSnap = SNAP_DEFAULT
 
 const filtersOpen = ref(false)
 const DEFAULT_MAX = 10000
@@ -531,45 +523,25 @@ function openManager(id: string) {
   void router.push(`/student/manager/${id}`)
 }
 
-// Pointer capture keeps move/up events firing on the handle even once the
-// finger/cursor has left it, so the drag doesn't drop mid-gesture.
-function onHandlePointerDown(event: PointerEvent) {
-  dragging.value = true
-  dragStartY = event.clientY
-  dragStartVh = mapHeightVh.value
-  dragStartSnap = mapHeightVh.value
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-}
-
-function onHandlePointerMove(event: PointerEvent) {
-  if (!dragging.value) return
-  const deltaVh = ((event.clientY - dragStartY) / window.innerHeight) * 100
-  mapHeightVh.value = Math.min(100, Math.max(0, dragStartVh + deltaVh))
-  map?.resize()
-}
-
-function onHandlePointerUp(event: PointerEvent) {
-  if (!dragging.value) return
-  dragging.value = false
-  mapHeightVh.value = resolveSnap(dragStartSnap, event.clientY - dragStartY)
-}
-
 function onMapRegionTransitionEnd() {
   map?.resize()
 }
 
-/** Past the threshold from wherever this drag started, commit to the next
- * point in that direction; short of it, settle back where it started. */
-function resolveSnap(startSnap: number, deltaPx: number): number {
-  if (startSnap === SNAP_FULL) {
-    return deltaPx < -SNAP_THRESHOLD_PX ? SNAP_DEFAULT : SNAP_FULL
+// Mapbox renders to a canvas sized once, not something that keeps pace with
+// a CSS transition on its own — without this, the height animates smoothly
+// but the map's own content stays a static, wrong-sized image for the whole
+// 260ms and only snaps to fill the box at transitionend, which reads as
+// janky rather than smooth. Driving resize() every frame for the duration
+// of the transition keeps the map itself resizing in step with the box.
+const MAP_TRANSITION_MS = 260
+function toggleMapExpanded(expanded: boolean) {
+  mapExpanded.value = expanded
+  const start = performance.now()
+  const step = (now: number) => {
+    map?.resize()
+    if (now - start < MAP_TRANSITION_MS) requestAnimationFrame(step)
   }
-  if (startSnap === SNAP_COLLAPSED) {
-    return deltaPx > SNAP_THRESHOLD_PX ? SNAP_DEFAULT : SNAP_COLLAPSED
-  }
-  if (deltaPx > SNAP_THRESHOLD_PX) return SNAP_FULL
-  if (deltaPx < -SNAP_THRESHOLD_PX) return SNAP_COLLAPSED
-  return SNAP_DEFAULT
+  requestAnimationFrame(step)
 }
 
 function initMap() {
@@ -602,7 +574,7 @@ function syncMarkers() {
     el.setAttribute('aria-label', property.name)
     // Full map: tapping a pin selects it in the floating rail instead of
     // leaving the map. Smaller/default sizes still jump straight to it.
-    el.addEventListener('click', () => (mapHeightVh.value === SNAP_FULL ? selectPin(property) : open(property.id)))
+    el.addEventListener('click', () => (mapExpanded.value ? selectPin(property) : open(property.id)))
     markers.push(new mapboxgl.Marker({ element: el }).setLngLat([property.lng, property.lat]).addTo(map))
   }
 
@@ -653,10 +625,15 @@ function clearSelectedPin() {
   selectedPin.value = null
 }
 
-// Leaving full map (dragged back down) shouldn't leave a stale selection
-// waiting behind the rail next time it's re-opened.
-watch(mapHeightVh, (vh) => {
-  if (vh !== SNAP_FULL) selectedPin.value = null
+// Leaving the expanded map shouldn't leave a stale selection waiting behind
+// the rail next time it's re-opened.
+// Both map states are `position: sticky` now (see mapRegionStyle), so
+// expanded is just a much taller in-flow box, not a true overlay — without
+// this, scrolling past it would reveal the room list underneath instead of
+// staying an isolated full-screen map until "List view" is pressed.
+watch(mapExpanded, (expanded) => {
+  if (!expanded) selectedPin.value = null
+  document.documentElement.style.overflow = expanded ? 'hidden' : ''
 })
 
 async function loadProperties(silent = false) {
@@ -831,7 +808,15 @@ onMounted(async () => {
     .subscribe()
 })
 
+// This page is kept alive (see MainLayout's KEEP_ALIVE_PAGES) — switching
+// tabs away from it doesn't unmount it, so the scroll lock from an expanded
+// map has to be released here too, or it'd leak onto every other page.
+onDeactivated(() => {
+  document.documentElement.style.overflow = ''
+})
+
 onUnmounted(() => {
+  document.documentElement.style.overflow = ''
   if (listingsChannel) void supabase.removeChannel(listingsChannel)
   window.removeEventListener('resize', measureViewport)
   for (const marker of markers) marker.remove()
@@ -845,10 +830,9 @@ onUnmounted(() => {
   background: var(--m-bg);
 }
 
-/* Map + drag handle — both stick to the top of the page's scroll container
-   (see MainLayout's .q-page-container) at whatever height/offset the current
-   snap point puts them at, so the map stays put as the list scrolls under it
-   in every state, not just default. */
+/* Map + expand button — sticky to the top of the page's scroll container
+   (see MainLayout's .q-page-container), so the map stays put as the list
+   scrolls under it instead of scrolling away itself. */
 .map-region {
   position: sticky;
   top: 0;
@@ -857,39 +841,32 @@ onUnmounted(() => {
   overflow: hidden;
   transition: height 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
-.map-region--dragging {
-  transition: none;
-}
 .map-el {
   width: 100%;
   height: 100%;
 }
-.map-handle {
-  position: sticky;
+.map-expand-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
   z-index: 6;
   display: flex;
-  height: 16px;
   align-items: center;
-  justify-content: center;
-  touch-action: none;
-  cursor: grab;
-  background: var(--m-surface);
-  border-bottom: 1px solid var(--m-border);
-}
-.map-handle:active {
-  cursor: grabbing;
-}
-.map-handle-icon {
-  display: grid;
-  width: 34px;
+  gap: 6px;
   height: 34px;
-  place-items: center;
-  border: 2px solid var(--m-surface);
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 999px;
-  background: var(--m-muted);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.3);
-  pointer-events: none;
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  color: var(--m-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: var(--m-shadow);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 :deep(.map-pin) {
   width: 30px;
@@ -902,10 +879,10 @@ onUnmounted(() => {
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
 }
 
-/* Floating "return" handle — full map pushes the in-flow handle off the
-   bottom of the screen, so this is the reachable way back: parked just
-   under the header, same drag/threshold behaviour as the regular handle. */
-.map-return-handle {
+/* Floating "list view" button — the expanded map covers everything below
+   the header, so this is the way back: parked just under it, always in
+   reach regardless of scroll position. */
+.map-collapse-btn {
   position: fixed;
   left: 50%;
   z-index: 65;
@@ -914,8 +891,6 @@ onUnmounted(() => {
   gap: 6px;
   padding: 8px 14px 8px 12px;
   transform: translateX(-50%);
-  touch-action: none;
-  cursor: grab;
   border: 1px solid var(--m-border);
   border-radius: 999px;
   background: var(--m-surface);
@@ -924,9 +899,8 @@ onUnmounted(() => {
   font-weight: 700;
   white-space: nowrap;
   box-shadow: 0 3px 12px rgba(15, 23, 42, 0.35);
-}
-.map-return-handle:active {
-  cursor: grabbing;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Floating recommendations rail — full-map mode only, sitting just above
@@ -1172,38 +1146,46 @@ onUnmounted(() => {
   gap: 8px;
 }
 .dock-field {
-  position: relative;
   display: flex;
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
-}
-.dock-icon {
-  position: absolute;
-  left: 13px;
-  color: #fff;
-  pointer-events: none;
-}
-.dock-input {
-  width: 100%;
+  gap: 8px;
   height: 44px;
-  padding: 0 14px 0 35px;
+  padding: 0 14px;
   border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--m-surface) 62%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   backdrop-filter: blur(16px) saturate(160%);
   box-shadow: var(--m-shadow);
+}
+.dock-field:focus-within {
+  border-color: var(--m-primary);
+}
+.dock-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--m-muted);
+  pointer-events: none;
+}
+.dock-input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--m-ink);
   font: inherit;
   font-size: 13.5px;
 }
 .dock-input:focus {
-  border-color: var(--m-primary);
   outline: none;
 }
 .dock-input::placeholder {
-  color: #fff;
+  color: var(--m-muted);
   opacity: 0.85;
 }
 .dock-btn {

@@ -3,7 +3,7 @@
     <q-header
       v-if="!chatFullscreen"
       class="app-header"
-      :class="{ 'is-scrolled': scrolled, 'app-header--subpage': isSubPage }"
+      :class="{ 'is-scrolled': scrolled || hasFloatingMap, 'app-header--subpage': isSubPage }"
     >
       <div class="header-row q-px-md">
         <template v-if="subPage">
@@ -259,6 +259,12 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
 
 const subPage = computed(() => matchSecondary(route.path, config.value))
 const isSubPage = computed(() => Boolean(subPage.value))
+
+// Discover runs its map full-bleed behind this header instead of below it,
+// so the header needs its scrolled-state card background always — a plain
+// transparent header over a map (rather than over the page's own solid
+// background) leaves its icons floating with no backing.
+const hasFloatingMap = computed(() => route.path === '/student/discover')
 
 function goToTab(tabName: string) {
   if (tabName === 'menu') {

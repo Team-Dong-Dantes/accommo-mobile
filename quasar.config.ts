@@ -4,7 +4,7 @@
 import { defineConfig } from '#q-app';
 import { config as loadDotenv } from 'dotenv';
 
-const env = { ...loadDotenv({ path: '.env' }).parsed, ...loadDotenv({ path: '.env.local' }).parsed };
+const env = { ...loadDotenv({ path: '.env', quiet: true }).parsed, ...loadDotenv({ path: '.env.local', quiet: true }).parsed };
 
 export default defineConfig((/* ctx */) => {
   return {
