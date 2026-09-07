@@ -3,6 +3,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors';
 import { initialsOf, parseServerTime } from '@/utils/format';
+import { resolveAsset } from '@/utils/cloudinaryUrl';
 
 export interface Thread {
   id: string;
@@ -10,6 +11,7 @@ export interface Thread {
   otherName: string;
   otherInitials: string;
   otherColor: string | null;
+  otherAvatarUrl: string | null;
   lastMessage: string;
   lastTime: string | null;
   unread: number;
@@ -19,6 +21,7 @@ interface Person {
   full_name: string | null;
   initials: string | null;
   avatar_color: string | null;
+  avatar_url: string | null;
 }
 
 // Live connections, not reactive state — see stores/notifications.ts.
@@ -56,7 +59,7 @@ export const useMessagesStore = defineStore('messages', {
           // One string literal: postgrest-js parses the select at type level,
           // and a concatenated expression widens to `string` and stops typing.
           // eslint-disable-next-line max-len
-          .select('id,user_a_id,user_b_id,last_message,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color)')
+          .select('id,user_a_id,user_b_id,last_message,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color,avatar_url)')
           .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`);
         if (error) throw error;
 
@@ -71,6 +74,7 @@ export const useMessagesStore = defineStore('messages', {
               otherName: name,
               otherInitials: other?.initials || initialsOf(name),
               otherColor: other?.avatar_color ?? null,
+              otherAvatarUrl: other?.avatar_url ? resolveAsset(other.avatar_url) : null,
               lastMessage: row.last_message || '',
               lastTime: row.last_time,
               unread: Number((mine ? row.unread_a : row.unread_b) || 0),

@@ -18,13 +18,13 @@
 
 .divider span {
   font-size: 12px;
-  color: #999;
+  color: var(--m-muted);
   font-weight: 600;
 }
 
 .divider-line {
   flex: 1;
   height: 1px;
-  background: #e5e5e5;
+  background: var(--m-border);
 }
 </style>

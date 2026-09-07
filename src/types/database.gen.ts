@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -660,8 +660,10 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          in_progress_at: string | null
           lease_id: string
           manager_response: string | null
+          photo_url: string | null
           reported_at: string
           resolved_at: string | null
           status: string
@@ -673,8 +675,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          in_progress_at?: string | null
           lease_id: string
           manager_response?: string | null
+          photo_url?: string | null
           reported_at?: string
           resolved_at?: string | null
           status?: string
@@ -686,8 +690,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          in_progress_at?: string | null
           lease_id?: string
           manager_response?: string | null
+          photo_url?: string | null
           reported_at?: string
           resolved_at?: string | null
           status?: string
@@ -911,6 +917,7 @@ export type Database = {
           month: string
           paid_at: string | null
           proof_url: string | null
+          rejection_reason: string | null
           status: Database["public"]["Enums"]["payment_status"]
           txn_reference: string | null
           verified_by: string | null
@@ -924,6 +931,7 @@ export type Database = {
           month: string
           paid_at?: string | null
           proof_url?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           txn_reference?: string | null
           verified_by?: string | null
@@ -937,6 +945,7 @@ export type Database = {
           month?: string
           paid_at?: string | null
           proof_url?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           txn_reference?: string | null
           verified_by?: string | null
@@ -1333,6 +1342,7 @@ export type Database = {
       users: {
         Row: {
           avatar_color: string | null
+          avatar_url: string | null
           created_at: string | null
           email: string
           email_verified_at: string | null
@@ -1351,6 +1361,7 @@ export type Database = {
         }
         Insert: {
           avatar_color?: string | null
+          avatar_url?: string | null
           created_at?: string | null
           email: string
           email_verified_at?: string | null
@@ -1369,6 +1380,7 @@ export type Database = {
         }
         Update: {
           avatar_color?: string | null
+          avatar_url?: string | null
           created_at?: string | null
           email?: string
           email_verified_at?: string | null
@@ -1536,7 +1548,12 @@ export type Database = {
       msg_status: "sent" | "delivered" | "read"
       office: "osas" | "registrar" | "housing"
       payment_method: "gcash" | "maya" | "bank" | "cash" | "others"
-      payment_status: "due" | "paid" | "overdue" | "pending_verification"
+      payment_status:
+        | "due"
+        | "paid"
+        | "overdue"
+        | "pending_verification"
+        | "rejected"
       room_status: "available" | "occupied" | "maintenance"
       room_type: "solo" | "duo" | "triple" | "bedspace" | "studio"
       user_role: "student" | "accommodation_manager" | "admin"
@@ -1704,7 +1721,13 @@ export const Constants = {
       msg_status: ["sent", "delivered", "read"],
       office: ["osas", "registrar", "housing"],
       payment_method: ["gcash", "maya", "bank", "cash", "others"],
-      payment_status: ["due", "paid", "overdue", "pending_verification"],
+      payment_status: [
+        "due",
+        "paid",
+        "overdue",
+        "pending_verification",
+        "rejected",
+      ],
       room_status: ["available", "occupied", "maintenance"],
       room_type: ["solo", "duo", "triple", "bedspace", "studio"],
       user_role: ["student", "accommodation_manager", "admin"],

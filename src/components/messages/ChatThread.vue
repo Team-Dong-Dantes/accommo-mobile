@@ -4,7 +4,10 @@
       <button type="button" class="bar-back" aria-label="Back to messages" @click="emit('close')">
         <IconifyIcon icon="lucide:arrow-left" width="20" />
       </button>
-      <span class="bar-avatar" :class="other.color ? [`bg-${other.color}`, 'text-white'] : []">{{ other.initials }}</span>
+      <span class="bar-avatar" :class="other.color ? [`bg-${other.color}`, 'text-white'] : []">
+        <img v-if="other.avatarUrl" :src="other.avatarUrl" alt="" class="bar-avatar-img" @error="other.avatarUrl = null" />
+        <template v-else>{{ other.initials }}</template>
+      </span>
       <span class="bar-id">
         <span class="bar-name">{{ other.name }}</span>
         <span class="bar-role">{{ other.role }}</span>
@@ -143,6 +146,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { initialsOf, parseServerTime, formatDate, formatPeso } from '@/utils/format'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
@@ -177,7 +181,7 @@ const scroller = ref<HTMLElement | null>(null)
 const me = ref('')
 const otherId = ref('')
 const messages = ref<Msg[]>([])
-const other = reactive({ name: 'Conversation', initials: '?', role: '', color: '' as string | null })
+const other = reactive({ name: 'Conversation', initials: '?', role: '', color: '' as string | null, avatarUrl: '' as string | null })
 
 interface RoomBrief { id: string; label: string; rent: number; minStay: number; capacity: number; rentBasis: 'room' | 'person' }
 const application = ref<{ leaseId: string; roomLabel: string } | null>(null)
@@ -359,7 +363,7 @@ async function load() {
       .from('conversations')
       // Must stay one literal for postgrest-js to type the result.
       // eslint-disable-next-line max-len
-      .select('user_a_id,user_b_id,a:users!conversations_user_a_id_fkey(full_name,initials,role,avatar_color),b:users!conversations_user_b_id_fkey(full_name,initials,role,avatar_color)')
+      .select('user_a_id,user_b_id,a:users!conversations_user_a_id_fkey(full_name,initials,role,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,role,avatar_color,avatar_url)')
       .eq('id', props.conversationId)
       .maybeSingle()
     if (convoError) throw convoError
@@ -372,11 +376,13 @@ async function load() {
         initials: string | null
         role: string | null
         avatar_color: string | null
+        avatar_url: string | null
       } | null
       other.name = person?.full_name || 'Conversation'
       other.initials = person?.initials || initialsOf(other.name)
       other.role = person?.role === 'accommodation_manager' ? 'Accommodation manager' : 'Student'
       other.color = person?.avatar_color ?? null
+      other.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null
     }
 
     const { data: rows, error: rowsError } = await supabase
@@ -682,11 +688,17 @@ onUnmounted(() => {
   height: 36px;
   flex: 0 0 36px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 12px;
   font-weight: 800;
+}
+.bar-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .bar-id {
   display: flex;

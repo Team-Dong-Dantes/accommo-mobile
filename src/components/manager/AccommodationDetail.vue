@@ -1,7 +1,12 @@
 <template>
   <q-page class="ad">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="120px" class="sk" />
+      <q-skeleton type="rect" height="220px" square />
+      <div class="tabs">
+        <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="80px" height="38px" class="sk-tab" />
+      </div>
       <q-skeleton type="rect" height="90px" class="sk" />
     </div>
 
@@ -254,7 +259,7 @@
           </div>
 
           <h2 class="sec-title">Permits</h2>
-          <p class="sec-hint">Accreditation depends on these staying current.</p>
+          <p class="sec-hint">Accreditation depends on these staying current. Manage uploads from OSAS Compliance.</p>
           <div class="group">
             <div v-for="d in docs" :key="d.type" class="doc-row">
               <span class="doc-icon" :class="`doc-icon--${d.tone}`">
@@ -265,13 +270,17 @@
                 <span class="doc-when">{{ d.when }}</span>
               </span>
               <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-              <label class="doc-upload">
-                <IconifyIcon icon="lucide:upload" width="15" />
-                <input type="file" accept="image/*,application/pdf" class="doc-file" @change="onDocSelected($event, d.type)" />
-              </label>
+              <button
+                v-if="d.fileUrl"
+                type="button"
+                class="doc-view"
+                aria-label="View file"
+                @click="viewDoc(d.fileUrl)"
+              >
+                <IconifyIcon icon="lucide:eye" width="15" />
+              </button>
             </div>
           </div>
-          <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
 
           <template v-if="acc.status === 'accredited' || acc.status === 'delisted'">
             <h2 class="sec-title">Listing status</h2>
@@ -327,6 +336,24 @@
             </div>
           </div>
           <p v-else class="none">No photos yet.</p>
+        </div>
+      </q-card>
+    </q-dialog>
+
+    <!-- PERMIT FILE PREVIEW (view-only — uploads happen on OSAS Compliance) -->
+    <q-dialog v-model="docPreviewOpen" position="bottom">
+      <q-card class="room-sheet">
+        <span class="sheet-grip" aria-hidden="true" />
+        <div class="sheet-header">
+          <span class="sheet-header-icon"><IconifyIcon icon="lucide:file-text" width="18" /></span>
+          <h3 class="room-sheet-title">Permit file</h3>
+        </div>
+        <div class="room-sheet-scroll">
+          <img v-if="docPreviewUrl && !isPdf(docPreviewUrl)" :src="resolveAsset(docPreviewUrl)" alt="" class="doc-preview-img" />
+          <a v-else-if="docPreviewUrl" :href="resolveAsset(docPreviewUrl)" target="_blank" rel="noopener" class="doc-preview-file">
+            <IconifyIcon icon="lucide:external-link" width="18" />
+            <span>Open file</span>
+          </a>
         </div>
       </q-card>
     </q-dialog>
@@ -646,11 +673,10 @@
         </div>
 
         <div v-if="roomDialogMode === 'create' ? roomStep === 2 : roomViewMode === 'edit'" class="photo-actions photo-actions--pinned">
-          <label class="photo-action-btn">
+          <button type="button" class="photo-action-btn" @click="takeRoomPhoto">
             <IconifyIcon icon="lucide:camera" width="15" />
             Take photo
-            <input type="file" accept="image/*" capture="environment" class="file-input-hidden" @change="onRoomPhotosSelected" />
-          </label>
+          </button>
           <label class="photo-action-btn">
             <IconifyIcon icon="lucide:image-plus" width="15" />
             Upload
@@ -868,17 +894,10 @@
           v-if="facilityDialogMode === 'create' ? facilityStep === 2 : facilityViewMode === 'edit'"
           class="photo-actions photo-actions--pinned"
         >
-          <label class="photo-action-btn">
+          <button type="button" class="photo-action-btn" @click="takeFacilityPhoto(activeFacilityId)">
             <IconifyIcon icon="lucide:camera" width="15" />
             Take photo
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              class="file-input-hidden"
-              @change="uploadFacilityPhoto($event, activeFacilityId)"
-            />
-          </label>
+          </button>
           <label class="photo-action-btn">
             <IconifyIcon icon="lucide:image-plus" width="15" />
             Upload
@@ -936,6 +955,7 @@ import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, roomTypeLabel } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import type { Database } from '@/types/database.gen'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
@@ -1060,8 +1080,7 @@ const uploadingCover = ref(false)
 const deletingImage = ref('')
 const coverSheetOpen = ref(false)
 const facilities = ref<Facility[]>([])
-const docRows = ref<{ doc_type: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
-const uploadingDoc = ref(false)
+const docRows = ref<{ doc_type: string; file_url: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
 const coverUrl = computed(() => (images.value[0]?.url ? resolveAsset(images.value[0].url) : ''))
 // Occupancy must come from actual leases, not rooms.status/current_pax —
 // this project's own data notes flag those columns as unreliable.
@@ -1255,9 +1274,7 @@ async function deleteFacilityPhotoInDialog(imageId: string) {
 
 const uploadingFacilityId = ref('')
 
-async function uploadFacilityPhoto(event: Event, facilityId: string) {
-  const input = event.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
+async function addFacilityPhotos(files: File[], facilityId: string) {
   if (!files.length) return
   uploadingFacilityId.value = facilityId
   try {
@@ -1276,27 +1293,52 @@ async function uploadFacilityPhoto(event: Event, facilityId: string) {
     notify.error(errorMessage(e, "Could not upload this facility's photo."))
   } finally {
     uploadingFacilityId.value = ''
-    input.value = ''
   }
+}
+
+async function uploadFacilityPhoto(event: Event, facilityId: string) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  await addFacilityPhotos(files, facilityId)
+  input.value = ''
+}
+
+async function takeFacilityPhoto(facilityId: string) {
+  const file = await capturePhoto()
+  if (file) await addFacilityPhotos([file], facilityId)
 }
 
 const docs = computed(() =>
   DOC_TYPES.map((type) => {
     const row = docRows.value.find((d) => d.doc_type === type)
     if (!row) {
-      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '' }
+      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '' }
     }
     if (!row.expires_at) {
-      return { type, statusLabel: 'On file', tone: 'good', icon: 'lucide:check', when: `Uploaded ${since(row.uploaded_at)}` }
+      // Expiry is required on upload now, so a null one only happens on a
+      // legacy row from before that — flag it rather than reading as settled.
+      return { type, statusLabel: 'No expiration set', tone: 'warn', icon: 'lucide:calendar-x', when: `Uploaded ${since(row.uploaded_at)}`, fileUrl: row.file_url }
     }
     const now = Date.now()
     const soon = now + 30 * 24 * 60 * 60 * 1000
     const t = new Date(row.expires_at).getTime()
-    if (t < now) return { type, statusLabel: 'Expired', tone: 'danger', icon: 'lucide:file-warning', when: `Expired ${since(row.expires_at)}` }
-    if (t < soon) return { type, statusLabel: 'Expiring soon', tone: 'warn', icon: 'lucide:calendar-clock', when: `Expires ${since(row.expires_at)}` }
-    return { type, statusLabel: 'Valid', tone: 'good', icon: 'lucide:check', when: `Expires ${since(row.expires_at)}` }
+    if (t < now) return { type, statusLabel: 'Expired', tone: 'danger', icon: 'lucide:file-warning', when: `Expired ${since(row.expires_at)}`, fileUrl: row.file_url }
+    if (t < soon) return { type, statusLabel: 'Expiring soon', tone: 'warn', icon: 'lucide:calendar-clock', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url }
+    return { type, statusLabel: 'Valid', tone: 'good', icon: 'lucide:check', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url }
   }),
 )
+
+/** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
+function isPdf(url: string) {
+  return /\.pdf(\?|$)/i.test(url)
+}
+
+const docPreviewOpen = ref(false)
+const docPreviewUrl = ref('')
+function viewDoc(url: string) {
+  docPreviewUrl.value = url
+  docPreviewOpen.value = true
+}
 
 function toggle(list: string[], value: string) {
   const i = list.indexOf(value)
@@ -1446,7 +1488,7 @@ async function load() {
 async function loadDocs() {
   const { data, error: docError } = await supabase
     .from('accommodation_documents')
-    .select('doc_type, expires_at, uploaded_at, version')
+    .select('doc_type, file_url, expires_at, uploaded_at, version')
     .eq('accommodation_id', id)
     .order('version', { ascending: false })
   if (docError) throw docError
@@ -1457,32 +1499,6 @@ async function loadDocs() {
     seen.add(d.doc_type)
     return true
   })
-}
-
-async function onDocSelected(event: Event, docType: string) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  uploadingDoc.value = true
-  try {
-    const url = await uploadDocument(file, '', docType)
-    const existing = docRows.value.find((d) => d.doc_type === docType)
-    const { error: insertError } = await supabase.from('accommodation_documents').insert({
-      accommodation_id: id,
-      doc_type: docType,
-      file_url: url,
-      version: existing ? existing.version + 1 : 1,
-    })
-    if (insertError) throw insertError
-
-    await loadDocs()
-    notify.success('Uploaded.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not upload this document.'))
-  } finally {
-    uploadingDoc.value = false
-    input.value = ''
-  }
 }
 
 async function saveAmenities() {
@@ -1871,9 +1887,27 @@ async function addFloor() {
   }
 }
 
-async function onRoomPhotosSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
+// Native camera capture for every "Take photo" button on this page — a plain
+// <input capture> silently falls back to the file picker in Capacitor's
+// WebView because it never actually requests the runtime camera permission.
+async function capturePhoto(): Promise<File | null> {
+  try {
+    const photo = await Camera.getPhoto({
+      source: CameraSource.Camera,
+      resultType: CameraResultType.Uri,
+      quality: 80,
+    })
+    if (!photo.webPath) return null
+    const blob = await (await fetch(photo.webPath)).blob()
+    const ext = photo.format || 'jpeg'
+    return new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` })
+  } catch {
+    // User cancelled the camera (or denied permission) — no error toast for a cancel.
+    return null
+  }
+}
+
+async function addRoomPhotos(files: File[]) {
   if (!files.length || !editingRoomId.value) return
   uploadingRoomPhoto.value = true
   try {
@@ -1896,8 +1930,19 @@ async function onRoomPhotosSelected(event: Event) {
     notify.error(errorMessage(e, "Could not upload one of this room's photos."))
   } finally {
     uploadingRoomPhoto.value = false
-    input.value = ''
   }
+}
+
+async function onRoomPhotosSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  await addRoomPhotos(files)
+  input.value = ''
+}
+
+async function takeRoomPhoto() {
+  const file = await capturePhoto()
+  if (file) await addRoomPhotos([file])
 }
 
 async function deleteRoomImage(imageId: string) {
@@ -2162,6 +2207,9 @@ onMounted(load)
 .sk {
   border-radius: var(--m-radius);
 }
+.sk-tab {
+  border-radius: 10px 10px 0 0;
+}
 .card {
   padding: 18px 14px;
   border-radius: var(--m-radius);
@@ -2285,7 +2333,12 @@ onMounted(load)
   gap: 4px;
   padding: 0 var(--m-page-gutter);
   margin-top: -56px;
-  margin-bottom: -1px;
+  /* -2px (not -1px): at fractional device-pixel ratios (real phones, not
+     desktop @1x) an exact 1px overlap can round the wrong way and leave a
+     hairline gap of the page background between the active tab and the
+     panel. The active tab's background already equals the panel's, so the
+     extra 1px of overlap is invisible — it just guarantees full coverage. */
+  margin-bottom: -2px;
 }
 /* Unselected tabs read as frosted glass over the photo behind them; the
    active tab turns opaque to fuse seamlessly into the card below. */
@@ -2802,8 +2855,7 @@ onMounted(load)
 .doc-tag--warn { background: var(--m-warning-soft); color: var(--m-warning); }
 .doc-tag--danger { background: var(--m-danger-soft); color: var(--m-danger); }
 .doc-tag--idle { background: var(--m-bg); color: var(--m-muted); }
-.doc-upload {
-  position: relative;
+.doc-view {
   display: grid;
   width: 30px;
   height: 30px;
@@ -2811,16 +2863,28 @@ onMounted(load)
   place-items: center;
   border: 1px solid var(--m-border);
   border-radius: 999px;
+  background: var(--m-surface);
   color: var(--m-primary-dark);
   cursor: pointer;
 }
-.doc-file {
-  position: absolute;
-  inset: 0;
+.doc-preview-img {
   width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
+  max-height: 320px;
+  border-radius: var(--m-radius-sm);
+  object-fit: contain;
+}
+.doc-preview-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  color: var(--m-primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .file-input {

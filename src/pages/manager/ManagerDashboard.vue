@@ -1,10 +1,35 @@
 <template>
   <q-page class="dash">
     <div v-if="loading" class="stack">
-      <q-skeleton type="text" width="55%" height="26px" />
-      <q-skeleton type="rect" height="150px" class="sk" />
-      <q-skeleton type="rect" height="118px" class="sk" />
-      <q-skeleton type="rect" height="150px" class="sk" />
+      <div class="greet">
+        <q-skeleton type="text" width="60px" height="17px" />
+        <q-skeleton type="text" width="100px" height="20px" />
+      </div>
+      <q-skeleton type="rect" height="96px" class="sk" />
+      <div class="chips">
+        <div class="chip">
+          <q-skeleton type="text" width="56px" height="17px" />
+          <q-skeleton type="text" width="72px" height="12px" />
+        </div>
+        <div class="chip-div" />
+        <div class="chip">
+          <q-skeleton type="text" width="34px" height="17px" />
+          <q-skeleton type="text" width="60px" height="12px" />
+        </div>
+      </div>
+      <section class="sec">
+        <q-skeleton type="text" width="120px" height="16px" />
+        <div class="lead">
+          <div class="lead-top">
+            <q-skeleton type="circle" size="25px" />
+            <q-skeleton type="text" width="90px" height="11px" />
+          </div>
+          <q-skeleton type="text" width="75%" height="15px" />
+          <div class="lead-row">
+            <q-skeleton type="text" width="55%" height="12px" />
+          </div>
+        </div>
+      </section>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -12,7 +37,7 @@
         <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
         <p class="err-title">Couldn't load your dashboard</p>
         <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
       </q-card>
     </div>
 
@@ -217,7 +242,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -321,8 +347,8 @@ function go(path: string) {
   void router.push(path)
 }
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const { data: auth } = await supabase.auth.getUser()
@@ -548,7 +574,9 @@ async function load() {
     }
 
     attention.value = items.sort((a, b) => a.rank - b.rank)
-    carouselSlide.value = attention.value[0]?.id ?? ''
+    // A silent (realtime-triggered) refresh must not snap the carousel back
+    // to the first card out from under someone who's scrolled it.
+    if (!silent) carouselSlide.value = attention.value[0]?.id ?? ''
 
     // Self rating — hidden until at least one review exists.
     const { data: reviewRows } = await supabase
@@ -566,7 +594,31 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. The database
+// pushes lease changes here instead of the page re-asking on every return —
+// same channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need.
+let leaseChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  const { data: authData } = await supabase.auth.getUser()
+  const uid = authData?.user?.id
+  if (!uid || typeof supabase.channel !== 'function') return
+  leaseChannel = supabase
+    .channel(`dashboard-leases:${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'leases', filter: `accommodation_manager_id=eq.${uid}` },
+      () => void load(true),
+    )
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (leaseChannel) void supabase.removeChannel(leaseChannel)
+})
 </script>
 
 <style scoped>

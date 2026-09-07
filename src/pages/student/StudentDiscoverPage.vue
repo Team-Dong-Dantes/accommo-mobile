@@ -1,9 +1,26 @@
 <template>
   <q-page class="disc">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="96px" class="sk" />
-      <q-skeleton type="rect" height="96px" class="sk" />
-      <q-skeleton type="rect" height="96px" class="sk" />
+      <section class="sec">
+        <q-skeleton type="text" width="90px" height="16px" />
+        <div class="rail">
+          <div v-for="n in 2" :key="n" class="sk-car rail-item">
+            <q-skeleton type="rect" class="sk-car-shot" />
+            <q-skeleton type="text" width="70%" height="14px" />
+            <q-skeleton type="text" width="45%" height="11px" />
+          </div>
+        </div>
+      </section>
+      <section class="sec">
+        <q-skeleton type="text" width="60px" height="16px" />
+        <div class="grid">
+          <div v-for="n in 4" :key="n" class="sk-tile">
+            <q-skeleton type="rect" class="sk-tile-shot" />
+            <q-skeleton type="text" width="70%" height="13px" />
+            <q-skeleton type="text" width="45%" height="11px" />
+          </div>
+        </div>
+      </section>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -19,15 +36,126 @@
           color="primary"
           label="Try again"
           class="q-mt-sm q-px-md"
-          @click="load"
+          @click="load()"
         />
       </q-card>
     </div>
 
-    <div v-else class="stack">
+    <template v-else>
+      <div
+        v-if="hasMapToken"
+        class="map-region"
+        :class="{ 'map-region--dragging': dragging }"
+        :style="{ height: mapFillHeight }"
+        @transitionend="onMapRegionTransitionEnd"
+      >
+        <div ref="mapEl" class="map-el" aria-label="Map of accommodations" />
+      </div>
+      <div
+        v-if="hasMapToken"
+        class="map-handle"
+        role="separator"
+        aria-label="Drag to resize the map"
+        aria-orientation="horizontal"
+        @pointerdown="onHandlePointerDown"
+        @pointermove="onHandlePointerMove"
+        @pointerup="onHandlePointerUp"
+        @pointercancel="onHandlePointerUp"
+        :style="{ top: mapFillHeight }"
+      >
+        <span class="map-handle-icon" aria-hidden="true">
+          <IconifyIcon icon="lucide:chevrons-up-down" width="15" />
+        </span>
+      </div>
+
+      <!-- Full map: the in-flow handle is now off past the bottom of the
+           screen, so this floating copy — same drag, same threshold — is
+           what actually gets you back; parked just under the header where
+           the rail/info card below can never cover it. -->
+      <div
+        v-if="hasMapToken && mapHeightVh === SNAP_FULL"
+        class="map-return-handle"
+        role="separator"
+        aria-label="Drag to resize the map"
+        aria-orientation="horizontal"
+        :style="{ top: (headerOffsetPx + 10) + 'px' }"
+        @pointerdown="onHandlePointerDown"
+        @pointermove="onHandlePointerMove"
+        @pointerup="onHandlePointerUp"
+        @pointercancel="onHandlePointerUp"
+      >
+        <IconifyIcon icon="lucide:chevrons-up-down" width="15" />
+        <span>Drag to resize</span>
+      </div>
+
+      <!-- Full-map mode: a floating recommendations rail above the search
+           dock; picking one flies the map to it and swaps the rail for that
+           item's info + a way straight into it. -->
+      <div v-if="hasMapToken && mapHeightVh === SNAP_FULL" class="map-float">
+        <div v-if="!selectedPin" class="map-float-rail">
+          <PropertyCard
+            v-for="item in properties.slice(0, 10)"
+            :key="item.id"
+            variant="carousel"
+            class="map-float-card"
+            :id="item.id"
+            :name="item.name"
+            :address="item.address"
+            :image="item.image"
+            :monogram="item.monogram"
+            :distance="item.distance"
+            :vacancies="item.vacancies"
+            :building-type="item.buildingType"
+            @open="selectPinById"
+          />
+          <button
+            v-for="room in rooms.slice(0, 10)"
+            :key="room.id"
+            type="button"
+            class="map-float-card map-float-room"
+            @click="selectRoomById(room.id)"
+          >
+            <span class="map-float-room-shot" :class="{ 'map-float-room-shot--empty': !room.image }">
+              <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
+              <IconifyIcon v-else icon="lucide:image-off" width="22" />
+              <span v-if="room.typeLabel" class="map-float-room-type">{{ room.typeLabel }}</span>
+            </span>
+            <span class="map-float-room-body">
+              <span class="map-float-room-name">{{ room.label }}</span>
+              <span class="map-float-room-where">{{ room.propertyName }}</span>
+              <span v-if="room.rent" class="map-float-room-rent">{{ formatPeso(room.rent) }}/mo</span>
+            </span>
+          </button>
+        </div>
+        <div v-else class="map-float-info">
+          <span class="map-float-info-shot" :class="{ 'map-float-info-shot--empty': !selectedPin.image }">
+            <img v-if="selectedPin.image" :src="selectedPin.image" :alt="selectedPin.name" loading="lazy" />
+            <IconifyIcon v-else icon="lucide:image-off" width="22" />
+            <button type="button" class="map-float-close" aria-label="Back to recommendations" @click="clearSelectedPin">
+              <IconifyIcon icon="lucide:x" width="16" />
+            </button>
+          </span>
+          <span class="map-float-info-body">
+            <span class="map-float-info-text">
+              <strong>{{ selectedPin.name }}</strong>
+              <span v-if="selectedPin.subtitle">{{ selectedPin.subtitle }}</span>
+            </span>
+            <q-btn
+              unelevated
+              no-caps
+              color="primary"
+              class="map-float-cta"
+              :label="selectedPin.kind === 'room' ? 'View room' : 'View accommodation'"
+              @click="router.push(selectedPin.route)"
+            />
+          </span>
+        </div>
+      </div>
+
+    <div class="stack">
       <section v-if="filteredProperties.length" class="sec">
         <div class="sec-head">
-          <h2 class="sec-title">Properties</h2>
+          <h2 class="sec-title">Accommodations</h2>
           <button type="button" class="sec-more" @click="router.push('/student/properties')">
             View all
           </button>
@@ -45,6 +173,7 @@
             :monogram="item.monogram"
             :distance="item.distance"
             :vacancies="item.vacancies"
+            :building-type="item.buildingType"
             @open="open"
           />
         </div>
@@ -61,11 +190,14 @@
             class="mgr-row"
             @click="openManager(m.id)"
           >
-            <span class="mgr-avatar">{{ m.initials }}</span>
+            <span class="mgr-avatar">
+              <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="mgr-avatar-img" @error="m.avatarUrl = null" />
+              <template v-else>{{ m.initials }}</template>
+            </span>
             <span class="mgr-body">
               <span class="mgr-name">{{ m.name }}</span>
               <span class="mgr-sub">
-                {{ m.propertyCount ? `${m.propertyCount} ${m.propertyCount === 1 ? 'property' : 'properties'}` : 'New manager' }}
+                {{ m.propertyCount ? `${m.propertyCount} ${m.propertyCount === 1 ? 'accommodation' : 'accommodations'}` : 'New manager' }}
               </span>
             </span>
           </button>
@@ -88,13 +220,12 @@
                 <IconifyIcon icon="lucide:image-off" width="22" />
                 <span class="shot-empty-label">No photo</span>
               </span>
-              <span class="tile-flag" :class="room.free ? 'tile-flag--ok' : 'tile-flag--none'">
-                {{ room.free ? 'Available' : 'Taken' }}
-              </span>
+              <span v-if="room.typeLabel" class="tile-flag">{{ room.typeLabel }}</span>
             </span>
             <span class="tile-body">
               <span class="tile-name">{{ room.label }}</span>
               <span class="tile-where">{{ room.propertyName }}</span>
+              <span v-if="room.meta" class="tile-meta">{{ room.meta }}</span>
               <span v-if="room.rent" class="tile-rent">
                 {{ formatPeso(room.rent) }}<span class="tile-per">/mo{{ room.rentBasis === 'person' ? ' per person' : '' }}</span>
               </span>
@@ -114,6 +245,7 @@
         Nothing matches "{{ query.trim() }}".
       </p>
     </div>
+    </template>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->
     <div v-if="!loading && !error" class="dock">
@@ -206,15 +338,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { campusDistanceLabel } from '@/utils/geo'
-import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, listingMonogram } from '@/utils/listings'
+import { campusDistanceLabel, CAMPUS } from '@/utils/geo'
+import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 
 interface Property {
@@ -226,6 +361,9 @@ interface Property {
   distance: string
   vacancies: number
   minRent: number | null
+  buildingType: string
+  lat: number | null
+  lng: number | null
   haystack: string
 }
 
@@ -235,11 +373,15 @@ interface RoomTile {
   image: string
   monogram: string
   propertyName: string
+  meta: string
+  typeLabel: string
   rent: number
   rentBasis: 'room' | 'person'
   free: boolean
   roomType: string
   amenities: string[]
+  lat: number | null
+  lng: number | null
   haystack: string
 }
 
@@ -247,6 +389,7 @@ interface ManagerRow {
   id: string
   name: string
   initials: string
+  avatarUrl: string | null
   propertyCount: number
   haystack: string
 }
@@ -260,11 +403,71 @@ const properties = ref<Property[]>([])
 const rooms = ref<RoomTile[]>([])
 const managers = ref<ManagerRow[]>([])
 
+// Map + draggable divider — the map's height is a plain vh slice of the page,
+// so it lives in normal document flow above the list and the existing page
+// scroll (see MainLayout's .q-page-container) keeps working unchanged; no
+// special fixed-height layout is needed for "drag it open to fill the page".
+//
+// Three snap points, not a free drag: the map follows the finger live while
+// dragging (feedback), but on release it commits to whichever point is past
+// a small threshold from wherever the gesture started — so a short drag from
+// the default snaps straight to full or collapsed, and the same threshold
+// works in reverse to come back. CSS transition is off during the live drag
+// (must track the finger exactly) and only turned on for the settle.
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
+const hasMapToken = Boolean(MAPBOX_TOKEN)
+const SNAP_COLLAPSED = 0
+const SNAP_DEFAULT = 32
+const SNAP_FULL = 100
+const SNAP_THRESHOLD_PX = 40
+const mapEl = ref<HTMLElement | null>(null)
+const mapHeightVh = ref(SNAP_DEFAULT)
+const dragging = ref(false)
+
+// 100vh overshoots: the header eats into the viewport before the scroll
+// container (.q-page-container) even starts, so a literal 100vh map runs
+// past the bottom of the screen. Measured from the container's own rendered
+// box — the actual space available — rather than assumed from the header's
+// nominal size, so it can't drift out of sync with it.
+const headerOffsetPx = ref(0)
+const pageViewportPx = ref(0)
+
+function measureViewport() {
+  const container = document.querySelector('.q-page-container') as HTMLElement | null
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  headerOffsetPx.value = rect.top
+  pageViewportPx.value = rect.height
+}
+
+/** The height applied to both the map and its sticky handle's offset, so
+ * they always end at the exact same edge. */
+const mapFillHeight = computed(() =>
+  mapHeightVh.value === SNAP_FULL && pageViewportPx.value > 0
+    ? `${pageViewportPx.value}px`
+    : `${mapHeightVh.value}vh`,
+)
+
+interface SelectedPin {
+  kind: 'property' | 'room'
+  name: string
+  subtitle: string
+  image: string
+  route: string
+}
+const selectedPin = ref<SelectedPin | null>(null)
+
+let map: mapboxgl.Map | null = null
+let markers: mapboxgl.Marker[] = []
+let dragStartY = 0
+let dragStartVh = 0
+let dragStartSnap = SNAP_DEFAULT
+
 const filtersOpen = ref(false)
 const DEFAULT_MAX = 10000
 const rentBounds = reactive({ min: 0, max: DEFAULT_MAX })
 const filters = reactive({
-  vacantOnly: false,
+  vacantOnly: true,
   maxRent: DEFAULT_MAX,
   roomTypes: [] as string[],
   amenities: [] as string[],
@@ -278,7 +481,7 @@ const roomTypeOptions = computed(() => {
 
 const activeFilterCount = computed(
   () =>
-    (filters.vacantOnly ? 1 : 0) +
+    (filters.vacantOnly ? 0 : 1) +
     (filters.maxRent < rentBounds.max ? 1 : 0) +
     filters.roomTypes.length +
     filters.amenities.length,
@@ -310,7 +513,7 @@ function toggle(list: string[], value: string) {
 }
 
 function resetFilters() {
-  filters.vacantOnly = false
+  filters.vacantOnly = true
   filters.maxRent = rentBounds.max
   filters.roomTypes = []
   filters.amenities = []
@@ -328,14 +531,142 @@ function openManager(id: string) {
   void router.push(`/student/manager/${id}`)
 }
 
-async function loadProperties() {
+// Pointer capture keeps move/up events firing on the handle even once the
+// finger/cursor has left it, so the drag doesn't drop mid-gesture.
+function onHandlePointerDown(event: PointerEvent) {
+  dragging.value = true
+  dragStartY = event.clientY
+  dragStartVh = mapHeightVh.value
+  dragStartSnap = mapHeightVh.value
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function onHandlePointerMove(event: PointerEvent) {
+  if (!dragging.value) return
+  const deltaVh = ((event.clientY - dragStartY) / window.innerHeight) * 100
+  mapHeightVh.value = Math.min(100, Math.max(0, dragStartVh + deltaVh))
+  map?.resize()
+}
+
+function onHandlePointerUp(event: PointerEvent) {
+  if (!dragging.value) return
+  dragging.value = false
+  mapHeightVh.value = resolveSnap(dragStartSnap, event.clientY - dragStartY)
+}
+
+function onMapRegionTransitionEnd() {
+  map?.resize()
+}
+
+/** Past the threshold from wherever this drag started, commit to the next
+ * point in that direction; short of it, settle back where it started. */
+function resolveSnap(startSnap: number, deltaPx: number): number {
+  if (startSnap === SNAP_FULL) {
+    return deltaPx < -SNAP_THRESHOLD_PX ? SNAP_DEFAULT : SNAP_FULL
+  }
+  if (startSnap === SNAP_COLLAPSED) {
+    return deltaPx > SNAP_THRESHOLD_PX ? SNAP_DEFAULT : SNAP_COLLAPSED
+  }
+  if (deltaPx > SNAP_THRESHOLD_PX) return SNAP_FULL
+  if (deltaPx < -SNAP_THRESHOLD_PX) return SNAP_COLLAPSED
+  return SNAP_DEFAULT
+}
+
+function initMap() {
+  if (!mapEl.value || map || !hasMapToken) return
+  mapboxgl.accessToken = MAPBOX_TOKEN!
+  map = new mapboxgl.Map({
+    container: mapEl.value,
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [CAMPUS.lng, CAMPUS.lat],
+    zoom: 13,
+  })
+  map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+  map.on('load', syncMarkers)
+}
+
+/** Re-places one pin per accommodation that has coordinates; called after
+ * every load (including silent realtime refreshes) once the map exists. */
+function syncMarkers() {
+  if (!map) return
+  for (const marker of markers) marker.remove()
+  markers = []
+
+  const located = properties.value.filter(
+    (p): p is Property & { lat: number; lng: number } => p.lat !== null && p.lng !== null,
+  )
+  for (const property of located) {
+    const el = document.createElement('button')
+    el.type = 'button'
+    el.className = 'map-pin'
+    el.setAttribute('aria-label', property.name)
+    // Full map: tapping a pin selects it in the floating rail instead of
+    // leaving the map. Smaller/default sizes still jump straight to it.
+    el.addEventListener('click', () => (mapHeightVh.value === SNAP_FULL ? selectPin(property) : open(property.id)))
+    markers.push(new mapboxgl.Marker({ element: el }).setLngLat([property.lng, property.lat]).addTo(map))
+  }
+
+  if (located.length) {
+    const bounds = new mapboxgl.LngLatBounds()
+    for (const p of located) bounds.extend([p.lng, p.lat])
+    map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 0 })
+  }
+}
+
+function selectPin(property: Property & { lat: number; lng: number }) {
+  selectedPin.value = {
+    kind: 'property',
+    name: property.name,
+    subtitle: property.buildingType || property.address,
+    image: property.image,
+    route: `/student/listing/${property.id}`,
+  }
+  map?.flyTo({ center: [property.lng, property.lat], zoom: 16, essential: true })
+}
+
+function selectPinById(id: string) {
+  const property = properties.value.find((p) => p.id === id)
+  if (property && property.lat !== null && property.lng !== null) {
+    selectPin(property as Property & { lat: number; lng: number })
+  }
+}
+
+function selectRoom(room: RoomTile & { lat: number; lng: number }) {
+  selectedPin.value = {
+    kind: 'room',
+    name: room.label,
+    subtitle: [room.propertyName, room.rent ? `${formatPeso(room.rent)}/mo` : ''].filter(Boolean).join(' · '),
+    image: room.image,
+    route: `/student/room/${room.id}`,
+  }
+  map?.flyTo({ center: [room.lng, room.lat], zoom: 16, essential: true })
+}
+
+function selectRoomById(id: string) {
+  const room = rooms.value.find((r) => r.id === id)
+  if (room && room.lat !== null && room.lng !== null) {
+    selectRoom(room as RoomTile & { lat: number; lng: number })
+  }
+}
+
+function clearSelectedPin() {
+  selectedPin.value = null
+}
+
+// Leaving full map (dragged back down) shouldn't leave a stale selection
+// waiting behind the rail next time it's re-opened.
+watch(mapHeightVh, (vh) => {
+  if (vh !== SNAP_FULL) selectedPin.value = null
+})
+
+async function loadProperties(silent = false) {
   // Only accredited listings are readable, and the policy grants the public
   // role, so this works signed-out too — keep this select clear of the
   // `users` table, which anon cannot read at all.
   const { data, error: loadError } = await supabase
     .from('accommodations')
     .select(
-      'id,name,address,city,barangay,lat,lng,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
+      'id,name,address,city,barangay,lat,lng,accommodation_type,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
     )
     .eq('status', 'accredited')
   if (loadError) throw loadError
@@ -376,6 +707,9 @@ async function loadProperties() {
       distance: campusDistanceLabel(row.lat, row.lng),
       vacancies: rows.filter((r) => r.status === 'available').length,
       minRent,
+      buildingType: buildingTypeLabel(row.accommodation_type),
+      lat: typeof row.lat === 'number' ? row.lat : null,
+      lng: typeof row.lng === 'number' ? row.lng : null,
       haystack: `${name} ${address}`.toLowerCase(),
     })
 
@@ -392,11 +726,16 @@ async function loadProperties() {
         image: roomImages[0]?.url ? resolveAsset(roomImages[0].url) : '',
         monogram,
         propertyName: name,
+        meta: r.capacity ? `sleeps ${r.capacity}` : '',
+        typeLabel,
         rent,
         rentBasis: r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room',
         free: r.status === 'available',
         roomType,
         amenities,
+        // A room has no coordinates of its own — it's wherever its building is.
+        lat: typeof row.lat === 'number' ? row.lat : null,
+        lng: typeof row.lng === 'number' ? row.lng : null,
         haystack: `${name} ${address} ${label} ${typeLabel}`.toLowerCase(),
       })
     }
@@ -414,7 +753,9 @@ async function loadProperties() {
   properties.value = propertyList
   rooms.value = roomList
   rentBounds.max = Math.max(DEFAULT_MAX, Math.ceil(rentCeiling / 500) * 500)
-  filters.maxRent = rentBounds.max
+  // A silent (realtime-triggered) refresh must not reset a filter the
+  // student has actively narrowed — only the real first load defaults it.
+  if (!silent) filters.maxRent = rentBounds.max
 }
 
 async function loadManagers() {
@@ -425,7 +766,7 @@ async function loadManagers() {
   try {
     const { data, error: loadError } = await supabase
       .from('users')
-      .select('id,full_name,accommodations(id,name,status)')
+      .select('id,full_name,avatar_url,accommodations(id,name,status)')
       .eq('role', 'accommodation_manager')
     if (loadError) throw loadError
 
@@ -444,6 +785,7 @@ async function loadManagers() {
             .slice(0, 2)
             .map((w) => w[0]?.toUpperCase())
             .join(''),
+          avatarUrl: row.avatar_url ? resolveAsset(row.avatar_url) : null,
           propertyCount: accredited.length,
           haystack: `${name} ${accredited.map((a) => a.name).join(' ')}`.toLowerCase(),
         }
@@ -455,11 +797,12 @@ async function loadManagers() {
   }
 }
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
-    await Promise.all([loadProperties(), loadManagers()])
+    await Promise.all([loadProperties(silent), loadManagers()])
+    syncMarkers()
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -467,14 +810,312 @@ async function load() {
   }
 }
 
-onMounted(() => {
-  void load()
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. New/updated
+// listings push here instead of the page re-asking on every return — same
+// channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need. Public
+// data (accredited listings), so no per-user filter is needed.
+let listingsChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  await nextTick()
+  initMap()
+  measureViewport()
+  window.addEventListener('resize', measureViewport)
+  if (typeof supabase.channel !== 'function') return
+  listingsChannel = supabase
+    .channel('discover-listings')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'accommodations' }, () => void load(true))
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (listingsChannel) void supabase.removeChannel(listingsChannel)
+  window.removeEventListener('resize', measureViewport)
+  for (const marker of markers) marker.remove()
+  map?.remove()
+  map = null
 })
 </script>
 
 <style scoped>
 .disc {
   background: var(--m-bg);
+}
+
+/* Map + drag handle — both stick to the top of the page's scroll container
+   (see MainLayout's .q-page-container) at whatever height/offset the current
+   snap point puts them at, so the map stays put as the list scrolls under it
+   in every state, not just default. */
+.map-region {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  min-height: 0;
+  overflow: hidden;
+  transition: height 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.map-region--dragging {
+  transition: none;
+}
+.map-el {
+  width: 100%;
+  height: 100%;
+}
+.map-handle {
+  position: sticky;
+  z-index: 6;
+  display: flex;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  cursor: grab;
+  background: var(--m-surface);
+  border-bottom: 1px solid var(--m-border);
+}
+.map-handle:active {
+  cursor: grabbing;
+}
+.map-handle-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 2px solid var(--m-surface);
+  border-radius: 999px;
+  background: var(--m-muted);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.3);
+  pointer-events: none;
+}
+:deep(.map-pin) {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--m-primary-dark);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+}
+
+/* Floating "return" handle — full map pushes the in-flow handle off the
+   bottom of the screen, so this is the reachable way back: parked just
+   under the header, same drag/threshold behaviour as the regular handle. */
+.map-return-handle {
+  position: fixed;
+  left: 50%;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 12px;
+  transform: translateX(-50%);
+  touch-action: none;
+  cursor: grab;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.35);
+}
+.map-return-handle:active {
+  cursor: grabbing;
+}
+
+/* Floating recommendations rail — full-map mode only, sitting just above
+   the docked search/filter band. No card behind it: it's a bare positioning
+   slot, and each item (property or room) carries its own card look, so nothing
+   doubles up once an item is selected and swapped for the single info card. */
+.map-float {
+  position: fixed;
+  right: 0;
+  bottom: 122px;
+  left: 0;
+  z-index: 60;
+}
+.map-float-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.map-float-card {
+  flex: 0 0 230px;
+  scroll-snap-align: start;
+  border-radius: var(--m-radius-lg, var(--m-radius));
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+/* Higher specificity than PropertyCard's own scoped `.car` background rule
+   (same class+attribute weight there), so this reliably wins regardless of
+   which component's stylesheet the bundler happens to emit first. */
+.map-float-rail .map-float-card {
+  border-color: color-mix(in srgb, var(--m-border) 45%, transparent);
+  background: color-mix(in srgb, var(--m-surface) 55%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+}
+/* Room card mirrors PropertyCard's own carousel layout (image on top,
+   name/where below) so it reads as the same family of card, not a smaller
+   list row — and lands at the same height as the accommodation cards next
+   to it in the rail. */
+.map-float-room {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-float-room-shot {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  place-items: center;
+  overflow: hidden;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.map-float-room-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.map-float-room-shot--empty {
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
+  color: var(--m-muted);
+}
+.map-float-room-type {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 2px 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-float-room-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 11px 11px;
+}
+.map-float-room-name {
+  color: var(--m-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-float-room-where {
+  color: var(--m-muted);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-float-room-rent {
+  margin-top: 1px;
+  color: var(--m-primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Selected-item detail card — same image-on-top shape as the rail cards
+   (so swapping the rail for this doesn't jump wildly in height), with the
+   close button riding on the image itself instead of a separate header row. */
+.map-float-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--m-border) 45%, transparent);
+  border-radius: var(--m-radius-lg, var(--m-radius));
+  background: color-mix(in srgb, var(--m-surface) 55%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+.map-float-info-shot {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 144px;
+  place-items: center;
+  overflow: hidden;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.map-float-info-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.map-float-info-shot--empty {
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
+  color: var(--m-muted);
+}
+.map-float-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+.map-float-info-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.map-float-info-text strong {
+  color: var(--m-ink);
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-float-info-text span {
+  color: var(--m-muted);
+  font-size: 11.5px;
+}
+.map-float-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-float-cta {
+  width: 100%;
+  min-height: 44px;
+  font-weight: 700;
 }
 
 .stack {
@@ -486,6 +1127,18 @@ onMounted(() => {
 }
 .sk {
   border-radius: var(--m-radius);
+}
+.sk-car,
+.sk-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sk-car-shot,
+.sk-tile-shot {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--m-radius-sm);
 }
 
 .card {
@@ -512,8 +1165,7 @@ onMounted(() => {
   position: fixed;
   bottom: 68px;
   left: var(--m-page-gutter);
-  /* 16px FAB inset + 44px FAB + 8px gap */
-  right: 68px;
+  right: var(--m-page-gutter);
   z-index: 60;
   display: flex;
   align-items: center;
@@ -529,16 +1181,18 @@ onMounted(() => {
 .dock-icon {
   position: absolute;
   left: 13px;
-  color: var(--m-muted);
+  color: #fff;
   pointer-events: none;
 }
 .dock-input {
   width: 100%;
   height: 44px;
   padding: 0 14px 0 35px;
-  border: 1px solid var(--m-border);
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 999px;
-  background: var(--m-surface);
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   box-shadow: var(--m-shadow);
   color: var(--m-ink);
   font: inherit;
@@ -548,6 +1202,10 @@ onMounted(() => {
   border-color: var(--m-primary);
   outline: none;
 }
+.dock-input::placeholder {
+  color: #fff;
+  opacity: 0.85;
+}
 .dock-btn {
   position: relative;
   display: grid;
@@ -555,9 +1213,11 @@ onMounted(() => {
   height: 44px;
   flex: 0 0 44px;
   place-items: center;
-  border: 1px solid var(--m-border);
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 50%;
-  background: var(--m-surface);
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   box-shadow: var(--m-shadow);
   color: var(--m-ink);
   cursor: pointer;
@@ -737,11 +1397,17 @@ onMounted(() => {
   height: 40px;
   flex: 0 0 40px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 13px;
   font-weight: 800;
+}
+.mgr-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .mgr-body {
   display: flex;
@@ -811,12 +1477,6 @@ onMounted(() => {
   border-radius: 999px;
   font-size: 10px;
   font-weight: 800;
-}
-.tile-flag--ok {
-  background: var(--m-success);
-  color: #fff;
-}
-.tile-flag--none {
   background: rgba(23, 32, 42, 0.7);
   color: #fff;
 }
@@ -840,6 +1500,14 @@ onMounted(() => {
 .tile-where {
   color: var(--m-muted);
   font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile-meta {
+  margin-top: 1px;
+  color: var(--m-muted);
+  font-size: 10.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -12,10 +12,12 @@
       <q-avatar v-if="tab.avatar" size="26px" class="profile-avatar-mini" text-color="white">
         <q-img v-if="avatarUrl" :src="avatarUrl" alt="Profile" />
         <span v-else>{{ initials }}</span>
+        <span v-if="tab.dot" class="bottom-nav-dot bottom-nav-dot--avatar" />
       </q-avatar>
-      <span v-else class="bottom-nav-icon">
-        <IconifyIcon :icon="tab.icon" width="22" />
+      <span v-else class="bottom-nav-icon" :class="{ 'bottom-nav-icon--spin': tab.name === 'menu' && menuOpen }">
+        <IconifyIcon :icon="tab.name === 'menu' && menuOpen ? 'lucide:x' : tab.icon" width="22" />
         <span v-if="tab.badge" class="bottom-nav-badge">{{ tab.badge > 9 ? '9+' : tab.badge }}</span>
+        <span v-else-if="tab.dot" class="bottom-nav-dot" />
       </span>
       <span class="bottom-nav-label">{{ tab.label }}</span>
     </button>
@@ -31,6 +33,7 @@ defineProps<{
   active: string
   avatarUrl: string | null
   initials: string
+  menuOpen?: boolean
 }>()
 
 const emit = defineEmits<{ select: [name: string] }>()
@@ -78,6 +81,15 @@ function onSelect(name: string) {
 .bottom-nav-icon {
   position: relative;
   display: inline-flex;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bottom-nav-icon--spin {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav-icon {
+    transition: none;
+  }
 }
 .bottom-nav-badge {
   position: absolute;
@@ -94,12 +106,27 @@ function onSelect(name: string) {
   font-size: 9px;
   font-weight: 800;
 }
+.bottom-nav-dot {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--m-danger, #b42318);
+  border: 1.5px solid var(--m-surface);
+}
 .profile-avatar-mini {
+  position: relative;
   width: 24px;
   height: 24px;
   background: var(--m-primary);
   font-size: 10.5px;
   font-weight: 800;
+}
+.bottom-nav-dot--avatar {
+  top: -1px;
+  right: -1px;
 }
 .bottom-nav-label {
   font-size: 10px;

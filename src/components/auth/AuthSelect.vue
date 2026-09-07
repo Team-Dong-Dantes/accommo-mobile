@@ -1,5 +1,5 @@
 <template>
-  <q-select v-model="model" borderless hide-bottom-space bg-color="grey-2" color="teal-9" class="auth-input"
+  <q-select v-model="model" borderless hide-bottom-space color="teal-9" class="auth-input"
     v-bind="$attrs">
     <template #selected-item="scope">
       <div class="ellipsis" style="min-width: 0; max-width: 100%; width: 100%">
@@ -38,7 +38,8 @@ function truncate(val: string) {
 
 .auth-input :deep(.q-field__control) {
   min-height: 56px;
-  background: #f5f5f5;
+  background: var(--m-bg);
+  border: 1px solid var(--m-border);
   border-radius: 16px;
   padding: 0 16px;
   overflow: hidden;

@@ -394,7 +394,7 @@ function onEmailVerified() {
 
 <style scoped>
 .register-container {
-  background: white;
+  background: var(--m-surface);
   border-radius: 0 0 28px 28px;
   padding: 24px 24px 24px;
   min-height: calc(100vh - 160px);
@@ -430,12 +430,13 @@ function onEmailVerified() {
 
 .auth-title {
   margin: 0 0 0 12px;
+  color: var(--m-ink);
   font-size: 34px;
   font-weight: 700;
 }
 
 .auth-subtitle {
-  color: #8b8b8b;
+  color: var(--m-muted);
   margin: 6px 0 16px 12px;
 }
 
@@ -454,12 +455,12 @@ function onEmailVerified() {
   align-items: center;
   gap: 8px;
   margin: 4px 0;
-  color: #6b7280;
+  color: var(--m-muted);
   font-size: 12px;
 }
 
 .password-checklist li.ok {
-  color: #15803d;
+  color: var(--m-success);
 }
 
 .email-domain-select :deep(.q-field__control) {

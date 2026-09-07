@@ -1,9 +1,18 @@
 <template>
   <q-page class="lp">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="180px" class="sk" />
-      <q-skeleton type="rect" height="90px" class="sk" />
-      <q-skeleton type="rect" height="140px" class="sk" />
+      <q-skeleton type="rect" height="240px" square />
+      <div class="sk-body">
+        <q-skeleton type="text" width="65%" height="20px" />
+        <q-skeleton type="text" width="45%" height="13px" />
+        <q-skeleton type="text" width="80px" height="20px" class="sk-pill" />
+        <div class="sk-rail">
+          <div v-for="n in 2" :key="n" class="sk-room">
+            <q-skeleton type="rect" class="sk-room-photo" />
+            <q-skeleton type="text" width="70%" height="13px" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -24,134 +33,138 @@
       </q-card>
     </div>
 
-    <div v-else class="stack">
-      <!-- Photos, or a monogram band when there are none -->
-      <div v-if="images.length" class="gal">
-        <img v-for="(src, i) in images" :key="i" :src="src" :alt="listing.name" class="gal-img" />
-        <span v-if="images.length > 1" class="gal-count">
+    <div v-else class="page">
+      <!-- Edge-to-edge hero — one photo at a time, not a boxed thumbnail strip -->
+      <div v-if="images.length" class="hero">
+        <span class="hero-fallback"><IconifyIcon icon="lucide:image" width="24" /></span>
+        <img v-for="(src, i) in images" :key="i" :src="src" :alt="listing.name" class="hero-img" />
+        <span v-if="images.length > 1" class="hero-count">
           <IconifyIcon icon="lucide:image" width="11" />{{ images.length }}
         </span>
       </div>
-      <div v-else class="gal-none">
-        <span class="gal-mono">{{ monogram }}</span>
+      <div v-else class="hero hero--none">
+        <IconifyIcon icon="lucide:image-off" width="26" />
+        <span class="hero-none-label">No photos yet</span>
       </div>
 
-      <div class="head">
-        <h1 class="head-name">{{ listing.name }}</h1>
-        <p class="head-where">{{ listing.address }}</p>
-        <span class="badge">
-          <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
-        </span>
-        <div class="head-tags">
-          <span v-if="buildingType" class="tag">{{ buildingType }}</span>
-          <span v-if="distance" class="tag tag--soft">
-            <IconifyIcon icon="lucide:map-pin" width="11" />{{ distance }}
+      <div class="body">
+        <h1 class="name">{{ listing.name }}</h1>
+        <p class="where">{{ listing.address }}<template v-if="distance"> · {{ distance }} from campus</template></p>
+        <div class="badge-row">
+          <span class="badge">
+            <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
           </span>
-          <span class="tag" :class="vacancies ? 'tag--ok' : 'tag--none'">
+          <span v-if="buildingType" class="type-pill">{{ buildingType }}</span>
+          <span class="vacancy" :class="vacancies ? 'vacancy--ok' : 'vacancy--none'">
             {{ vacancies ? `${vacancies} room${vacancies === 1 ? '' : 's'} free` : 'Currently full' }}
           </span>
         </div>
-        <div v-if="facts.length" class="facts">
-          <span v-for="f in facts" :key="f.label" class="fact">
-            <strong>{{ f.value }}</strong>{{ f.label }}
+
+        <div v-if="facts.length" class="stat-row">
+          <span v-for="f in facts" :key="f.label" class="stat">
+            <IconifyIcon :icon="f.icon" width="15" />
+            <strong>{{ f.value }}</strong>
+            <small>{{ f.label }}</small>
           </span>
         </div>
-      </div>
 
-      <p v-if="listing.description" class="desc">{{ listing.description }}</p>
+        <p v-if="listing.description" class="desc">{{ listing.description }}</p>
 
-      <!-- Rooms -->
-      <section class="sec">
-        <h2 class="sec-title">Rooms</h2>
-        <div class="group">
-          <button
-            v-for="room in rooms"
-            :key="room.id"
-            type="button"
-            class="room"
-            :class="{ 'room--taken': !room.free }"
-            @click="router.push(`/student/room/${room.id}`)"
-          >
-            <span class="room-thumb">
-              <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
-              <span v-else class="room-thumb-mono">{{ monogram }}</span>
-            </span>
-            <span class="room-body">
-              <span class="room-name">{{ room.label }}</span>
-              <span class="room-meta">{{ room.meta }}</span>
-            </span>
-            <span class="room-side">
-              <span v-if="room.rent" class="room-rent">{{ formatPeso(room.rent) }}<span class="room-per">/mo{{ room.rentBasis === 'person' ? ' per person' : '' }}</span></span>
-              <span v-else class="room-rent room-rent--none">On request</span>
-              <span class="room-tag" :class="room.free ? 'room-tag--ok' : 'room-tag--none'">
-                {{ room.free ? 'Available' : 'Taken' }}
+        <!-- Rooms: a rail to browse, not a settings-style list -->
+        <section class="block">
+          <h2 class="block-title">Rooms</h2>
+          <div v-if="availableRooms.length" class="room-rail">
+            <button
+              v-for="room in availableRooms"
+              :key="room.id"
+              type="button"
+              class="room-card"
+              @click="router.push(`/student/room/${room.id}`)"
+            >
+              <span class="room-card-photo">
+                <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
+                <span v-else class="room-card-mono">{{ monogram }}</span>
+                <span v-if="room.type" class="room-card-type">{{ room.type }}</span>
               </span>
-            </span>
-          </button>
-          <p v-if="!rooms.length" class="none">This listing hasn't published any rooms yet</p>
-        </div>
-      </section>
-
-      <!-- Amenities -->
-      <section v-if="amenities.length" class="sec">
-        <h2 class="sec-title">What's here</h2>
-        <div class="ams">
-          <span v-for="a in amenities" :key="a" class="am">
-            <IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="14" />
-            {{ AMENITY_META[a]?.label || a }}
-          </span>
-        </div>
-      </section>
-
-      <!-- Shared facilities -->
-      <section v-if="sharedFacilities.length" class="sec">
-        <h2 class="sec-title">Shared facilities</h2>
-        <div class="ams">
-          <span v-for="f in sharedFacilities" :key="f.type + f.label" class="am">
-            <IconifyIcon :icon="FACILITY_META[f.type]?.icon || 'lucide:dot'" width="14" />
-            {{ f.label || FACILITY_META[f.type]?.label || f.type }}
-          </span>
-        </div>
-      </section>
-
-      <!-- House rules -->
-      <section v-if="rules.length" class="sec">
-        <h2 class="sec-title">House rules</h2>
-        <div class="group">
-          <div v-for="rule in rules" :key="rule.label" class="rule">
-            <span class="rule-label">{{ rule.label }}</span>
-            <span class="rule-value">{{ rule.value }}</span>
+              <span class="room-card-name">{{ room.label }}</span>
+              <span class="room-card-meta">{{ room.meta }}</span>
+              <span v-if="room.rent" class="room-card-rent">
+                {{ formatPeso(room.rent) }}<span class="room-card-per">/mo{{ room.rentBasis === 'person' ? '/person' : '' }}</span>
+              </span>
+              <span v-else class="room-card-rent room-card-rent--none">On request</span>
+            </button>
           </div>
-        </div>
-      </section>
+          <p v-else-if="rooms.length" class="none">All rooms are currently taken.</p>
+          <p v-else class="none">This listing hasn't published any rooms yet.</p>
+        </section>
 
-      <!-- Where it is, relative to school -->
-      <section v-if="mapUrl" class="sec">
-        <h2 class="sec-title">Where it is</h2>
-        <div class="map">
-          <img :src="mapUrl" :alt="`Map showing ${listing.name} and ${CAMPUS.label}`" loading="lazy" />
+        <!-- Amenities -->
+        <section v-if="amenities.length" class="block">
+          <h2 class="block-title">Amenities</h2>
+          <div class="icon-grid">
+            <span v-for="a in amenities" :key="a" class="icon-item">
+              <span class="icon-circle"><IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="19" /></span>
+              <small>{{ AMENITY_META[a]?.label || a }}</small>
+            </span>
+          </div>
+        </section>
+
+        <!-- Facilities -->
+        <section v-if="sharedFacilities.length || privateFacilityNote" class="block">
+          <h2 class="block-title">Facilities</h2>
+          <div v-if="sharedFacilities.length" class="icon-grid">
+            <span v-for="f in sharedFacilities" :key="f.type + f.label" class="icon-item">
+              <span class="icon-circle"><IconifyIcon :icon="FACILITY_META[f.type]?.icon || 'lucide:dot'" width="19" /></span>
+              <small>{{ f.label || FACILITY_META[f.type]?.label || f.type }}</small>
+            </span>
+          </div>
+          <p v-if="privateFacilityNote" class="private-note">
+            <IconifyIcon icon="lucide:door-closed" width="13" />
+            {{ privateFacilityNote }}
+          </p>
+        </section>
+
+        <!-- House rules -->
+        <section v-if="rules.length" class="block">
+          <h2 class="block-title">House rules</h2>
+          <div class="rule-list">
+            <div v-for="rule in rules" :key="rule.label" class="rule-row">
+              <span class="rule-label">{{ rule.label }}</span>
+              <span class="rule-value">{{ rule.value }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Location -->
+        <section v-if="mapUrl" class="block">
+          <h2 class="block-title">Location</h2>
+          <div class="map">
+            <img :src="mapUrl" :alt="`Map showing ${listing.name} and ${CAMPUS.label}`" loading="lazy" />
+          </div>
           <p class="map-note">
             <IconifyIcon icon="lucide:school" width="12" />
-            {{ distance || 'Distance unknown' }} · {{ CAMPUS.label }}
+            {{ distance || 'Distance unknown' }} from {{ CAMPUS.label }}
           </p>
-        </div>
-      </section>
+        </section>
 
-      <!-- The person to ask -->
-      <section v-if="manager.id" class="sec">
-        <h2 class="sec-title">Managed by</h2>
-        <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
-          <span class="mgr-avatar">{{ manager.initials }}</span>
-          <span class="mgr-body">
-            <span class="mgr-name">{{ manager.name }}</span>
-            <span class="mgr-sub">
-              {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Accommodation manager' }}
+        <!-- Manager -->
+        <section v-if="manager.id" class="block">
+          <h2 class="block-title">Managed by</h2>
+          <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
+            <span class="mgr-avatar">
+              <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="mgr-avatar-img" @error="manager.avatarUrl = null" />
+              <template v-else>{{ manager.initials }}</template>
             </span>
-          </span>
-        </button>
-      </section>
-
-      <div class="tail" />
+            <span class="mgr-body">
+              <span class="mgr-name">{{ manager.name }}</span>
+              <span class="mgr-sub">
+                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Accommodation manager' }}
+              </span>
+            </span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="mgr-chevron" />
+          </button>
+        </section>
+      </div>
     </div>
 
     <!-- Enquiry hand-off: the conversation is where applying happens -->
@@ -175,6 +188,7 @@ interface RoomRow {
   id: string
   label: string
   meta: string
+  type: string
   rent: number
   rentBasis: 'room' | 'person'
   free: boolean
@@ -201,8 +215,9 @@ const images = ref<string[]>([])
 const rooms = ref<RoomRow[]>([])
 const amenities = ref<string[]>([])
 const sharedFacilities = ref<{ type: string; label: string | null }[]>([])
+const privateFacilityTypes = ref<string[]>([])
 const rules = ref<{ label: string; value: string }[]>([])
-const manager = reactive({ id: '', name: '', initials: '?', replyMinutes: null as number | null })
+const manager = reactive({ id: '', name: '', initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
 
 const id = computed(() => String(route.params.id || ''))
 const monogram = computed(() => listingMonogram(listing.name))
@@ -210,13 +225,23 @@ const buildingType = computed(() => buildingTypeLabel(listing.type))
 const distance = computed(() => campusDistanceLabel(listing.lat, listing.lng))
 const mapUrl = computed(() => staticMapUrl(listing.lat, listing.lng))
 const vacancies = computed(() => rooms.value.filter((r) => r.free).length)
+const availableRooms = computed(() => rooms.value.filter((r) => r.free))
 const facts = computed(() =>
   [
-    listing.totalFloors ? { label: ` floor${listing.totalFloors === 1 ? '' : 's'}`, value: listing.totalFloors } : null,
-    listing.totalRooms ? { label: ` room${listing.totalRooms === 1 ? '' : 's'}`, value: listing.totalRooms } : null,
-    listing.capacity ? { label: ' beds total', value: listing.capacity } : null,
-  ].filter((f): f is { label: string; value: number } => f !== null),
+    listing.totalFloors ? { icon: 'lucide:layers', label: `floor${listing.totalFloors === 1 ? '' : 's'}`, value: listing.totalFloors } : null,
+    listing.totalRooms ? { icon: 'lucide:door-open', label: `room${listing.totalRooms === 1 ? '' : 's'}`, value: listing.totalRooms } : null,
+    listing.capacity ? { icon: 'lucide:bed', label: 'beds total', value: listing.capacity } : null,
+  ].filter((f): f is { icon: string; label: string; value: number } => f !== null),
 )
+
+// A one-line summary rather than listing every private (room-scoped)
+// facility here — that level of detail belongs on each room's own page, and
+// duplicating it per-room at the listing level would just repeat itself.
+const privateFacilityNote = computed(() => {
+  if (!privateFacilityTypes.value.length) return ''
+  const labels = privateFacilityTypes.value.map((t) => (FACILITY_META[t]?.label || t).toLowerCase())
+  return `Some rooms also have their own ${labels.join(', ')} — see individual rooms for details.`
+})
 
 function yesNo(value: boolean | null | undefined): string {
   if (value === null || value === undefined) return ''
@@ -257,6 +282,27 @@ async function load() {
       .map((i) => resolveAsset(i.url))
       .filter(Boolean)
 
+    const allFacilities = (data.accommodation_facilities ?? []) as {
+      facility_type: string
+      access_scope: string
+      label: string | null
+      room_id: string | null
+    }[]
+    sharedFacilities.value = allFacilities
+      .filter((f) => !f.room_id)
+      .map((f) => ({ type: f.facility_type, label: f.label }))
+    privateFacilityTypes.value = [...new Set(allFacilities.filter((f) => f.room_id).map((f) => f.facility_type))]
+
+    // So each room card can show what's private to it (e.g. "private bath")
+    // without a student having to open every room to find out.
+    const privateByRoom = new Map<string, string[]>()
+    for (const f of allFacilities) {
+      if (!f.room_id) continue
+      const list = privateByRoom.get(f.room_id) ?? []
+      list.push((FACILITY_META[f.facility_type]?.label || f.facility_type).toLowerCase())
+      privateByRoom.set(f.room_id, list)
+    }
+
     rooms.value = ((data.rooms ?? []) as {
       id: string
       room_number: string | null
@@ -271,15 +317,17 @@ async function load() {
     }[])
       .map((r) => {
         const roomImages = [...(r.room_images ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        const privateLabels = privateByRoom.get(r.id) ?? []
         return {
           id: r.id,
           label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
           meta: [
-            roomTypeLabel(r.custom_room_type || r.room_type),
             r.capacity ? `sleeps ${r.capacity}` : '',
+            privateLabels.length ? `private ${privateLabels.join(', ')}` : '',
           ]
             .filter(Boolean)
             .join(' · '),
+          type: roomTypeLabel(r.custom_room_type || r.room_type),
           rent: Number(r.monthly_rent ?? 0),
           rentBasis: (r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room') as 'room' | 'person',
           free: r.status === 'available',
@@ -291,17 +339,6 @@ async function load() {
     amenities.value = ((data.accommodation_amenities ?? []) as { amenity: string }[]).map(
       (a) => a.amenity,
     )
-
-    sharedFacilities.value = (
-      (data.accommodation_facilities ?? []) as {
-        facility_type: string
-        access_scope: string
-        label: string | null
-        room_id: string | null
-      }[]
-    )
-      .filter((f) => !f.room_id)
-      .map((f) => ({ type: f.facility_type, label: f.label }))
 
     // accommodation_policies is one row per accommodation, but the embed
     // returns it as an array when the relationship is not marked one-to-one.
@@ -319,6 +356,7 @@ async function load() {
         { label: 'Pets', value: yesNo(policy.pets as boolean | null) },
         { label: 'Smoking', value: yesNo(policy.smoking as boolean | null) },
         { label: 'Minimum stay', value: policy.min_stay ? `${policy.min_stay} month(s)` : '' },
+        { label: 'Contract type', value: String(policy.contract_type ?? '') },
       ]
       rules.value = built.filter((r) => r.value)
     }
@@ -327,7 +365,7 @@ async function load() {
       const [{ data: person }, { data: profile }] = await Promise.all([
         supabase
           .from('users')
-          .select('full_name,initials')
+          .select('full_name,initials,avatar_url')
           .eq('id', data.accommodation_manager_id)
           .maybeSingle(),
         supabase
@@ -339,6 +377,7 @@ async function load() {
       manager.id = data.accommodation_manager_id
       manager.name = person?.full_name || 'Accommodation manager'
       manager.initials = person?.initials || initialsOf(manager.name)
+      manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null
       manager.replyMinutes = profile?.avg_response_minutes ?? null
     }
   } catch (e) {
@@ -364,12 +403,35 @@ onMounted(load)
 .sk {
   border-radius: var(--m-radius);
 }
-.tail {
-  height: 78px;
+.sk-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sk-pill {
+  border-radius: 999px;
+}
+.sk-rail {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  overflow-x: hidden;
+}
+.sk-room {
+  display: flex;
+  width: 148px;
+  flex: 0 0 148px;
+  flex-direction: column;
+  gap: 5px;
+}
+.sk-room-photo {
+  height: 120px;
+  border-radius: var(--m-radius-sm);
 }
 
 .card {
   padding: 18px 14px;
+  margin: 8px var(--m-page-gutter) 0;
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
@@ -386,71 +448,100 @@ onMounted(load)
   font-size: 12px;
 }
 
-/* Gallery */
-.gal {
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero — one photo filling the width at a time, no card frame around it */
+.hero {
   position: relative;
   display: flex;
-  gap: 6px;
+  height: 240px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
+  background: var(--m-primary-soft);
 }
-.gal-img {
-  width: 88%;
-  height: 190px;
-  flex: 0 0 auto;
-  border-radius: var(--m-radius);
+.hero-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  color: var(--m-primary-dark);
+}
+.hero-img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  flex: 0 0 100%;
   object-fit: cover;
   scroll-snap-align: start;
 }
-.gal-count {
+.hero--none {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(160deg, var(--m-border), var(--m-bg) 85%);
+  color: var(--m-muted);
+}
+.hero-none-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+.hero-count {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  right: 12px;
+  bottom: 12px;
   z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(23, 32, 42, 0.7);
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
 }
-.gal-none {
-  display: grid;
-  height: 120px;
-  place-items: center;
-  border-radius: var(--m-radius);
-  background: var(--m-primary-soft);
-}
-.gal-mono {
-  color: var(--m-primary-dark);
-  font-family: var(--m-font-display);
-  font-size: 34px;
-  font-weight: 800;
+
+.body {
+  display: flex;
+  flex-direction: column;
+  padding: 18px var(--m-page-gutter) 100px;
 }
 
-.head-name {
+.name {
   margin: 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.2;
+  line-height: 1.15;
 }
-.head-where {
-  margin: 3px 0 0;
+.where {
+  margin: 5px 0 0;
   color: var(--m-muted);
-  font-size: 13px;
+  font-size: 13.5px;
+}
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
 }
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 5px;
   padding: 3px 9px;
   border-radius: 999px;
   background: var(--m-success-soft);
@@ -458,221 +549,242 @@ onMounted(load)
   font-size: 11px;
   font-weight: 700;
 }
-.head-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin-top: 8px;
-  color: var(--m-muted);
-  font-size: 12px;
-}
-.facts strong {
-  color: var(--m-ink);
-  font-weight: 700;
-}
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+.type-pill {
+  padding: 3px 9px;
   border-radius: 999px;
   background: var(--m-bg);
   color: var(--m-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.vacancy {
+  flex: 0 0 auto;
+  padding: 4px 11px;
+  border-radius: 999px;
   font-size: 11.5px;
   font-weight: 700;
 }
-.tag--soft {
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.tag--ok {
+.vacancy--ok {
   background: var(--m-success-soft);
   color: var(--m-success);
 }
-.tag--none {
+.vacancy--none {
   background: var(--m-bg);
   color: var(--m-muted);
 }
 
-.desc {
-  margin: 0;
-  color: var(--m-text);
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--m-border);
+}
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--m-muted);
+}
+.stat svg {
+  flex: 0 0 auto;
+  color: var(--m-primary-dark);
+}
+.stat strong {
+  color: var(--m-ink);
   font-size: 13.5px;
-  line-height: 1.5;
+  font-weight: 700;
+}
+.stat small {
+  font-size: 11.5px;
+}
+
+.desc {
+  margin: 14px 0 0;
+  color: var(--m-text);
+  font-size: 14px;
+  line-height: 1.55;
   text-wrap: pretty;
 }
 
-.sec {
+/* Each block carries its own leading divider — so an empty, un-rendered
+   section (e.g. no amenities) never leaves a doubled gap the way a fixed
+   divider between every pair of sections would. */
+.block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--m-border);
 }
-.sec-title {
+.block:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.block-title {
   margin: 0;
-  padding: 0 2px;
   color: var(--m-ink);
-  font-size: 12.5px;
+  font-family: var(--m-font-display);
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.group {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  overflow: hidden;
 }
 .none {
-  padding: 14px 12px;
   margin: 0;
   color: var(--m-muted);
-  font-size: 12.5px;
-  text-align: center;
+  font-size: 13px;
 }
 
-/* Rooms */
-.room {
+/* Rooms rail */
+.room-rail {
   display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  margin: 0 calc(var(--m-page-gutter) * -1);
+  padding: 0 var(--m-page-gutter);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.room-card {
+  display: flex;
+  width: 148px;
+  flex: 0 0 148px;
+  flex-direction: column;
   border: 0;
-  border-top: 1px solid var(--m-border);
   background: transparent;
   cursor: pointer;
   font: inherit;
   text-align: left;
+  scroll-snap-align: start;
   -webkit-tap-highlight-color: transparent;
 }
-.group > .room:first-child {
-  border-top: 0;
-}
-.room--taken {
-  opacity: 0.6;
-}
-.room-thumb {
+.room-card-photo {
+  position: relative;
   display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
+  height: 120px;
   place-items: center;
   overflow: hidden;
+  border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
   background: var(--m-primary-soft);
 }
-.room-thumb img {
+.room-card-photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.room-thumb-mono {
+.room-card-mono {
   color: var(--m-primary-dark);
   font-family: var(--m-font-display);
-  font-size: 13px;
+  font-size: 20px;
   font-weight: 800;
 }
-.room-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1px;
+.room-card-type {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
 }
-.room-name {
+.room-card-name {
+  margin-top: 8px;
   color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.room-card-meta {
+  margin-top: 1px;
+  color: var(--m-muted);
+  font-size: 11px;
+}
+.room-card-rent {
+  margin-top: 4px;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
   font-size: 13.5px;
   font-weight: 700;
 }
-.room-meta {
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.room-side {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-.room-rent {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 14.5px;
-  font-weight: 700;
-}
-.room-rent--none {
+.room-card-rent--none {
   color: var(--m-muted);
   font-family: var(--m-font-body);
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
 }
-.room-per {
-  font-size: 10.5px;
+.room-card-per {
+  font-size: 10px;
   font-weight: 600;
   opacity: 0.7;
 }
-.room-tag {
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.room-tag--ok {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.room-tag--none {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
 
-/* Amenities */
-.ams {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+/* Amenities / facilities — an icon grid, not pill soup */
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 16px 6px;
 }
-.am {
-  display: inline-flex;
+.icon-item {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 7px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
+  text-align: center;
+}
+.icon-circle {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.icon-item small {
   color: var(--m-text);
-  font-size: 12.5px;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
+}
+.private-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--m-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
-/* Rules */
-.rule {
+/* House rules — plain divided rows, not a bordered box */
+.rule-list {
+  display: flex;
+  flex-direction: column;
+}
+.rule-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 9px 12px;
+  padding: 10px 0;
   border-top: 1px solid var(--m-border);
 }
-.group > .rule:first-child {
+.rule-list > .rule-row:first-child {
   border-top: 0;
+  padding-top: 0;
 }
 .rule-label {
   color: var(--m-muted);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
 }
 .rule-value {
   color: var(--m-ink);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   text-align: right;
 }
@@ -680,35 +792,31 @@ onMounted(load)
 /* Map */
 .map {
   overflow: hidden;
-  border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
-  background: var(--m-surface);
 }
 .map img {
   display: block;
   width: 100%;
-  height: 160px;
+  height: 150px;
   object-fit: cover;
 }
 .map-note {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin: 0;
-  padding: 8px 12px;
-  border-top: 1px solid var(--m-border);
+  margin: 8px 0 0;
   color: var(--m-muted);
   font-size: 12px;
   font-weight: 600;
 }
 
-/* Manager */
+/* Manager — the one other tappable, contact-card-like row besides Rooms */
 .mgr {
   display: flex;
   width: 100%;
   align-items: center;
   gap: 11px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
@@ -723,15 +831,22 @@ onMounted(load)
   height: 40px;
   flex: 0 0 40px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 13px;
   font-weight: 800;
 }
+.mgr-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .mgr-body {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 1px;
 }
@@ -744,5 +859,8 @@ onMounted(load)
   color: var(--m-muted);
   font-size: 11.5px;
 }
-
+.mgr-chevron {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+}
 </style>

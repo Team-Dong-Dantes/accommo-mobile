@@ -20,6 +20,7 @@ export default defineConfig((/* ctx */) => {
       'deeplink',
       'splash',
       'theme',
+      'pwaElements',
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css

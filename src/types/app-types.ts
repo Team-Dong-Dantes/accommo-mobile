@@ -104,12 +104,18 @@ export interface BottomTab {
   match?: readonly string[]
   /** Unread-style count shown as a small pill on the tab; hidden when falsy. */
   badge?: number
+  /** Plain red dot (no count) flagging something on this tab needs checking. */
+  dot?: boolean
 }
 
 export interface QuickAction {
   icon: string
   label: string
   route: string
+  /** Render the user's avatar instead of an icon (the Profile row). */
+  avatar?: boolean
+  /** Plain red dot flagging something behind this action needs checking. */
+  dot?: boolean
 }
 
 /** A page that replaces the wordmark header with a back button + title. */
@@ -121,8 +127,6 @@ export interface SecondaryPage {
   back: string
   /** Spoken destination for the back button's aria-label. */
   backLabel: string
-  /** Keep the bottom nav visible (stacked pages hide it like secondary ones). */
-  stacked?: boolean
 }
 
 export interface ShellConfig {

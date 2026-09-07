@@ -1,5 +1,5 @@
 <template>
-  <q-input v-model="model" borderless hide-bottom-space bg-color="grey-2" color="teal-9" class="auth-input"
+  <q-input v-model="model" borderless hide-bottom-space color="teal-9" class="auth-input"
     v-bind="$attrs">
     <template v-for="(_, name) in $slots" #[name]="slotData">
       <slot :name="name" v-bind="slotData || {}" />
@@ -19,7 +19,8 @@ const model = defineModel<string | number | null>();
 
 .auth-input :deep(.q-field__control) {
   min-height: 56px;
-  background: #f5f5f5;
+  background: var(--m-bg);
+  border: 1px solid var(--m-border);
   border-radius: 16px;
   padding: 0 16px;
 }

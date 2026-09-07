@@ -2,9 +2,28 @@
   <q-page class="prof">
     <!-- Loading -->
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="160px" class="sk" />
-      <q-skeleton type="rect" height="120px" class="sk" />
-      <q-skeleton type="rect" height="100px" class="sk" />
+      <div class="sk-card">
+        <div class="sk-hero-top">
+          <q-skeleton type="circle" size="56px" />
+          <div class="sk-hero-meta">
+            <q-skeleton type="text" width="55%" height="17px" />
+            <q-skeleton type="text" width="40%" height="12px" />
+          </div>
+        </div>
+        <div class="sk-hero-row">
+          <q-skeleton type="circle" size="36px" />
+          <div class="sk-hero-meta">
+            <q-skeleton type="text" width="60%" height="14px" />
+            <q-skeleton type="text" width="30%" height="11px" />
+          </div>
+        </div>
+      </div>
+      <div class="sk-card sk-fields">
+        <q-skeleton type="text" width="45%" height="13px" />
+        <q-skeleton type="text" width="90%" height="15px" />
+        <q-skeleton type="text" width="90%" height="15px" />
+        <q-skeleton type="text" width="90%" height="15px" />
+      </div>
     </div>
 
     <!-- Error -->
@@ -13,7 +32,7 @@
         <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
         <p class="err-title">Couldn't load your profile</p>
         <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
       </q-card>
     </div>
 
@@ -30,7 +49,7 @@
         :status-label="status.label || 'Unverified'"
         action-icon="lucide:qr-code"
         action-label="My QR"
-        @action="qrDialog = true"
+        @action="go('/student/profile/qr')"
       >
         <component :is="stay ? 'button' : 'div'" class="stay-info" v-bind="stay ? { type: 'button' } : {}" @click="stay && go('/student/stay')">
           <span class="stay-badge">
@@ -111,6 +130,12 @@
             </button>
           </ProfileBlock>
 
+          <ProfileBlock icon="lucide:settings" title="Settings">
+            <button class="row-link" @click="go('/student/profile/settings')">
+              <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
+              <span>Notifications, security, appearance &amp; more</span>
+            </button>
+          </ProfileBlock>
         </template>
 
         <template #footer>
@@ -118,13 +143,6 @@
           <span v-if="updatedAt" class="updated">· Updated {{ ago(updatedAt) }}</span>
         </template>
       </ProfileCard>
-
-      <!-- Settings -->
-      <ProfileSettingsSection
-        :user-id="userId"
-        :email="me.email"
-        :notification-prefs="notificationPrefs"
-      />
 
       <!-- Edit bar -->
       <div v-if="editing" class="edit-bar">
@@ -134,55 +152,14 @@
         </button>
       </div>
     </div>
-
-    <!-- My QR -->
-    <q-dialog v-model="qrDialog" position="bottom" class="qr-dialog">
-      <div class="qr-card">
-        <span class="qr-grip" aria-hidden="true" />
-        <template v-if="osasVerified && qrDataUrl">
-          <div class="qr-header">
-            <IconifyIcon icon="lucide:shield-check" width="24" class="qr-header-icon" />
-            <h3 class="qr-title">My student QR</h3>
-          </div>
-          <p class="qr-sub">
-            Show this code at check-in so your manager can confirm you're an active, verified student.
-          </p>
-          <div class="qr-image-wrapper">
-            <img :src="qrDataUrl" alt="Your student QR code" class="qr-image" width="220" height="220" />
-          </div>
-          <p class="qr-id">ID: {{ academics.studentId }}</p>
-          <div class="qr-actions">
-            <q-btn flat dense no-caps color="primary" label="Download" class="qr-download" @click="downloadQR" />
-            <q-btn flat dense no-caps color="grey-7" label="Close" class="qr-close" @click="qrDialog = false" />
-          </div>
-        </template>
-        <template v-else-if="!osasVerified">
-          <div class="qr-locked">
-            <span class="qr-locked-icon"><IconifyIcon icon="lucide:lock-keyhole" width="26" /></span>
-            <p class="qr-locked-title">QR code locked</p>
-            <p class="qr-locked-sub">Get verified by OSAS to unlock your student QR code.</p>
-            <q-btn unelevated no-caps color="primary" class="qr-locked-cta" label="Verify with OSAS" @click="qrDialog = false; go('/student/support')" />
-          </div>
-        </template>
-        <template v-else>
-          <div class="qr-locked">
-            <span class="qr-locked-icon"><IconifyIcon icon="lucide:circle-alert" width="26" /></span>
-            <p class="qr-locked-title">Student ID missing</p>
-            <p class="qr-locked-sub">Your account doesn't have a student ID on file yet, so a QR code can't be generated. Contact OSAS to have it added.</p>
-            <q-btn unelevated no-caps color="primary" class="qr-locked-cta" label="Contact OSAS" @click="qrDialog = false; go('/student/support')" />
-          </div>
-        </template>
-      </div>
-    </q-dialog>
-
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import QRCode from 'qrcode'
 import { supabase } from '@/utils/supabase'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
@@ -192,7 +169,6 @@ import ProfileHero from '@/components/shared/ProfileHero.vue'
 import ProfileCard from '@/components/shared/ProfileCard.vue'
 import ProfileBlock from '@/components/shared/ProfileBlock.vue'
 import EditButton from '@/components/shared/EditButton.vue'
-import ProfileSettingsSection from '@/components/student/ProfileSettingsSection.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
 import {
   collegeOptions,
@@ -225,11 +201,9 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const editing = ref(false)
-const qrDialog = ref(false)
 
 const userId = ref('')
 const avatarUrl = ref<string | null>(null)
-const notificationPrefs = reactive({ push: true, email: true })
 
 const me = reactive({
   fullName: '',
@@ -276,27 +250,6 @@ const stayStatusNote = computed(() => {
 })
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
-
-const osasVerifiedAt = ref<string | null>(null)
-const osasVerified = computed(() => !!osasVerifiedAt.value)
-const qrDataUrl = ref('')
-
-async function generateQr() {
-  const id = academics.studentId
-  if (!id) {
-    qrDataUrl.value = ''
-    return
-  }
-  try {
-    qrDataUrl.value = await QRCode.toDataURL(id, {
-      width: 220,
-      margin: 1,
-      color: { dark: '#111827', light: '#ffffff' },
-    })
-  } catch {
-    qrDataUrl.value = ''
-  }
-}
 
 const courseLine = computed(() => {
   const parts = [academics.program, yearLevelToLabel(Number(academics.yearLevel) || null)].filter(Boolean)
@@ -391,19 +344,8 @@ async function save() {
   }
 }
 
-function downloadQR() {
-  if (!qrDataUrl.value) return
-  const link = document.createElement('a')
-  link.href = qrDataUrl.value
-  link.download = `student-qr-${academics.studentId}.png`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  notify.success('QR code downloaded.')
-}
-
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const { data: auth } = await supabase.auth.getUser()
@@ -417,12 +359,12 @@ async function load() {
     const [{ data: profile, error: profileError }, { data: studentProfile }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, email, phone, initials, status, created_at, updated_at, notification_prefs')
+        .select('full_name, email, phone, initials, status, created_at, updated_at')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
         .from('student_profiles')
-        .select('student_id, college, program, year_level, emergency_contact_json, osas_verified_at')
+        .select('student_id, college, program, year_level, emergency_contact_json')
         .eq('user_id', user.id)
         .maybeSingle(),
     ])
@@ -435,10 +377,6 @@ async function load() {
     me.status = profile?.status || 'unverified'
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
-
-    const prefs = (profile?.notification_prefs ?? null) as { push?: boolean; email?: boolean } | null
-    notificationPrefs.push = prefs?.push ?? true
-    notificationPrefs.email = prefs?.email ?? true
 
     const metadata = user.user_metadata as Record<string, unknown> | undefined
     const picture =
@@ -454,12 +392,6 @@ async function load() {
     academics.program = studentProfile?.program || ''
     academics.yearLevel = yearLevelToLabel(studentProfile?.year_level)
 
-    osasVerifiedAt.value = studentProfile?.osas_verified_at ?? null
-    qrDataUrl.value = ''
-    if (osasVerified.value && academics.studentId) {
-      await generateQr()
-    }
-
     const contact = (studentProfile?.emergency_contact_json ?? null) as {
       name?: string
       relationship?: string
@@ -469,18 +401,22 @@ async function load() {
     emergency.relation = contact?.relationship || ''
     emergency.phone = contact?.phone || ''
 
-    Object.assign(draft, {
-      fullName: me.fullName,
-      phone: me.phone,
-      email: me.email,
-      studentId: academics.studentId,
-      college: academics.college,
-      program: academics.program,
-      yearLevel: academics.yearLevel,
-      emergencyName: emergency.name,
-      emergencyRelation: emergency.relation,
-      emergencyPhone: emergency.phone,
-    })
+    // Never clobber an in-progress edit with a silent (realtime-triggered)
+    // background refresh — only the real first load seeds the draft.
+    if (!silent) {
+      Object.assign(draft, {
+        fullName: me.fullName,
+        phone: me.phone,
+        email: me.email,
+        studentId: academics.studentId,
+        college: academics.college,
+        program: academics.program,
+        yearLevel: academics.yearLevel,
+        emergencyName: emergency.name,
+        emergencyRelation: emergency.relation,
+        emergencyPhone: emergency.phone,
+      })
+    }
 
     const { data: leaseRow } = await supabase
       .from('leases')
@@ -529,7 +465,29 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. An OSAS
+// verification decision pushes here instead of the page re-asking on return —
+// same channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need.
+let docsChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  if (!userId.value || typeof supabase.channel !== 'function') return
+  docsChannel = supabase
+    .channel(`profile-docs:${userId.value}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'verification_documents', filter: `user_id=eq.${userId.value}` },
+      () => void load(true),
+    )
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (docsChannel) void supabase.removeChannel(docsChannel)
+})
 </script>
 
 <style scoped>
@@ -545,6 +503,30 @@ onMounted(load)
 }
 .sk {
   border-radius: var(--m-radius);
+}
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+.sk-hero-top,
+.sk-hero-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sk-hero-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+.sk-fields {
+  gap: 10px;
 }
 .card {
   border-radius: var(--m-radius);
@@ -768,135 +750,5 @@ button.stay-info {
   .edit-bar {
     animation: none;
   }
-}
-
-/* QR Dialog */
-.qr-dialog :deep(.q-dialog__backdrop) {
-  background: rgba(0,0,0,0.5);
-}
-.qr-card {
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 10px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
-  background: var(--m-surface);
-  box-shadow: 0 -8px 30px rgba(0,0,0,0.14);
-  text-align: center;
-}
-.qr-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto 14px;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.qr-locked {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0 4px;
-}
-.qr-locked-icon {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 12px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-.qr-locked-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--m-ink);
-}
-.qr-locked-sub {
-  margin: 6px 0 16px;
-  font-size: 13px;
-  color: var(--m-muted);
-  line-height: 1.4;
-}
-.qr-locked-cta {
-  width: 100%;
-  min-height: 44px;
-  border-radius: var(--m-radius-sm);
-  font-weight: 700;
-}
-.qr-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.qr-header-icon {
-  color: var(--m-primary);
-}
-.qr-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--m-ink);
-}
-.qr-sub {
-  margin: 4px 0 16px;
-  font-size: 13px;
-  color: var(--m-muted);
-  line-height: 1.4;
-}
-.qr-image-wrapper {
-  display: flex;
-  justify-content: center;
-  padding: 8px;
-  background: #fff;
-  border-radius: var(--m-radius-sm);
-  border: 1px solid var(--m-border);
-  margin-bottom: 8px;
-}
-.qr-image {
-  display: block;
-  width: 220px;
-  height: 220px;
-  object-fit: contain;
-}
-.qr-id {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--m-muted);
-  margin: 0 0 16px;
-  word-break: break-all;
-  background: var(--m-bg);
-  padding: 4px 8px;
-  border-radius: 4px;
-  display: inline-block;
-}
-.qr-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-.qr-download,
-.qr-close {
-  font-weight: 600;
-  padding: 6px 18px;
-  border-radius: 999px;
-}
-.qr-download {
-  background: var(--m-primary);
-  color: #fff;
-}
-.qr-download:hover {
-  background: var(--m-primary-dark);
-}
-.qr-close {
-  background: transparent;
-  color: var(--m-muted);
-}
-.qr-close:hover {
-  background: var(--m-bg);
 }
 </style>

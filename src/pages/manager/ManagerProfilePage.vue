@@ -2,10 +2,46 @@
   <q-page class="profile-page">
     <!-- Loading -->
     <div v-if="loading" class="loading-stack">
-      <q-skeleton type="rect" height="120px" class="sk" />
-      <q-skeleton type="rect" height="80px" class="sk" />
-      <q-skeleton type="rect" height="70px" class="sk" />
-      <q-skeleton type="rect" height="70px" class="sk" />
+      <div class="sk-card">
+        <div class="sk-hero-top">
+          <q-skeleton type="circle" size="56px" />
+          <div class="sk-hero-meta">
+            <q-skeleton type="text" width="55%" height="17px" />
+            <q-skeleton type="text" width="40%" height="12px" />
+          </div>
+        </div>
+        <div class="quick-stats">
+          <div class="stat-block">
+            <q-skeleton type="circle" size="32px" />
+            <div>
+              <q-skeleton type="text" width="24px" height="18px" />
+              <q-skeleton type="text" width="48px" height="10px" />
+            </div>
+          </div>
+          <div class="stat-divider" />
+          <div class="stat-block">
+            <q-skeleton type="circle" size="32px" />
+            <div>
+              <q-skeleton type="text" width="24px" height="18px" />
+              <q-skeleton type="text" width="40px" height="10px" />
+            </div>
+          </div>
+          <div class="stat-divider" />
+          <div class="stat-block">
+            <q-skeleton type="circle" size="32px" />
+            <div>
+              <q-skeleton type="text" width="30px" height="18px" />
+              <q-skeleton type="text" width="52px" height="10px" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sk-card sk-fields">
+        <q-skeleton type="text" width="45%" height="13px" />
+        <q-skeleton type="text" width="90%" height="15px" />
+        <q-skeleton type="text" width="90%" height="15px" />
+        <q-skeleton type="text" width="90%" height="15px" />
+      </div>
     </div>
 
     <!-- Error -->
@@ -16,7 +52,7 @@
         </div>
         <p class="error-title">Couldn't load your profile</p>
         <p class="error-message">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" @click="load" />
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" @click="load()" />
       </q-card>
     </div>
 
@@ -133,6 +169,13 @@
             </button>
           </ProfileBlock>
 
+          <ProfileBlock icon="lucide:settings" title="Settings">
+            <button class="link-btn" @click="go('/manager/profile/settings')">
+              <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
+              <span>Notifications, security, appearance &amp; more</span>
+              <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+            </button>
+          </ProfileBlock>
         </template>
 
         <template #footer>
@@ -140,19 +183,13 @@
           <span v-if="updatedAt" class="updated">· {{ ago(updatedAt) }}</span>
         </template>
       </ProfileCard>
-
-      <!-- ===== SETTINGS ===== -->
-      <ProfileSettingsSection
-        :user-id="userId"
-        :email="me.email"
-        :notification-prefs="notificationPrefs"
-      />
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -164,7 +201,6 @@ import ProfileHero from '@/components/shared/ProfileHero.vue'
 import ProfileCard from '@/components/shared/ProfileCard.vue'
 import ProfileBlock from '@/components/shared/ProfileBlock.vue'
 import EditButton from '@/components/shared/EditButton.vue'
-import ProfileSettingsSection from '@/components/manager/ProfileSettingsSection.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
 
 // ----- Types -----
@@ -189,7 +225,6 @@ const editing = ref(false)
 
 const userId = ref('')
 const avatarUrl = ref<string | null>(null)
-const notificationPrefs = reactive({ push: true, email: true })
 
 // User data – must be defined before render
 const me = reactive({
@@ -266,8 +301,8 @@ async function save() {
 }
 
 // ----- Load Data -----
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const { data: auth } = await supabase.auth.getUser()
@@ -281,7 +316,7 @@ async function load() {
     const [{ data: profile, error: profileError }, { data: managerProfile }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, email, phone, initials, status, created_at, updated_at, notification_prefs')
+        .select('full_name, email, phone, initials, status, created_at, updated_at')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -300,10 +335,6 @@ async function load() {
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
 
-    const prefs = (profile?.notification_prefs ?? null) as { push?: boolean; email?: boolean } | null
-    notificationPrefs.push = prefs?.push ?? true
-    notificationPrefs.email = prefs?.email ?? true
-
     // Avatar from metadata
     const metadata = user.user_metadata as Record<string, unknown> | undefined
     const picture =
@@ -315,7 +346,9 @@ async function load() {
     avatarUrl.value = picture ? resolveAsset(picture) : null
     responseRate.value = managerProfile?.response_rate ?? null
 
-    Object.assign(draft, { fullName: me.fullName, phone: me.phone, email: me.email })
+    // Never clobber an in-progress edit with a silent (realtime-triggered)
+    // background refresh — only the real first load seeds the draft.
+    if (!silent) Object.assign(draft, { fullName: me.fullName, phone: me.phone, email: me.email })
 
     // Accommodations count
     const { data: accommodations } = await supabase
@@ -367,7 +400,29 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. An OSAS
+// verification decision pushes here instead of the page re-asking on return —
+// same channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need.
+let docsChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  if (!userId.value || typeof supabase.channel !== 'function') return
+  docsChannel = supabase
+    .channel(`profile-docs:${userId.value}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'verification_documents', filter: `user_id=eq.${userId.value}` },
+      () => void load(true),
+    )
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (docsChannel) void supabase.removeChannel(docsChannel)
+})
 </script>
 
 <style scoped>
@@ -392,6 +447,29 @@ onMounted(load)
 
 .sk {
   border-radius: 12px;
+}
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+.sk-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sk-hero-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+.sk-fields {
+  gap: 10px;
 }
 
 .error-state {

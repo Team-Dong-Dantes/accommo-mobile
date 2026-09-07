@@ -1,8 +1,21 @@
 <template>
-  <q-page class="op">
+  <q-page class="op" :style="{ '--sticky-top': stickyTop + 'px' }">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="90px" class="sk" />
-      <q-skeleton type="rect" height="70px" class="sk" />
+      <div class="tabs">
+        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="60px" height="38px" class="sk-tab" />
+      </div>
+      <div class="group">
+        <div v-for="n in 4" :key="n" class="doc-row">
+          <q-skeleton type="circle" size="30px" />
+          <span class="doc-body">
+            <q-skeleton type="text" width="55%" height="13px" />
+            <q-skeleton type="text" width="35%" height="11px" />
+          </span>
+          <q-skeleton type="text" width="46px" height="18px" />
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -14,86 +27,205 @@
       </q-card>
     </div>
 
-    <EmptyState
-      v-else-if="!accommodations.length"
-      icon="lucide:building-2"
-      title="No accommodations yet"
-      message="Add an accommodation first — its permits and clearances will be tracked here."
-    >
-      <template #actions>
-        <q-btn unelevated rounded no-caps color="primary" label="Add accommodation" @click="router.push('/manager/properties/new')" />
-      </template>
-    </EmptyState>
-
     <div v-else class="stack">
-      <div v-if="accommodations.length > 1" class="chips">
-        <button
-          v-for="a in accommodations"
-          :key="a.id"
-          type="button"
-          class="chip"
-          :class="{ 'chip--on': selectedId === a.id }"
-          @click="selectedId = a.id"
-        >
-          {{ a.name }}
-        </button>
-      </div>
-
-      <div class="tabs">
-        <button v-for="t in TABS" :key="t.key" type="button" class="tab" :class="{ 'tab--on': tab === t.key }" @click="tab = t.key">
-          {{ t.label }}
-        </button>
-      </div>
-
-      <!-- DOCUMENTS -->
-      <section v-if="tab === 'docs'" class="sec">
-        <p class="sec-hint">Accreditation depends on these staying current.</p>
-        <div class="group">
-          <div v-for="d in docs" :key="d.type" class="doc-row">
-            <span class="doc-icon" :class="`doc-icon--${d.tone}`">
-              <IconifyIcon :icon="d.icon" width="16" />
-            </span>
-            <span class="doc-body">
-              <span class="doc-name">{{ DOC_TYPE_LABEL[d.type] }}</span>
-              <span class="doc-when">{{ d.when }}</span>
-            </span>
-            <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-            <label class="doc-upload">
-              <IconifyIcon icon="lucide:upload" width="15" />
-              <input type="file" accept="image/*,application/pdf" class="doc-file" @change="onDocSelected($event, d.type)" />
-            </label>
-          </div>
-        </div>
-        <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
-      </section>
-
-      <!-- TICKETS -->
-      <section v-else class="sec">
-        <div class="sec-head">
-          <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
-          <button type="button" class="sec-link" @click="openNewTicket">New ticket</button>
-        </div>
-
-        <EmptyState
-          v-if="!tickets.length"
-          variant="compact"
-          icon="lucide:life-buoy"
-          title="No tickets yet"
-          message="Compliance, accreditation or technical issues you raise with OSAS will show up here."
-        />
-        <div v-else class="group">
-          <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="openTicket(t)">
-            <span class="ticket-body">
-              <span class="ticket-subject">{{ t.subject }}</span>
-              <span class="ticket-when">{{ since(t.reportedAt) }}</span>
-            </span>
-            <span class="ticket-chip" :class="`ticket-chip--${TICKET_TONE[t.status] || 'grey'}`">{{ titleCase(t.status) }}</span>
+      <div class="tabbed">
+        <div class="tabs">
+          <button v-for="t in TABS" :key="t.key" type="button" class="tab" :class="{ 'tab--on': tab === t.key }" @click="tab = t.key">
+            {{ t.label }}
           </button>
         </div>
-      </section>
 
-      <div class="tail" />
+        <div class="panel">
+          <q-tab-panels v-model="tab" animated swipeable class="panels">
+            <!-- PROPERTY DOCUMENTS -->
+            <q-tab-panel name="property" class="tab-panel">
+              <EmptyState
+                v-if="!accommodations.length"
+                variant="compact"
+                icon="lucide:building-2"
+                title="No accommodations yet"
+                message="Add an accommodation first — its permits and clearances will be tracked here."
+              >
+                <template #actions>
+                  <q-btn unelevated rounded no-caps color="primary" label="Add accommodation" @click="router.push('/manager/properties/new')" />
+                </template>
+              </EmptyState>
+
+              <template v-else>
+                <div v-if="accommodations.length > 1" class="chips">
+                  <button
+                    v-for="a in accommodations"
+                    :key="a.id"
+                    type="button"
+                    class="chip"
+                    :class="{ 'chip--on': selectedId === a.id }"
+                    @click="selectedId = a.id"
+                  >
+                    {{ a.name }}
+                  </button>
+                </div>
+
+                <p class="sec-hint">Accreditation depends on these staying current. Tap a document to view or upload.</p>
+                <div class="group">
+                  <div v-for="d in docs" :key="d.type" class="doc-item">
+                    <button
+                      type="button"
+                      class="doc-row"
+                      :aria-expanded="expandedProperty === d.type"
+                      @click="toggleProperty(d.type)"
+                    >
+                      <span class="doc-icon" :class="`doc-icon--${d.tone}`">
+                        <IconifyIcon :icon="d.icon" width="16" />
+                      </span>
+                      <span class="doc-body">
+                        <span class="doc-name">{{ DOC_TYPE_LABEL[d.type] }}</span>
+                        <span class="doc-when">{{ d.when }}</span>
+                      </span>
+                      <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
+                      <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedProperty === d.type }" />
+                    </button>
+
+                    <q-slide-transition>
+                      <div v-if="expandedProperty === d.type" class="doc-detail">
+                        <div class="doc-preview">
+                          <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
+                          <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
+                            <IconifyIcon icon="lucide:file-text" width="26" />
+                            <span>View file</span>
+                          </button>
+                          <div v-else class="doc-preview-empty">
+                            <IconifyIcon icon="lucide:image-off" width="20" />
+                            <span>Nothing uploaded yet</span>
+                          </div>
+                        </div>
+                        <div class="doc-actions">
+                          <button type="button" class="doc-action doc-action--primary" @click="openUploadDialog(d.type)">
+                            <IconifyIcon icon="lucide:upload" width="14" />
+                            {{ d.fileUrl ? 'Replace' : 'Upload' }}
+                          </button>
+                          <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
+                            <IconifyIcon icon="lucide:external-link" width="14" /> Open
+                          </button>
+                        </div>
+                      </div>
+                    </q-slide-transition>
+                  </div>
+                </div>
+                <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
+              </template>
+            </q-tab-panel>
+
+            <!-- MY DOCUMENTS (manager identity, reviewed by OSAS at registration) -->
+            <q-tab-panel name="mine" class="tab-panel">
+              <div v-if="myStatus === 'rejected'" class="reject-banner">
+                <IconifyIcon icon="lucide:triangle-alert" width="16" />
+                <div>
+                  <p class="reject-title">Verification rejected</p>
+                  <p class="reject-text">{{ rejectionReason || 'OSAS rejected your submission — please resubmit below.' }}</p>
+                </div>
+              </div>
+              <p class="sec-hint">Your own identity documents. Tap one to view or resubmit.</p>
+              <div class="group">
+                <div v-for="d in myDocs" :key="d.type" class="doc-item">
+                  <button
+                    type="button"
+                    class="doc-row"
+                    :aria-expanded="expandedMine === d.type"
+                    @click="expandedMine = expandedMine === d.type ? '' : d.type"
+                  >
+                    <span class="doc-icon" :class="`doc-icon--${d.tone}`">
+                      <IconifyIcon :icon="d.icon" width="16" />
+                    </span>
+                    <span class="doc-body">
+                      <span class="doc-name">{{ DOC_LABEL[d.type] || d.type }}</span>
+                      <span class="doc-when">{{ d.when }}</span>
+                    </span>
+                    <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
+                    <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedMine === d.type }" />
+                  </button>
+
+                  <q-slide-transition>
+                    <div v-if="expandedMine === d.type" class="doc-detail">
+                      <div class="doc-preview">
+                        <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
+                        <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
+                          <IconifyIcon icon="lucide:file-text" width="26" />
+                          <span>View file</span>
+                        </button>
+                        <div v-else class="doc-preview-empty">
+                          <IconifyIcon icon="lucide:image-off" width="20" />
+                          <span>Nothing uploaded yet</span>
+                        </div>
+                      </div>
+                      <p v-if="d.verified" class="doc-locked">
+                        <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
+                      </p>
+                      <div class="doc-actions">
+                        <label v-if="!d.verified" class="doc-action doc-action--primary">
+                          <IconifyIcon icon="lucide:upload" width="14" />
+                          {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
+                          <input type="file" accept="image/*,application/pdf" class="doc-file-input" @change="onMyDocSelected($event, d.type)" />
+                        </label>
+                        <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
+                          <IconifyIcon icon="lucide:external-link" width="14" /> Open
+                        </button>
+                      </div>
+                    </div>
+                  </q-slide-transition>
+                </div>
+              </div>
+              <span v-if="uploadingMyDoc" class="sec-hint">Uploading…</span>
+            </q-tab-panel>
+
+            <!-- TICKETS -->
+            <q-tab-panel name="tickets" class="tab-panel">
+              <div class="sec-head">
+                <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
+                <button type="button" class="sec-link" @click="openNewTicket">New ticket</button>
+              </div>
+
+              <EmptyState
+                v-if="!tickets.length"
+                variant="compact"
+                icon="lucide:life-buoy"
+                title="No tickets yet"
+                message="Compliance, accreditation or technical issues you raise with OSAS will show up here."
+              />
+              <div v-else class="group">
+                <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="openTicket(t)">
+                  <span class="ticket-body">
+                    <span class="ticket-subject">{{ t.subject }}</span>
+                    <span class="ticket-when">{{ since(t.reportedAt) }}</span>
+                  </span>
+                  <span class="ticket-chip" :class="`ticket-chip--${TICKET_TONE[t.status] || 'grey'}`">{{ titleCase(t.status) }}</span>
+                </button>
+              </div>
+            </q-tab-panel>
+          </q-tab-panels>
+        </div>
+      </div>
     </div>
+
+    <!-- PERMIT UPLOAD FORM — a document already on file is never edited in
+         place; replacing it always goes through this fresh form. -->
+    <q-dialog v-model="uploadDialogOpen" position="bottom">
+      <q-card class="new-sheet">
+        <h3 class="new-title">{{ DOC_TYPE_LABEL[uploadDocType] }}</h3>
+        <label class="field">
+          <span class="field-label">File</span>
+          <span class="file-picker" :class="{ 'file-picker--chosen': uploadForm.file }">
+            <IconifyIcon :icon="uploadForm.file ? 'lucide:file-check' : 'lucide:upload'" width="16" />
+            <span class="file-picker-text">{{ uploadForm.file ? uploadForm.file.name : 'Choose file' }}</span>
+            <input type="file" accept="image/*,application/pdf" class="file-picker-input" @change="onUploadFileSelected" />
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Expiration date</span>
+          <input v-model="uploadForm.expiresAt" type="date" class="field-input" />
+        </label>
+        <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="uploadingDoc" label="Upload" @click="submitDocUpload" />
+      </q-card>
+    </q-dialog>
 
     <q-dialog v-model="ticketOpen" position="bottom">
       <q-card v-if="selectedTicket" class="detail-sheet">
@@ -132,7 +264,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -140,10 +272,13 @@ import { errorMessage } from '@/utils/errors'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument } from '@/utils/upload'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
 const TABS = [
-  { key: 'docs', label: 'Documents' },
+  { key: 'property', label: 'Property' },
+  { key: 'mine', label: 'My Docs' },
   { key: 'tickets', label: 'Tickets' },
 ] as const
 
@@ -154,6 +289,11 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   business_permit: 'Business permit',
   building_permit: 'Building permit',
 }
+
+// Fixed set uploaded once at manager registration (stores/auth.ts,
+// submitManagerVerificationDocuments) — OSAS reviews these per-document via
+// doc_status, independent of any accommodation.
+const MY_DOC_TYPES = ['government_id', 'business_permit'] as const
 
 const TICKET_TONE: Record<string, string> = {
   open: 'amber',
@@ -175,6 +315,9 @@ interface DocRow {
   tone: string
   icon: string
   when: string
+  fileUrl: string
+  /** OSAS has approved this one — locked from replacement. */
+  verified: boolean
 }
 interface Ticket {
   id: string
@@ -190,41 +333,92 @@ const notify = useNotify()
 
 const loading = ref(true)
 const error = ref('')
-const tab = ref<(typeof TABS)[number]['key']>('docs')
+const tab = ref<(typeof TABS)[number]['key']>('property')
 
+const myId = ref('')
+// OSAS approves/rejects identity documents by flipping the account's own
+// users.status, not each verification_documents row (the admin review flow
+// never writes doc_status past its initial 'pending') — so "verified" has to
+// be read from here, not from the per-document status.
+const myStatus = ref('')
+// There's no rejection-reason column anywhere (users, verification_documents) —
+// the admin's decision only ever survives as the notification it sends, so
+// that's the one place a reason can be read back from.
+const rejectionReason = ref('')
 const accommodations = ref<Accommodation[]>([])
 const selectedId = ref('')
-const docRows = ref<{ doc_type: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
-const tickets = ref<Ticket[]>([])
+const docRows = ref<{ doc_type: string; file_url: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
+const expandedProperty = ref('')
 const uploadingDoc = ref(false)
+
+// A permit already on file is view-only — replacing it goes through this
+// dialog's own blank form, never an inline field on the (read-only) row.
+const uploadDialogOpen = ref(false)
+const uploadDocType = ref('')
+const uploadForm = reactive({ file: null as File | null, expiresAt: '' })
+
+const myDocRows = ref<{ id: string; doc_type: string; file_url: string; filename: string | null; status: string; uploaded_at: string; verified_at: string | null }[]>([])
+const expandedMine = ref('')
+const uploadingMyDoc = ref(false)
+
+const tickets = ref<Ticket[]>([])
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
   return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 }
 
+/** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
+function isPdf(url: string) {
+  return /\.pdf(\?|$)/i.test(url)
+}
+
+function openFile(url: string) {
+  if (url) window.open(resolveAsset(url), '_blank', 'noopener')
+}
+
+// Property permits have no admin-reviewed status column yet (see the OSAS
+// compliance brainstorm) — every tone here is expiry-derived, never a real
+// OSAS approval, so replacement is never locked.
 const docs = computed<DocRow[]>(() =>
   DOC_TYPES.map((type) => {
     const row = docRows.value.find((d) => d.doc_type === type)
     if (!row) {
-      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '' }
+      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '', verified: false }
     }
     if (!row.expires_at) {
-      return { type, statusLabel: 'On file', tone: 'good', icon: 'lucide:check', when: `Uploaded ${since(row.uploaded_at)}` }
+      // Expiry is required on upload now, so a null one only happens on a
+      // legacy row from before that — flag it rather than reading as settled.
+      return { type, statusLabel: 'No expiration set', tone: 'warn', icon: 'lucide:calendar-x', when: `Uploaded ${since(row.uploaded_at)}`, fileUrl: row.file_url, verified: false }
     }
     const now = Date.now()
     const soon = now + 30 * 24 * 60 * 60 * 1000
     const t = new Date(row.expires_at).getTime()
-    if (t < now) return { type, statusLabel: 'Expired', tone: 'danger', icon: 'lucide:file-warning', when: `Expired ${since(row.expires_at)}` }
-    if (t < soon) return { type, statusLabel: 'Expiring soon', tone: 'warn', icon: 'lucide:calendar-clock', when: `Expires ${since(row.expires_at)}` }
-    return { type, statusLabel: 'Valid', tone: 'good', icon: 'lucide:check', when: `Expires ${since(row.expires_at)}` }
+    if (t < now) return { type, statusLabel: 'Expired', tone: 'danger', icon: 'lucide:file-warning', when: `Expired ${since(row.expires_at)}`, fileUrl: row.file_url, verified: false }
+    if (t < soon) return { type, statusLabel: 'Expiring soon', tone: 'warn', icon: 'lucide:calendar-clock', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url, verified: false }
+    return { type, statusLabel: 'Valid', tone: 'good', icon: 'lucide:check', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url, verified: false }
+  }),
+)
+
+const myDocs = computed<DocRow[]>(() =>
+  MY_DOC_TYPES.map((type) => {
+    const row = myDocRows.value.find((d) => d.doc_type === type)
+    if (!row) {
+      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '', verified: false }
+    }
+    // The account is the unit OSAS actually reviews — once it's verified (or
+    // rejected), that decision overrides this row's own stale 'pending'.
+    const effectiveStatus = myStatus.value === 'verified' ? 'approved' : myStatus.value === 'rejected' ? 'rejected' : row.status
+    const presentation = docPresentation(effectiveStatus)
+    const when = row.verified_at ? `Reviewed ${since(row.verified_at)}` : `Sent ${since(row.uploaded_at)}`
+    return { type, statusLabel: presentation.label, tone: presentation.tone, icon: presentation.icon, when, fileUrl: row.file_url, verified: effectiveStatus === 'approved' }
   }),
 )
 
 async function loadDocsFor(accommodationId: string) {
   const { data, error: docError } = await supabase
     .from('accommodation_documents')
-    .select('doc_type, expires_at, uploaded_at, version')
+    .select('doc_type, file_url, expires_at, uploaded_at, version')
     .eq('accommodation_id', accommodationId)
     .order('version', { ascending: false })
   if (docError) throw docError
@@ -237,6 +431,22 @@ async function loadDocsFor(accommodationId: string) {
   })
 }
 
+async function loadMyDocs(userId: string) {
+  const { data, error: docError } = await supabase
+    .from('verification_documents')
+    .select('id, doc_type, file_url, filename, status, uploaded_at, verified_at')
+    .eq('user_id', userId)
+    .order('uploaded_at', { ascending: false })
+  if (docError) throw docError
+
+  const seen = new Set<string>()
+  myDocRows.value = (data ?? []).filter((d) => {
+    if (!d.doc_type || seen.has(d.doc_type)) return false
+    seen.add(d.doc_type)
+    return true
+  }) as typeof myDocRows.value
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -247,21 +457,37 @@ async function load() {
       error.value = 'Not signed in.'
       return
     }
+    myId.value = user.id
 
-    const [{ data: accData, error: accError }, { data: ticketData, error: ticketError }] = await Promise.all([
+    const [{ data: accData, error: accError }, { data: ticketData, error: ticketError }, { data: userData, error: userError }] = await Promise.all([
       supabase.from('accommodations').select('id, name').eq('accommodation_manager_id', user.id).order('name'),
       supabase
         .from('tickets')
         .select('id, subject, description, category, status, reported_at')
         .eq('accommodation_manager_id', user.id)
         .order('reported_at', { ascending: false }),
+      supabase.from('users').select('status').eq('id', user.id).maybeSingle(),
     ])
     if (accError) throw accError
     if (ticketError) throw ticketError
+    if (userError) throw userError
+    myStatus.value = userData?.status || ''
+    if (myStatus.value === 'rejected') {
+      const { data: reasonRow } = await supabase
+        .from('notifications')
+        .select('body')
+        .eq('user_id', user.id)
+        .eq('title', 'Verification rejected')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      rejectionReason.value = reasonRow?.body || ''
+    }
 
     accommodations.value = (accData ?? []).map((a) => ({ id: a.id, name: a.name?.trim() || 'Unnamed accommodation' }))
     selectedId.value = accommodations.value[0]?.id || ''
     if (selectedId.value) await loadDocsFor(selectedId.value)
+    await loadMyDocs(user.id)
 
     tickets.value = (ticketData ?? []).map((t) => ({
       id: t.id,
@@ -282,28 +508,89 @@ watch(selectedId, (id) => {
   if (id) void loadDocsFor(id)
 })
 
-async function onDocSelected(event: Event, docType: string) {
+function toggleProperty(type: string) {
+  expandedProperty.value = expandedProperty.value === type ? '' : type
+}
+
+function openUploadDialog(type: string) {
+  uploadDocType.value = type
+  uploadForm.file = null
+  uploadForm.expiresAt = ''
+  uploadDialogOpen.value = true
+}
+
+function onUploadFileSelected(event: Event) {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file || !selectedId.value) return
+  uploadForm.file = input.files?.[0] || null
+}
+
+async function submitDocUpload() {
+  if (!uploadForm.file) {
+    notify.error('Choose a file.')
+    return
+  }
+  if (!uploadForm.expiresAt) {
+    notify.error('Pick an expiration date.')
+    return
+  }
+  if (!selectedId.value) return
+
   uploadingDoc.value = true
   try {
-    const url = await uploadDocument(file, '', docType)
+    const docType = uploadDocType.value
+    const url = await uploadDocument(uploadForm.file, '', docType)
     const existing = docRows.value.find((d) => d.doc_type === docType)
     const { error: insertError } = await supabase.from('accommodation_documents').insert({
       accommodation_id: selectedId.value,
       doc_type: docType,
       file_url: url,
+      expires_at: uploadForm.expiresAt,
       version: existing ? existing.version + 1 : 1,
     })
     if (insertError) throw insertError
 
     await loadDocsFor(selectedId.value)
+    uploadDialogOpen.value = false
     notify.success('Uploaded.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload this document.'))
   } finally {
     uploadingDoc.value = false
+  }
+}
+
+async function onMyDocSelected(event: Event, docType: string) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !myId.value) return
+  uploadingMyDoc.value = true
+  try {
+    const url = await uploadDocument(file, myId.value, docType)
+    const existing = myDocRows.value.find((d) => d.doc_type === docType)
+
+    // Resubmission updates the same row back to pending rather than inserting
+    // a duplicate — verification_documents has no version column to
+    // disambiguate "latest" the way accommodation_documents does.
+    const { error: writeError } = existing
+      ? await supabase
+          .from('verification_documents')
+          .update({ file_url: url, filename: file.name, status: 'pending', uploaded_at: new Date().toISOString(), verified_at: null })
+          .eq('id', existing.id)
+      : await supabase.from('verification_documents').insert({
+          user_id: myId.value,
+          doc_type: docType,
+          file_url: url,
+          filename: file.name,
+          status: 'pending',
+        })
+    if (writeError) throw writeError
+
+    await loadMyDocs(myId.value)
+    notify.success('Uploaded.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not upload this document.'))
+  } finally {
+    uploadingMyDoc.value = false
     input.value = ''
   }
 }
@@ -367,21 +654,40 @@ async function submitTicket() {
   }
 }
 
-onMounted(load)
+// The app header floats over the page at a JS-measured height (Quasar's
+// QHeader has no fixed size), so the sticky tab row needs its real bottom
+// edge, not a guessed px value, or it would stick underneath the header
+// once scrolled instead of just below it.
+const stickyTop = ref(64)
+function measureStickyTop() {
+  const header = document.querySelector('.app-header') as HTMLElement | null
+  if (header) stickyTop.value = Math.ceil(header.getBoundingClientRect().bottom)
+}
+
+onMounted(() => {
+  load()
+  void nextTick(measureStickyTop)
+  window.addEventListener('resize', measureStickyTop)
+})
+onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
 </script>
 
 <style scoped>
 .op {
+  display: flex;
+  flex-direction: column;
   background: var(--m-bg);
 }
 .stack {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
   gap: 12px;
-  padding: 10px var(--m-page-gutter) 24px;
+  padding: 10px var(--m-page-gutter) 0;
 }
-.tail {
-  height: 12px;
+.sk-tab {
+  border-radius: 10px 10px 0 0;
 }
 .sk {
   border-radius: var(--m-radius);
@@ -410,12 +716,13 @@ onMounted(load)
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-bottom: 4px;
 }
 .chip {
   padding: 6px 12px;
   border: 1px solid var(--m-border);
   border-radius: 999px;
-  background: var(--m-surface);
+  background: var(--m-bg);
   color: var(--m-text);
   cursor: pointer;
   font: inherit;
@@ -429,33 +736,69 @@ onMounted(load)
   color: var(--m-primary-dark);
 }
 
-.tabs {
+/* Same rounded-top pill tabs fused into a bordered panel used by
+   AccommodationDetail.vue / TenantProfile.vue / ManagerTenantsPage.vue —
+   the default tabbed-section design for this app. */
+.tabbed {
   display: flex;
-  gap: 6px;
-  border-bottom: 1px solid var(--m-border);
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.tabs {
+  position: sticky;
+  top: var(--sticky-top, 64px);
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  margin: 0 calc(var(--m-page-gutter) * -1) -2px;
+  padding: 0 var(--m-page-gutter);
 }
 .tab {
-  padding: 8px 4px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--m-border);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: var(--m-bg);
   color: var(--m-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
+  transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .tab--on {
-  border-bottom-color: var(--m-primary);
+  background: var(--m-surface);
   color: var(--m-primary-dark);
 }
-
-.sec {
+.panel {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  margin: 0 calc(var(--m-page-gutter) * -1);
+  padding: 14px 14px 16px;
+  border: 1px solid var(--m-border);
+  /* Square the bottom corners — the panel is stretched flush to the true
+     bottom of the page (above the bottom nav), so a rounded corner would
+     have nothing beside it to round away from. */
+  border-radius: var(--m-radius) var(--m-radius) 0 0;
+  background: var(--m-surface);
+}
+.panels {
+  background: transparent;
+}
+.panels :deep(.q-tab-panel) {
+  padding: 0;
+}
+.tab-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
 .sec-head {
   display: flex;
   align-items: center;
@@ -466,6 +809,27 @@ onMounted(load)
   margin: 0;
   color: var(--m-muted);
   font-size: 12px;
+}
+.reject-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--m-danger-soft);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+}
+.reject-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.reject-text {
+  margin: 2px 0 0;
+  color: var(--m-text);
+  font-size: 12px;
+  line-height: 1.4;
 }
 .sec-link {
   flex: 0 0 auto;
@@ -484,19 +848,28 @@ onMounted(load)
   flex-direction: column;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
-  background: var(--m-surface);
+  background: var(--m-bg);
   overflow: hidden;
 }
 
+.doc-item {
+  border-top: 1px solid var(--m-border);
+}
+.group > .doc-item:first-child {
+  border-top: 0;
+}
 .doc-row {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.group > .doc-row:first-child {
-  border-top: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
 .doc-icon {
   display: grid;
@@ -519,7 +892,7 @@ onMounted(load)
   color: var(--m-danger);
 }
 .doc-icon--idle {
-  background: var(--m-bg);
+  background: var(--m-surface);
   color: var(--m-muted);
 }
 .doc-body {
@@ -558,22 +931,96 @@ onMounted(load)
   color: var(--m-danger);
 }
 .doc-tag--idle {
-  background: var(--m-bg);
+  background: var(--m-surface);
   color: var(--m-muted);
 }
-.doc-upload {
-  position: relative;
-  display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  place-items: center;
+.doc-chevron {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+  transition: transform 0.15s ease;
+}
+.doc-chevron--on {
+  transform: rotate(180deg);
+}
+
+.doc-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.doc-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
   border: 1px solid var(--m-border);
-  border-radius: 999px;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  overflow: hidden;
+}
+.doc-preview-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  cursor: pointer;
+}
+.doc-preview-file,
+.doc-preview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--m-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+.doc-preview-file {
   color: var(--m-primary-dark);
   cursor: pointer;
 }
-.doc-file {
+.doc-locked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.doc-actions {
+  display: flex;
+  gap: 8px;
+}
+.doc-action {
+  display: flex;
+  min-height: 36px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.doc-action--primary {
+  position: relative;
+  border-color: var(--m-primary);
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  overflow: hidden;
+}
+.doc-file-input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -696,6 +1143,41 @@ onMounted(load)
   color: var(--m-ink);
   font: inherit;
   font-size: 14px;
+}
+.file-picker {
+  position: relative;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px dashed var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-muted);
+  cursor: pointer;
+}
+.file-picker--chosen {
+  border-style: solid;
+  border-color: var(--m-primary);
+  color: var(--m-primary-dark);
+}
+.file-picker-text {
+  flex: 1;
+  overflow: hidden;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-picker-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 .field-textarea {
   min-height: 90px;

@@ -6,7 +6,7 @@
 
 <style scoped>
 .primary-action-btn {
-  background: #00796b !important;
+  background: var(--m-primary-dark) !important;
   color: white !important;
   height: 56px;
   border-radius: 16px;

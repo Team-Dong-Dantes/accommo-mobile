@@ -1,8 +1,19 @@
 <template>
   <q-page class="cp">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="72px" class="sk" />
-      <q-skeleton type="rect" height="72px" class="sk" />
+      <div class="group">
+        <div v-for="n in 3" :key="n" class="row">
+          <q-skeleton type="circle" size="36px" />
+          <span class="row-body">
+            <span class="row-top">
+              <q-skeleton type="text" width="40%" height="14px" />
+              <q-skeleton type="text" width="50px" height="16px" />
+            </span>
+            <q-skeleton type="text" width="70%" height="12px" />
+            <q-skeleton type="text" width="30%" height="11px" />
+          </span>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -32,7 +43,10 @@
     <div v-else class="stack">
       <div class="group">
         <button v-for="c in visibleRows" :key="c.id" type="button" class="row" @click="openDetail(c)">
-          <span class="row-avatar">{{ initialsOf(c.studentName) }}</span>
+          <span class="row-avatar" :class="c.avatarColor ? [`bg-${c.avatarColor}`, 'text-white'] : []">
+            <img v-if="c.avatarUrl" :src="c.avatarUrl" alt="" class="row-avatar-img" @error="c.avatarUrl = null" />
+            <template v-else>{{ initialsOf(c.studentName) }}</template>
+          </span>
           <span class="row-body">
             <span class="row-top">
               <span class="row-name">{{ c.studentName }}</span>
@@ -92,7 +106,10 @@
     <q-dialog v-model="detailOpen" position="bottom">
       <q-card v-if="selected" class="detail-sheet">
         <div class="detail-head">
-          <span class="detail-avatar">{{ initialsOf(selected.studentName) }}</span>
+          <span class="detail-avatar" :class="selected.avatarColor ? [`bg-${selected.avatarColor}`, 'text-white'] : []">
+            <img v-if="selected.avatarUrl" :src="selected.avatarUrl" alt="" class="detail-avatar-img" @error="selected.avatarUrl = null" />
+            <template v-else>{{ initialsOf(selected.studentName) }}</template>
+          </span>
           <span class="detail-headbody">
             <span class="detail-name">{{ selected.studentName }}</span>
             <span class="detail-where">{{ selected.where }}</span>
@@ -104,6 +121,7 @@
 
         <p class="detail-label">{{ CONCERN_CATEGORY_LABEL[selected.category] || selected.category }} · {{ since(selected.reportedAt) }}</p>
         <p class="detail-text">{{ selected.description || 'No description given.' }}</p>
+        <img v-if="selected.photoUrl" :src="selected.photoUrl" alt="" class="detail-photo" />
 
         <label class="field">
           <span class="field-label">Response to tenant</span>
@@ -124,6 +142,16 @@
             Resolve
           </button>
         </div>
+        <button
+          v-if="selected.status !== 'resolved' && selected.status !== 'rejected'"
+          type="button"
+          class="escalate-btn"
+          :disabled="escalating"
+          @click="escalate"
+        >
+          <IconifyIcon icon="lucide:arrow-up-right" width="14" />
+          Escalate to OSAS
+        </button>
         <p v-if="selected.status === 'resolved' || selected.status === 'rejected'" class="detail-final">
           This concern is closed.
         </p>
@@ -133,11 +161,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { initialsOf, CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
@@ -154,14 +184,19 @@ const FILTERS = [
 
 interface Concern {
   id: string
+  leaseId: string
   studentId: string
   category: string
   description: string
   status: string
   reportedAt: string
   managerResponse: string
+  photoUrl: string
+  accommodationId: string | null
   where: string
   studentName: string
+  avatarColor: string | null
+  avatarUrl: string | null
 }
 
 const notify = useNotify()
@@ -177,6 +212,9 @@ const detailOpen = ref(false)
 const selected = ref<Concern | null>(null)
 const response = ref('')
 const deciding = ref(false)
+const escalating = ref(false)
+
+let channel: RealtimeChannel | null = null
 
 const visibleRows = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -211,7 +249,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('concerns')
       .select(
-        'id, category, description, status, reported_at, manager_response, leases!inner(accommodation_manager_id, student_id, users!leases_student_id_fkey(full_name), rooms(room_number, label, accommodations(name)))',
+        'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(accommodation_manager_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
       )
       .eq('leases.accommodation_manager_id', user.id)
       .order('reported_at', { ascending: false })
@@ -220,13 +258,16 @@ async function load() {
     rows.value = (data ?? []).map((c) => {
       const lease = c.leases as unknown as {
         student_id: string
-        users: { full_name: string | null } | null
-        rooms: { room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
+        users: { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
+        rooms: { accommodation_id: string | null; room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
       }
       const room = lease.rooms
       return {
         id: c.id,
+        leaseId: c.lease_id,
         studentId: lease.student_id,
+        photoUrl: c.photo_url || '',
+        accommodationId: room?.accommodation_id || null,
         category: c.category,
         description: c.description || '',
         status: c.status,
@@ -234,14 +275,77 @@ async function load() {
         managerResponse: c.manager_response || '',
         where: room?.accommodations?.name || room?.label || 'Accommodation',
         studentName: lease.users?.full_name || 'A student',
+        avatarColor: lease.users?.avatar_color ?? null,
+        avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url) : null,
       }
     })
+
+    startRealtime(user.id)
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
     loading.value = false
   }
 }
+
+/** New reports and status/response edits land live; RLS scopes the feed to this manager's own leases. */
+function startRealtime(managerId: string) {
+  if (channel || typeof supabase.channel !== 'function') return
+  channel = supabase
+    .channel(`concerns:manager:${managerId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'concerns' }, async (payload) => {
+      const id = (payload.new as { id: string }).id
+      if (rows.value.some((r) => r.id === id)) return
+      const { data } = await supabase
+        .from('concerns')
+        .select(
+          'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(accommodation_manager_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
+        )
+        .eq('id', id)
+        .maybeSingle()
+      if (!data) return
+      const lease = data.leases as unknown as {
+        student_id: string
+        users: { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
+        rooms: { accommodation_id: string | null; room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
+      }
+      const room = lease.rooms
+      rows.value = [
+        {
+          id: data.id,
+          leaseId: data.lease_id,
+          studentId: lease.student_id,
+          photoUrl: data.photo_url || '',
+          accommodationId: room?.accommodation_id || null,
+          category: data.category,
+          description: data.description || '',
+          status: data.status,
+          reportedAt: data.reported_at,
+          managerResponse: data.manager_response || '',
+          where: room?.accommodations?.name || room?.label || 'Accommodation',
+          studentName: lease.users?.full_name || 'A student',
+          avatarColor: lease.users?.avatar_color ?? null,
+          avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url) : null,
+        },
+        ...rows.value,
+      ]
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'concerns' }, (payload) => {
+      const row = payload.new as { id: string; status: string; manager_response: string | null }
+      const patch = (c: Concern) => {
+        c.status = row.status
+        c.managerResponse = row.manager_response || ''
+      }
+      const listed = rows.value.find((c) => c.id === row.id)
+      if (listed) patch(listed)
+      if (selected.value?.id === row.id) patch(selected.value)
+    })
+    .subscribe()
+}
+
+onUnmounted(() => {
+  if (channel) void supabase.removeChannel(channel)
+})
 
 const STATUS_VERB: Record<string, string> = {
   acknowledged: 'acknowledged',
@@ -258,12 +362,14 @@ async function decide(next: 'acknowledged' | 'in_progress' | 'resolved' | 'rejec
       status: string
       manager_response: string | null
       acknowledged_at?: string
+      in_progress_at?: string
       resolved_at?: string
     } = {
       status: next,
       manager_response: response.value.trim() || null,
     }
     if (next === 'acknowledged') payload.acknowledged_at = new Date().toISOString()
+    if (next === 'in_progress') payload.in_progress_at = new Date().toISOString()
     if (next === 'resolved' || next === 'rejected') payload.resolved_at = new Date().toISOString()
 
     const { error: updateError } = await supabase.from('concerns').update(payload).eq('id', selected.value.id)
@@ -294,6 +400,38 @@ async function decide(next: 'acknowledged' | 'in_progress' | 'resolved' | 'rejec
   }
 }
 
+/** Raises the concern as an OSAS ticket on the same lease/accommodation, for issues the manager can't resolve alone. */
+async function escalate() {
+  if (escalating.value || !selected.value) return
+  escalating.value = true
+  try {
+    const { data: authData } = await supabase.auth.getUser()
+    const user = authData?.user
+    if (!user) throw new Error('Not signed in.')
+
+    const c = selected.value
+    const { error: insertError } = await supabase.from('tickets').insert({
+      accommodation_manager_id: user.id,
+      accommodation_id: c.accommodationId,
+      lease_id: c.leaseId,
+      student_id: c.studentId,
+      reporter_name: c.studentName,
+      subject: `Escalated concern: ${CONCERN_CATEGORY_LABEL[c.category] || c.category}`,
+      description: c.description || null,
+      category: 'accommodation',
+      status: 'open',
+      priority: 'medium',
+    })
+    if (insertError) throw insertError
+
+    notify.success('Escalated to OSAS.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not escalate this concern.'))
+  } finally {
+    escalating.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -306,7 +444,7 @@ onMounted(load)
   flex-direction: column;
   gap: 10px;
   /* Clears the docked search, which sits on the FAB's baseline. */
-  padding: 10px var(--m-page-gutter) 126px;
+  padding: 10px var(--m-page-gutter) 74px;
 }
 .sk {
   border-radius: var(--m-radius);
@@ -335,10 +473,9 @@ onMounted(load)
    where it begins, so the two read as one band. */
 .dock {
   position: fixed;
-  bottom: 68px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   left: var(--m-page-gutter);
-  /* 16px FAB inset + 44px FAB + 8px gap */
-  right: 68px;
+  right: var(--m-page-gutter);
   z-index: 60;
   display: flex;
   align-items: center;
@@ -514,11 +651,17 @@ onMounted(load)
   height: 36px;
   flex: 0 0 36px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 12px;
   font-weight: 800;
+}
+.row-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .row-body {
   display: flex;
@@ -598,11 +741,17 @@ onMounted(load)
   height: 40px;
   flex: 0 0 40px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 13px;
   font-weight: 800;
+}
+.detail-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .detail-headbody {
   display: flex;
@@ -652,6 +801,12 @@ onMounted(load)
   color: var(--m-text);
   font-size: 13.5px;
   line-height: 1.5;
+}
+.detail-photo {
+  width: 100%;
+  max-height: 180px;
+  border-radius: var(--m-radius-sm);
+  object-fit: cover;
 }
 .detail-final {
   margin: 0;
@@ -714,5 +869,26 @@ onMounted(load)
   border: 1px solid var(--m-border);
   background: var(--m-bg);
   color: var(--m-text);
+}
+
+.escalate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  margin-top: 2px;
+  border: 1px dashed var(--m-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.escalate-btn:disabled {
+  opacity: 0.6;
 }
 </style>

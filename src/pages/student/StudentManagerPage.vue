@@ -1,7 +1,11 @@
 <template>
   <q-page class="mp">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="90px" class="sk" />
+      <div class="head">
+        <q-skeleton type="circle" size="64px" />
+        <q-skeleton type="text" width="130px" height="17px" />
+        <q-skeleton type="text" width="110px" height="12px" />
+      </div>
       <q-skeleton type="rect" height="90px" class="sk" />
     </div>
 
@@ -18,7 +22,7 @@
           color="primary"
           label="Try again"
           class="q-mt-sm q-px-md"
-          @click="load"
+          @click="load()"
         />
       </q-card>
     </div>
@@ -26,7 +30,8 @@
     <div v-else class="stack">
       <div class="head">
         <span class="head-avatar" :class="manager.avatarColor ? ['bg-' + manager.avatarColor, 'text-white'] : []">
-          {{ manager.initials }}
+          <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="head-avatar-img" @error="manager.avatarUrl = null" />
+          <template v-else>{{ manager.initials }}</template>
         </span>
         <span class="head-name">{{ manager.name }}</span>
         <span class="head-sub">Accommodation manager</span>
@@ -88,7 +93,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -123,6 +129,7 @@ const manager = reactive({
   responseRate: null as number | null,
   memberSince: '',
   avatarColor: null as string | null,
+  avatarUrl: null as string | null,
   verified: false,
 })
 const properties = ref<Property[]>([])
@@ -136,14 +143,14 @@ const stats = computed(() => {
   return `${roomCount} room${roomCount === 1 ? '' : 's'} · ${available} available`
 })
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const [{ data: person }, { data: profile }, { data: props, error: propsError }] = await Promise.all([
       supabase
         .from('users')
-        .select('id,full_name,initials,avatar_color,created_at,status')
+        .select('id,full_name,initials,avatar_color,avatar_url,created_at,status')
         .eq('id', id.value)
         .eq('role', 'accommodation_manager')
         .maybeSingle(),
@@ -168,6 +175,7 @@ async function load() {
     manager.name = person.full_name?.trim() || 'Accommodation manager'
     manager.initials = person.initials || initialsOf(manager.name)
     manager.avatarColor = person.avatar_color
+    manager.avatarUrl = person.avatar_url ? resolveAsset(person.avatar_url) : null
     manager.memberSince = person.created_at ? String(parseServerTime(person.created_at).getFullYear()) : ''
     manager.replyMinutes = profile?.avg_response_minutes ?? null
     manager.responseRate = profile?.response_rate ?? null
@@ -198,7 +206,29 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Kept alive per manager id (see MainLayout's KEEP_ALIVE_PAGES + the
+// route.fullPath key), so this only really runs once per manager per
+// session. New/updated listings push here instead of the page re-asking on
+// return — same channel shape as stores/notifications.ts, just refetching
+// instead of merging since this page has no per-row incremental-update need.
+let listingsChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  if (!id.value || typeof supabase.channel !== 'function') return
+  listingsChannel = supabase
+    .channel(`manager-listings:${id.value}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'accommodations', filter: `accommodation_manager_id=eq.${id.value}` },
+      () => void load(true),
+    )
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (listingsChannel) void supabase.removeChannel(listingsChannel)
+})
 </script>
 
 <style scoped>
@@ -249,6 +279,7 @@ onMounted(load)
   width: 64px;
   height: 64px;
   place-items: center;
+  overflow: hidden;
   margin-bottom: 4px;
   border-radius: 999px;
   background: var(--m-primary-soft);
@@ -256,6 +287,11 @@ onMounted(load)
   font-family: var(--m-font-display);
   font-size: 22px;
   font-weight: 800;
+}
+.head-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .head-name {
   color: var(--m-ink);

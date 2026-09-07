@@ -138,13 +138,14 @@ export async function uploadDocument(
 /**
  * Uploads a new profile photo and stores it where the app already looks.
  *
- * There is no users.avatar_url column: MainLayout reads the avatar from the
- * auth user's metadata (avatar_url, falling back to Google's `picture` claim),
- * so writing it there is what actually makes a new photo appear in the app
- * chrome as well as on the profile. The accommo:avatar-change event refreshes
- * the bottom-nav avatar without waiting for a reload.
+ * Written to two places: the auth user's metadata (what MainLayout reads for
+ * your own chrome/profile, unchanged from before) and `users.avatar_url` —
+ * without the latter, nobody else can ever see this photo, since a client can
+ * only read its own session's auth metadata, never another user's. The
+ * accommo:avatar-change event refreshes the bottom-nav avatar without
+ * waiting for a reload.
  */
-export async function uploadAvatar(file: File, _userId: string): Promise<string> {
+export async function uploadAvatar(file: File, userId: string): Promise<string> {
   if (!ALLOWED_IMAGE.includes(file.type)) {
     throw new Error('An avatar must be a JPEG, PNG or WebP image.');
   }
@@ -154,6 +155,9 @@ export async function uploadAvatar(file: File, _userId: string): Promise<string>
 
   const { error } = await supabase.auth.updateUser({ data: { avatar_url: url } });
   if (error) throw error;
+
+  const { error: dbError } = await supabase.from('users').update({ avatar_url: url }).eq('id', userId);
+  if (dbError) throw dbError;
 
   window.dispatchEvent(new CustomEvent('accommo:avatar-change', { detail: { url } }));
   return url;

@@ -59,6 +59,18 @@
   --m-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
+// Quasar's static grey text utilities (text-grey-4/7/8) are used as secondary
+// copy on the auth screens. They're compiled to fixed light-mode-friendly
+// greys and don't adapt with Dark.set(), so they read as low-contrast in dark
+// mode — remap them to the theme-aware muted/border tokens there only.
+:root.dark .text-grey-4 {
+  color: var(--m-border) !important;
+}
+:root.dark .text-grey-7,
+:root.dark .text-grey-8 {
+  color: var(--m-muted) !important;
+}
+
 body {
   font-family: var(--m-font-body);
 }

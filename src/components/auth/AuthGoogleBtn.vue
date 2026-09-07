@@ -13,9 +13,10 @@ const GOOGLE_ICON = EXTERNAL_URLS.GOOGLE_ICON;
 <style scoped>
 .google-btn {
   height: 56px;
+  border: 1px solid var(--m-border);
   border-radius: 16px;
-  background: #f5f5f5;
-  color: #222;
+  background: var(--m-bg);
+  color: var(--m-ink);
   font-weight: 600;
 }
 </style>

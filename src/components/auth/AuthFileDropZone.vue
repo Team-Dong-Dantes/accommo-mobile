@@ -15,27 +15,31 @@
         <slot name="append" />
       </template>
     </q-file>
-
-    <!-- Hidden camera-only input: opens the device camera on mobile -->
-    <q-file
-      ref="cameraRef"
-      v-model="model"
-      accept="image/*"
-      capture="environment"
-      class="hidden-camera"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 const model = defineModel<File | null>();
 
-const cameraRef = ref<{ pickFiles: () => void } | null>(null);
-
-function openCamera() {
-  cameraRef.value?.pickFiles();
+// A plain <input capture> silently falls back to the file picker in
+// Capacitor's WebView because it never actually requests the runtime camera
+// permission — the Camera plugin handles that permission prompt properly.
+async function openCamera() {
+  try {
+    const photo = await Camera.getPhoto({
+      source: CameraSource.Camera,
+      resultType: CameraResultType.Uri,
+      quality: 80,
+    });
+    if (!photo.webPath) return;
+    const blob = await (await fetch(photo.webPath)).blob();
+    const ext = photo.format || 'jpeg';
+    model.value = new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` });
+  } catch {
+    // User cancelled the camera (or denied permission) — no error toast for a cancel.
+  }
 }
 </script>
 
@@ -50,16 +54,16 @@ function openCamera() {
 
 .file-dropzone :deep(.q-field__control) {
   min-height: 72px;
-  background: #fafafa;
-  border: 2px dashed #b2dfdb;
+  background: var(--m-bg);
+  border: 2px dashed var(--m-border);
   border-radius: 16px;
   padding: 0 16px;
   transition: all 0.3s ease;
 }
 
 .file-dropzone:hover :deep(.q-field__control) {
-  border-color: #009688;
-  background: #e0f2f1;
+  border-color: var(--m-primary);
+  background: var(--m-primary-soft);
 }
 
 .file-dropzone :deep(svg.iconify) {
@@ -69,16 +73,5 @@ function openCamera() {
 
 .camera-icon-btn {
   margin-left: 4px;
-}
-
-/* Keep the camera input in the DOM (so pickFiles() works) but invisible */
-.hidden-camera {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: -1;
 }
 </style>

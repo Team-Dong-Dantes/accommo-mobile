@@ -1,8 +1,18 @@
 <template>
   <q-page class="cp">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="72px" class="sk" />
-      <q-skeleton type="rect" height="72px" class="sk" />
+      <div class="group">
+        <div v-for="n in 3" :key="n" class="row">
+          <span class="row-body">
+            <span class="row-top">
+              <q-skeleton type="text" width="35%" height="13px" />
+              <q-skeleton type="text" width="50px" height="16px" />
+            </span>
+            <q-skeleton type="text" width="75%" height="12px" />
+            <q-skeleton type="text" width="45%" height="11px" />
+          </span>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -19,11 +29,7 @@
       icon="lucide:message-square-warning"
       title="No concerns yet"
       message="Maintenance, safety and billing issues you raise will show up here, with each one's status and your manager's response."
-    >
-      <template #actions>
-        <q-btn v-if="activeLease" unelevated rounded no-caps color="primary" label="Report a concern" @click="openNew" />
-      </template>
-    </EmptyState>
+    />
 
     <EmptyState
       v-else-if="!visibleRows.length"
@@ -65,7 +71,13 @@
         <IconifyIcon icon="lucide:search" width="16" class="dock-icon" />
         <input v-model="query" class="dock-input" type="search" placeholder="Search concerns" aria-label="Search concerns" />
       </div>
-      <button type="button" class="dock-btn" :disabled="!activeLease" aria-label="Report a concern" @click="openNew">
+      <button
+        type="button"
+        class="dock-btn"
+        :disabled="!activeLease"
+        aria-label="Report a concern"
+        @click="openNew"
+      >
         <IconifyIcon icon="lucide:plus" width="18" />
       </button>
     </div>
@@ -97,25 +109,30 @@
 
     <q-dialog v-model="detailOpen" position="bottom">
       <q-card v-if="selected" class="detail-sheet">
-        <h3 class="detail-title">{{ CONCERN_CATEGORY_LABEL[selected.category] || selected.category }}</h3>
-        <span class="detail-chip" :class="`detail-chip--${statusColor(CONCERN_STATUS, selected.status)}`">
-          {{ statusText(CONCERN_STATUS, selected.status) }}
-        </span>
-
-        <div class="steps">
-          <span
-            v-for="s in STEP_ORDER"
-            :key="s"
-            class="step"
-            :class="{ 'step--on': stepIndex(selected.status) >= STEP_ORDER.indexOf(s), 'step--bad': selected.status === 'rejected' && s === 'resolved' }"
-          >
-            {{ CONCERN_STATUS[s]?.text }}
+        <div class="detail-head">
+          <h3 class="detail-title">{{ CONCERN_CATEGORY_LABEL[selected.category] || selected.category }}</h3>
+          <span class="detail-chip" :class="`detail-chip--${statusColor(CONCERN_STATUS, selected.status)}`">
+            {{ statusText(CONCERN_STATUS, selected.status) }}
           </span>
         </div>
 
+        <ul class="timeline">
+          <li v-for="s in timeline" :key="s.key" class="tl-row">
+            <span class="tl-rail">
+              <span class="tl-dot" :class="{ 'tl-dot--done': s.done, 'tl-dot--bad': s.bad }" />
+              <span class="tl-line" />
+            </span>
+            <span class="tl-body">
+              <span class="tl-label" :class="{ 'tl-label--pending': !s.done }">{{ s.label }}</span>
+              <span class="tl-when">{{ s.at ? `${since(s.at)} ago` : 'Pending' }}</span>
+            </span>
+          </li>
+        </ul>
+
         <p class="detail-label">Your report</p>
         <p class="detail-text">{{ selected.description || 'No description given.' }}</p>
-        <p class="detail-meta">{{ selected.where }} · Reported {{ since(selected.reportedAt) }}</p>
+        <p class="detail-meta">{{ selected.where }}</p>
+        <img v-if="selected.photoUrl" :src="selected.photoUrl" alt="" class="detail-photo" />
 
         <template v-if="selected.managerResponse">
           <p class="detail-label">Manager's response</p>
@@ -139,6 +156,14 @@
           <span class="field-label">Description</span>
           <textarea v-model="form.description" class="field-input field-textarea" rows="4" placeholder="What's going on?" />
         </label>
+        <label class="field">
+          <span class="field-label">Photo (optional)</span>
+          <span class="file-picker" :class="{ 'file-picker--chosen': form.photo }">
+            <IconifyIcon :icon="form.photo ? 'lucide:file-check' : 'lucide:camera'" width="16" />
+            <span class="file-picker-text">{{ form.photo ? form.photo.name : 'Attach a photo' }}</span>
+            <input type="file" accept="image/*" class="file-picker-input" @change="onPhotoSelected" />
+          </span>
+        </label>
         <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="submitting" label="Submit" @click="submit" />
       </q-card>
     </q-dialog>
@@ -146,17 +171,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
+import { uploadDocument } from '@/utils/upload'
 import EmptyState from '@/components/shared/EmptyState.vue'
-
-const STEP_ORDER = ['open', 'acknowledged', 'in_progress', 'resolved'] as const
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -171,7 +196,11 @@ interface Concern {
   description: string
   status: string
   reportedAt: string
+  acknowledgedAt: string | null
+  inProgressAt: string | null
+  resolvedAt: string | null
   managerResponse: string
+  photoUrl: string
   where: string
 }
 
@@ -190,13 +219,28 @@ const detailOpen = ref(false)
 const selected = ref<Concern | null>(null)
 const newOpen = ref(false)
 const submitting = ref(false)
-const form = reactive({ category: 'maintenance', description: '' })
+const form = reactive({ category: 'maintenance', description: '', photo: null as File | null })
 
-// 'rejected' has no place on the open→acknowledged→in_progress→resolved
-// track, so it lights up only the first step (the report itself happened).
-function stepIndex(status: string): number {
-  const i = STEP_ORDER.indexOf(status as (typeof STEP_ORDER)[number])
-  return i === -1 ? 0 : i
+let channel: RealtimeChannel | null = null
+
+// A single timeline replaces the old step-tracker + activity list: each row
+// is "done" once its timestamp lands, so a rejected report still shows
+// whatever acknowledgement/in-progress steps actually happened before it closed.
+const timeline = computed(() => {
+  if (!selected.value) return []
+  const c = selected.value
+  const closed = c.status === 'resolved' || c.status === 'rejected'
+  return [
+    { key: 'open', label: 'Reported', at: c.reportedAt as string | null, done: true, bad: false },
+    { key: 'acknowledged', label: 'Acknowledged', at: c.acknowledgedAt, done: !!c.acknowledgedAt, bad: false },
+    { key: 'in_progress', label: 'In progress', at: c.inProgressAt, done: !!c.inProgressAt, bad: false },
+    { key: 'closed', label: c.status === 'rejected' ? 'Rejected' : 'Resolved', at: closed ? c.resolvedAt : null, done: closed, bad: c.status === 'rejected' },
+  ]
+})
+
+function onPhotoSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  form.photo = input.files?.[0] || null
 }
 
 const visibleRows = computed(() => {
@@ -216,6 +260,7 @@ function openDetail(c: Concern) {
 function openNew() {
   form.category = 'maintenance'
   form.description = ''
+  form.photo = null
   newOpen.value = true
 }
 
@@ -242,7 +287,9 @@ async function load() {
 
     const { data, error: loadError } = await supabase
       .from('concerns')
-      .select('id, category, description, status, reported_at, manager_response, leases!inner(student_id, rooms(room_number, label, accommodations(name)))')
+      .select(
+        'id, category, description, status, reported_at, acknowledged_at, in_progress_at, resolved_at, manager_response, photo_url, leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
+      )
       .eq('leases.student_id', user.id)
       .order('reported_at', { ascending: false })
     if (loadError) throw loadError
@@ -258,10 +305,16 @@ async function load() {
         description: c.description || '',
         status: c.status,
         reportedAt: c.reported_at,
+        acknowledgedAt: c.acknowledged_at,
+        inProgressAt: c.in_progress_at,
+        resolvedAt: c.resolved_at,
         managerResponse: c.manager_response || '',
+        photoUrl: c.photo_url || '',
         where: room?.accommodations?.name || room?.label || 'Your stay',
       }
     })
+
+    startRealtime()
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -269,10 +322,48 @@ async function load() {
   }
 }
 
+/** Live status/response updates from the manager land on an open list or detail sheet without a manual reload. */
+function startRealtime() {
+  if (channel || !activeLease.value || typeof supabase.channel !== 'function') return
+  channel = supabase
+    .channel(`concerns:student:${activeLease.value.id}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'concerns', filter: `lease_id=eq.${activeLease.value.id}` },
+      (payload) => {
+        const row = payload.new as {
+          id: string
+          status: string
+          acknowledged_at: string | null
+          in_progress_at: string | null
+          resolved_at: string | null
+          manager_response: string | null
+        }
+        const patch = (c: Concern) => {
+          c.status = row.status
+          c.acknowledgedAt = row.acknowledged_at
+          c.inProgressAt = row.in_progress_at
+          c.resolvedAt = row.resolved_at
+          c.managerResponse = row.manager_response || ''
+        }
+        const listed = rows.value.find((c) => c.id === row.id)
+        if (listed) patch(listed)
+        if (selected.value?.id === row.id) patch(selected.value)
+      },
+    )
+    .subscribe()
+}
+
+onUnmounted(() => {
+  if (channel) void supabase.removeChannel(channel)
+})
+
 async function submit() {
   if (submitting.value || !activeLease.value) return
   submitting.value = true
   try {
+    const photoUrl = form.photo ? await uploadDocument(form.photo, '', 'concern') : null
+
     const { data: created, error: insertError } = await supabase
       .from('concerns')
       .insert({
@@ -280,8 +371,9 @@ async function submit() {
         category: form.category,
         description: form.description.trim() || null,
         status: 'open',
+        photo_url: photoUrl,
       })
-      .select('id, category, description, status, reported_at, manager_response')
+      .select('id, category, description, status, reported_at, manager_response, photo_url')
       .single()
     if (insertError) throw insertError
 
@@ -292,7 +384,11 @@ async function submit() {
         description: created.description || '',
         status: created.status,
         reportedAt: created.reported_at,
+        acknowledgedAt: null,
+        inProgressAt: null,
+        resolvedAt: null,
         managerResponse: '',
+        photoUrl: created.photo_url || '',
         where: 'Your stay',
       },
       ...rows.value,
@@ -327,7 +423,7 @@ onMounted(load)
   flex-direction: column;
   gap: 10px;
   /* Clears the docked search, which sits on the FAB's baseline. */
-  padding: 10px var(--m-page-gutter) 126px;
+  padding: 10px var(--m-page-gutter) 74px;
 }
 .sk {
   border-radius: var(--m-radius);
@@ -356,10 +452,9 @@ onMounted(load)
    where it begins, so the two read as one band. */
 .dock {
   position: fixed;
-  bottom: 68px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   left: var(--m-page-gutter);
-  /* 16px FAB inset + 44px FAB + 8px gap */
-  right: 68px;
+  right: var(--m-page-gutter);
   z-index: 60;
   display: flex;
   align-items: center;
@@ -596,7 +691,6 @@ onMounted(load)
   padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
   border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
 }
-.detail-title,
 .new-title {
   margin: 0;
   color: var(--m-ink);
@@ -604,8 +698,21 @@ onMounted(load)
   font-size: 17px;
   font-weight: 700;
 }
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.detail-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
 .detail-chip {
-  align-self: flex-start;
+  flex: 0 0 auto;
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
@@ -621,29 +728,6 @@ onMounted(load)
   color: var(--m-warning);
 }
 .detail-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-
-.steps {
-  display: flex;
-  gap: 4px;
-}
-.step {
-  flex: 1;
-  padding: 6px 4px;
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-}
-.step--on {
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.step--bad {
   background: var(--m-danger-soft);
   color: var(--m-danger);
 }
@@ -671,6 +755,111 @@ onMounted(load)
   min-height: 46px;
   margin-top: 6px;
   font-weight: 700;
+}
+.detail-photo {
+  width: 100%;
+  max-height: 180px;
+  border-radius: var(--m-radius-sm);
+  object-fit: cover;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tl-row {
+  display: flex;
+  gap: 10px;
+}
+.tl-rail {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  width: 10px;
+}
+.tl-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--m-border);
+}
+.tl-dot--done {
+  background: var(--m-primary);
+}
+.tl-dot--bad {
+  background: var(--m-danger);
+}
+.tl-line {
+  width: 2px;
+  flex: 1;
+  margin: 2px 0;
+  background: var(--m-border);
+}
+.tl-row:last-child .tl-line {
+  display: none;
+}
+.tl-body {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.tl-label {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.tl-label--pending {
+  color: var(--m-muted);
+  font-weight: 600;
+}
+.tl-when {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+  font-size: 11px;
+}
+
+.file-picker {
+  position: relative;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px dashed var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-muted);
+  cursor: pointer;
+}
+.file-picker--chosen {
+  border-style: solid;
+  border-color: var(--m-primary);
+  color: var(--m-primary-dark);
+}
+.file-picker-text {
+  flex: 1;
+  overflow: hidden;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-picker-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .field {

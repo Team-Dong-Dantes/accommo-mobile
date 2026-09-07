@@ -1,9 +1,16 @@
 <template>
   <div class="wrap">
     <div v-if="store.loading && !store.ready" class="stack">
-      <q-skeleton type="rect" height="64px" class="sk" />
-      <q-skeleton type="rect" height="64px" class="sk" />
-      <q-skeleton type="rect" height="64px" class="sk" />
+      <div v-for="n in 5" :key="n" class="thread">
+        <q-skeleton type="circle" size="42px" />
+        <span class="thread-body">
+          <span class="thread-top">
+            <q-skeleton type="text" width="45%" height="14px" />
+            <q-skeleton type="text" width="28px" height="11px" />
+          </span>
+          <q-skeleton type="text" width="75%" height="12px" />
+        </span>
+      </div>
     </div>
 
     <div v-else-if="store.error && !store.threads.length" class="stack">
@@ -35,7 +42,8 @@
         @click="emit('open', thread.id)"
       >
         <span class="thread-avatar" :class="thread.otherColor ? [`bg-${thread.otherColor}`, 'text-white'] : []">
-          {{ thread.otherInitials }}
+          <img v-if="thread.otherAvatarUrl" :src="thread.otherAvatarUrl" alt="" class="thread-avatar-img" @error="thread.otherAvatarUrl = null" />
+          <template v-else>{{ thread.otherInitials }}</template>
         </span>
         <span class="thread-body">
           <span class="thread-top">
@@ -131,11 +139,17 @@ const visibleThreads = computed(() => {
   height: 42px;
   flex: 0 0 42px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 13px;
   font-weight: 800;
+}
+.thread-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .thread-body {
   display: flex;

@@ -3,8 +3,8 @@
     <div class="row items-center">
       <IconifyIcon width="20" icon="material-icons:check_circle" color="teal-9" class="q-mr-sm" />
       <div class="col">
-        <div class="text-weight-bold text-teal-10">Google Connected</div>
-        <div class="text-caption text-teal-8">{{ email }}</div>
+        <div class="text-weight-bold connected-title">Google Connected</div>
+        <div class="text-caption connected-email">{{ email }}</div>
       </div>
       <q-btn flat dense round icon="close" color="teal-9" @click="$emit('cancel')" />
     </div>
@@ -18,8 +18,14 @@ defineEmits(['cancel']);
 
 <style scoped>
 .connected-google-box {
-  background: #e0f2f1;
-  border: 1px solid #b2dfdb;
+  background: var(--m-primary-soft);
+  border: 1px solid var(--m-primary);
   border-radius: 16px;
+}
+.connected-title {
+  color: var(--m-ink);
+}
+.connected-email {
+  color: var(--m-muted);
 }
 </style>

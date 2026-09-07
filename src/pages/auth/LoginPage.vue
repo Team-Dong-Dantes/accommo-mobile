@@ -135,7 +135,7 @@ async function handleForgotPassword() {
 }
 
 .login-container {
-  background: white;
+  background: var(--m-surface);
   border-radius: 28px 28px 0 0;
   padding: 24px;
   min-height: calc(100vh - 150px);
@@ -143,25 +143,26 @@ async function handleForgotPassword() {
 
 .welcome-title {
   margin: 0;
+  color: var(--m-ink);
   font-size: 34px;
   font-weight: 700;
 }
 
 .welcome-subtitle {
-  color: #8b8b8b;
+  color: var(--m-muted);
   margin-top: 6px;
   margin-bottom: 24px;
 }
 
 .forgot-link {
-  color: #009688;
+  color: var(--m-primary);
   font-weight: 600;
 }
 
 .signup-section {
   text-align: center;
   margin: 24px 0;
-  color: #999;
+  color: var(--m-muted);
 }
 </style>
 <style>
