@@ -2,7 +2,7 @@
 <q-page class="scanner-page">
   <div class="scanner-shell">
     <!-- Camera stage: html5-qrcode mounts #qr-reader -->
-    <div class="camera-stage">
+    <div v-if="!manualMode" class="camera-stage">
       <div v-if="!cameraError" ref="readerRef" id="qr-reader" class="camera-reader" />
       <div v-else class="camera-empty" role="alert">
         <span class="camera-empty__icon"><IconifyIcon icon="lucide:circle-alert" width="30" /></span>
@@ -22,13 +22,15 @@
       <div class="stage-shade" aria-hidden="true" />
     </div>
 
-    <div v-if="manualMode" class="manual-panel">
-      <label for="manual-code">Enter the student code from their QR</label>
+    <!-- Manual stage: camera is stopped while this is shown, not scanning underneath -->
+    <div v-else class="manual-stage">
+      <span class="manual-icon"><IconifyIcon icon="lucide:keyboard" width="28" /></span>
+      <h2 class="manual-title">Enter code manually</h2>
+      <p class="manual-copy">Type the code from the student's ISU ID or QR.</p>
       <div class="manual-row">
-        <q-input id="manual-code" v-model="manualCode" outlined dense class="manual-input" placeholder="e.g. 2024-12345" @keyup.enter="lookupManual" />
+        <q-input id="manual-code" v-model="manualCode" outlined dense autofocus class="manual-input" placeholder="e.g. 2024-12345" @keyup.enter="lookupManual" />
         <q-btn unelevated no-caps color="primary" class="manual-btn" label="Look up" @click="lookupManual" />
       </div>
-      <p class="manual-hint">You can enter the code on the student's ISU ID manually.</p>
     </div>
   </div>
 
@@ -36,13 +38,15 @@
   <div class="scan-hint">
     <p>{{
       manualMode
-        ? 'Scan the student code below, or re-enable the camera when ready.'
+        ? 'Camera is paused while you enter a code by hand.'
         : 'Point the camera at the student’s QR code to verify identity.'
     }}</p>
     <button v-if="!cameraError" type="button" class="hint-action" @click="manualMode = !manualMode">
-      <IconifyIcon icon="lucide:keyboard" width="16" /> {{ manualMode ? 'Back to camera' : 'Enter code manually' }}
+      <IconifyIcon :icon="manualMode ? 'lucide:camera' : 'lucide:keyboard'" width="16" /> {{ manualMode ? 'Back to camera' : 'Enter code manually' }}
     </button>
-    <p v-else class="hint-static">Camera is off. Enter the student code below to continue.</p>
+    <button v-else type="button" class="hint-action" @click="retryCamera">
+      <IconifyIcon icon="lucide:refresh-cw" width="16" /> Camera off — try again
+    </button>
   </div>
 
   <!-- Result sheet -->
@@ -56,7 +60,10 @@
 
       <div v-if="scannedStudent" class="sheet-body">
         <div class="result-hero">
-          <q-avatar size="60px" class="result-avatar">{{ scannedStudent.name.trim().charAt(0).toUpperCase() || '?' }}</q-avatar>
+          <q-avatar size="60px" class="result-avatar">
+            <img v-if="scannedStudent.avatarUrl" :src="scannedStudent.avatarUrl" alt="" @error="scannedStudent.avatarUrl = null" />
+            <template v-else>{{ scannedStudent.name.trim().charAt(0).toUpperCase() || '?' }}</template>
+          </q-avatar>
           <div class="result-copy">
             <strong>{{ scannedStudent.name }}</strong>
             <span>{{ scannedStudent.course || '—' }}{{ scannedStudent.yearLevel && scannedStudent.yearLevel !== '—' ? ` · Year ${scannedStudent.yearLevel}` : '' }}</span>
@@ -167,6 +174,19 @@ async function lookup(code: string) {
 function lookupManual() {
   void lookup(manualCode.value)
 }
+
+function retryCamera() {
+  cameraError.value = ''
+  manualMode.value = false
+}
+
+// Manual entry and the live camera are mutually exclusive: stop the stream
+// the moment the user switches to typing (battery, privacy, and no risk of
+// an accidental scan while they're mid-entry), and restart it going back.
+watch(manualMode, (isManual) => {
+  if (isManual) stopScanner()
+  else void startScanner()
+})
 
 function markAttendance() {
   if (!scannedStudent.value) return
@@ -294,20 +314,27 @@ onBeforeUnmount(() => {
 .scan-beam { position: absolute; right: 14px; left: 14px; height: 2px; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--m-primary), transparent); box-shadow: 0 0 14px var(--m-primary); animation: scan-y 2.2s ease-in-out infinite; }
 @keyframes scan-y { 0% { top: 16%; } 50% { top: calc(84% - 2px); } 100% { top: 16%; } }
 
-/* manual entry overlay */
-.manual-panel {
-  margin-top: var(--m-space-3);
-  padding: var(--m-space-4);
+/* manual entry stage — takes over the camera's slot 1:1, camera stream stopped */
+.manual-stage {
+  display: flex;
+  height: clamp(360px, 62vh, 560px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--m-space-6);
   border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
+  border-radius: var(--m-radius-lg);
   background: var(--m-surface);
+  text-align: center;
+  box-sizing: border-box;
 }
-.manual-panel label { display: block; margin-bottom: var(--m-space-2); color: var(--m-text); font-size: 13px; font-weight: 650; }
-.manual-row { display: flex; align-items: center; gap: var(--m-space-2); }
+.manual-icon { display: grid; width: 56px; height: 56px; margin-bottom: var(--m-space-3); place-items: center; border-radius: 50%; background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.manual-title { margin: 0; color: var(--m-ink); font-family: var(--m-font-display); font-size: 17px; font-weight: 700; }
+.manual-copy { margin: 6px 0 var(--m-space-4); color: var(--m-muted); font-size: 13px; line-height: 1.4; }
+.manual-row { display: flex; width: 100%; max-width: 340px; align-items: center; gap: var(--m-space-2); }
 .manual-input { flex: 1; }
-.manual-input :deep(.q-field__control) { border-radius: var(--m-radius-sm); background: var(--m-surface); }
+.manual-input :deep(.q-field__control) { border-radius: var(--m-radius-sm); background: var(--m-bg); }
 .manual-btn { min-width: 96px; min-height: 40px; border-radius: var(--m-radius-sm); }
-.manual-hint { margin: var(--m-space-2) 0 0; color: var(--m-muted); font-size: 11px; line-height: 1.4; }
 
 /* hint row */
 .scan-hint {

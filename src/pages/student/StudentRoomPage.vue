@@ -1,8 +1,17 @@
 <template>
   <q-page class="rp">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="180px" class="sk" />
-      <q-skeleton type="rect" height="90px" class="sk" />
+      <q-skeleton type="rect" height="220px" square />
+      <div class="sk-body">
+        <q-skeleton type="text" width="55%" height="20px" />
+        <q-skeleton type="text" width="40%" height="13px" />
+        <q-skeleton type="text" width="90px" height="20px" class="sk-pill" />
+        <div class="sk-stats">
+          <q-skeleton type="text" width="60px" height="30px" />
+          <q-skeleton type="text" width="60px" height="30px" />
+          <q-skeleton type="text" width="60px" height="30px" />
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -23,99 +32,158 @@
       </q-card>
     </div>
 
-    <div v-else class="stack">
-      <div v-if="images.length" class="gal">
-        <img v-for="(src, i) in images" :key="i" :src="src" :alt="room.label" class="gal-img" />
-        <span v-if="images.length > 1" class="gal-count">
+    <div v-else class="page">
+      <div v-if="images.length" class="hero">
+        <span class="hero-fallback"><span class="hero-mono">{{ monogram }}</span></span>
+        <img v-for="(src, i) in images" :key="i" :src="src" :alt="room.label" class="hero-img" />
+        <span v-if="images.length > 1" class="hero-count">
           <IconifyIcon icon="lucide:image" width="11" />{{ images.length }}
         </span>
       </div>
-      <div v-else class="gal-none">
-        <span class="gal-mono">{{ monogram }}</span>
+      <div v-else class="hero hero--none">
+        <span class="hero-mono">{{ monogram }}</span>
       </div>
 
-      <div class="head">
-        <h1 class="head-name">{{ room.label }}</h1>
-        <button type="button" class="head-where" @click="router.push(`/student/listing/${room.propertyId}`)">
+      <div class="body">
+        <h1 class="name">{{ room.label }}</h1>
+        <button type="button" class="where" @click="router.push(`/student/listing/${room.propertyId}`)">
           <IconifyIcon icon="lucide:building-2" width="12" />
           {{ room.propertyName }}
         </button>
-        <span class="badge">
-          <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
-        </span>
-        <p v-if="room.rent" class="head-price">
-          {{ formatPeso(room.rent) }}<span class="head-price-per">/mo{{ perPersonSuffix }}</span>
-        </p>
-        <p v-else class="head-price head-price--none">Rent on request</p>
-        <div class="head-tags">
-          <span v-if="typeLabel" class="tag">{{ typeLabel }}</span>
-          <span v-if="room.capacity" class="tag tag--soft">Sleeps {{ room.capacity }}</span>
-          <span v-if="room.floor" class="tag tag--soft">Floor {{ room.floor }}</span>
-          <span v-if="distance" class="tag tag--soft">
-            <IconifyIcon icon="lucide:map-pin" width="11" />{{ distance }}
+        <div class="badge-row">
+          <span class="badge">
+            <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
           </span>
-          <span class="tag" :class="room.free ? 'tag--ok' : 'tag--none'">
+          <span v-if="typeLabel" class="type-pill">{{ typeLabel }}</span>
+        </div>
+
+        <div class="price-row">
+          <p v-if="room.rent" class="price">{{ formatPeso(room.rent) }}<span class="price-per">/mo{{ perPersonSuffix }}</span></p>
+          <p v-else class="price price--none">Rent on request</p>
+          <span class="vacancy" :class="room.free ? 'vacancy--ok' : 'vacancy--none'">
             {{ room.free ? 'Available' : 'Taken' }}
           </span>
         </div>
-      </div>
 
-      <!-- What it costs to move in -->
-      <section v-if="moveIn" class="sec">
-        <h2 class="sec-title">Move-in cost</h2>
-        <div class="group">
-          <div v-if="moveIn.advance" class="rule">
-            <span class="rule-label">Advance ({{ moveIn.advanceMonths }} mo)</span>
-            <span class="rule-value">{{ formatPeso(moveIn.advance) }}</span>
-          </div>
-          <div v-if="moveIn.deposit" class="rule">
-            <span class="rule-label">Deposit ({{ moveIn.depositMonths }} mo)</span>
-            <span class="rule-value">{{ formatPeso(moveIn.deposit) }}</span>
-          </div>
-          <div class="rule rule--total">
-            <span class="rule-label">Total due at signing</span>
-            <span class="rule-value">{{ formatPeso(moveIn.total) }}</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- What's in this room specifically, if anything was published -->
-      <section v-if="facilities.length" class="sec">
-        <h2 class="sec-title">In this room</h2>
-        <div class="ams">
-          <span v-for="f in facilities" :key="f.type + f.label" class="am">
-            <IconifyIcon :icon="FACILITY_META[f.type]?.icon || 'lucide:dot'" width="14" />
-            {{ f.label || FACILITY_META[f.type]?.label || f.type }}
+        <div class="stat-row">
+          <span v-if="room.capacity" class="stat">
+            <IconifyIcon icon="lucide:bed" width="15" />
+            <strong>Sleeps {{ room.capacity }}</strong>
+          </span>
+          <span v-if="room.floor" class="stat">
+            <IconifyIcon icon="lucide:layers" width="15" />
+            <strong>Floor {{ room.floor }}</strong>
+          </span>
+          <span v-if="distance" class="stat">
+            <IconifyIcon icon="lucide:map-pin" width="15" />
+            <small>{{ distance }} from campus</small>
           </span>
         </div>
-      </section>
 
-      <!-- Amenities are property-level; a room has no set of its own -->
-      <section v-if="amenities.length" class="sec">
-        <h2 class="sec-title">What's here</h2>
-        <div class="ams">
-          <span v-for="a in amenities" :key="a" class="am">
-            <IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="14" />
-            {{ AMENITY_META[a]?.label || a }}
-          </span>
-        </div>
-      </section>
+        <!-- What it costs to move in, and how long you're committing to -->
+        <section v-if="moveIn || policy.minStay || policy.contractType" class="block">
+          <h2 class="block-title">Move-in cost</h2>
+          <div class="rule-list">
+            <div v-if="moveIn?.advance" class="rule-row">
+              <span class="rule-label">Advance ({{ moveIn.advanceMonths }} mo)</span>
+              <span class="rule-value">{{ formatPeso(moveIn.advance) }}</span>
+            </div>
+            <div v-if="moveIn?.deposit" class="rule-row">
+              <span class="rule-label">Deposit ({{ moveIn.depositMonths }} mo)</span>
+              <span class="rule-value">{{ formatPeso(moveIn.deposit) }}</span>
+            </div>
+            <div v-if="policy.minStay" class="rule-row">
+              <span class="rule-label">Minimum stay</span>
+              <span class="rule-value">{{ policy.minStay }} month{{ policy.minStay === 1 ? '' : 's' }}</span>
+            </div>
+            <div v-if="policy.contractType" class="rule-row">
+              <span class="rule-label">Contract type</span>
+              <span class="rule-value">{{ policy.contractType }}</span>
+            </div>
+          </div>
+          <div v-if="moveIn" class="total-strip">
+            <span>Total due at signing</span>
+            <strong>{{ formatPeso(moveIn.total) }}</strong>
+          </div>
+        </section>
 
-      <!-- The person to ask -->
-      <section v-if="manager.id" class="sec">
-        <h2 class="sec-title">Managed by</h2>
-        <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
-          <span class="mgr-avatar">{{ manager.initials }}</span>
-          <span class="mgr-body">
-            <span class="mgr-name">{{ manager.name }}</span>
-            <span class="mgr-sub">
-              {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Accommodation manager' }}
+        <!-- What's in this room specifically, if anything was published -->
+        <section v-if="facilities.length" class="block">
+          <h2 class="block-title">In this room</h2>
+          <div class="icon-grid">
+            <span v-for="f in facilities" :key="f.type + f.label" class="icon-item">
+              <span class="icon-circle"><IconifyIcon :icon="FACILITY_META[f.type]?.icon || 'lucide:dot'" width="19" /></span>
+              <small>{{ f.label || FACILITY_META[f.type]?.label || f.type }}</small>
             </span>
-          </span>
-        </button>
-      </section>
+          </div>
+        </section>
 
-      <div class="tail" />
+        <!-- Amenities are property-level; a room has no set of its own -->
+        <section v-if="amenities.length" class="block">
+          <h2 class="block-title">What's here</h2>
+          <div class="icon-grid">
+            <span v-for="a in amenities" :key="a" class="icon-item">
+              <span class="icon-circle"><IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="19" /></span>
+              <small>{{ AMENITY_META[a]?.label || a }}</small>
+            </span>
+          </div>
+        </section>
+
+        <!-- Property context for anyone who lands on a room without ever
+             seeing the listing first (a search result, a shared link) -->
+        <section v-if="listingDescription" class="block">
+          <h2 class="block-title">About {{ room.propertyName }}</h2>
+          <p class="desc">{{ listingDescription }}</p>
+          <button type="button" class="see-listing" @click="router.push(`/student/listing/${room.propertyId}`)">
+            See full listing
+            <IconifyIcon icon="lucide:chevron-right" width="14" />
+          </button>
+        </section>
+
+        <!-- Other rooms in the same property, without backing out to the listing -->
+        <section v-if="visibleSiblingRooms.length" class="block">
+          <h2 class="block-title">More rooms at {{ room.propertyName }}</h2>
+          <div class="room-rail">
+            <button
+              v-for="r in visibleSiblingRooms"
+              :key="r.id"
+              type="button"
+              class="room-card"
+              @click="router.push(`/student/room/${r.id}`)"
+            >
+              <span class="room-card-photo">
+                <img v-if="r.image" :src="r.image" :alt="r.label" loading="lazy" />
+                <span v-else class="room-card-mono">{{ monogram }}</span>
+                <span v-if="r.type" class="room-card-type">{{ r.type }}</span>
+              </span>
+              <span class="room-card-name">{{ r.label }}</span>
+              <span class="room-card-meta">{{ r.meta }}</span>
+              <span v-if="r.rent" class="room-card-rent">
+                {{ formatPeso(r.rent) }}<span class="room-card-per">/mo{{ r.rentBasis === 'person' ? '/person' : '' }}</span>
+              </span>
+              <span v-else class="room-card-rent room-card-rent--none">On request</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- The person to ask -->
+        <section v-if="manager.id" class="block">
+          <h2 class="block-title">Managed by</h2>
+          <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
+            <span class="mgr-avatar">
+              <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="mgr-avatar-img" @error="manager.avatarUrl = null" />
+              <template v-else>{{ manager.initials }}</template>
+            </span>
+            <span class="mgr-body">
+              <span class="mgr-name">{{ manager.name }}</span>
+              <span class="mgr-sub">
+                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Accommodation manager' }}
+              </span>
+            </span>
+            <IconifyIcon icon="lucide:chevron-right" width="16" class="mgr-chevron" />
+          </button>
+        </section>
+      </div>
     </div>
 
     <div v-if="!loading && !error && manager.id" class="cta">
@@ -135,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -166,9 +234,22 @@ const room = reactive({
 const images = ref<string[]>([])
 const amenities = ref<string[]>([])
 const facilities = ref<{ type: string; label: string | null }[]>([])
-const policy = reactive({ advanceMonths: 0, depositMonths: 0 })
-const manager = reactive({ id: '', name: '', initials: '?', replyMinutes: null as number | null })
+const policy = reactive({ advanceMonths: 0, depositMonths: 0, minStay: 0, contractType: '' })
+const manager = reactive({ id: '', name: '', initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
 const myLease = reactive({ hasAny: false, onThisRoom: false })
+const listingDescription = ref('')
+interface SiblingRoom {
+  id: string
+  label: string
+  meta: string
+  type: string
+  rent: number
+  rentBasis: 'room' | 'person'
+  free: boolean
+  image: string
+}
+const siblingRooms = ref<SiblingRoom[]>([])
+const visibleSiblingRooms = computed(() => siblingRooms.value.filter((r) => r.free))
 
 const id = computed(() => String(route.params.id || ''))
 const monogram = computed(() => listingMonogram(room.propertyName))
@@ -195,7 +276,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('rooms')
       .select(
-        'id,label,room_number,room_type,custom_room_type,capacity,floor,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,accommodation_manager_id,status,accommodation_amenities(amenity),accommodation_images(url,sort_order))',
+        'id,label,room_number,room_type,custom_room_type,capacity,floor,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,accommodation_manager_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(advance_months,deposit_months,min_stay,contract_type))',
       )
       .eq('id', id.value)
       .maybeSingle()
@@ -209,8 +290,15 @@ async function load() {
           status: string
           lat: number | null
           lng: number | null
+          description: string | null
           accommodation_amenities: { amenity: string }[] | null
           accommodation_images: { url: string; sort_order: number | null }[] | null
+          accommodation_policies: {
+            advance_months: number | null
+            deposit_months: number | null
+            min_stay: number | null
+            contract_type: string | null
+          } | null
         }
       | null
     if (!data || !property || property.status !== 'accredited') {
@@ -231,12 +319,57 @@ async function load() {
     room.lng = property.lng
 
     amenities.value = (property.accommodation_amenities ?? []).map((a) => a.amenity)
+    listingDescription.value = property.description || ''
 
     facilities.value = ((data.accommodation_facilities ?? []) as { facility_type: string; label: string | null }[])
       .map((f) => ({ type: f.facility_type, label: f.label }))
 
-    policy.advanceMonths = data.advance_months ?? 0
-    policy.depositMonths = data.deposit_months ?? 0
+    // So a student can browse other rooms in the same property without
+    // backing out to the listing and finding the Rooms section again.
+    const { data: siblingRows, error: siblingError } = await supabase
+      .from('rooms')
+      .select('id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)')
+      .eq('accommodation_id', property.id)
+      .neq('id', id.value)
+    if (siblingError) throw siblingError
+    siblingRooms.value = ((siblingRows ?? []) as {
+      id: string
+      label: string | null
+      room_number: string | null
+      room_type: string | null
+      custom_room_type: string | null
+      capacity: number | null
+      monthly_rent: number | null
+      rent_basis: string | null
+      status: string
+      room_images: { url: string; sort_order: number | null }[] | null
+    }[])
+      .map((r) => {
+        const roomImgs = [...(r.room_images ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        return {
+          id: r.id,
+          label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
+          meta: r.capacity ? `sleeps ${r.capacity}` : '',
+          type: roomTypeLabel(r.custom_room_type || r.room_type),
+          rent: Number(r.monthly_rent ?? 0),
+          rentBasis: (r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room') as 'room' | 'person',
+          free: r.status === 'available',
+          image: roomImgs[0]?.url ? resolveAsset(roomImgs[0].url) : '',
+        }
+      })
+      .sort((a, b) => Number(b.free) - Number(a.free) || a.rent - b.rent)
+
+    // A room's own advance/deposit terms override the property's default —
+    // fall back to the accommodation-level policy only when this room hasn't
+    // set its own (most rooms don't; without this fallback the whole
+    // "Move-in cost" section silently disappeared for them).
+    const accPolicy = property.accommodation_policies
+    policy.advanceMonths = data.advance_months ?? accPolicy?.advance_months ?? 0
+    policy.depositMonths = data.deposit_months ?? accPolicy?.deposit_months ?? 0
+    // Lease length/contract terms are set at the property level only (no
+    // per-room override exists in the schema), so no fallback chain needed.
+    policy.minStay = accPolicy?.min_stay ?? 0
+    policy.contractType = accPolicy?.contract_type ?? ''
 
     // Most rooms have no photos of their own yet — fall back to the
     // property's photos rather than showing a bare monogram.
@@ -252,7 +385,7 @@ async function load() {
       const [{ data: person }, { data: profile }] = await Promise.all([
         supabase
           .from('users')
-          .select('full_name,initials')
+          .select('full_name,initials,avatar_url')
           .eq('id', property.accommodation_manager_id)
           .maybeSingle(),
         supabase
@@ -264,6 +397,7 @@ async function load() {
       manager.id = property.accommodation_manager_id
       manager.name = person?.full_name || 'Accommodation manager'
       manager.initials = person?.initials || initialsOf(manager.name)
+      manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null
       manager.replyMinutes = profile?.avg_response_minutes ?? null
     }
 
@@ -291,6 +425,10 @@ function goApply() {
 }
 
 onMounted(load)
+// Vue Router reuses this component when navigating from one room straight to
+// another (same route, different :id — e.g. the "More rooms" rail below),
+// so onMounted alone would leave the page showing the previous room.
+watch(id, load)
 </script>
 
 <style scoped>
@@ -306,12 +444,23 @@ onMounted(load)
 .sk {
   border-radius: var(--m-radius);
 }
-.tail {
-  height: 78px;
+.sk-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sk-pill {
+  border-radius: 999px;
+}
+.sk-stats {
+  display: flex;
+  gap: 18px;
+  margin-top: 6px;
 }
 
 .card {
   padding: 18px 14px;
+  margin: 8px var(--m-page-gutter) 0;
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
@@ -328,80 +477,107 @@ onMounted(load)
   font-size: 12px;
 }
 
-.gal {
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero — one photo filling the width at a time, no card frame around it */
+.hero {
   position: relative;
   display: flex;
-  gap: 6px;
+  height: 240px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
+  background: var(--m-primary-soft);
 }
-.gal-img {
-  width: 88%;
-  height: 190px;
-  flex: 0 0 auto;
-  border-radius: var(--m-radius);
+.hero-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+}
+.hero-img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  flex: 0 0 100%;
   object-fit: cover;
   scroll-snap-align: start;
 }
-.gal-count {
+.hero--none {
+  display: grid;
+  place-items: center;
+}
+.hero-mono {
+  color: var(--m-primary-dark);
+  font-family: var(--m-font-display);
+  font-size: 42px;
+  font-weight: 800;
+}
+.hero-count {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  right: 12px;
+  bottom: 12px;
   z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(23, 32, 42, 0.7);
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
 }
-.gal-none {
-  display: grid;
-  height: 120px;
-  place-items: center;
-  border-radius: var(--m-radius);
-  background: var(--m-primary-soft);
-}
-.gal-mono {
-  color: var(--m-primary-dark);
-  font-family: var(--m-font-display);
-  font-size: 34px;
-  font-weight: 800;
+
+.body {
+  display: flex;
+  flex-direction: column;
+  padding: 18px var(--m-page-gutter) 100px;
 }
 
-.head-name {
+.name {
   margin: 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.2;
+  line-height: 1.15;
 }
-.head-where {
+.where {
   display: inline-flex;
+  align-self: flex-start;
   align-items: center;
   gap: 4px;
-  margin: 3px 0 0;
+  margin: 5px 0 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--m-primary-dark);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   -webkit-tap-highlight-color: transparent;
+}
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
 }
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 5px;
   padding: 3px 9px;
   border-radius: 999px;
   background: var(--m-success-soft);
@@ -409,131 +585,299 @@ onMounted(load)
   font-size: 11px;
   font-weight: 700;
 }
-.head-price {
-  margin: 10px 0 0;
+.type-pill {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--m-border);
+}
+.price {
+  margin: 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 24px;
+  font-size: 27px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-.head-price--none {
+.price--none {
   color: var(--m-muted);
   font-family: var(--m-font-body);
   font-size: 14px;
   font-weight: 600;
 }
-.head-price-per {
+.price-per {
   font-size: 13px;
   font-weight: 600;
   opacity: 0.7;
 }
-.head-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+.vacancy {
+  flex: 0 0 auto;
+  padding: 4px 11px;
   border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-text);
   font-size: 11.5px;
   font-weight: 700;
 }
-.tag--soft {
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.tag--ok {
+.vacancy--ok {
   background: var(--m-success-soft);
   color: var(--m-success);
 }
-.tag--none {
+.vacancy--none {
   background: var(--m-bg);
   color: var(--m-muted);
 }
 
-.sec {
+.stat-row {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
 }
-.sec-title {
-  margin: 0;
-  padding: 0 2px;
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--m-muted);
+}
+.stat svg {
+  flex: 0 0 auto;
+  color: var(--m-primary-dark);
+}
+.stat strong {
   color: var(--m-ink);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+}
+.stat small {
+  font-size: 11.5px;
 }
 
-.group {
+/* Each block carries its own leading divider — so an empty, un-rendered
+   section never leaves a doubled gap the way a fixed divider between every
+   pair of sections would. */
+.block {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  overflow: hidden;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--m-border);
 }
-.rule {
+.block:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.block-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Move-in cost */
+.rule-list {
+  display: flex;
+  flex-direction: column;
+}
+.rule-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 9px 12px;
+  padding: 10px 0;
   border-top: 1px solid var(--m-border);
 }
-.group > .rule:first-child {
+.rule-list > .rule-row:first-child {
   border-top: 0;
+  padding-top: 0;
 }
 .rule-label {
   color: var(--m-muted);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
 }
 .rule-value {
   color: var(--m-ink);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   text-align: right;
 }
-.rule--total .rule-label,
-.rule--total .rule-value {
-  color: var(--m-ink);
+.total-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 13.5px;
   font-weight: 700;
 }
-
-/* Amenities */
-.ams {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.total-strip strong {
+  font-family: var(--m-font-display);
+  font-size: 16px;
 }
-.am {
-  display: inline-flex;
+
+/* Icon grid — amenities / in-room facilities */
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 16px 6px;
+}
+.icon-item {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 7px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
+  text-align: center;
+}
+.icon-circle {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.icon-item small {
   color: var(--m-text);
-  font-size: 12.5px;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
 }
 
+/* About the property */
+.desc {
+  margin: 0;
+  color: var(--m-text);
+  font-size: 13.5px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.see-listing {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* More rooms at this property — same rail card as the Listing page */
+.room-rail {
+  display: flex;
+  gap: 12px;
+  margin: 0 calc(var(--m-page-gutter) * -1);
+  padding: 0 var(--m-page-gutter);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.room-card {
+  display: flex;
+  width: 148px;
+  flex: 0 0 148px;
+  flex-direction: column;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  scroll-snap-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+.room-card-photo {
+  position: relative;
+  display: grid;
+  height: 120px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-primary-soft);
+}
+.room-card-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.room-card-mono {
+  color: var(--m-primary-dark);
+  font-family: var(--m-font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+.room-card-type {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
+}
+.room-card-name {
+  margin-top: 8px;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.room-card-meta {
+  margin-top: 1px;
+  color: var(--m-muted);
+  font-size: 11px;
+}
+.room-card-rent {
+  margin-top: 4px;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.room-card-rent--none {
+  color: var(--m-muted);
+  font-family: var(--m-font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.room-card-per {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* Manager */
 .mgr {
   display: flex;
   width: 100%;
   align-items: center;
   gap: 11px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
@@ -548,15 +892,22 @@ onMounted(load)
   height: 40px;
   flex: 0 0 40px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 13px;
   font-weight: 800;
 }
+.mgr-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .mgr-body {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 1px;
 }
@@ -568,6 +919,10 @@ onMounted(load)
 .mgr-sub {
   color: var(--m-muted);
   font-size: 11.5px;
+}
+.mgr-chevron {
+  flex: 0 0 auto;
+  color: var(--m-muted);
 }
 
 .cta {
@@ -615,5 +970,4 @@ onMounted(load)
   font-weight: 600;
   text-align: center;
 }
-
 </style>

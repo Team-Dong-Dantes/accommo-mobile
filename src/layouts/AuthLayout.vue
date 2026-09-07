@@ -70,7 +70,7 @@ watch(
 
 <style scoped>
 .auth-layout-bg {
-  background: #f5f5f5;
+  background: var(--m-bg);
   height: 100vh;
   height: 100dvh;
   overflow: hidden;

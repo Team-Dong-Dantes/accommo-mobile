@@ -1,7 +1,5 @@
 <template>
   <section class="settings">
-    <h2 class="settings-title">Settings</h2>
-
     <div class="settings-group">
       <p class="settings-group-label">Account</p>
       <SettingsRow icon="lucide:mail" label="Email">
@@ -127,14 +125,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.settings-title {
-  margin: 0 0 4px;
-  padding: 0 2px;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 15px;
-  font-weight: 700;
-}
 .settings-group {
   margin-top: var(--m-space-5);
 }

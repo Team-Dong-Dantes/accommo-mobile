@@ -153,8 +153,7 @@ onUnmounted(() => {
   position: fixed;
   bottom: 68px;
   left: var(--m-page-gutter);
-  /* 16px FAB inset + 44px FAB + 8px gap */
-  right: 68px;
+  right: var(--m-page-gutter);
   z-index: 60;
   display: flex;
   align-items: center;

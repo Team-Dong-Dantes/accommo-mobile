@@ -22,6 +22,10 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/manager/ManagerProfilePage.vue'),
   },
   {
+    path: '/manager/profile/settings',
+    component: () => import('@/pages/manager/ManagerSettingsPage.vue'),
+  },
+  {
     path: '/manager/profile/qr-scanner',
     component: () => import('@/components/manager/QRScanner.vue'),
   },

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/utils/supabase'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
 
 export const useQrStore = defineStore('qr', {
   state: () => ({
@@ -42,7 +43,7 @@ export const useQrStore = defineStore('qr', {
         // User record (RLS: only when linked by a lease to this manager).
         const { data: userRow } = await supabase
           .from('users')
-          .select('full_name, initials')
+          .select('full_name, initials, avatar_url')
           .eq('id', userId)
           .maybeSingle()
 
@@ -83,6 +84,7 @@ export const useQrStore = defineStore('qr', {
         const student = {
           studentId,
           name: (userRow?.full_name as string) ?? 'Unknown student',
+          avatarUrl: userRow?.avatar_url ? resolveAsset(userRow.avatar_url as string) : null,
           course: (profile.program as string) ?? '—',
           yearLevel: profile.year_level ? `${profile.year_level}` : '—',
           osasVerified: !!profile.osas_verified_at,

@@ -1,30 +1,43 @@
 <template>
-  <div v-if="open" class="quick-action-layer">
-    <div class="quick-action-backdrop" @click="toggleOpen(false)" />
-    <div :id="menuId" class="quick-action-menu" role="menu" aria-label="Quick actions">
+  <div v-if="open" class="menu-layer">
+    <div class="menu-backdrop" @click="close" />
+    <q-card :id="menuId" class="menu-card" role="menu" aria-label="Menu">
       <button
-        v-for="action in actions"
-        :key="action.route"
+        v-for="action in accountActions"
+        :key="action.route + action.label"
         type="button"
         role="menuitem"
+        class="menu-row"
         @click="navigate(action.route)"
       >
-        <span class="quick-action-icon"><IconifyIcon :icon="action.icon" width="18" /></span>
-        <span>{{ action.label }}</span>
+        <span class="menu-row-icon">
+          <q-avatar v-if="action.avatar" size="30px" text-color="white" class="menu-row-avatar">
+            <q-img v-if="avatarUrl" :src="avatarUrl" alt="" />
+            <span v-else>{{ initials }}</span>
+          </q-avatar>
+          <IconifyIcon v-else :icon="action.icon" width="17" />
+        </span>
+        <span class="menu-row-label">{{ action.label }}</span>
       </button>
-    </div>
+
+      <span class="menu-divider">Quick actions</span>
+
+      <button
+        v-for="action in actions"
+        :key="action.route + action.label"
+        type="button"
+        role="menuitem"
+        class="menu-row"
+        @click="navigate(action.route)"
+      >
+        <span class="menu-row-icon menu-row-icon--accent">
+          <IconifyIcon :icon="action.icon" width="17" />
+          <span v-if="action.dot" class="menu-row-dot" />
+        </span>
+        <span class="menu-row-label">{{ action.label }}</span>
+      </button>
+    </q-card>
   </div>
-  <button
-    type="button"
-    class="bottom-fab"
-    :class="{ 'bottom-fab--open': open }"
-    :aria-expanded="open"
-    :aria-controls="menuId"
-    aria-label="Open quick actions"
-    @click="toggleOpen(!open)"
-  >
-    <IconifyIcon icon="lucide:plus" width="20" />
-  </button>
 </template>
 
 <script setup lang="ts">
@@ -32,16 +45,19 @@ import type { QuickAction } from '@/types/app-types'
 import { hapticLight } from '@/utils/haptics'
 
 defineProps<{
+  accountActions: readonly QuickAction[]
   actions: readonly QuickAction[]
   open: boolean
   menuId: string
+  avatarUrl: string | null
+  initials: string
 }>()
 
 const emit = defineEmits<{ 'update:open': [value: boolean]; navigate: [route: string] }>()
 
-function toggleOpen(value: boolean) {
+function close() {
   hapticLight()
-  emit('update:open', value)
+  emit('update:open', false)
 }
 
 function navigate(route: string) {
@@ -51,41 +67,119 @@ function navigate(route: string) {
 </script>
 
 <style scoped>
-.bottom-fab {
+.menu-layer {
   position: fixed;
-  right: 16px;
-  bottom: 68px;
-  z-index: 2002;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  place-items: center;
-  border: 1px solid var(--m-primary-dark);
-  border-radius: 50%;
-  background: var(--m-primary-dark);
-  box-shadow: 0 4px 12px rgba(0, 105, 92, 0.22);
-  color: #fff;
-  cursor: pointer;
-  transition: background-color 180ms ease-out, box-shadow 180ms ease-out;
+  z-index: 2001;
+  top: 0;
+  right: 0;
+  bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  left: 0;
 }
-.bottom-fab svg { transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
-.bottom-fab--open { border-color: var(--m-danger); background: var(--m-danger); box-shadow: 0 4px 12px rgba(180, 35, 24, 0.24); }
-.bottom-fab--open svg { transform: rotate(45deg); }
-.bottom-fab:focus-visible,
-.quick-action-menu button:focus-visible { outline: 2px solid var(--m-primary); outline-offset: 3px; }
-/* Above the header's default Quasar z-index (2000) so it blurs behind it too,
-   but stops exactly at the footer's own height (see .bottom-footer in
-   MainLayout.vue) so the nav bar stays sharp and clickable with no gap. */
-.quick-action-layer { position: fixed; z-index: 2001; top: 0; right: 0; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); left: 0; }
-.quick-action-backdrop { position: absolute; inset: 0; background: rgba(23, 32, 42, 0.28); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
-.quick-action-menu { position: absolute; right: 12px; bottom: 72px; display: flex; flex-direction: column; align-items: flex-end; gap: var(--m-space-2); animation: quick-actions-in 200ms ease-out both; }
-.quick-action-menu button { display: flex; min-height: 44px; align-items: center; gap: var(--m-space-2); padding: var(--m-space-1) var(--m-space-2) var(--m-space-1) var(--m-space-1); border: 1px solid var(--m-border); border-radius: var(--m-radius-sm); background: var(--m-surface); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); color: var(--m-ink); cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; text-align: left; }
-.quick-action-menu button:hover { background: var(--m-primary-soft); }
-.quick-action-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: var(--m-radius-sm); background: var(--m-primary-soft); color: var(--m-primary-dark); }
-@keyframes quick-actions-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.menu-card {
+  position: absolute;
+  right: 12px;
+  bottom: 16px;
+  display: flex;
+  width: 236px;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-lg, var(--m-radius));
+  background: var(--m-surface);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.2);
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: menu-in 200ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.menu-divider {
+  margin: 6px 8px 2px;
+  color: var(--m-muted);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.menu-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--m-radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 120ms ease-out;
+}
+.menu-row:hover,
+.menu-row:active {
+  background: var(--m-bg);
+}
+.menu-row:focus-visible {
+  outline: 2px solid var(--m-primary);
+  outline-offset: -2px;
+}
+.menu-row-icon {
+  position: relative;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+  color: var(--m-ink);
+}
+.menu-row-icon--accent {
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.menu-row-avatar {
+  background: var(--m-primary);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.menu-row-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--m-danger, #b42318);
+  border: 1.5px solid var(--m-surface);
+}
+.menu-row-label {
+  flex: 1;
+  min-width: 0;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .bottom-fab, .bottom-fab svg { transition: none; }
-  .quick-action-menu { animation: none; }
+  .menu-card {
+    animation: none;
+  }
 }
 </style>

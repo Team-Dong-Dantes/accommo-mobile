@@ -42,7 +42,7 @@
           color="primary"
           label="Try again"
           class="q-mt-sm q-px-md"
-          @click="load"
+          @click="load()"
         />
       </q-card>
     </div>
@@ -151,7 +151,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -244,8 +245,8 @@ function open(id: string) {
   void router.push(`/student/listing/${id}`)
 }
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     // Only accredited listings are readable, and the policy grants the public
@@ -297,7 +298,9 @@ async function load() {
       })
 
     rentBounds.max = Math.max(DEFAULT_MAX, Math.ceil(ceiling / 500) * 500)
-    filters.maxRent = rentBounds.max
+    // A silent (realtime-triggered) refresh must not reset a filter the
+    // student has actively narrowed — only the real first load defaults it.
+    if (!silent) filters.maxRent = rentBounds.max
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -305,8 +308,25 @@ async function load() {
   }
 }
 
+// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. New/updated
+// listings push here instead of the page re-asking on every return — same
+// channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need. Public
+// data (accredited listings), so no per-user filter is needed.
+let listingsChannel: RealtimeChannel | null = null
+
 onMounted(() => {
   void load()
+  if (typeof supabase.channel !== 'function') return
+  listingsChannel = supabase
+    .channel('properties-listings')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'accommodations' }, () => void load(true))
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (listingsChannel) void supabase.removeChannel(listingsChannel)
 })
 </script>
 

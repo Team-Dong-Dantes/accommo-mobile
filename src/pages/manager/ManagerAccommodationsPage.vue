@@ -10,7 +10,7 @@
         <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
         <p class="err-title">Couldn't load your accommodations</p>
         <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
       </q-card>
     </div>
 
@@ -88,7 +88,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -150,8 +151,8 @@ const loading = ref(true)
 const error = ref('')
 const rows = ref<Row[]>([])
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const { data: authData } = await supabase.auth.getUser()
@@ -239,7 +240,31 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. The database
+// pushes lease changes here instead of the page re-asking on every return —
+// same channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need.
+let leaseChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  const { data: authData } = await supabase.auth.getUser()
+  const uid = authData?.user?.id
+  if (!uid || typeof supabase.channel !== 'function') return
+  leaseChannel = supabase
+    .channel(`accommodations-leases:${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'leases', filter: `accommodation_manager_id=eq.${uid}` },
+      () => void load(true),
+    )
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (leaseChannel) void supabase.removeChannel(leaseChannel)
+})
 </script>
 
 <style scoped>

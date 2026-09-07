@@ -6,6 +6,7 @@
         <IconifyIcon icon="lucide:image-off" width="24" />
         <span class="shot-empty-label">No photo</span>
       </span>
+      <span v-if="buildingType" class="car-type">{{ buildingType }}</span>
       <span class="car-flag" :class="vacancies ? 'car-flag--ok' : 'car-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
       </span>
@@ -23,6 +24,7 @@
         <IconifyIcon icon="lucide:image-off" width="22" />
         <span class="shot-empty-label">No photo</span>
       </span>
+      <span v-if="buildingType" class="tile-type">{{ buildingType }}</span>
       <span class="tile-flag" :class="vacancies ? 'tile-flag--ok' : 'tile-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
       </span>
@@ -44,6 +46,7 @@ withDefaults(
     monogram: string
     distance: string
     vacancies: number
+    buildingType?: string
     variant?: 'carousel' | 'grid'
   }>(),
   { variant: 'grid' },
@@ -84,10 +87,25 @@ const emit = defineEmits<{ open: [id: string] }>()
 .tile-shot--empty {
   background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
 }
-.tile-flag {
+.tile-type {
   position: absolute;
   top: 7px;
   left: 7px;
+  max-width: calc(100% - 14px);
+  padding: 2px 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile-flag {
+  position: absolute;
+  top: 7px;
+  right: 7px;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 10px;
@@ -157,10 +175,25 @@ const emit = defineEmits<{ open: [id: string] }>()
 .car-shot--empty {
   background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
 }
-.car-flag {
+.car-type {
   position: absolute;
   top: 8px;
   left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 2px 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.car-flag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   padding: 2px 9px;
   border-radius: 999px;
   font-size: 10.5px;

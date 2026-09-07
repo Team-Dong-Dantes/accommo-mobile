@@ -143,18 +143,18 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.surface { border: 1px solid var(--m-border, #e5e7eb); border-radius: 16px; background: #fff; }
+.surface { border: 1px solid var(--m-border); border-radius: 16px; background: var(--m-surface); }
 .email-otp { max-width: 460px; margin: 0 auto; }
 .otp-pad { padding: 20px; }
 .otp-head { display: flex; align-items: flex-start; gap: 12px; }
-.otp-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: #e6f5f3; color: #00695c; }
-.otp-head h2 { margin: 0 0 4px; color: #17202a; font-family: var(--m-font-display, 'Space Grotesk', sans-serif); font-size: 17px; font-weight: 700; }
-.otp-head p { margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5; text-align: left; }
+.otp-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
+.otp-head h2 { margin: 0 0 4px; color: var(--m-ink); font-family: var(--m-font-display, 'Space Grotesk', sans-serif); font-size: 17px; font-weight: 700; }
+.otp-head p { margin: 0; color: var(--m-muted); font-size: 13px; line-height: 1.5; text-align: left; }
 .otp-idle, .otp-code { margin-top: 16px; display: flex; gap: 8px; }
 .otp-go, .otp-verify { min-width: 130px; border-radius: 10px; }
-.otp-go, .otp-verify { background: #00695c; }
+.otp-go, .otp-verify { background: var(--m-primary-dark); }
 .otp-input { flex: 1; text-align: center; letter-spacing: 6px; }
-.otp-error { margin: 10px 0 0; color: #b42318; font-size: 12px; }
-.otp-resend { display: block; margin: 12px 0 0; padding: 0; border: 0; background: transparent; color: #00695c; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; }
+.otp-error { margin: 10px 0 0; color: var(--m-danger); font-size: 12px; }
+.otp-resend { display: block; margin: 12px 0 0; padding: 0; border: 0; background: transparent; color: var(--m-primary-dark); cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; }
 .otp-resend:disabled { opacity: 0.5; cursor: default; }
 </style>

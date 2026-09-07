@@ -1,10 +1,42 @@
 <template>
   <q-page class="dash">
     <div v-if="loading" class="stack">
-      <q-skeleton type="text" width="52%" height="26px" />
-      <q-skeleton type="rect" height="64px" class="sk" />
-      <q-skeleton type="rect" height="146px" class="sk" />
-      <q-skeleton type="rect" height="120px" class="sk" />
+      <div class="greet">
+        <q-skeleton type="text" width="60px" height="17px" />
+        <q-skeleton type="text" width="100px" height="20px" />
+      </div>
+      <div class="tiles">
+        <q-skeleton type="rect" height="84px" class="sk" />
+        <q-skeleton type="rect" height="84px" class="sk" />
+      </div>
+      <div class="chips">
+        <div class="chip">
+          <q-skeleton type="text" width="40px" height="15px" />
+          <q-skeleton type="text" width="50px" height="11px" />
+        </div>
+        <div class="chip-div" />
+        <div class="chip">
+          <q-skeleton type="text" width="18px" height="15px" />
+          <q-skeleton type="text" width="42px" height="11px" />
+        </div>
+        <div class="chip-div" />
+        <div class="chip">
+          <q-skeleton type="text" width="18px" height="15px" />
+          <q-skeleton type="text" width="55px" height="11px" />
+        </div>
+      </div>
+      <section class="sec">
+        <q-skeleton type="text" width="120px" height="16px" />
+        <div class="lead">
+          <div class="lead-top">
+            <q-skeleton type="circle" size="25px" />
+            <q-skeleton type="text" width="90px" height="11px" />
+          </div>
+          <div class="lead-row">
+            <q-skeleton type="text" width="75%" height="15px" />
+          </div>
+        </div>
+      </section>
       <q-skeleton type="rect" height="66px" class="sk" />
     </div>
 
@@ -13,7 +45,7 @@
         <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
         <p class="err-title">Couldn't load your dashboard</p>
         <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
       </q-card>
     </div>
 
@@ -145,7 +177,10 @@
           </div>
 
           <div v-if="manager" class="person">
-            <span class="person-avatar">{{ manager.initials }}</span>
+            <span class="person-avatar">
+              <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="person-avatar-img" @error="manager.avatarUrl = null" />
+              <template v-else>{{ manager.initials }}</template>
+            </span>
             <span class="person-body">
               <span class="person-name">{{ manager.name }}</span>
               <span class="person-role">
@@ -165,7 +200,10 @@
 
           <div v-if="roommates.length" class="mates">
             <span class="mates-stack" aria-hidden="true">
-              <span v-for="m in roommates.slice(0, 4)" :key="m.id" class="mates-avatar">{{ m.initials }}</span>
+              <span v-for="m in roommates.slice(0, 4)" :key="m.id" class="mates-avatar">
+                <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="mates-avatar-img" @error="m.avatarUrl = null" />
+                <template v-else>{{ m.initials }}</template>
+              </span>
               <span v-if="roommates.length > 4" class="mates-avatar mates-avatar--more">
                 +{{ roommates.length - 4 }}
               </span>
@@ -188,42 +226,62 @@
         <span class="notice-when">{{ notice.when }}</span>
       </button>
 
-      <!-- Needs attention: one actionable lead, the rest kept quiet -->
+      <!-- Needs attention -->
       <section class="sec">
         <div class="sec-head">
           <h2 class="sec-title">Needs attention</h2>
         </div>
 
-        <div v-if="lead" class="lead" :class="`lead--${lead.tone}`">
-          <div class="lead-top">
-            <span class="lead-icon"><IconifyIcon :icon="lead.icon" width="18" /></span>
-            <span class="lead-kind">{{ lead.kind }}</span>
-            <span v-if="lead.when" class="lead-when">{{ lead.when }}</span>
-          </div>
-          <p class="lead-label">{{ lead.label }}</p>
-          <p class="lead-hint">{{ lead.hint }}</p>
-          <button v-if="lead.action" type="button" class="lead-action" @click="go(lead.route)">
-            {{ lead.action }}
-            <IconifyIcon icon="lucide:arrow-right" width="15" />
-          </button>
-        </div>
-
-        <div v-if="rest.length" class="minors">
-          <button
-            v-for="item in rest"
-            :key="item.id"
-            type="button"
-            class="minor"
-            @click="go(item.route)"
+        <template v-if="attention.length">
+          <q-carousel
+            v-model="carouselSlide"
+            class="lead-carousel"
+            animated
+            transition-prev="slide-right"
+            transition-next="slide-left"
+            autoplay
+            :interval="3000"
+            infinite
+            swipeable
           >
-            <span class="minor-dot" :class="`minor-dot--${item.tone}`" />
-            <span class="minor-text">
-              <span class="minor-label">{{ item.label }}</span>
-              <span class="minor-hint">{{ item.hint }}</span>
-            </span>
-            <span v-if="item.when" class="minor-when">{{ item.when }}</span>
-          </button>
-        </div>
+            <q-carousel-slide
+              v-for="item in attention"
+              :key="item.id"
+              :name="item.id"
+              class="lead-slide"
+            >
+              <div class="lead" :class="`lead--${item.tone}`">
+                <div class="lead-top">
+                  <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
+                  <span class="lead-kind">{{ item.kind }}</span>
+                  <span v-if="item.when" class="lead-when">{{ item.when }}</span>
+                </div>
+                <div class="lead-row">
+                  <div class="lead-body">
+                    <p class="lead-label">{{ item.label }}</p>
+                    <p class="lead-hint">{{ item.hint }}</p>
+                  </div>
+                  <button v-if="item.action" type="button" class="lead-action" @click="go(item.route)">
+                    {{ item.action }}
+                    <IconifyIcon icon="lucide:arrow-right" width="15" />
+                  </button>
+                </div>
+              </div>
+            </q-carousel-slide>
+          </q-carousel>
+
+          <div v-if="attention.length > 1" class="dots">
+            <button
+              v-for="item in attention"
+              :key="item.id"
+              type="button"
+              class="dot"
+              :class="{ 'dot--active': item.id === carouselSlide }"
+              :aria-label="`Show ${item.kind}`"
+              @click="carouselSlide = item.id"
+            />
+          </div>
+        </template>
 
         <div v-if="!attention.length" class="clear">
           <span class="clear-icon"><IconifyIcon icon="lucide:check" width="17" /></span>
@@ -246,7 +304,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -319,6 +378,7 @@ interface Manager {
   id: string
   name: string
   initials: string
+  avatarUrl: string | null
   replyMinutes: number | null
   ratingAvg: number | null
   reviewCount: number
@@ -327,9 +387,8 @@ interface Manager {
 interface Roommate {
   id: string
   initials: string
+  avatarUrl: string | null
 }
-
-const MAX_MINOR = 3
 
 const router = useRouter()
 
@@ -338,6 +397,7 @@ const error = ref('')
 const firstName = ref('there')
 const stay = ref<Stay | null>(null)
 const attention = ref<AttentionItem[]>([])
+const carouselSlide = ref('')
 const checklist = ref<ChecklistRow[]>([])
 const houseRuleChips = ref<HouseRuleChip[]>([])
 const nextPayment = ref<NextPayment | null>(null)
@@ -351,8 +411,6 @@ const greeting = computed(() => {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 })
 
-const lead = computed<AttentionItem | null>(() => attention.value[0] ?? null)
-const rest = computed(() => attention.value.slice(1, 1 + MAX_MINOR))
 
 const showChecklist = computed(() =>
   checklist.value.some((row) => (row.kind === 'row' ? row.state !== 'done' : true)),
@@ -414,8 +472,8 @@ function messageManager() {
   void router.push(id ? `/student/messages?to=${id}` : '/student/messages')
 }
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const { data: auth } = await supabase.auth.getUser()
@@ -539,7 +597,7 @@ async function load() {
 
       if (managerId) {
         const [{ data: mgr }, { data: mgrProfile }, { data: mgrReviews }] = await Promise.all([
-          supabase.from('users').select('full_name, initials').eq('id', managerId).maybeSingle(),
+          supabase.from('users').select('full_name, initials, avatar_url').eq('id', managerId).maybeSingle(),
           supabase
             .from('accommodation_manager_profiles')
             .select('avg_response_minutes')
@@ -554,6 +612,7 @@ async function load() {
             id: managerId,
             name: mgr.full_name,
             initials: mgr.initials || initialsOf(mgr.full_name),
+            avatarUrl: mgr.avatar_url ? resolveAsset(mgr.avatar_url) : null,
             replyMinutes: mgrProfile?.avg_response_minutes ?? null,
             ratingAvg:
               reviewCount > 0
@@ -567,16 +626,17 @@ async function load() {
       // Everyone else currently housed in the same room.
       const { data: mateRows } = await supabase
         .from('leases')
-        .select('student_id, users!leases_student_id_fkey(full_name, initials)')
+        .select('student_id, users!leases_student_id_fkey(full_name, initials, avatar_url)')
         .eq('room_id', leaseRow.room_id)
         .eq('status', 'active')
         .neq('student_id', user.id)
 
       roommates.value = (mateRows || []).map((m) => {
-        const person = m.users as unknown as { full_name: string; initials: string | null } | null
+        const person = m.users as unknown as { full_name: string; initials: string | null; avatar_url: string | null } | null
         return {
           id: m.student_id,
           initials: person?.initials || initialsOf(person?.full_name || '?'),
+          avatarUrl: person?.avatar_url ? resolveAsset(person.avatar_url) : null,
         }
       })
     }
@@ -741,6 +801,9 @@ async function load() {
     }
 
     attention.value = items.sort((a, b) => a.rank - b.rank)
+    // A silent (realtime-triggered) refresh must not snap the carousel back
+    // to the first card out from under someone who's scrolled it.
+    if (!silent) carouselSlide.value = attention.value[0]?.id ?? ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -748,7 +811,31 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. The database
+// pushes lease changes here instead of the page re-asking on every return —
+// same channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need.
+let leaseChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  const { data: authData } = await supabase.auth.getUser()
+  const uid = authData?.user?.id
+  if (!uid || typeof supabase.channel !== 'function') return
+  leaseChannel = supabase
+    .channel(`dashboard-leases:${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'leases', filter: `student_id=eq.${uid}` },
+      () => void load(true),
+    )
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (leaseChannel) void supabase.removeChannel(leaseChannel)
+})
 </script>
 
 <style scoped>
@@ -957,11 +1044,17 @@ onMounted(load)
   height: 36px;
   flex: 0 0 36px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary);
   color: #fff;
   font-size: 12.5px;
   font-weight: 800;
+}
+.person-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .person-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
 .person-name { color: var(--m-ink); font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -989,6 +1082,7 @@ onMounted(load)
   width: 26px;
   height: 26px;
   place-items: center;
+  overflow: hidden;
   margin-left: -7px;
   border: 2px solid var(--m-surface);
   border-radius: 999px;
@@ -996,6 +1090,11 @@ onMounted(load)
   color: var(--m-primary-dark);
   font-size: 9.5px;
   font-weight: 800;
+}
+.mates-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .mates-avatar:first-child { margin-left: 0; }
 .mates-avatar--more { background: var(--m-border); color: var(--m-text); }
@@ -1059,7 +1158,7 @@ onMounted(load)
 .lead--info .lead-kind { color: var(--m-info); }
 .lead-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 .lead-label {
-  margin: 3px 0 0;
+  margin: 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
   font-size: 15.5px;
@@ -1068,14 +1167,15 @@ onMounted(load)
   line-height: 1.2;
   text-wrap: pretty;
 }
+.lead-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.lead-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
 .lead-hint { margin: 0; color: var(--m-muted); font-size: 11.5px; line-height: 1.3; text-wrap: pretty; }
 .lead-action {
   display: inline-flex;
-  align-self: flex-start;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   min-height: 38px;
-  margin-top: 7px;
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
@@ -1090,31 +1190,33 @@ onMounted(load)
 }
 .lead-action:active { transform: scale(0.97); }
 
-/* Minors */
-.minors { display: flex; flex-direction: column; gap: 3px; }
-.minor {
-  display: flex;
-  width: 100%;
-  min-height: 44px;
-  align-items: center;
-  gap: 9px;
-  padding: 4px 11px;
-  border: 0;
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
+.lead-carousel {
+  height: 128px;
+  background: transparent;
 }
-.minor-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 999px; }
-.minor-dot--danger { background: var(--m-danger); }
-.minor-dot--warn { background: var(--m-warning); }
-.minor-dot--info { background: var(--m-info); }
-.minor-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.minor-label { color: var(--m-ink); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.minor-hint { color: var(--m-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.minor-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11px; font-weight: 600; }
+.lead-carousel :deep(.q-carousel__slide) {
+  padding: 0;
+}
+.lead-slide {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  padding: 0;
+}
+.lead-slide .lead { width: 100%; }
+
+.dots { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 8px; }
+.dot {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-border);
+  cursor: pointer;
+  transition: width 0.15s ease, background 0.15s ease;
+}
+.dot--active { width: 14px; background: var(--m-primary); }
 
 /* Clear */
 .clear {

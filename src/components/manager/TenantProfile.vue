@@ -1,7 +1,20 @@
 <template>
   <q-page class="tprof">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="120px" class="sk" />
+      <div class="hero"><q-skeleton type="rect" height="170px" square /></div>
+      <div class="body-card">
+        <div class="head">
+          <q-skeleton type="circle" size="84px" style="margin-top: -42px; margin-bottom: 4px;" />
+          <q-skeleton type="text" width="130px" height="17px" />
+          <q-skeleton type="text" width="72px" height="18px" />
+          <q-skeleton type="text" width="160px" height="12px" />
+        </div>
+      </div>
+      <div class="tabs">
+        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
+      </div>
       <q-skeleton type="rect" height="90px" class="sk" />
     </div>
 
@@ -10,7 +23,7 @@
         <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
         <p class="err-title">Couldn't load this tenant</p>
         <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
       </q-card>
     </div>
 
@@ -26,7 +39,10 @@
 
         <div class="body-card">
           <div class="head">
-            <span class="head-avatar">{{ lease.studentInitials }}</span>
+            <span class="head-avatar">
+              <img v-if="lease.studentAvatarUrl" :src="lease.studentAvatarUrl" alt="" class="head-avatar-img" @error="lease.studentAvatarUrl = null" />
+              <template v-else>{{ lease.studentInitials }}</template>
+            </span>
             <span class="head-name">{{ lease.studentName }}</span>
             <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">
               {{ statusText(LEASE_STATUS, lease.status) }}
@@ -52,21 +68,59 @@
           <q-tab-panels v-model="tab" animated swipeable class="panels">
             <q-tab-panel name="overview" class="sec">
             <!-- Decisions -->
-            <div v-if="lease.status === 'pending'" class="decide-box decide">
-              <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decide('rejected')">
-                Decline
-              </button>
-              <button type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
-                Accept
-              </button>
+            <div v-if="lease.status === 'pending'" class="decide-box">
+              <div v-if="decisionReasonFor === 'reject'" class="decide-reason">
+                <label class="decide-reason-label">
+                  Reason for declining
+                  <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="Let the student know why…" />
+                </label>
+                <div class="decide-reason-actions">
+                  <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = ''">Cancel</button>
+                  <button
+                    type="button"
+                    class="decide-btn decide-btn--danger"
+                    :disabled="deciding || !decisionReason.trim()"
+                    @click="decide('rejected')"
+                  >
+                    {{ deciding ? 'Declining…' : 'Confirm decline' }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="decide">
+                <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'reject'; decisionReason = ''">
+                  Decline
+                </button>
+                <button type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
+                  Accept
+                </button>
+              </div>
             </div>
-            <div v-else-if="lease.status === 'leave_requested'" class="decide-box decide">
-              <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="declineLeave">
-                Keep tenant
-              </button>
-              <button type="button" class="decide-btn" :disabled="deciding" @click="approveLeave">
-                Approve leave
-              </button>
+            <div v-else-if="lease.status === 'leave_requested'" class="decide-box">
+              <div v-if="decisionReasonFor === 'keep'" class="decide-reason">
+                <label class="decide-reason-label">
+                  Reason for keeping the tenant
+                  <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="Let the student know why…" />
+                </label>
+                <div class="decide-reason-actions">
+                  <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = ''">Cancel</button>
+                  <button
+                    type="button"
+                    class="decide-btn decide-btn--danger"
+                    :disabled="deciding || !decisionReason.trim()"
+                    @click="declineLeave"
+                  >
+                    {{ deciding ? 'Sending…' : 'Confirm' }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="decide">
+                <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'keep'; decisionReason = ''">
+                  Keep tenant
+                </button>
+                <button type="button" class="decide-btn" :disabled="deciding" @click="approveLeave">
+                  Approve leave
+                </button>
+              </div>
             </div>
             <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && tenantReview" class="decide-box rated">
               <StarRating :model-value="tenantReview.rating" :size="16" />
@@ -120,7 +174,7 @@
             </div>
 
             <div v-if="payments.length" class="group">
-              <div v-for="p in visiblePayments" :key="p.id" class="pay-row">
+              <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row pay-row--tap" @click="openPaymentDetail(p)">
                 <div class="pay-row-main">
                   <span class="pay-row-month">{{ formatMonth(p.month) }}</span>
                   <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
@@ -131,16 +185,11 @@
                     {{ statusText(PAYMENT_STATUS, p.status) }}
                   </span>
                 </div>
-                <button
-                  v-if="p.status === 'pending_verification'"
-                  type="button"
-                  class="rule-verify"
-                  :disabled="verifying === p.id"
-                  @click="verifyPayment(p.id)"
-                >
-                  {{ verifying === p.id ? 'Verifying…' : 'Mark verified' }}
-                </button>
-              </div>
+                <span v-if="p.status === 'pending_verification'" class="pay-row-review">
+                  Tap to review
+                  <IconifyIcon icon="lucide:chevron-right" width="13" />
+                </span>
+              </button>
             </div>
             <EmptyState
               v-else
@@ -186,11 +235,96 @@
         />
       </q-card>
     </q-dialog>
+
+    <!-- Payment review — verifying only ever happens from here, never
+         straight off the row, so a proof/reference actually gets looked at. -->
+    <q-dialog v-model="paymentDetailOpen" position="bottom">
+      <q-card v-if="selectedPayment" class="pay-sheet">
+        <h3 class="pay-title">{{ formatMonth(selectedPayment.month) }}</h3>
+        <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
+          {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
+        </span>
+
+        <div class="group">
+          <div class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Amount</span>
+            <span class="pay-detail-rule-value">{{ formatPeso(selectedPayment.amount) }}</span>
+          </div>
+          <div class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Method</span>
+            <span class="pay-detail-rule-value">{{ PAYMENT_METHOD_LABEL[selectedPayment.method] || selectedPayment.method }}</span>
+          </div>
+          <div v-if="selectedPayment.txnReference" class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Reference number</span>
+            <span class="pay-detail-rule-value">{{ selectedPayment.txnReference }}</span>
+          </div>
+          <div v-if="selectedPayment.verifiedByName" class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Reviewed by</span>
+            <span class="pay-detail-rule-value">
+              {{ selectedPayment.verifiedByName }}{{ selectedPayment.paidAt ? ` · ${formatDate(selectedPayment.paidAt)}` : '' }}
+            </span>
+          </div>
+        </div>
+
+        <template v-if="selectedPayment.status === 'rejected' && selectedPayment.rejectionReason">
+          <p class="pay-detail-label">Rejection reason</p>
+          <p class="pay-detail-text">{{ selectedPayment.rejectionReason }}</p>
+        </template>
+
+        <template v-if="selectedPayment.description">
+          <p class="pay-detail-label">Note</p>
+          <p class="pay-detail-text">{{ selectedPayment.description }}</p>
+        </template>
+
+        <template v-if="selectedPayment.proofUrl">
+          <p class="pay-detail-label">Proof of payment</p>
+          <img :src="resolveAsset(selectedPayment.proofUrl)" alt="Proof of payment" class="pay-detail-proof-img" />
+        </template>
+
+        <template v-if="selectedPayment.status === 'pending_verification'">
+          <div v-if="rejectingId === selectedPayment.id" class="pay-reject-form">
+            <label class="pay-detail-label">
+              Reason
+              <textarea v-model="rejectReason" class="pay-reject-textarea" rows="2" placeholder="Why is this being rejected?" />
+            </label>
+            <div class="pay-reject-actions">
+              <button type="button" class="pay-reject-cancel" @click="rejectingId = ''">Cancel</button>
+              <button
+                type="button"
+                class="pay-reject-confirm"
+                :disabled="verifying === selectedPayment.id || !rejectReason.trim()"
+                @click="rejectPayment(selectedPayment.id)"
+              >
+                {{ verifying === selectedPayment.id ? 'Rejecting…' : 'Confirm reject' }}
+              </button>
+            </div>
+          </div>
+          <div v-else class="pay-detail-actions">
+            <q-btn
+              unelevated
+              rounded
+              no-caps
+              color="primary"
+              class="pay-submit"
+              :loading="verifying === selectedPayment.id"
+              label="Mark verified"
+              @click="verifyPayment(selectedPayment.id); paymentDetailOpen = false"
+            />
+            <button type="button" class="pay-reject-btn" @click="rejectingId = selectedPayment.id; rejectReason = ''">
+              Reject
+            </button>
+          </div>
+        </template>
+
+        <q-btn flat rounded no-caps color="grey-7" label="Close" @click="paymentDetailOpen = false" />
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -223,6 +357,7 @@ const lease = reactive({
   studentId: '',
   studentName: '',
   studentInitials: '?',
+  studentAvatarUrl: '' as string | null,
   email: '',
   phone: '',
   roomLabel: '',
@@ -234,7 +369,21 @@ const lease = reactive({
   monthlyRent: 0,
 })
 const coverUrl = ref('')
-const payments = ref<{ id: string; month: string; amount: number; status: string; method: string }[]>([])
+const payments = ref<
+  {
+    id: string
+    month: string
+    amount: number
+    status: string
+    method: string
+    description: string
+    txnReference: string
+    proofUrl: string
+    paidAt: string | null
+    verifiedByName: string
+    rejectionReason: string
+  }[]
+>([])
 const paymentsExpanded = ref(false)
 const visiblePayments = computed(() => (paymentsExpanded.value ? payments.value : payments.value.slice(0, 3)))
 const history = ref<{ id: string; accommodationName: string; roomType: string | null; periodStart: string; periodEnd: string }[]>([])
@@ -242,14 +391,14 @@ const tenantReview = ref<{ rating: number; comment: string } | null>(null)
 
 const leaseId = computed(() => String(route.params.leaseId || ''))
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,student_id,room_id,users!leases_student_id_fkey(full_name,initials,email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,monthly_rent,student_id,room_id,users!leases_student_id_fkey(full_name,initials,email,phone,avatar_url),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -259,7 +408,7 @@ async function load() {
       return
     }
 
-    const student = data.users as unknown as { full_name: string | null; initials: string | null; email: string | null; phone: string | null } | null
+    const student = data.users as unknown as { full_name: string | null; initials: string | null; email: string | null; phone: string | null; avatar_url: string | null } | null
     const room = data.rooms as unknown as {
       label: string | null
       room_number: string | null
@@ -272,6 +421,7 @@ async function load() {
     lease.studentId = data.student_id
     lease.studentName = student?.full_name || 'A student'
     lease.studentInitials = student?.initials || initialsOf(lease.studentName)
+    lease.studentAvatarUrl = student?.avatar_url ? resolveAsset(student.avatar_url) : null
     lease.email = student?.email || ''
     lease.phone = student?.phone || ''
     lease.roomLabel = room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Room')
@@ -290,7 +440,9 @@ async function load() {
     const [{ data: paymentRows }, { data: historyRows }] = await Promise.all([
       supabase
         .from('payments')
-        .select('id,month,amount,status,method')
+        .select(
+          'id,month,amount,status,method,description,txn_reference,proof_url,paid_at,rejection_reason,verified_by_user:users!payments_verified_by_fkey(full_name)',
+        )
         .eq('lease_id', leaseId.value)
         .order('month', { ascending: false }),
       supabase
@@ -299,7 +451,19 @@ async function load() {
         .eq('student_id', data.student_id)
         .order('period_start', { ascending: false }),
     ])
-    payments.value = (paymentRows ?? []).map((p) => ({ id: p.id, month: p.month, amount: Number(p.amount), status: p.status, method: p.method }))
+    payments.value = (paymentRows ?? []).map((p) => ({
+      id: p.id,
+      month: p.month,
+      amount: Number(p.amount),
+      status: p.status,
+      method: p.method,
+      description: p.description || '',
+      txnReference: p.txn_reference || '',
+      proofUrl: p.proof_url || '',
+      paidAt: p.paid_at,
+      verifiedByName: (p.verified_by_user as { full_name: string | null } | null)?.full_name || '',
+      rejectionReason: p.rejection_reason || '',
+    }))
     history.value = (historyRows ?? []).map((h) => ({
       id: h.id,
       accommodationName: h.accommodation_name || 'Accommodation',
@@ -323,13 +487,18 @@ async function load() {
   }
 }
 
+const decisionReasonFor = ref<'' | 'reject' | 'keep'>('')
+const decisionReason = ref('')
+
 async function decide(next: 'active' | 'rejected') {
   if (deciding.value) return
+  if (next === 'rejected' && !decisionReason.value.trim()) return
   deciding.value = true
   try {
-    await respondToApplication(leaseId.value, lease.studentId, lease.roomLabel, next)
+    await respondToApplication(leaseId.value, lease.studentId, lease.roomLabel, next, next === 'rejected' ? decisionReason.value.trim() : undefined)
     lease.status = next
     notify.success(next === 'active' ? 'Application accepted.' : 'Application declined.')
+    decisionReasonFor.value = ''
   } catch (e) {
     notify.error(errorMessage(e, 'Could not update this application.'))
   } finally {
@@ -369,7 +538,8 @@ async function approveLeave() {
 }
 
 async function declineLeave() {
-  if (deciding.value) return
+  const reason = decisionReason.value.trim()
+  if (deciding.value || !reason) return
   deciding.value = true
   try {
     const { error: updateError } = await supabase
@@ -378,8 +548,9 @@ async function declineLeave() {
       .eq('id', leaseId.value)
     if (updateError) throw updateError
     lease.status = 'active'
-    void createNotification(lease.studentId, 'Leave request declined', `Your request to leave ${lease.roomLabel} was declined.`, 'lease', '/student/stay')
+    void createNotification(lease.studentId, 'Leave request declined', `Your request to leave ${lease.roomLabel} was declined. Reason: ${reason}`, 'lease', '/student/stay')
     notify.success('Leave request declined.')
+    decisionReasonFor.value = ''
   } catch (e) {
     notify.error(errorMessage(e, 'Could not update the leave request.'))
   } finally {
@@ -388,24 +559,69 @@ async function declineLeave() {
 }
 
 const verifying = ref('')
+const paymentDetailOpen = ref(false)
+const selectedPayment = ref<(typeof payments.value)[number] | null>(null)
+function openPaymentDetail(p: (typeof payments.value)[number]) {
+  selectedPayment.value = p
+  paymentDetailOpen.value = true
+}
 
 async function verifyPayment(paymentId: string) {
   if (verifying.value) return
   verifying.value = paymentId
   try {
+    const { data: authData } = await supabase.auth.getUser()
+    const paidAt = new Date().toISOString()
     const { error: updateError } = await supabase
       .from('payments')
-      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .update({ status: 'paid', paid_at: paidAt, verified_by: authData?.user?.id || null })
       .eq('id', paymentId)
     if (updateError) throw updateError
 
     const row = payments.value.find((p) => p.id === paymentId)
-    if (row) row.status = 'paid'
+    if (row) {
+      row.status = 'paid'
+      row.paidAt = paidAt
+      row.verifiedByName = 'You'
+    }
 
     void createNotification(lease.studentId, 'Payment verified', `Your payment for ${lease.roomLabel} was marked as paid.`, 'payment', '/student/payments')
     notify.success('Payment verified.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not verify this payment.'))
+  } finally {
+    verifying.value = ''
+  }
+}
+
+const rejectingId = ref('')
+const rejectReason = ref('')
+
+async function rejectPayment(paymentId: string) {
+  const reason = rejectReason.value.trim()
+  if (verifying.value || !reason) return
+  verifying.value = paymentId
+  try {
+    const { data: authData } = await supabase.auth.getUser()
+    const { error: updateError } = await supabase
+      .from('payments')
+      .update({ status: 'rejected', rejection_reason: reason, verified_by: authData?.user?.id || null })
+      .eq('id', paymentId)
+    if (updateError) throw updateError
+
+    const row = payments.value.find((p) => p.id === paymentId)
+    if (row) {
+      row.status = 'rejected'
+      row.rejectionReason = reason
+      row.verifiedByName = 'You'
+    }
+
+    void createNotification(lease.studentId, 'Payment rejected', `Your payment for ${lease.roomLabel} was rejected. Reason: ${reason}`, 'payment', '/student/payments')
+    notify.success('Payment rejected.')
+    rejectingId.value = ''
+    paymentDetailOpen.value = false
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not reject this payment.'))
   } finally {
     verifying.value = ''
   }
@@ -452,7 +668,31 @@ async function submitTenantReview() {
   }
 }
 
-onMounted(load)
+// Kept alive per lease id (see MainLayout's KEEP_ALIVE_PAGES + the
+// route.fullPath key), so this only really runs once per tenant per session.
+// Lease and payment changes push here instead of the page re-asking on
+// return — same channel shape as stores/notifications.ts, just refetching
+// instead of merging since this page has no per-row incremental-update need.
+let leaseChannel: RealtimeChannel | null = null
+let paymentChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  if (typeof supabase.channel !== 'function') return
+  leaseChannel = supabase
+    .channel(`tenant-lease:${leaseId.value}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'leases', filter: `id=eq.${leaseId.value}` }, () => void load(true))
+    .subscribe()
+  paymentChannel = supabase
+    .channel(`tenant-payments:${leaseId.value}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `lease_id=eq.${leaseId.value}` }, () => void load(true))
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (leaseChannel) void supabase.removeChannel(leaseChannel)
+  if (paymentChannel) void supabase.removeChannel(paymentChannel)
+})
 </script>
 
 <style scoped>
@@ -468,6 +708,9 @@ onMounted(load)
   flex-direction: column;
   gap: 12px;
   padding: 8px var(--m-page-gutter) 0;
+}
+.sk-tab {
+  border-radius: 10px 10px 0 0;
 }
 .sk {
   border-radius: var(--m-radius);
@@ -561,6 +804,7 @@ onMounted(load)
   width: 84px;
   height: 84px;
   place-items: center;
+  overflow: hidden;
   margin-top: -42px;
   margin-bottom: 4px;
   border: 4px solid var(--m-surface);
@@ -571,6 +815,11 @@ onMounted(load)
   font-size: 24px;
   font-weight: 800;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+.head-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .head-name {
   color: var(--m-ink);
@@ -616,7 +865,10 @@ onMounted(load)
   z-index: 2;
   display: flex;
   gap: 4px;
-  margin: 14px var(--m-page-gutter) -1px;
+  /* -2px, not -1px: see ManagerTenantsPage.vue's .tabs comment — an exact 1px
+     overlap can round the wrong way on real (non-@1x) device pixel ratios
+     and leave a hairline gap under the active tab. */
+  margin: 14px var(--m-page-gutter) -2px;
 }
 .tab {
   min-height: 38px;
@@ -701,6 +953,42 @@ onMounted(load)
   background: var(--m-bg);
   color: var(--m-text);
   border: 1px solid var(--m-border);
+}
+.decide-btn--danger {
+  background: var(--m-danger);
+}
+.decide-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.decide-reason-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.decide-reason-textarea {
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 13.5px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  resize: vertical;
+}
+.decide-reason-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .sec {
@@ -789,6 +1077,25 @@ onMounted(load)
   gap: 4px;
   padding: 9px 12px;
   border-top: 1px solid var(--m-border);
+}
+.pay-row--tap {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.pay-row-review {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--m-primary-dark);
+  font-size: 11px;
+  font-weight: 700;
 }
 .group > .pay-row:first-child {
   border-top: 0;
@@ -882,9 +1189,147 @@ onMounted(load)
   min-height: 48px;
   font-weight: 700;
 }
+.pay-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+.pay-detail-actions .pay-submit {
+  flex: 1;
+  margin: 0;
+}
+.pay-reject-btn {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid var(--m-danger);
+  border-radius: 999px;
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.pay-reject-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pay-reject-textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.pay-reject-actions {
+  display: flex;
+  gap: 8px;
+}
+.pay-reject-cancel {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.pay-reject-confirm {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-danger);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.pay-reject-confirm:disabled {
+  opacity: 0.6;
+}
 .review-textarea {
   min-height: 70px;
   padding: 10px 12px;
   resize: vertical;
+}
+
+.pay-detail-chip {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.pay-detail-chip--green {
+  background: var(--m-success-soft);
+  color: var(--m-success);
+}
+.pay-detail-chip--amber,
+.pay-detail-chip--orange {
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+}
+.pay-detail-chip--red {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+}
+.pay-detail-chip--grey {
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.pay-detail-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--m-border);
+}
+.group > .pay-detail-rule:first-child {
+  border-top: 0;
+}
+.pay-detail-rule-label {
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.pay-detail-rule-value {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+.pay-detail-label {
+  margin: 4px 0 0;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.pay-detail-text {
+  margin: 0;
+  color: var(--m-text);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.pay-detail-proof-img {
+  width: 100%;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
 }
 </style>

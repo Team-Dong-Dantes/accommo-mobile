@@ -42,7 +42,9 @@
       <div class="page-stage">
         <router-view v-slot="{ Component }">
           <transition :name="pageTransition">
-            <component :is="Component" />
+            <keep-alive :include="KEEP_ALIVE_PAGES" :max="20">
+              <component :is="Component" :key="route.fullPath" />
+            </keep-alive>
           </transition>
         </router-view>
       </div>
@@ -58,16 +60,20 @@
         :active="activeBottomTab"
         :avatar-url="profileImageUrl"
         :initials="userInitials"
+        :menu-open="menuOpen"
         @select="goToTab"
       />
     </q-footer>
 
     <QuickActions
-      v-if="showQuickActions"
-      v-model:open="quickActionsOpen"
-      :actions="config.quickActions"
-      :menu-id="`${role}-quick-actions`"
-      @navigate="navigateQuickAction"
+      v-if="!chatFullscreen"
+      v-model:open="menuOpen"
+      :account-actions="accountActions"
+      :actions="displayQuickActions"
+      :avatar-url="profileImageUrl"
+      :initials="userInitials"
+      :menu-id="`${role}-menu`"
+      @navigate="navigateMenuAction"
     />
   </q-layout>
 </template>
@@ -100,21 +106,25 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { name: 'home', route: '/manager/dashboard', icon: 'lucide:house', label: 'Home' },
       { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'Tenants' },
       { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages' },
-      { name: 'profile', route: '/manager/profile', icon: '', label: 'Profile', avatar: true },
+      { name: 'menu', route: '/manager/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
     quickActions: [
+      { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas-compliance' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
       { icon: 'lucide:building-2', label: 'My Properties', route: '/manager/properties' },
     ],
     secondaryPages: [
       { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/profile/settings', title: 'Settings', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/osas-compliance', title: 'OSAS Compliance', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
       { path: '/manager/properties', title: 'My Properties', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'my properties', stacked: true },
-      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'my properties', stacked: true },
+      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'my properties' },
+      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'my properties' },
     ],
   },
   student: {
@@ -124,17 +134,23 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { name: 'home', route: '/student/home', icon: 'lucide:house', label: 'Home' },
       { name: 'discover', route: '/student/discover', icon: 'lucide:search', label: 'Discover' },
       { name: 'messages', route: '/student/messages', icon: 'lucide:message-circle', label: 'Messages' },
-      { name: 'profile', route: '/student/profile', icon: '', label: 'Profile', avatar: true },
+      { name: 'menu', route: '/student/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
     quickActions: [
+      { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
       { icon: 'lucide:home', label: 'My Stay', route: '/student/stay' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
-      { icon: 'lucide:wallet-cards', label: 'Payments', route: '/student/payments' },
     ],
     secondaryPages: [
       { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
+      { path: '/student/profile/settings', title: 'Settings', back: '/student/profile', backLabel: 'profile' },
+      { path: '/student/profile/qr', title: 'My QR', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/profile/history', title: 'History', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
+      { path: '/student/support', title: 'OSAS', back: '/student/home', backLabel: 'home' },
+      { path: '/student/concerns', title: 'Concerns', back: '/student/home', backLabel: 'home' },
+      { path: '/student/stay', title: 'My Stay', back: '/student/home', backLabel: 'home' },
+      { path: '/student/payments', title: 'Payments', back: '/student/home', backLabel: 'home' },
       { path: /^\/student\/listing\/[^/]+$/, title: 'Listing', back: '/student/discover', backLabel: 'discover' },
       { path: '/student/properties', title: 'Properties', back: '/student/discover', backLabel: 'discover' },
       { path: /^\/student\/room\/[^/]+$/, title: 'Room', back: '/student/discover', backLabel: 'discover' },
@@ -148,21 +164,92 @@ const role = computed<'manager' | 'student'>(() =>
 )
 const config = computed(() => SHELLS[role.value])
 
+// Bottom-nav tabs + the other singleton screens (no route param — one
+// instance ever exists) kept alive across navigation instead of remounting
+// (and re-running their loading skeleton) every time. Matched by Vue's
+// auto-assigned `__name` (from each file's filename) — none of these declare
+// an explicit name, and both Messages routes resolve to their per-role
+// wrapper file, not the shared MessagesPage.vue they render.
+//
+// TenantProfile and StudentManagerPage are the two exceptions: both are
+// per-id drill-downs (:leaseId / :id). They're still safe to include because
+// the `:key="route.fullPath"` on the <component> above gives each distinct
+// id its own cache entry — without that key, keep-alive would reuse the same
+// cached instance across different tenants/managers and show stale data.
+// Every other per-id screen (AccommodationDetail, StudentListingPage,
+// StudentRoomPage) is deliberately left out: they're opened once and left,
+// so there's no repeat visit to speed up, and it's not worth growing the
+// cache for.
+const KEEP_ALIVE_PAGES = [
+  'ManagerDashboard', 'ManagerTenantsPage', 'ManagerMessagesPage', 'ManagerProfilePage',
+  'StudentDashboard', 'StudentDiscoverPage', 'StudentMessagesPage', 'StudentProfilePage',
+  'ManagerAccommodationsPage', 'ManagerConcernsPage', 'ManagerOsasCompliancePage', 'TenantProfile',
+  'StudentPropertiesPage', 'StudentOsasPage', 'StudentConcernsPage', 'StudentStayPage', 'StudentManagerPage',
+]
+
 // Same tabs, with the live unread count from the messages store folded onto
 // the 'messages' entry — kept separate from SHELLS so that config stays a
 // plain static lookup.
 const displayTabs = computed(() =>
-  config.value.tabs.map((tab) =>
-    tab.name === 'messages' ? { ...tab, badge: messagesStore.totalUnread } : tab,
+  config.value.tabs.map((tab) => {
+    if (tab.name === 'messages') return { ...tab, badge: messagesStore.totalUnread }
+    if (tab.name === 'tenants') return { ...tab, dot: tenantsNeedCheck.value }
+    if (tab.name === 'discover') return { ...tab, dot: discoverNeedCheck.value }
+    if (tab.name === 'menu') return { ...tab, dot: profileNeedsCheck.value }
+    return tab
+  }),
+)
+
+// Same idea for the quick-action menu, so both roles' Concerns entry carries
+// the same kind of self-clearing signal.
+const CONCERNS_ROUTE: Record<'manager' | 'student', string> = {
+  manager: '/manager/support',
+  student: '/student/concerns',
+}
+const displayQuickActions = computed(() =>
+  config.value.quickActions.map((action) =>
+    action.route === CONCERNS_ROUTE[role.value] ? { ...action, dot: concernsNeedCheck.value } : action,
   ),
 )
 
+// The hamburger tab (bottom nav's old profile slot) opens this menu: Profile
+// and Settings up top, then the role's quick actions below, all in one card.
+// The third row is role-specific: a manager scans student QR codes, a
+// student shows their own.
+const accountActions = computed(() => {
+  const profileRoute = config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home
+  const items = [
+    { icon: 'lucide:user', label: 'Profile', route: profileRoute, avatar: true },
+    { icon: 'lucide:settings', label: 'Settings', route: `${profileRoute}/settings` },
+  ]
+  items.push(
+    role.value === 'manager'
+      ? { icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` }
+      : { icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` },
+  )
+  return items
+})
+
 const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
-const quickActionsOpen = ref(false)
+// Needs-checking dots: each is a plain existence check against a status that
+// clears itself the moment the underlying row is acted on, so there's no
+// separate "seen/unseen" state to maintain — except discover/concerns below,
+// which use a rolling time window instead (see loadNeedsCheckDots).
+const tenantsNeedCheck = ref(false)
+const profileNeedsCheck = ref(false)
+const concernsNeedCheck = ref(false)
+const discoverNeedCheck = ref(false)
+const menuOpen = ref(false)
 const scrolled = ref(false)
 const activeBottomTab = ref('home')
 const pageTransition = ref('page-fade')
+// Where the user actually was before landing on the current sub-page — a
+// sub-page like Settings or Concerns is reachable from anywhere via the
+// hamburger menu, so its back button must return there, not to a fixed
+// parent. Falls back to the sub-page's configured `back` route when there's
+// no prior in-session path (a fresh load or deep link straight into it).
+const lastPath = ref<string | null>(null)
 
 function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undefined {
   return shell.secondaryPages.find((entry) =>
@@ -173,15 +260,12 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
 const subPage = computed(() => matchSecondary(route.path, config.value))
 const isSubPage = computed(() => Boolean(subPage.value))
 
-// An open conversation fills the screen; the FAB would sit on top of it.
-const isInConversation = computed(
-  () => route.path.startsWith(`/${role.value}/messages`) && Boolean(route.query.c),
-)
-const showQuickActions = computed(
-  () => !isSubPage.value && !isInConversation.value && !chatFullscreen.value,
-)
-
 function goToTab(tabName: string) {
+  if (tabName === 'menu') {
+    menuOpen.value = !menuOpen.value
+    return
+  }
+  menuOpen.value = false
   const tab = config.value.tabs.find((item) => item.name === tabName)
   if (tab) void router.push(tab.route)
 }
@@ -191,11 +275,11 @@ function goToNotifications() {
 }
 
 function goBack() {
-  void router.push(subPage.value?.back ?? config.value.home)
+  void router.push(lastPath.value ?? subPage.value?.back ?? config.value.home)
 }
 
-function navigateQuickAction(path: string) {
-  quickActionsOpen.value = false
+function navigateMenuAction(path: string) {
+  menuOpen.value = false
   void router.push(path)
 }
 
@@ -207,10 +291,17 @@ watch(
     // Slide when moving between the main shell and a sub-page; fade otherwise.
     const entering = Boolean(matchSecondary(path, shell))
     const leaving = Boolean(previousPath && matchSecondary(previousPath, shell))
+
+    // Only refresh "where the user was" when arriving from a main-shell page.
+    // A sub-page reached from another sub-page (Profile → Settings, Profile →
+    // History) doesn't overwrite it, so back from Settings skips the Profile
+    // stepping-stone and returns to the real page underneath both.
+    if (previousPath && !leaving) lastPath.value = previousPath
+
     pageTransition.value =
       entering && !leaving ? 'page-slide-left' : leaving && !entering ? 'page-slide-right' : 'page-fade'
 
-    if (entering) quickActionsOpen.value = false
+    if (entering) menuOpen.value = false
 
     const active = shell.tabs.find((tab) =>
       [tab.route, ...(tab.match ?? [])].some((prefix) => path.startsWith(prefix)),
@@ -249,13 +340,23 @@ onMounted(async () => {
 
     const { data: userData } = await supabase
       .from('users')
-      .select('initials, full_name')
+      .select('initials, full_name, avatar_url')
       .eq('id', user.id)
       .maybeSingle()
 
-    const row = userData as { initials: string | null; full_name: string | null } | null
+    const row = userData as { initials: string | null; full_name: string | null; avatar_url: string | null } | null
     userInitials.value =
       row?.initials || initialsOf(String(row?.full_name || metadata?.full_name || user.email || 'User'))
+
+    // Keeps users.avatar_url (the only copy anyone but this user can ever
+    // read) in step with the auth session's own picture — a Google sign-in
+    // never writes it directly, and a Cloudinary upload's write in
+    // uploadAvatar() can't cover a photo change made on Google's side.
+    if (picture && row?.avatar_url !== picture) {
+      void supabase.from('users').update({ avatar_url: picture }).eq('id', user.id)
+    }
+
+    void loadNeedsCheckDots(user.id)
 
     // Subscribes once for the session; the notifications page reuses the same
     // store, so a row marked read there clears this dot immediately.
@@ -276,6 +377,62 @@ onUnmounted(() => {
   window.removeEventListener('accommo:avatar-change', onAvatarChange)
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
 })
+
+// One existence-check query per dot, run once on shell mount. Deliberately
+// not realtime: these are low-frequency "does something need a look" flags,
+// not live counters — reopening the tab is enough to refresh them.
+//
+// Manager's signals are exact-state checks (a lease sitting at 'pending', a
+// concern sitting at 'open') that self-clear the instant someone acts on the
+// row. Concerns has no per-student "seen this response" column, and
+// accommodations has no per-student "seen this listing" column either — so
+// the student side uses a rolling time window instead (a concern resolved
+// in the last few days, a listing accredited in the last week): still
+// self-clearing (it ages out on its own), just on a timer instead of a
+// status flip.
+const CONCERN_WINDOW_DAYS = 3
+const LISTING_WINDOW_DAYS = 7
+
+async function loadNeedsCheckDots(userId: string) {
+  const isManager = role.value === 'manager'
+  const [tenants, docs, concerns, listings] = await Promise.all([
+    isManager
+      ? supabase
+          .from('leases')
+          .select('id', { count: 'exact', head: true })
+          .eq('accommodation_manager_id', userId)
+          .in('status', ['pending', 'leave_requested'])
+      : Promise.resolve({ count: 0 }),
+    supabase
+      .from('verification_documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'rejected'),
+    isManager
+      ? supabase
+          .from('concerns')
+          .select('id, leases!inner(accommodation_manager_id)', { count: 'exact', head: true })
+          .eq('status', 'open')
+          .eq('leases.accommodation_manager_id', userId)
+      : supabase
+          .from('concerns')
+          .select('id, leases!inner(student_id)', { count: 'exact', head: true })
+          .in('status', ['resolved', 'rejected'])
+          .gte('updated_at', new Date(Date.now() - CONCERN_WINDOW_DAYS * 86400000).toISOString())
+          .eq('leases.student_id', userId),
+    isManager
+      ? Promise.resolve({ count: 0 })
+      : supabase
+          .from('accommodations')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'accredited')
+          .gte('accredited_at', new Date(Date.now() - LISTING_WINDOW_DAYS * 86400000).toISOString()),
+  ])
+  tenantsNeedCheck.value = Boolean(tenants.count)
+  profileNeedsCheck.value = Boolean(docs.count)
+  concernsNeedCheck.value = Boolean(concerns.count)
+  discoverNeedCheck.value = Boolean(listings.count)
+}
 
 function onAvatarChange(event: Event) {
   const url = (event as CustomEvent<{ url: string }>).detail?.url

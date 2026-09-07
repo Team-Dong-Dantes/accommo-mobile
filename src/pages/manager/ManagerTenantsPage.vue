@@ -1,8 +1,19 @@
 <template>
   <q-page class="tp">
     <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="96px" class="sk" />
-      <q-skeleton type="rect" height="96px" class="sk" />
+      <div class="tabs">
+        <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
+      </div>
+      <div v-for="n in 2" :key="n" class="acc">
+        <div class="acc-head">
+          <q-skeleton type="rect" size="36px" />
+          <span class="acc-head-body">
+            <q-skeleton type="text" width="55%" height="15px" />
+            <q-skeleton type="text" width="35%" height="12px" />
+          </span>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error" class="stack">
@@ -10,7 +21,7 @@
         <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
         <p class="err-title">Couldn't load your tenants</p>
         <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
+        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
       </q-card>
     </div>
 
@@ -28,7 +39,7 @@
           By tenant
         </button>
         <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
-          All payments
+          Payments
           <span v-if="paymentsNeedingVerification.length" class="tab-dot">{{ paymentsNeedingVerification.length }}</span>
         </button>
       </div>
@@ -79,7 +90,8 @@
                         @click="pickingPayment ? handlePick(l) : router.push(`/manager/tenant/${l.id}`)"
                       >
                         <span class="lease-avatar" :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []">
-                          {{ initialsOf(l.studentName) }}
+                          <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" class="lease-avatar-img" @error="l.avatarUrl = null" />
+                          <template v-else>{{ initialsOf(l.studentName) }}</template>
                         </span>
                         <span class="lease-body">
                           <span class="lease-name">{{ l.studentName }}</span>
@@ -130,29 +142,36 @@
             <h2 class="sec-title">Needs verification</h2>
             <div class="group">
               <div v-for="p in paymentsNeedingVerification" :key="p.id" class="pay-row">
-                <div class="pay-row-main">
-                  <span class="pay-row-month">{{ p.studentName }}</span>
-                  <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
-                </div>
-                <div class="pay-row-sub">
-                  <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }}</span>
-                </div>
-                <button
-                  type="button"
-                  class="rule-verify"
-                  :disabled="verifying === p.id"
-                  @click="verifyPayment(p.id)"
-                >
-                  {{ verifying === p.id ? 'Verifying…' : 'Mark verified' }}
+                <button type="button" class="pay-row-tap" @click="openPaymentDetail(p)">
+                  <div class="pay-row-main">
+                    <span class="pay-row-month">{{ p.studentName }}</span>
+                    <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
+                  </div>
+                  <div class="pay-row-sub">
+                    <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }}</span>
+                    <span class="pay-row-review">
+                      Tap to review
+                      <IconifyIcon icon="lucide:chevron-right" width="13" />
+                    </span>
+                  </div>
                 </button>
               </div>
             </div>
           </section>
 
           <section class="pay-section">
-            <h2 class="sec-title">Recent activity</h2>
+            <div class="sec-head">
+              <h2 class="sec-title">History</h2>
+              <button type="button" class="sec-link" @click="router.push('/manager/profile/history?tab=payments')">View all</button>
+            </div>
             <div v-if="recentPayments.length" class="group">
-              <div v-for="p in recentPayments" :key="p.id" class="pay-row">
+              <button
+                v-for="p in recentPayments"
+                :key="p.id"
+                type="button"
+                class="pay-row pay-row--tap"
+                @click="openPaymentDetail(p)"
+              >
                 <div class="pay-row-main">
                   <span class="pay-row-month">{{ p.studentName }}</span>
                   <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
@@ -161,7 +180,7 @@
                   <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }} · {{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
                   <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
                 </div>
-              </div>
+              </button>
             </div>
             <EmptyState
               v-else
@@ -277,11 +296,100 @@
         />
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="paymentDetailOpen" position="bottom">
+      <q-card v-if="selectedPayment" class="pay-detail-sheet">
+        <h3 class="pay-detail-title">{{ formatMonth(selectedPayment.month) }}</h3>
+        <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
+          {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
+        </span>
+
+        <div class="group">
+          <div class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Amount</span>
+            <span class="pay-detail-rule-value">{{ formatPeso(selectedPayment.amount) }}</span>
+          </div>
+          <div class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Method</span>
+            <span class="pay-detail-rule-value">{{ PAYMENT_METHOD_LABEL[selectedPayment.method] || selectedPayment.method }}</span>
+          </div>
+          <div class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Tenant</span>
+            <span class="pay-detail-rule-value">{{ selectedPayment.studentName }}</span>
+          </div>
+          <div class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Stay</span>
+            <span class="pay-detail-rule-value">{{ selectedPayment.roomLabel }} · {{ selectedPayment.accommodationName }}</span>
+          </div>
+          <div v-if="selectedPayment.txnReference" class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Reference number</span>
+            <span class="pay-detail-rule-value">{{ selectedPayment.txnReference }}</span>
+          </div>
+          <div v-if="selectedPayment.verifiedByName" class="pay-detail-rule">
+            <span class="pay-detail-rule-label">Reviewed by</span>
+            <span class="pay-detail-rule-value">
+              {{ selectedPayment.verifiedByName }}{{ selectedPayment.paidAt ? ` · ${formatDate(selectedPayment.paidAt)}` : '' }}
+            </span>
+          </div>
+        </div>
+
+        <template v-if="selectedPayment.status === 'rejected' && selectedPayment.rejectionReason">
+          <p class="pay-detail-label">Rejection reason</p>
+          <p class="pay-detail-text">{{ selectedPayment.rejectionReason }}</p>
+        </template>
+
+        <template v-if="selectedPayment.description">
+          <p class="pay-detail-label">Note</p>
+          <p class="pay-detail-text">{{ selectedPayment.description }}</p>
+        </template>
+
+        <template v-if="selectedPayment.proofUrl">
+          <p class="pay-detail-label">Proof of payment</p>
+          <img :src="resolveAsset(selectedPayment.proofUrl)" alt="Proof of payment" class="pay-detail-proof-img" />
+        </template>
+
+        <template v-if="selectedPayment.status === 'pending_verification'">
+          <div v-if="rejectingId === selectedPayment.id" class="pay-reject-form">
+            <label class="pay-detail-label">
+              Reason
+              <textarea v-model="rejectReason" class="pay-reject-textarea" rows="2" placeholder="Why is this being rejected?" />
+            </label>
+            <div class="pay-reject-actions">
+              <button type="button" class="pay-reject-cancel" @click="rejectingId = ''">Cancel</button>
+              <button
+                type="button"
+                class="pay-reject-confirm"
+                :disabled="verifying === selectedPayment.id || !rejectReason.trim()"
+                @click="rejectPayment(selectedPayment.id)"
+              >
+                {{ verifying === selectedPayment.id ? 'Rejecting…' : 'Confirm reject' }}
+              </button>
+            </div>
+          </div>
+          <div v-else class="pay-detail-actions">
+            <button
+              type="button"
+              class="sheet-done"
+              :disabled="verifying === selectedPayment.id"
+              @click="verifyPayment(selectedPayment.id); paymentDetailOpen = false"
+            >
+              {{ verifying === selectedPayment.id ? 'Verifying…' : 'Mark verified' }}
+            </button>
+            <button type="button" class="pay-reject-btn" @click="rejectingId = selectedPayment.id; rejectReason = ''">
+              Reject
+            </button>
+          </div>
+        </template>
+
+        <q-btn unelevated rounded no-caps color="primary" class="pay-detail-close" label="Close" @click="paymentDetailOpen = false" />
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
@@ -299,6 +407,7 @@ interface Lease {
   studentId: string
   studentName: string
   avatarColor: string | null
+  avatarUrl: string | null
   startDate: string
   monthlyRent: number
 }
@@ -326,6 +435,12 @@ interface PaymentRow {
   roomLabel: string
   studentId: string
   studentName: string
+  description: string
+  txnReference: string
+  proofUrl: string
+  paidAt: string | null
+  verifiedByName: string
+  rejectionReason: string
 }
 
 const FILTERS = [
@@ -340,6 +455,7 @@ const notify = useNotify()
 
 const loading = ref(true)
 const error = ref('')
+const myId = ref('')
 const accommodations = ref<Accommodation[]>([])
 const activeTab = ref<'tenants' | 'payments'>('tenants')
 const payments = ref<PaymentRow[]>([])
@@ -429,8 +545,8 @@ const visiblePayments = computed(() =>
 const paymentsNeedingVerification = computed(() => visiblePayments.value.filter((p) => p.status === 'pending_verification'))
 const recentPayments = computed(() => visiblePayments.value.filter((p) => p.status !== 'pending_verification'))
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const { data: authData } = await supabase.auth.getUser()
@@ -439,6 +555,7 @@ async function load() {
       error.value = 'Not signed in.'
       return
     }
+    myId.value = user.id
 
     const { data: accRows, error: accError } = await supabase
       .from('accommodations')
@@ -459,14 +576,14 @@ async function load() {
 
     const { data: leaseRows, error: leaseError } = await supabase
       .from('leases')
-      .select('id,status,room_id,student_id,start_date,monthly_rent,users!leases_student_id_fkey(full_name,avatar_color)')
+      .select('id,status,room_id,student_id,start_date,monthly_rent,users!leases_student_id_fkey(full_name,avatar_color,avatar_url)')
       .eq('accommodation_manager_id', user.id)
       .in('status', ['active', 'pending', 'leave_requested'])
     if (leaseError) throw leaseError
 
     const leasesByRoom = new Map<string, Lease[]>()
     for (const l of leaseRows ?? []) {
-      const student = l.users as unknown as { full_name: string | null; avatar_color: string | null } | null
+      const student = l.users as unknown as { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
       const list = leasesByRoom.get(l.room_id) ?? []
       list.push({
         id: l.id,
@@ -474,6 +591,7 @@ async function load() {
         studentId: l.student_id,
         studentName: student?.full_name || 'A student',
         avatarColor: student?.avatar_color ?? null,
+        avatarUrl: student?.avatar_url ? resolveAsset(student.avatar_url) : null,
         startDate: l.start_date,
         monthlyRent: Number(l.monthly_rent ?? 0),
       })
@@ -500,8 +618,10 @@ async function load() {
       }
     })
     // Closed by default — a manager opens the properties they're checking,
-    // rather than scrolling past every room in every property up front.
-    collapsedAccIds.value = new Set(accommodations.value.map((acc) => acc.id))
+    // rather than scrolling past every room in every property up front. Only
+    // on the real first load: a silent (realtime-triggered) refresh must not
+    // collapse whatever the manager already has open.
+    if (!silent) collapsedAccIds.value = new Set(accommodations.value.map((acc) => acc.id))
 
     const roomInfoById = new Map(roomRows.map((r) => [r.id, r]))
     const accNameById = new Map((accRows ?? []).map((a) => [a.id, a.name?.trim() || 'Unnamed accommodation']))
@@ -520,15 +640,30 @@ async function load() {
     }
 
     const leaseIds = (leaseRows ?? []).map((l) => l.id)
-    let paymentRows: { id: string; month: string; amount: number; method: string; status: string; lease_id: string }[] = []
+    let paymentRows: {
+      id: string
+      month: string
+      amount: number
+      method: string
+      status: string
+      lease_id: string
+      description: string | null
+      txn_reference: string | null
+      proof_url: string | null
+      paid_at: string | null
+      rejection_reason: string | null
+      verified_by_user: { full_name: string | null } | null
+    }[] = []
     if (leaseIds.length) {
       const { data, error: paymentError } = await supabase
         .from('payments')
-        .select('id,month,amount,method,status,lease_id')
+        .select(
+          'id,month,amount,method,status,lease_id,description,txn_reference,proof_url,paid_at,rejection_reason,verified_by_user:users!payments_verified_by_fkey(full_name)',
+        )
         .in('lease_id', leaseIds)
         .order('month', { ascending: false })
       if (paymentError) throw paymentError
-      paymentRows = data ?? []
+      paymentRows = (data ?? []) as unknown as typeof paymentRows
     }
     payments.value = paymentRows.map((p) => {
       const info = leaseInfo.get(p.lease_id)
@@ -543,6 +678,12 @@ async function load() {
         roomLabel: info?.roomLabel ?? 'Room',
         studentId: info?.studentId ?? '',
         studentName: info?.studentName ?? 'A student',
+        description: p.description || '',
+        txnReference: p.txn_reference || '',
+        proofUrl: p.proof_url || '',
+        paidAt: p.paid_at,
+        verifiedByName: p.verified_by_user?.full_name || '',
+        rejectionReason: p.rejection_reason || '',
       }
     })
   } catch (e) {
@@ -552,7 +693,31 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
+// only really runs once per session rather than on every visit. The database
+// pushes lease changes here instead of the page re-asking on every return —
+// same channel shape as stores/notifications.ts, just refetching instead of
+// merging since this page has no per-row incremental-update need.
+let leaseChannel: RealtimeChannel | null = null
+
+onMounted(async () => {
+  await load()
+  const { data: authData } = await supabase.auth.getUser()
+  const uid = authData?.user?.id
+  if (!uid || typeof supabase.channel !== 'function') return
+  leaseChannel = supabase
+    .channel(`tenant-leases:${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'leases', filter: `accommodation_manager_id=eq.${uid}` },
+      () => void load(true),
+    )
+    .subscribe()
+})
+
+onUnmounted(() => {
+  if (leaseChannel) void supabase.removeChannel(leaseChannel)
+})
 
 // Rent is stated as expected from leases.monthly_rent, not a collection/arrears
 // status — the payments table is too sparse against active leases to build that on.
@@ -598,6 +763,13 @@ async function decideApplication(l: Lease, roomLabel: string, decision: 'active'
   }
 }
 
+const paymentDetailOpen = ref(false)
+const selectedPayment = ref<PaymentRow | null>(null)
+function openPaymentDetail(p: PaymentRow) {
+  selectedPayment.value = p
+  paymentDetailOpen.value = true
+}
+
 // Lets a manager log a payment from the top of the page: tapping the top
 // button turns the list itself into the picker — payable rows highlight,
 // everything else (decide/message actions, navigation) is disabled until
@@ -640,6 +812,7 @@ async function submitPayment() {
       method: paymentForm.method,
       status: 'paid',
       paid_at: new Date().toISOString(),
+      verified_by: myId.value,
     })
     if (insertError) throw insertError
     paymentOpen.value = false
@@ -655,14 +828,17 @@ async function verifyPayment(paymentId: string) {
   if (verifying.value) return
   verifying.value = paymentId
   try {
+    const paidAt = new Date().toISOString()
     const { error: updateError } = await supabase
       .from('payments')
-      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .update({ status: 'paid', paid_at: paidAt, verified_by: myId.value })
       .eq('id', paymentId)
     if (updateError) throw updateError
     const row = payments.value.find((p) => p.id === paymentId)
     if (row) {
       row.status = 'paid'
+      row.paidAt = paidAt
+      row.verifiedByName = 'You'
       if (row.studentId) {
         void createNotification(row.studentId, 'Payment verified', `Your payment for ${row.roomLabel} was marked as paid.`, 'payment', '/student/payments')
       }
@@ -670,6 +846,38 @@ async function verifyPayment(paymentId: string) {
     notify.success('Payment verified.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not verify this payment.'))
+  } finally {
+    verifying.value = ''
+  }
+}
+
+const rejectingId = ref('')
+const rejectReason = ref('')
+
+async function rejectPayment(paymentId: string) {
+  const reason = rejectReason.value.trim()
+  if (verifying.value || !reason) return
+  verifying.value = paymentId
+  try {
+    const { error: updateError } = await supabase
+      .from('payments')
+      .update({ status: 'rejected', rejection_reason: reason, verified_by: myId.value })
+      .eq('id', paymentId)
+    if (updateError) throw updateError
+    const row = payments.value.find((p) => p.id === paymentId)
+    if (row) {
+      row.status = 'rejected'
+      row.rejectionReason = reason
+      row.verifiedByName = 'You'
+      if (row.studentId) {
+        void createNotification(row.studentId, 'Payment rejected', `Your payment for ${row.roomLabel} was rejected. Reason: ${reason}`, 'payment', '/student/payments')
+      }
+    }
+    notify.success('Payment rejected.')
+    rejectingId.value = ''
+    paymentDetailOpen.value = false
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not reject this payment.'))
   } finally {
     verifying.value = ''
   }
@@ -693,6 +901,9 @@ async function verifyPayment(paymentId: string) {
 .sk {
   border-radius: var(--m-radius);
   margin: 0 var(--m-page-gutter);
+}
+.sk-tab {
+  border-radius: 10px 10px 0 0;
 }
 
 .card {
@@ -720,8 +931,7 @@ async function verifyPayment(paymentId: string) {
   position: fixed;
   bottom: 68px;
   left: var(--m-page-gutter);
-  /* 16px FAB inset + 44px FAB + 8px gap */
-  right: 68px;
+  right: var(--m-page-gutter);
   z-index: 60;
   display: flex;
   align-items: center;
@@ -864,6 +1074,77 @@ async function verifyPayment(paymentId: string) {
   font: inherit;
   font-size: 14px;
   font-weight: 700;
+}
+.pay-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+.pay-detail-actions .sheet-done {
+  flex: 1;
+}
+.pay-reject-btn {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid var(--m-danger);
+  border-radius: 999px;
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.pay-reject-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pay-reject-textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.pay-reject-actions {
+  display: flex;
+  gap: 8px;
+}
+.pay-reject-cancel {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.pay-reject-confirm {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-danger);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.pay-reject-confirm:disabled {
+  opacity: 0.6;
 }
 .top-pay-btn {
   display: flex;
@@ -1107,11 +1388,17 @@ async function verifyPayment(paymentId: string) {
   height: 36px;
   flex: 0 0 36px;
   place-items: center;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 12px;
   font-weight: 800;
+}
+.lease-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .lease-body {
   display: flex;
@@ -1198,12 +1485,99 @@ async function verifyPayment(paymentId: string) {
   font-weight: 700;
 }
 
+.pay-detail-sheet {
+  display: flex;
+  width: 100%;
+  max-width: 480px;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 auto;
+  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
+  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
+}
+.pay-detail-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.pay-detail-chip {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.pay-detail-chip--green {
+  background: var(--m-success-soft);
+  color: var(--m-success);
+}
+.pay-detail-chip--amber,
+.pay-detail-chip--orange {
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+}
+.pay-detail-chip--red {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+}
+.pay-detail-chip--grey {
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.pay-detail-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--m-border);
+}
+.group > .pay-detail-rule:first-child {
+  border-top: 0;
+}
+.pay-detail-rule-label {
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.pay-detail-rule-value {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+.pay-detail-label {
+  margin: 4px 0 0;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.pay-detail-text {
+  margin: 0;
+  color: var(--m-text);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.pay-detail-proof-img {
+  width: 100%;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+}
+.pay-detail-close {
+  min-height: 46px;
+  font-weight: 700;
+}
+
 /* Same underline-tab convention used elsewhere in the app (e.g. the tenant
    profile's Overview/Payments/History tabs) — reused here, not reinvented. */
 /* Same rounded-top pill tabs feeding into a bordered panel as
    accommodation detail's own tabs (just without the frosted-glass-over-photo
    colors, since there's no hero image behind these). */
-/* No gap here (unlike .stack) — the -1px overlap below needs the tabs and
+/* No gap here (unlike .stack) — the -2px overlap below needs the tabs and
    panel to actually touch, which a flex gap on their shared parent would
    otherwise add back in on top of. */
 .tabbed {
@@ -1217,7 +1591,12 @@ async function verifyPayment(paymentId: string) {
   z-index: 2;
   display: flex;
   gap: 4px;
-  margin: 0 calc(var(--m-page-gutter) * -1) -1px;
+  /* -2px, not -1px: an exact 1px overlap can round the wrong way at
+     fractional device-pixel ratios (real phones, not desktop @1x) and leave
+     a hairline gap of page background under the active tab. The active
+     tab's background already equals the panel's, so the extra 1px of
+     overlap is invisible — it just guarantees full coverage. */
+  margin: 0 calc(var(--m-page-gutter) * -1) -2px;
   padding: 0 var(--m-page-gutter);
 }
 .tab {
@@ -1295,6 +1674,26 @@ async function verifyPayment(paymentId: string) {
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sec-head .sec-title {
+  padding: 0;
+}
+.sec-link {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
 .group {
   display: flex;
   flex-direction: column;
@@ -1311,6 +1710,31 @@ async function verifyPayment(paymentId: string) {
   border-top: 1px solid var(--m-border);
 }
 .group > .pay-row:first-child {
+  border-top: 0;
+}
+/* .pay-row-tap: the tappable inner area in "Needs verification" rows, kept
+   separate from the row's own "Mark verified" button (a button can't nest
+   inside another button). .pay-row--tap: the "History" row is its own
+   button since it has no other action to keep separate from. */
+.pay-row-tap,
+.pay-row--tap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.pay-row--tap {
+  padding: 9px 12px;
+  border-top: 1px solid var(--m-border);
+}
+.group > .pay-row--tap:first-child {
   border-top: 0;
 }
 .pay-row-main,
@@ -1351,22 +1775,13 @@ async function verifyPayment(paymentId: string) {
   background: var(--m-danger-soft);
   color: var(--m-danger);
 }
-.rule-verify {
-  display: block;
-  margin-top: 3px;
-  margin-left: auto;
-  padding: 3px 10px;
-  border: 1px solid var(--m-primary);
-  border-radius: 999px;
-  background: var(--m-primary-soft);
+.pay-row-review {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
   color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
   font-size: 11px;
   font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.rule-verify:disabled {
-  opacity: 0.6;
 }
 </style>

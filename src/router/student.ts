@@ -38,6 +38,14 @@ const studentRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/student/StudentHistoryPage.vue'),
   },
   {
+    path: '/student/profile/settings',
+    component: () => import('@/pages/student/StudentSettingsPage.vue'),
+  },
+  {
+    path: '/student/profile/qr',
+    component: () => import('@/pages/student/StudentQrPage.vue'),
+  },
+  {
     path: '/student/notifications',
     component: () => import('@/pages/student/StudentNotificationsPage.vue'),
   },
@@ -50,8 +58,12 @@ const studentRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/student/StudentConcernsPage.vue'),
   },
   {
+    // Same page as /student/stay — StudentStayPage.vue picks the Payments tab
+    // when entered via this path (keeps old deep links working: quick
+    // actions, settings, and payment-verified notifications already stored
+    // in the DB all still point here).
     path: '/student/payments',
-    component: () => import('@/pages/student/StudentPaymentsPage.vue'),
+    component: () => import('@/pages/student/StudentStayPage.vue'),
   },
   {
     path: '/student/stay',

@@ -69,7 +69,7 @@ function goManager() {
 
 <style scoped>
 .register-container {
-  background: white;
+  background: var(--m-surface);
   border-radius: 0 0 28px 28px;
   padding: 32px 24px 24px;
   min-height: calc(100vh - 160px);
@@ -79,12 +79,13 @@ function goManager() {
 
 .auth-title {
   margin: 0 0 0 12px;
+  color: var(--m-ink);
   font-size: 34px;
   font-weight: 700;
 }
 
 .auth-subtitle {
-  color: #8b8b8b;
+  color: var(--m-muted);
   margin: 6px 0 8px 12px;
 }
 
@@ -92,11 +93,11 @@ function goManager() {
   display: flex;
   align-items: center;
   width: 100%;
-  border: 1.5px solid var(--q-border, #e2e2e6);
+  border: 1.5px solid var(--m-border);
   border-radius: 18px;
   padding: 18px 20px;
-  background: #fafafa;
-  color: #1d1d1d;
+  background: var(--m-bg);
+  color: var(--m-ink);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
@@ -104,8 +105,8 @@ function goManager() {
 }
 
 .role-card:hover {
-  border-color: #00897b;
-  background: #f0faf9;
+  border-color: var(--m-primary);
+  background: var(--m-primary-soft);
 }
 
 .role-card:active {
@@ -123,17 +124,18 @@ function goManager() {
 }
 
 .role-icon--student {
-  background: #e0f2f1;
-  color: #00897b;
+  background: var(--m-primary-soft);
+  color: var(--m-primary);
 }
 
 .role-icon--manager {
-  background: #fff3e0;
-  color: #ef6c00;
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
 }
 
 .role-title {
   display: block;
+  color: var(--m-ink);
   font-size: 18px;
   font-weight: 700;
   line-height: 1.2;
@@ -142,13 +144,13 @@ function goManager() {
 .role-desc {
   display: block;
   font-size: 13px;
-  color: #8b8b8b;
+  color: var(--m-muted);
   margin-top: 3px;
 }
 
 .role-arrow {
   flex: 0 0 auto;
-  color: #9a9a9a;
+  color: var(--m-muted);
   display: inline-flex;
 }
 
