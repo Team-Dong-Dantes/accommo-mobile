@@ -213,6 +213,7 @@ export const useAuthStore = defineStore('auth', {
         })
         .eq('user_id', userId);
       if (profileError) throw sanitizeError(profileError);
+      await this.markRegistered(userId);
       this.cachedRole = 'student';
     },
 
@@ -261,6 +262,7 @@ export const useAuthStore = defineStore('auth', {
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
       ]);
+      await this.markRegistered(userId);
       this.cachedRole = 'student';
 
       return response.data;
@@ -320,6 +322,7 @@ export const useAuthStore = defineStore('auth', {
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
       ]);
+      await this.markRegistered(userId);
       this.cachedRole = 'student';
     },
 
@@ -340,13 +343,12 @@ export const useAuthStore = defineStore('auth', {
 
     async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
       await this.submitManagerVerificationDocuments(userId, form);
-      // Deliberately stays signed in. Signing out here pretended to hold the
-      // manager at the door until OSAS approved, but login never checked status,
-      // so they simply signed back in — and a rejected manager could not have
-      // re-uploaded anything while locked out. Access is gated by status where it
-      // is actually enforceable (suspension blocks sign-in; accreditation and
-      // lease policies gate what a pending manager can do).
-      this.cachedRole = 'manager';
+      await this.markRegistered(userId);
+      // A manager holds no session until OSAS approves. This sign-out used to be
+      // theatre because login ignored status; login now enforces it, so the door
+      // is really shut.
+      await supabase.auth.signOut();
+      this.cachedRole = null;
     },
 
     // --- MANAGER REGISTRATION (legacy one-shot) ---
@@ -371,9 +373,10 @@ export const useAuthStore = defineStore('auth', {
       // uploads one-after-another on a mobile connection.
       await this.ensureUserRow(userId, form.email, profileData, 'pending');
       await this.submitManagerVerificationDocuments(userId, form);
+      await this.markRegistered(userId);
 
-      // Same reasoning as finalizeManagerAccount: no fake lock-out.
-      this.cachedRole = 'manager';
+      await supabase.auth.signOut();
+      this.cachedRole = null;
 
       return response.data;
     },
@@ -394,12 +397,25 @@ export const useAuthStore = defineStore('auth', {
       try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
 
       await this.submitManagerVerificationDocuments(userId, form);
+      await this.markRegistered(userId);
+      await supabase.auth.signOut();
+      this.cachedRole = null;
     },
 
     async submitManagerVerificationDocuments(userId: string, form: ManagerRegisterForm) {
       if (!form.governmentIdFile || !form.businessPermitFile) {
         throw new Error('Both verification documents are required.');
       }
+
+      // Every student gets a student_profiles row at registration; managers were
+      // getting no profile row at all, so a manager had no record to hang
+      // responsiveness stats or admin review data on. Created here because all
+      // three manager registration paths (password, resumed, Google) submit
+      // documents through this method. Upsert: resubmitting must not fail.
+      const { error: profileError } = await supabase
+        .from('accommodation_manager_profiles')
+        .upsert({ user_id: userId }, { onConflict: 'user_id' });
+      if (profileError) throw sanitizeError(profileError);
 
       const [governmentIdUrl, businessPermitUrl] = await Promise.all([
         uploadSecureDocument(form.governmentIdFile),
@@ -459,6 +475,15 @@ export const useAuthStore = defineStore('auth', {
         throw new Error('This account has been suspended. Contact OSAS if you think this is a mistake.');
       }
 
+      // A manager waits outside only while OSAS still owes them a decision. Once
+      // OSAS has replied and wants changes ('rejected'/'reviewing'), they must be
+      // able to sign in and fix the application — otherwise a rejection is a dead
+      // end and the documents can never be corrected.
+      if (toAppRole(userData.role) === 'manager' && userData.status === 'pending') {
+        await supabase.auth.signOut();
+        throw new Error('Your application is still being reviewed by OSAS. You can sign in once it is approved.');
+      }
+
       let role = toAppRole(userData?.role);
 
       // Some accounts were created by the auth trigger without a role. Fall back
@@ -494,6 +519,64 @@ export const useAuthStore = defineStore('auth', {
      * already vouched for the address) — the check runs server-side against the
      * token's own `amr` claim, so the client cannot simply assert it.
      */
+    /**
+     * Marks onboarding finished. Until this is set the account exists but its
+     * owner never completed registration — which is the normal state right after
+     * an OAuth sign-in, since signInWithOAuth provisions the user whether they
+     * came from the login screen or the register screen.
+     */
+    async markRegistered(userId: string) {
+      const { error } = await supabase
+        .from('users')
+        .update({ registered_at: new Date().toISOString() })
+        .eq('id', userId);
+      if (error) throw sanitizeError(error);
+    },
+
+    /**
+     * Sets the role chosen on the role picker. An OAuth signup is defaulted to
+     * 'student' by the auth trigger because Google sends no role, so a manager
+     * has to be able to correct it — the database allows this only while
+     * registered_at is null.
+     */
+    async chooseRole(role: 'student' | 'manager') {
+      const { data } = await supabase.auth.getUser();
+      const userId = data?.user?.id;
+      if (!userId) return;
+      const { error } = await supabase
+        .from('users')
+        .update({ role: toDbRole(role) as any })
+        .eq('id', userId);
+      if (error) throw sanitizeError(error);
+      this.cachedRole = role;
+    },
+
+    /**
+     * Re-submits a manager application OSAS sent back. The account already exists
+     * and is registered, so this only replaces the documents and returns the
+     * account to 'pending' — which re-closes the door until OSAS decides again.
+     */
+    async resubmitManagerApplication(userId: string, form: ManagerRegisterForm) {
+      await this.submitManagerVerificationDocuments(userId, form);
+      const { error } = await supabase.rpc('resubmit_verification');
+      if (error) throw sanitizeError(error);
+      await supabase.auth.signOut();
+      this.cachedRole = null;
+    },
+
+    /** The note OSAS left with their decision, for the resubmission screen. */
+    async fetchDecisionReason(userId: string): Promise<string> {
+      const { data } = await supabase
+        .from('verification_requests')
+        .select('decision_notes, rejection_reasons')
+        .eq('entity_type', 'user')
+        .eq('entity_id', userId)
+        .order('reviewed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data?.decision_notes || (data?.rejection_reasons ?? []).join(', ') || '';
+    },
+
     async confirmEmailOwnership() {
       const { error } = await supabase.rpc('confirm_email_ownership');
       if (error) throw sanitizeError(error);
@@ -580,14 +663,20 @@ export const useAuthStore = defineStore('auth', {
 
       const { data: profile } = await supabase
         .from('users')
-        .select('role')
+        .select('role, status, registered_at')
         .eq('id', session.user.id)
         .maybeSingle();
 
       const role = toAppRole(profile?.role);
       this.cachedRole = role;
 
-      return { session, profile: profile ? { ...profile, role } : null };
+      return {
+        session,
+        profile: profile ? { ...profile, role } : null,
+        // Null means the row exists but onboarding was never finished.
+        registered: profile ? profile.registered_at !== null : false,
+        status: (profile?.status as string | undefined) ?? null,
+      };
     },
   },
 });

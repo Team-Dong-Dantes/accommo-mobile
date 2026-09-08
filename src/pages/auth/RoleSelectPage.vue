@@ -53,16 +53,34 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { transitionDir } from '@/utils/transition';
+import { useAuthStore } from '@/stores/auth';
+import { supabase } from '@/utils/supabase';
 
 const router = useRouter();
+const authStore = useAuthStore();
 
-function goStudent() {
+// A Google sign-in is provisioned as 'student' because Google sends no role, so
+// the pick made here has to be written back before onboarding continues. Only
+// possible while registration is unfinished; the database refuses it afterwards.
+async function applyRole(role: 'student' | 'manager') {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+  try {
+    await authStore.chooseRole(role);
+  } catch {
+    // Already-registered accounts keep their role; onboarding just continues.
+  }
+}
+
+async function goStudent() {
   transitionDir.value = 'left';
+  await applyRole('student');
   void router.push('/register');
 }
 
-function goManager() {
+async function goManager() {
   transitionDir.value = 'right';
+  await applyRole('manager');
   void router.push('/register/manager');
 }
 </script>

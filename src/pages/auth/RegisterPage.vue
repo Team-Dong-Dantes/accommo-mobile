@@ -406,6 +406,20 @@ async function createAccountNow(): Promise<boolean> {
     syncFullName();
     if (form.phoneDigits) form.phone = normalizePhPhone(form.phoneDigits);
     if (!isGoogleMode.value) form.email = `${form.emailUser}@${form.emailDomain}`;
+
+  // Resuming an unfinished registration: the auth account already exists (it is
+  // created when leaving the Account step, and half-finished accounts are now
+  // routed back here), so signing up again would only fail with "already
+  // registered" and trap the user in a loop. Reuse the live session instead.
+  const existing = await supabase.auth.getUser();
+  const existingUser = existing.data?.user;
+  if (existingUser) {
+    createdUserId = existingUser.id;
+    emailCreated.value = true;
+    creatingAccount.value = false;
+    return true;
+  }
+
     createdUserId = await authStore.createStudentAccount(form as any);
     emailCreated.value = true;
     return true;
@@ -436,8 +450,12 @@ onMounted(async () => {
     void router.replace('/register');
   }
 
-  const { session, profile } = await authStore.getSessionProfile();
-  if (session && !profile) {
+  const { session, profile, registered } = await authStore.getSessionProfile();
+  // Was "session && !profile" — a condition the auth trigger makes impossible,
+  // since it always writes the users row. The real signal is an OAuth session
+  // whose onboarding never completed.
+  const viaOAuth = (session?.user?.app_metadata as Record<string, unknown> | undefined)?.provider !== 'email';
+  if (session && profile && !registered && viaOAuth) {
     isGoogleMode.value = true;
     googleUserId.value = session.user.id;
     form.email = session.user.email || '';
