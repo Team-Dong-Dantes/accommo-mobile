@@ -49,7 +49,8 @@
 
       <div class="body">
         <h1 class="name">{{ listing.name }}</h1>
-        <p class="where">{{ listing.address }}<template v-if="distance"> · {{ distance }} from campus</template></p>
+        <!-- campusDistanceLabel already ends in "from campus" -->
+        <p class="where">{{ listing.address }}<template v-if="distance"> · {{ distance }}</template></p>
         <div class="badge-row">
           <span class="badge">
             <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
@@ -82,12 +83,15 @@
               @click="router.push(`/student/room/${room.id}`)"
             >
               <span class="room-card-photo">
-                <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
+                <img v-if="room.image" :src="room.image" :alt="room.type" loading="lazy" />
                 <span v-else class="room-card-mono">{{ monogram }}</span>
-                <span v-if="room.type" class="room-card-type">{{ room.type }}</span>
+                <span class="room-card-type">{{ room.label }}</span>
               </span>
-              <span class="room-card-name">{{ room.label }}</span>
-              <span class="room-card-meta">{{ room.meta }}</span>
+              <span class="room-card-name-row">
+                <span class="room-card-name">{{ room.type }}</span>
+                <span v-if="room.capacity" class="room-card-cap">{{ room.capacity }} left</span>
+              </span>
+              <span v-if="room.meta" class="room-card-meta">{{ room.meta }}</span>
               <span v-if="room.rent" class="room-card-rent">
                 {{ formatPeso(room.rent) }}<span class="room-card-per">/mo{{ room.rentBasis === 'person' ? '/person' : '' }}</span>
               </span>
@@ -188,6 +192,7 @@ interface RoomRow {
   id: string
   label: string
   meta: string
+  capacity: number
   type: string
   rent: number
   rentBasis: 'room' | 'person'
@@ -321,12 +326,10 @@ async function load() {
         return {
           id: r.id,
           label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
-          meta: [
-            r.capacity ? `sleeps ${r.capacity}` : '',
-            privateLabels.length ? `private ${privateLabels.join(', ')}` : '',
-          ]
-            .filter(Boolean)
-            .join(' · '),
+          // Capacity rides in its own capsule beside the title now, the way
+          // the discover cards show it — so this is just the private bits.
+          meta: privateLabels.length ? `private ${privateLabels.join(', ')}` : '',
+          capacity: Number(r.capacity ?? 0),
           type: roomTypeLabel(r.custom_room_type || r.room_type),
           rent: Number(r.monthly_rent ?? 0),
           rentBasis: (r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room') as 'room' | 'person',
@@ -692,11 +695,32 @@ onMounted(load)
   background: rgba(15, 23, 42, 0.55);
   color: #fff;
 }
-.room-card-name {
+.room-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 8px;
+}
+.room-card-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
   color: var(--m-ink);
   font-size: 13px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-card-cap {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .room-card-meta {
   margin-top: 1px;

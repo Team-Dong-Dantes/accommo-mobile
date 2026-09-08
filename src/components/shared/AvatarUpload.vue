@@ -1,6 +1,6 @@
 <template>
   <div class="avatar-upload" :style="{ '--au-size': `${size}px`, '--au-bg': background }" @click="pick">
-    <img v-if="modelValue" :src="modelValue" alt="Avatar" class="avatar-upload-img" />
+    <img v-if="modelValue && !failed" :src="modelValue" alt="" class="avatar-upload-img" @error="failed = true" />
     <span v-else class="avatar-upload-initials">{{ initials || '?' }}</span>
     <span class="avatar-upload-overlay">
       <IconifyIcon icon="lucide:camera" :width="Math.round(size * 0.22)" />
@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { uploadAvatar } from '@/utils/upload'
 import { useNotify } from '@/utils/notify'
@@ -30,6 +30,19 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>()
 
 const notify = useNotify()
 const inputEl = ref<HTMLInputElement | null>(null)
+
+// Fall back to the initials when the photo won't load, the way every other
+// avatar in the app already does. Without this the broken <img> rendered its
+// alt text instead — which is what showed up as a literal "Avatar" on the
+// profile for anyone whose picture is a Google-hosted URL (the browser
+// blocks those with ERR_BLOCKED_BY_ORB).
+const failed = ref(false)
+watch(
+  () => props.modelValue,
+  () => {
+    failed.value = false
+  },
+)
 
 function pick() {
   inputEl.value?.click()

@@ -1450,6 +1450,53 @@ export type Database = {
           },
         ]
       }
+      verification_requests: {
+        Row: {
+          created_at: string
+          decision_notes: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          rejection_reasons: string[] | null
+          reviewed_at: string
+          reviewed_by: string | null
+          status: string
+          type: string | null
+        }
+        Insert: {
+          created_at?: string
+          decision_notes?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          rejection_reasons?: string[] | null
+          reviewed_at?: string
+          reviewed_by?: string | null
+          status: string
+          type?: string | null
+        }
+        Update: {
+          created_at?: string
+          decision_notes?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          rejection_reasons?: string[] | null
+          reviewed_at?: string
+          reviewed_by?: string | null
+          status?: string
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       latest_accommodation_documents: {

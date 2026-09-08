@@ -359,7 +359,7 @@ async function load(silent = false) {
     const [{ data: profile, error: profileError }, { data: studentProfile }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, email, phone, initials, status, created_at, updated_at')
+        .select('full_name, email, phone, initials, status, created_at, updated_at, avatar_url')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -385,7 +385,12 @@ async function load(silent = false) {
         : typeof metadata?.picture === 'string'
           ? metadata.picture
           : ''
-    avatarUrl.value = picture ? resolveAsset(picture) : null
+    // users.avatar_url is the fallback, not just a mirror: this session's
+    // cached metadata can be stale or empty (an avatar uploaded on another
+    // device, or set straight in the database), and reading metadata alone
+    // left the profile stuck on initials even though a photo existed.
+    const storedAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url || ''
+    avatarUrl.value = resolveAsset(picture || storedAvatar) || null
 
     academics.studentId = studentProfile?.student_id || ''
     academics.college = studentProfile?.college || ''

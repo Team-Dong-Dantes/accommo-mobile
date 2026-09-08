@@ -51,6 +51,26 @@ export function campusDistanceLabel(
   return `${km.toFixed(1)} km from campus`;
 }
 
+/**
+ * Why a location lookup failed, in words a student can act on.
+ *
+ * Browsers only hand out position on a secure origin, and served over a plain
+ * LAN address (`http://192.168.x.x`) every call fails with a bare permission
+ * error — indistinguishable from the user actually denying it. Check the
+ * origin first so the message says which it was.
+ */
+export function geolocationErrorMessage(error?: { code?: number } | null): string {
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    return 'Location needs a secure connection (https, or localhost). Opened over a plain http address, the browser withholds it.';
+  }
+  if (!error) return 'Could not get your location.';
+  // 1 PERMISSION_DENIED, 2 POSITION_UNAVAILABLE, 3 TIMEOUT
+  if (error.code === 1) return 'Location permission is blocked for this app.';
+  if (error.code === 2) return 'Your device could not get a fix right now.';
+  if (error.code === 3) return 'Timed out getting your location.';
+  return 'Could not get your location.';
+}
+
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
 /**

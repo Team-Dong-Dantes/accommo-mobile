@@ -117,11 +117,13 @@
 
             <!-- MY DOCUMENTS (manager identity, reviewed by OSAS at registration) -->
             <q-tab-panel name="mine" class="tab-panel">
-              <div v-if="myStatus === 'rejected'" class="reject-banner">
+              <!-- 'reviewing' is a soft reject: OSAS wants a better document and
+                   the account can still be verified once it arrives. -->
+              <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
                 <IconifyIcon icon="lucide:triangle-alert" width="16" />
                 <div>
-                  <p class="reject-title">Verification rejected</p>
-                  <p class="reject-text">{{ rejectionReason || 'OSAS rejected your submission — please resubmit below.' }}</p>
+                  <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : 'Verification rejected' }}</p>
+                  <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
                 </div>
               </div>
               <p class="sec-hint">Your own identity documents. Tap one to view or resubmit.</p>
@@ -271,7 +273,7 @@ import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument } from '@/utils/upload'
+import { uploadPrivateDocument, signedDocUrl } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -424,11 +426,15 @@ async function loadDocsFor(accommodationId: string) {
   if (docError) throw docError
 
   const seen = new Set<string>()
-  docRows.value = (data ?? []).filter((d) => {
+  const latest = (data ?? []).filter((d) => {
     if (seen.has(d.doc_type)) return false
     seen.add(d.doc_type)
     return true
   })
+  // Permits live in the private `documents` bucket; sign before rendering.
+  docRows.value = await Promise.all(
+    latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+  )
 }
 
 async function loadMyDocs(userId: string) {
@@ -440,11 +446,14 @@ async function loadMyDocs(userId: string) {
   if (docError) throw docError
 
   const seen = new Set<string>()
-  myDocRows.value = (data ?? []).filter((d) => {
+  const latest = (data ?? []).filter((d) => {
     if (!d.doc_type || seen.has(d.doc_type)) return false
     seen.add(d.doc_type)
     return true
-  }) as typeof myDocRows.value
+  })
+  myDocRows.value = (await Promise.all(
+    latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+  )) as typeof myDocRows.value
 }
 
 async function load() {
@@ -472,16 +481,19 @@ async function load() {
     if (ticketError) throw ticketError
     if (userError) throw userError
     myStatus.value = userData?.status || ''
-    if (myStatus.value === 'rejected') {
-      const { data: reasonRow } = await supabase
-        .from('notifications')
-        .select('body')
-        .eq('user_id', user.id)
-        .eq('title', 'Verification rejected')
-        .order('created_at', { ascending: false })
+    if (myStatus.value === 'rejected' || myStatus.value === 'reviewing') {
+      // verification_requests is the decision trail. This used to string-match a
+      // notification *title*, so renaming that copy silently lost every reason.
+      const { data: decision } = await supabase
+        .from('verification_requests')
+        .select('decision_notes, rejection_reasons')
+        .eq('entity_type', 'user')
+        .eq('entity_id', user.id)
+        .order('reviewed_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      rejectionReason.value = reasonRow?.body || ''
+      rejectionReason.value =
+        decision?.decision_notes || (decision?.rejection_reasons ?? []).join(', ') || ''
     }
 
     accommodations.value = (accData ?? []).map((a) => ({ id: a.id, name: a.name?.trim() || 'Unnamed accommodation' }))
@@ -538,7 +550,7 @@ async function submitDocUpload() {
   uploadingDoc.value = true
   try {
     const docType = uploadDocType.value
-    const url = await uploadDocument(uploadForm.file, '', docType)
+    const url = await uploadPrivateDocument(uploadForm.file, myId.value, docType)
     const existing = docRows.value.find((d) => d.doc_type === docType)
     const { error: insertError } = await supabase.from('accommodation_documents').insert({
       accommodation_id: selectedId.value,
@@ -565,7 +577,7 @@ async function onMyDocSelected(event: Event, docType: string) {
   if (!file || !myId.value) return
   uploadingMyDoc.value = true
   try {
-    const url = await uploadDocument(file, myId.value, docType)
+    const url = await uploadPrivateDocument(file, myId.value, docType)
     const existing = myDocRows.value.find((d) => d.doc_type === docType)
 
     // Resubmission updates the same row back to pending rather than inserting
@@ -584,6 +596,12 @@ async function onMyDocSelected(event: Event, docType: string) {
           status: 'pending',
         })
     if (writeError) throw writeError
+
+    // A rejected account has to be put back in the queue, or the re-upload is
+    // never looked at. No-ops for any other status.
+    const { error: resubmitError } = await supabase.rpc('resubmit_verification')
+    if (resubmitError) throw resubmitError
+    if (myStatus.value === 'rejected') myStatus.value = 'pending'
 
     await loadMyDocs(myId.value)
     notify.success('Uploaded.')

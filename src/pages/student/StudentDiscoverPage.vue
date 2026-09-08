@@ -46,7 +46,6 @@
         v-if="hasMapToken"
         class="map-region"
         :style="mapRegionStyle"
-        @transitionend="onMapRegionTransitionEnd"
       >
         <div ref="mapEl" class="map-el" aria-label="Map of accommodations" />
         <button v-if="!mapExpanded" type="button" class="map-expand-btn" @click="toggleMapExpanded(true)">
@@ -75,7 +74,7 @@
       <div v-if="hasMapToken && mapExpanded" class="map-float">
         <div v-if="!selectedPin" class="map-float-rail">
           <PropertyCard
-            v-for="item in properties.slice(0, 10)"
+            v-for="item in mapProperties.slice(0, 10)"
             :key="item.id"
             variant="carousel"
             class="map-float-card"
@@ -89,47 +88,46 @@
             :building-type="item.buildingType"
             @open="selectPinById"
           />
-          <button
-            v-for="room in rooms.slice(0, 10)"
-            :key="room.id"
-            type="button"
-            class="map-float-card map-float-room"
-            @click="selectRoomById(room.id)"
-          >
-            <span class="map-float-room-shot" :class="{ 'map-float-room-shot--empty': !room.image }">
-              <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
-              <IconifyIcon v-else icon="lucide:image-off" width="22" />
-              <span v-if="room.typeLabel" class="map-float-room-type">{{ room.typeLabel }}</span>
-            </span>
-            <span class="map-float-room-body">
-              <span class="map-float-room-name">{{ room.label }}</span>
-              <span class="map-float-room-where">{{ room.propertyName }}</span>
-              <span v-if="room.rent" class="map-float-room-rent">{{ formatPeso(room.rent) }}/mo</span>
-            </span>
-          </button>
         </div>
         <div v-else class="map-float-info">
-          <span class="map-float-info-shot" :class="{ 'map-float-info-shot--empty': !selectedPin.image }">
+          <button
+            type="button"
+            class="map-float-info-shot"
+            :class="{ 'map-float-info-shot--empty': !selectedPin.image }"
+            aria-label="View accommodation"
+            @click="router.push(selectedPin.route)"
+          >
             <img v-if="selectedPin.image" :src="selectedPin.image" :alt="selectedPin.name" loading="lazy" />
-            <IconifyIcon v-else icon="lucide:image-off" width="22" />
-            <button type="button" class="map-float-close" aria-label="Back to recommendations" @click="clearSelectedPin">
-              <IconifyIcon icon="lucide:x" width="16" />
-            </button>
-          </span>
-          <span class="map-float-info-body">
-            <span class="map-float-info-text">
-              <strong>{{ selectedPin.name }}</strong>
-              <span v-if="selectedPin.subtitle">{{ selectedPin.subtitle }}</span>
-            </span>
-            <q-btn
-              unelevated
-              no-caps
-              color="primary"
-              class="map-float-cta"
-              :label="selectedPin.kind === 'room' ? 'View room' : 'View accommodation'"
-              @click="router.push(selectedPin.route)"
-            />
-          </span>
+            <IconifyIcon v-else icon="lucide:image-off" width="20" />
+          </button>
+          <div class="map-float-info-body">
+            <div class="map-float-info-text-row">
+              <button type="button" class="map-float-info-text" @click="router.push(selectedPin.route)">
+                <strong>{{ selectedPin.name }}</strong>
+                <span v-if="selectedPin.subtitle">{{ selectedPin.subtitle }}</span>
+              </button>
+              <button type="button" class="map-float-close" aria-label="Back to recommendations" @click="clearSelectedPin">
+                <IconifyIcon icon="lucide:x" width="14" />
+              </button>
+            </div>
+            <div class="map-float-info-rooms-head">
+              <IconifyIcon icon="lucide:bed-double" width="12" />
+              <span>{{ selectedPin.rooms.length ? `${selectedPin.rooms.length} room${selectedPin.rooms.length === 1 ? '' : 's'} available` : 'No vacant rooms right now' }}</span>
+            </div>
+            <div v-if="selectedPin.rooms.length" class="map-float-info-rooms">
+              <button
+                v-for="room in selectedPin.rooms"
+                :key="room.id"
+                type="button"
+                class="map-float-info-room"
+                @click="router.push(`/student/room/${room.id}`)"
+              >
+                <span class="map-float-info-room-type">{{ room.typeLabel }}</span>
+                <span class="map-float-info-room-rent">{{ room.rent ? `${formatPeso(room.rent)}/mo` : 'On request' }}</span>
+                <IconifyIcon icon="lucide:chevron-right" width="13" class="map-float-info-chevron" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -201,12 +199,14 @@
                 <IconifyIcon icon="lucide:image-off" width="22" />
                 <span class="shot-empty-label">No photo</span>
               </span>
-              <span v-if="room.typeLabel" class="tile-flag">{{ room.typeLabel }}</span>
+              <span class="tile-flag">{{ room.label }}</span>
             </span>
             <span class="tile-body">
-              <span class="tile-name">{{ room.label }}</span>
+              <span class="tile-name-row">
+                <span class="tile-name">{{ room.typeLabel }}</span>
+                <span v-if="room.meta" class="tile-name-meta">{{ room.meta }}</span>
+              </span>
               <span class="tile-where">{{ room.propertyName }}</span>
-              <span v-if="room.meta" class="tile-meta">{{ room.meta }}</span>
               <span v-if="room.rent" class="tile-rent">
                 {{ formatPeso(room.rent) }}<span class="tile-per">/mo{{ room.rentBasis === 'person' ? ' per person' : '' }}</span>
               </span>
@@ -329,8 +329,9 @@ import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { campusDistanceLabel, CAMPUS } from '@/utils/geo'
+import { campusDistanceLabel, kmBetween, geolocationErrorMessage, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
+import { useNotify } from '@/utils/notify'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 
 interface Property {
@@ -350,6 +351,7 @@ interface Property {
 
 interface RoomTile {
   id: string
+  propertyId: string
   label: string
   image: string
   monogram: string
@@ -376,6 +378,7 @@ interface ManagerRow {
 }
 
 const router = useRouter()
+const notify = useNotify()
 
 const loading = ref(true)
 const error = ref('')
@@ -396,13 +399,6 @@ const MAP_PREVIEW_VH = 32
 const mapEl = ref<HTMLElement | null>(null)
 const mapExpanded = ref(false)
 
-// 100vh overshoots: the header eats into the viewport before the scroll
-// container (.q-page-container) even starts, so a literal 100vh map runs
-// past the bottom of the screen. Measured from the container's own rendered
-// box — the actual space available — rather than assumed from the header's
-// nominal size, so it can't drift out of sync with it.
-const headerOffsetPx = ref(0)
-const pageViewportPx = ref(0)
 // The floating header reserves this much space via padding-top on
 // .q-page-container rather than pushing it down in normal flow (it's
 // `position: fixed`). Reused to pull the map's own top edge up by the same
@@ -412,48 +408,55 @@ const headerReservedPx = ref(0)
 function measureViewport() {
   const container = document.querySelector('.q-page-container') as HTMLElement | null
   if (!container) return
-  const rect = container.getBoundingClientRect()
-  headerOffsetPx.value = rect.top
-  pageViewportPx.value = rect.height
   headerReservedPx.value = parseFloat(getComputedStyle(container).paddingTop) || 0
 }
 
-/** The height applied to the map. Expanded uses the whole window (header
- * height + container height), not just the container's own visible slice,
- * so it fills the screen edge to edge. Both states stay `position: sticky`
- * (see mapRegionStyle below) rather than switching to `fixed` for expanded —
- * a CSS transition can animate a height change smoothly, but position type
- * itself can't be animated at all, so that switch made expanding look like
- * an instant jump cut instead of a resize. */
-const mapFillHeight = computed(() =>
-  mapExpanded.value && pageViewportPx.value > 0
-    ? `${headerOffsetPx.value + pageViewportPx.value}px`
-    : `${MAP_PREVIEW_VH}vh`,
-)
+/** The height applied to the map. The negative margin above puts the map's
+ * top edge at the top of the window, so expanded is simply the window's own
+ * height — `dvh` rather than `vh` so a mobile browser showing/hiding its URL
+ * bar doesn't leave the map overhanging the screen. This used to be measured
+ * off `.q-page-container`'s rendered box, but that box is as tall as the
+ * page's whole content (map + every listing below it), so the expanded map
+ * came out around twice the height of the screen: the map rendered for a
+ * viewport far taller than the visible one, which is why it looked stretched
+ * and why pins sat off-screen and slid around when zooming. */
+const mapFillHeight = computed(() => (mapExpanded.value ? '100dvh' : `${MAP_PREVIEW_VH}vh`))
 
-// Sticky, in normal flow, in both states — so it starts below the header's
-// reserved padding by default. Pulling only its static (pre-scroll)
-// position up by that amount lets it run behind the floating header too;
-// the sticky pin itself stays at the default `top: 0` from the CSS class,
-// since that offset is resolved against the scrollport's padding edge and
-// already nets out correctly once the negative margin is factored in —
-// also offsetting `top` here would double-count it.
+// Plain in-flow block — no sticky/fixed positioning, so it scrolls away
+// with the rest of the page like any other section. Pulled up by the
+// header's reserved padding so it still fills that space (running behind
+// the floating header) instead of leaving a blank gap above it.
 const mapRegionStyle = computed(() => ({
   height: mapFillHeight.value,
   marginTop: `-${headerReservedPx.value}px`,
+  // The map runs up behind the floating header, so mapbox's own controls
+  // land underneath it and can't be tapped at all. Push them clear by the
+  // same amount the header reserves.
+  '--map-ctrl-top': `${headerReservedPx.value + 8}px`,
 }))
 
+interface SelectedPinRoom {
+  id: string
+  typeLabel: string
+  rent: number
+}
+
 interface SelectedPin {
-  kind: 'property' | 'room'
   name: string
   subtitle: string
   image: string
   route: string
+  distance: string
+  lat: number | null
+  lng: number | null
+  rooms: SelectedPinRoom[]
 }
 const selectedPin = ref<SelectedPin | null>(null)
 
 let map: mapboxgl.Map | null = null
 let markers: mapboxgl.Marker[] = []
+let mapResizeObserver: ResizeObserver | null = null
+let campusLinkLabel: mapboxgl.Marker | null = null
 
 const filtersOpen = ref(false)
 const DEFAULT_MAX = 10000
@@ -493,6 +496,20 @@ const filteredRooms = computed(() => {
   })
 })
 
+/** What the map shows — the pins and the full-map rail both read this, so
+ * searching and filtering reach the map, not just the list below it. A place
+ * survives an active filter when it still has at least one room that passes,
+ * reusing filteredRooms rather than restating the rules, so the map can't
+ * drift away from the room grid. Filters only bite once one is actually
+ * set (activeFilterCount treats the default "vacant only" as unset), which
+ * keeps the untouched default view showing everything, full places included. */
+const mapProperties = computed(() => {
+  const matching = filterByHaystack(properties.value)
+  if (activeFilterCount.value === 0) return matching
+  const withMatchingRooms = new Set(filteredRooms.value.map((r) => r.propertyId))
+  return matching.filter((p) => withMatchingRooms.has(p.id))
+})
+
 function filterByHaystack<T extends { haystack: string }>(list: T[]): T[] {
   const needle = query.value.trim().toLowerCase()
   return needle ? list.filter((item) => item.haystack.includes(needle)) : list
@@ -523,25 +540,14 @@ function openManager(id: string) {
   void router.push(`/student/manager/${id}`)
 }
 
-function onMapRegionTransitionEnd() {
-  map?.resize()
-}
-
-// Mapbox renders to a canvas sized once, not something that keeps pace with
-// a CSS transition on its own — without this, the height animates smoothly
-// but the map's own content stays a static, wrong-sized image for the whole
-// 260ms and only snaps to fill the box at transitionend, which reads as
-// janky rather than smooth. Driving resize() every frame for the duration
-// of the transition keeps the map itself resizing in step with the box.
-const MAP_TRANSITION_MS = 260
 function toggleMapExpanded(expanded: boolean) {
+  // The expanded height fills the whole window on the assumption the map
+  // sits at the very top of the scroll container. It's no longer sticky, so
+  // if the page was scrolled down at all when "Map view" is tapped, that
+  // assumption breaks and the tall box overshoots past the bottom of the
+  // screen — snap back to the top first so it always holds.
+  if (expanded) document.querySelector('.q-page-container')?.scrollTo({ top: 0 })
   mapExpanded.value = expanded
-  const start = performance.now()
-  const step = (now: number) => {
-    map?.resize()
-    if (now - start < MAP_TRANSITION_MS) requestAnimationFrame(step)
-  }
-  requestAnimationFrame(step)
 }
 
 function initMap() {
@@ -554,87 +560,301 @@ function initMap() {
     zoom: 13,
   })
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
-  map.on('load', syncMarkers)
+
+  // "Where am I?" — Mapbox's own control, so the user dot, accuracy ring and
+  // permission prompt come for free. One-shot rather than trackUserLocation,
+  // which would keep re-centring on the student and fight the framing below.
+  const locate = new mapboxgl.GeolocateControl({
+    positionOptions: { enableHighAccuracy: true, timeout: 20000 },
+    trackUserLocation: false,
+    showUserLocation: true,
+  })
+  map.addControl(locate, 'top-right')
+  // Centring on the student alone would push the listings off screen, and the
+  // point is seeing yourself *and* the places at once.
+  locate.on('geolocate', (position) => {
+    const p = position as GeolocationPosition
+    frameAround([p.coords.longitude, p.coords.latitude])
+  })
+  locate.on('error', (err) => {
+    notify.error(geolocationErrorMessage(err as GeolocationPositionError))
+  })
+
+  map.on('load', () => {
+    addCampusLinkLayer()
+    syncMarkers()
+  })
+  // Mapbox has no built-in tracking of its own container's size (only a
+  // window-resize listener) — its canvas keeps whatever pixel size it was
+  // last told, so if that ever drifts from the container's real rendered
+  // size (a CSS transition settling a frame later than expected, a
+  // heuristic timer firing early, ...) the map renders visibly stretched.
+  // A ResizeObserver reports the container's actual settled size on every
+  // change, so resizing from it can't go stale the way a one-shot guess can.
+  mapResizeObserver = new ResizeObserver(() => map?.resize())
+  mapResizeObserver.observe(mapEl.value)
+  addCampusMarker()
+}
+
+/** Every distance on this page reads "N m from campus", so the campus itself
+ * has to be on the map for that to mean anything — the static map in
+ * utils/geo.ts already draws one, this is the interactive equivalent. Added
+ * once (it never moves) and deliberately kept out of `markers`, which
+ * syncMarkers() clears on every refresh. */
+function addCampusMarker() {
+  if (!map) return
+  const color =
+    getComputedStyle(document.documentElement).getPropertyValue('--m-primary-dark').trim() || '#0f766e'
+  const marker = new mapboxgl.Marker({ color }).setLngLat([CAMPUS.lng, CAMPUS.lat]).addTo(map)
+  const el = marker.getElement()
+  el.classList.add('campus-pin')
+  el.setAttribute('aria-label', `${CAMPUS.label} campus`)
+  el.title = CAMPUS.label
+
+  // Same default pin as the accommodations, just recoloured and with a
+  // mortarboard dropped into its white circle (the default marker draws that
+  // at cx/cy 13.5, r 5.5 — see mapbox-gl's _createDefaultMarker). Scaled to
+  // ~9 units wide so it sits inside the circle with a little margin.
+  const svg = el.querySelector('svg')
+  if (!svg) return
+  const NS = 'http://www.w3.org/2000/svg'
+  const cap = document.createElementNS(NS, 'g')
+  cap.setAttribute('transform', 'translate(7.74 8.66) scale(0.48)')
+  cap.setAttribute('fill', color)
+  const path = document.createElementNS(NS, 'path')
+  path.setAttribute(
+    'd',
+    'M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z',
+  )
+  cap.appendChild(path)
+  svg.appendChild(cap)
+}
+
+const CAMPUS_LINK = 'campus-link'
+
+/** Empty line source + layer, created once the style is ready; selecting a
+ * place just swaps the source's data rather than adding/removing layers. */
+function addCampusLinkLayer() {
+  if (!map || map.getSource(CAMPUS_LINK)) return
+  map.addSource(CAMPUS_LINK, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  })
+  map.addLayer({
+    id: CAMPUS_LINK,
+    type: 'line',
+    source: CAMPUS_LINK,
+    layout: { 'line-cap': 'round' },
+    paint: {
+      'line-color': getComputedStyle(document.documentElement).getPropertyValue('--m-primary-dark').trim() || '#0f766e',
+      'line-width': 3,
+      // Dashed, so it reads as "distance to campus" rather than as a road.
+      'line-dasharray': [1.6, 1.4],
+    },
+  })
+}
+
+type Coord = [number, number]
+
+/** Bumped on every selection so a slow response for a place you've already
+ * navigated away from can't overwrite the current route. */
+let campusLinkRequest = 0
+
+/** The walking route along actual roads, from Mapbox Directions. */
+async function fetchWalkingRoute(from: Coord, to: Coord) {
+  const url =
+    `https://api.mapbox.com/directions/v5/mapbox/walking/` +
+    `${from[0]},${from[1]};${to[0]},${to[1]}` +
+    `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const route = (await res.json())?.routes?.[0]
+    const coordinates = route?.geometry?.coordinates
+    if (!Array.isArray(coordinates) || coordinates.length < 2) return null
+    return { coordinates: coordinates as Coord[], distance: Number(route.distance), duration: Number(route.duration) }
+  } catch {
+    return null
+  }
+}
+
+/** The point half way *along* the route, so the label sits mid-walk. Using
+ * the middle array index instead would drag it toward whichever end has the
+ * most turns, since that's where the vertices bunch up. */
+function midpointAlong(coords: Coord[]): Coord {
+  const legs = coords.slice(1).map((c, i) => kmBetween(coords[i]![1], coords[i]![0], c[1], c[0]))
+  const half = legs.reduce((a, b) => a + b, 0) / 2
+  let walked = 0
+  for (let i = 0; i < legs.length; i++) {
+    walked += legs[i]!
+    if (walked >= half) return coords[i + 1]!
+  }
+  return coords[coords.length - 1]!
+}
+
+function walkLabel(metres: number, seconds: number) {
+  const dist = metres < 1000 ? `${Math.round(metres)} m` : `${(metres / 1000).toFixed(1)} km`
+  return `${dist} · ${Math.max(1, Math.round(seconds / 60))} min walk`
+}
+
+function setCampusLink(coordinates: Coord[], labelAt: Coord, text: string) {
+  const source = map?.getSource(CAMPUS_LINK) as mapboxgl.GeoJSONSource | undefined
+  if (!map || !source) return
+  source.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } })
+  const el = document.createElement('div')
+  el.className = 'campus-link-label'
+  el.textContent = text
+  campusLinkLabel?.remove()
+  campusLinkLabel = new mapboxgl.Marker({ element: el }).setLngLat(labelAt).addTo(map)
+}
+
+/** Traces the walk from the selected place to campus along the roads, with
+ * the walking distance and time at the halfway point. Falls back to a plain
+ * straight line (and the page's usual as-the-crow-flies distance) if
+ * Directions can't be reached, so the link never just silently vanishes. */
+async function showCampusLink(pin: SelectedPin) {
+  if (!map || pin.lat === null || pin.lng === null) return clearCampusLink()
+  const from: Coord = [pin.lng, pin.lat]
+  const to: Coord = [CAMPUS.lng, CAMPUS.lat]
+
+  const token = ++campusLinkRequest
+  const route = await fetchWalkingRoute(from, to)
+  if (token !== campusLinkRequest || !selectedPin.value) return
+
+  if (route) {
+    setCampusLink(route.coordinates, midpointAlong(route.coordinates), walkLabel(route.distance, route.duration))
+  } else {
+    const straight: Coord[] = [from, to]
+    setCampusLink(straight, [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2], pin.distance || campusDistanceLabel(pin.lat, pin.lng))
+  }
+}
+
+function clearCampusLink() {
+  // Invalidates any in-flight route so a late response can't draw itself
+  // back on after the card has been closed.
+  campusLinkRequest++
+  const source = map?.getSource(CAMPUS_LINK) as mapboxgl.GeoJSONSource | undefined
+  source?.setData({ type: 'FeatureCollection', features: [] })
+  campusLinkLabel?.remove()
+  campusLinkLabel = null
+}
+
+/** Frames the student's own position together with the listings and campus,
+ * so "where am I" and "where are the places" are answered in one view. */
+function frameAround(me: [number, number]) {
+  if (!map) return
+  const bounds = new mapboxgl.LngLatBounds().extend(me).extend([CAMPUS.lng, CAMPUS.lat])
+  for (const p of mapProperties.value) {
+    if (p.lat !== null && p.lng !== null) bounds.extend([p.lng, p.lat])
+  }
+  map.fitBounds(bounds, {
+    padding: { top: 110, right: 80, bottom: mapExpanded.value ? 300 : 60, left: 80 },
+    maxZoom: 16,
+  })
 }
 
 /** Re-places one pin per accommodation that has coordinates; called after
- * every load (including silent realtime refreshes) once the map exists. */
-function syncMarkers() {
+ * every load (including silent realtime refreshes) once the map exists.
+ * `reframe` defaults to off in full-map mode so a background refresh can't
+ * yank the camera out from under someone browsing — but a search or filter
+ * change passes it explicitly, since that's the user asking to be shown
+ * something and leaving the matches off-screen just looks broken. */
+function syncMarkers(reframe = !mapExpanded.value) {
   if (!map) return
   for (const marker of markers) marker.remove()
   markers = []
 
-  const located = properties.value.filter(
+  const located = mapProperties.value.filter(
     (p): p is Property & { lat: number; lng: number } => p.lat !== null && p.lng !== null,
   )
   for (const property of located) {
-    const el = document.createElement('button')
-    el.type = 'button'
-    el.className = 'map-pin'
+    const marker = new mapboxgl.Marker().setLngLat([property.lng, property.lat]).addTo(map)
+    const el = marker.getElement()
     el.setAttribute('aria-label', property.name)
+    el.style.cursor = 'pointer'
     // Full map: tapping a pin selects it in the floating rail instead of
     // leaving the map. Smaller/default sizes still jump straight to it.
     el.addEventListener('click', () => (mapExpanded.value ? selectPin(property) : open(property.id)))
-    markers.push(new mapboxgl.Marker({ element: el }).setLngLat([property.lng, property.lat]).addTo(map))
+    markers.push(marker)
   }
 
-  if (located.length) {
+  // The default view keeps campus dead centre — it's the reference point
+  // every distance on this page is measured from. Mirroring each listing
+  // across campus makes the bounding box symmetric about it, so fitting that
+  // box centres campus and still frames every pin.
+  if (located.length && reframe) {
     const bounds = new mapboxgl.LngLatBounds()
-    for (const p of located) bounds.extend([p.lng, p.lat])
+    for (const p of located) {
+      bounds.extend([p.lng, p.lat])
+      bounds.extend([2 * CAMPUS.lng - p.lng, 2 * CAMPUS.lat - p.lat])
+    }
     map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 0 })
   }
 }
 
-function selectPin(property: Property & { lat: number; lng: number }) {
+function selectPin(property: Property) {
   selectedPin.value = {
-    kind: 'property',
     name: property.name,
     subtitle: property.buildingType || property.address,
     image: property.image,
     route: `/student/listing/${property.id}`,
+    distance: property.distance,
+    lat: property.lat,
+    lng: property.lng,
+    rooms: rooms.value
+      .filter((r) => r.propertyId === property.id && r.free)
+      .map((r) => ({ id: r.id, typeLabel: r.typeLabel, rent: r.rent })),
   }
-  map?.flyTo({ center: [property.lng, property.lat], zoom: 16, essential: true })
+  // Not every accommodation has a pinned location — the detail card still
+  // works without one, it just can't draw a line or move the camera.
+  if (map && property.lat !== null && property.lng !== null) {
+    void showCampusLink(selectedPin.value)
+    // Frame both ends rather than zooming into the place alone — the whole
+    // point of the line is seeing how far it sits from campus, which you
+    // can't judge with campus off-screen.
+    const bounds = new mapboxgl.LngLatBounds()
+      .extend([property.lng, property.lat])
+      .extend([CAMPUS.lng, CAMPUS.lat])
+    // Generous side padding: the campus pill is ~110px wide and centred on
+    // its coordinate, so a tighter inset leaves it hugging the screen edge.
+    map.fitBounds(bounds, { padding: { top: 120, right: 90, bottom: 300, left: 90 }, maxZoom: 16 })
+  } else {
+    clearCampusLink()
+  }
 }
 
 function selectPinById(id: string) {
   const property = properties.value.find((p) => p.id === id)
-  if (property && property.lat !== null && property.lng !== null) {
-    selectPin(property as Property & { lat: number; lng: number })
-  }
-}
-
-function selectRoom(room: RoomTile & { lat: number; lng: number }) {
-  selectedPin.value = {
-    kind: 'room',
-    name: room.label,
-    subtitle: [room.propertyName, room.rent ? `${formatPeso(room.rent)}/mo` : ''].filter(Boolean).join(' · '),
-    image: room.image,
-    route: `/student/room/${room.id}`,
-  }
-  map?.flyTo({ center: [room.lng, room.lat], zoom: 16, essential: true })
-}
-
-function selectRoomById(id: string) {
-  const room = rooms.value.find((r) => r.id === id)
-  if (room && room.lat !== null && room.lng !== null) {
-    selectRoom(room as RoomTile & { lat: number; lng: number })
-  }
+  if (property) selectPin(property)
 }
 
 function clearSelectedPin() {
   selectedPin.value = null
+  clearCampusLink()
 }
 
 // Leaving the expanded map shouldn't leave a stale selection waiting behind
 // the rail next time it's re-opened.
-// Both map states are `position: sticky` now (see mapRegionStyle), so
-// expanded is just a much taller in-flow box, not a true overlay — without
-// this, scrolling past it would reveal the room list underneath instead of
-// staying an isolated full-screen map until "List view" is pressed.
+// The map is a plain in-flow box, not a true overlay — without locking
+// scroll, the page keeps scrolling underneath it and you reach the list
+// below while the map is supposed to be full-screen.
+// The document is what scrolls here — measured: documentElement has
+// clientHeight 844 against scrollHeight 1576 and is the element whose
+// scrollTop actually moves. `.q-page-container` and `body` are plain
+// content-height blocks (clientHeight == scrollHeight), so setting overflow
+// on them does nothing at all.
 watch(mapExpanded, (expanded) => {
-  if (!expanded) selectedPin.value = null
+  if (!expanded) {
+    selectedPin.value = null
+    clearCampusLink()
+  }
   document.documentElement.style.overflow = expanded ? 'hidden' : ''
 })
+
+// The map used to read the raw property list, so searching and filtering only
+// ever changed the list below it. Re-pinning on every change to the matched
+// set is what actually makes them work in map mode.
+watch(mapProperties, () => syncMarkers(true))
 
 async function loadProperties(silent = false) {
   // Only accredited listings are readable, and the policy grants the public
@@ -699,11 +919,12 @@ async function loadProperties(silent = false) {
       if (rent > 0) rentCeiling = Math.max(rentCeiling, rent)
       roomList.push({
         id: r.id,
+        propertyId: row.id,
         label,
         image: roomImages[0]?.url ? resolveAsset(roomImages[0].url) : '',
         monogram,
         propertyName: name,
-        meta: r.capacity ? `sleeps ${r.capacity}` : '',
+        meta: r.capacity ? `${r.capacity} left` : '',
         typeLabel,
         rent,
         rentBasis: r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room',
@@ -819,6 +1040,10 @@ onUnmounted(() => {
   document.documentElement.style.overflow = ''
   if (listingsChannel) void supabase.removeChannel(listingsChannel)
   window.removeEventListener('resize', measureViewport)
+  mapResizeObserver?.disconnect()
+  mapResizeObserver = null
+  campusLinkLabel?.remove()
+  campusLinkLabel = null
   for (const marker of markers) marker.remove()
   map?.remove()
   map = null
@@ -830,12 +1055,10 @@ onUnmounted(() => {
   background: var(--m-bg);
 }
 
-/* Map + expand button — sticky to the top of the page's scroll container
-   (see MainLayout's .q-page-container), so the map stays put as the list
-   scrolls under it instead of scrolling away itself. */
+/* Map + expand button — plain in-flow block, part of the page's normal
+   scroll like any other section. */
 .map-region {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 5;
   min-height: 0;
   overflow: hidden;
@@ -845,6 +1068,35 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
 }
+/* Zoom + locate buttons, cleared of the floating header that was covering
+   them (they were unreachable before). */
+:deep(.mapboxgl-ctrl-top-right) {
+  top: var(--map-ctrl-top, 0);
+}
+
+/* Campus landmark — a label, not a control: `pointer-events: none` keeps it
+   from swallowing taps meant for the map or a nearby accommodation pin. */
+/* A landmark, not a control — never swallow a tap meant for the map or for
+   an accommodation pin sitting near it. */
+:deep(.campus-pin) {
+  pointer-events: none;
+}
+/* Distance parked at the middle of the campus link line. */
+:deep(.campus-link-label) {
+  padding: 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--m-border) 60%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(160%);
+  color: var(--m-primary-dark);
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+}
+
 .map-expand-btn {
   position: absolute;
   right: 12px;
@@ -868,17 +1120,6 @@ onUnmounted(() => {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-:deep(.map-pin) {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 2px solid #fff;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  background: var(--m-primary-dark);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
-}
-
 /* Floating "list view" button — the expanded map covers everything below
    the header, so this is the way back: parked just under it, always in
    reach regardless of scroll position. */
@@ -891,9 +1132,11 @@ onUnmounted(() => {
   gap: 6px;
   padding: 8px 14px 8px 12px;
   transform: translateX(-50%);
-  border: 1px solid var(--m-border);
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 999px;
-  background: var(--m-surface);
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   color: var(--m-ink);
   font-size: 12.5px;
   font-weight: 700;
@@ -913,10 +1156,12 @@ onUnmounted(() => {
   bottom: 122px;
   left: 0;
   z-index: 60;
+  padding: 0 var(--m-page-gutter);
 }
 .map-float-rail {
   display: flex;
   gap: 10px;
+  justify-content: space-evenly;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
@@ -936,107 +1181,52 @@ onUnmounted(() => {
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   backdrop-filter: blur(16px) saturate(160%);
 }
-/* Room card mirrors PropertyCard's own carousel layout (image on top,
-   name/where below) so it reads as the same family of card, not a smaller
-   list row — and lands at the same height as the accommodation cards next
-   to it in the rail. */
-.map-float-room {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.map-float-room-shot {
-  position: relative;
-  display: grid;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  place-items: center;
-  overflow: hidden;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.map-float-room-shot img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.map-float-room-shot--empty {
-  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
-  color: var(--m-muted);
-}
-.map-float-room-type {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  max-width: calc(100% - 16px);
-  padding: 2px 9px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(23, 32, 42, 0.7);
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.map-float-room-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-  padding: 9px 11px 11px;
-}
-.map-float-room-name {
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.map-float-room-where {
-  color: var(--m-muted);
-  font-size: 11.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.map-float-room-rent {
-  margin-top: 1px;
-  color: var(--m-primary-dark);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-/* Selected-item detail card — same image-on-top shape as the rail cards
-   (so swapping the rail for this doesn't jump wildly in height), with the
-   close button riding on the image itself instead of a separate header row. */
+/* Selected-item detail card — a landscape split: the accommodation's photo
+   as a fixed-height side column, name + available rooms stacked beside it.
+   No per-room photos — the room list is a plain scrollable stack of rows,
+   which is what lets the whole card hold to the rail cards' own height
+   instead of growing past it. */
 .map-float-info {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  height: 197px;
+  gap: 10px;
+  padding: 10px;
   border: 1px solid color-mix(in srgb, var(--m-border) 45%, transparent);
   border-radius: var(--m-radius-lg, var(--m-radius));
-  background: color-mix(in srgb, var(--m-surface) 55%, transparent);
+  background: color-mix(in srgb, var(--m-surface) 78%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   backdrop-filter: blur(16px) saturate(160%);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
 }
+.map-float-close {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-border) 55%, transparent);
+  color: var(--m-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
 .map-float-info-shot {
   position: relative;
   display: grid;
-  width: 100%;
-  height: 144px;
+  width: 84px;
+  height: 100%;
+  flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
+  border: 0;
+  border-radius: var(--m-radius-sm, 10px);
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 .map-float-info-shot img {
   width: 100%;
@@ -1049,15 +1239,33 @@ onUnmounted(() => {
 }
 .map-float-info-body {
   display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px 12px;
+  gap: 6px;
+}
+.map-float-info-text-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
 }
 .map-float-info-text {
   display: flex;
   min-width: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 1px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-float-info-chevron {
+  flex: 0 0 auto;
+  color: var(--m-muted);
 }
 .map-float-info-text strong {
   color: var(--m-ink);
@@ -1070,26 +1278,58 @@ onUnmounted(() => {
 .map-float-info-text span {
   color: var(--m-muted);
   font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.map-float-close {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(23, 32, 42, 0.7);
-  color: #fff;
+.map-float-info-rooms-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--m-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.map-float-info-rooms {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+}
+.map-float-info-room {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--m-surface) 92%, transparent);
   cursor: pointer;
+  font: inherit;
+  text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
-.map-float-cta {
-  width: 100%;
-  min-height: 44px;
+.map-float-info-room-type {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--m-ink);
+  font-size: 11.5px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-float-info-room-rent {
+  flex: 0 0 auto;
+  color: var(--m-primary-dark);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .stack {
@@ -1469,7 +1709,14 @@ onUnmounted(() => {
   gap: 2px;
   padding: 8px 9px 10px;
 }
+.tile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .tile-name {
+  min-width: 0;
+  flex: 1 1 auto;
   color: var(--m-ink);
   font-size: 13px;
   font-weight: 700;
@@ -1486,12 +1733,15 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tile-meta {
-  margin-top: 1px;
-  color: var(--m-muted);
-  font-size: 10.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.tile-name-meta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 10px;
+  font-weight: 700;
   white-space: nowrap;
 }
 .tile-rent {

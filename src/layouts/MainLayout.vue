@@ -354,6 +354,12 @@ onMounted(async () => {
     userInitials.value =
       row?.initials || initialsOf(String(row?.full_name || metadata?.full_name || user.email || 'User'))
 
+    // Fall back to the stored column when this session's metadata has no
+    // picture — it can be stale or empty (avatar uploaded on another device,
+    // or written straight to the database), which otherwise left the shell
+    // showing initials despite a photo being on file.
+    if (!picture && row?.avatar_url) profileImageUrl.value = resolveAsset(row.avatar_url)
+
     // Keeps users.avatar_url (the only copy anyone but this user can ever
     // read) in step with the auth session's own picture — a Google sign-in
     // never writes it directly, and a Cloudinary upload's write in

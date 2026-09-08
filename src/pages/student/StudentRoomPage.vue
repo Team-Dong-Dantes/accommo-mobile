@@ -41,7 +41,8 @@
         </span>
       </div>
       <div v-else class="hero hero--none">
-        <span class="hero-mono">{{ monogram }}</span>
+        <IconifyIcon icon="lucide:image-off" width="26" />
+        <span class="hero-none-label">No photos yet</span>
       </div>
 
       <div class="body">
@@ -68,7 +69,7 @@
         <div class="stat-row">
           <span v-if="room.capacity" class="stat">
             <IconifyIcon icon="lucide:bed" width="15" />
-            <strong>Sleeps {{ room.capacity }}</strong>
+            <strong>{{ room.capacity }} bed{{ room.capacity === 1 ? '' : 's' }}</strong>
           </span>
           <span v-if="room.floor" class="stat">
             <IconifyIcon icon="lucide:layers" width="15" />
@@ -76,7 +77,8 @@
           </span>
           <span v-if="distance" class="stat">
             <IconifyIcon icon="lucide:map-pin" width="15" />
-            <small>{{ distance }} from campus</small>
+            <!-- campusDistanceLabel already ends in "from campus" -->
+            <small>{{ distance }}</small>
           </span>
         </div>
 
@@ -154,10 +156,12 @@
               <span class="room-card-photo">
                 <img v-if="r.image" :src="r.image" :alt="r.label" loading="lazy" />
                 <span v-else class="room-card-mono">{{ monogram }}</span>
-                <span v-if="r.type" class="room-card-type">{{ r.type }}</span>
+                <span class="room-card-type">{{ r.label }}</span>
               </span>
-              <span class="room-card-name">{{ r.label }}</span>
-              <span class="room-card-meta">{{ r.meta }}</span>
+              <span class="room-card-name-row">
+                <span class="room-card-name">{{ r.type }}</span>
+                <span v-if="r.capacity" class="room-card-cap">{{ r.capacity }} left</span>
+              </span>
               <span v-if="r.rent" class="room-card-rent">
                 {{ formatPeso(r.rent) }}<span class="room-card-per">/mo{{ r.rentBasis === 'person' ? '/person' : '' }}</span>
               </span>
@@ -241,7 +245,7 @@ const listingDescription = ref('')
 interface SiblingRoom {
   id: string
   label: string
-  meta: string
+  capacity: number
   type: string
   rent: number
   rentBasis: 'room' | 'person'
@@ -349,7 +353,7 @@ async function load() {
         return {
           id: r.id,
           label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
-          meta: r.capacity ? `sleeps ${r.capacity}` : '',
+          capacity: Number(r.capacity ?? 0),
           type: roomTypeLabel(r.custom_room_type || r.room_type),
           rent: Number(r.monthly_rent ?? 0),
           rentBasis: (r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room') as 'room' | 'person',
@@ -509,8 +513,17 @@ watch(id, load)
   scroll-snap-align: start;
 }
 .hero--none {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(160deg, var(--m-border), var(--m-bg) 85%);
+  color: var(--m-muted);
+}
+.hero-none-label {
+  font-size: 13px;
+  font-weight: 700;
 }
 .hero-mono {
   color: var(--m-primary-dark);
@@ -841,16 +854,32 @@ watch(id, load)
   background: rgba(15, 23, 42, 0.55);
   color: #fff;
 }
-.room-card-name {
+.room-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 8px;
+}
+.room-card-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
   color: var(--m-ink);
   font-size: 13px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.room-card-meta {
-  margin-top: 1px;
-  color: var(--m-muted);
-  font-size: 11px;
+.room-card-cap {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .room-card-rent {
   margin-top: 4px;
