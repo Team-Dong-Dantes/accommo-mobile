@@ -108,52 +108,6 @@ async function performUpload(file: File): Promise<CloudinaryUploadResult> {
   return withTimeout;
 }
 
-const DOC_BUCKET = 'documents';
-
-/**
- * Uploads a sensitive document (identity, enrolment, permit) to the PRIVATE
- * `documents` bucket and returns its storage PATH, not a URL.
- *
- * Cloudinary delivery URLs are unauthenticated: the link itself is the
- * credential, so anyone who ever sees one can read that student's school ID or
- * that manager's government ID forever, and it survives any later rejection.
- * Photos and avatars stay on Cloudinary — only documents move here. Read these
- * back with signedDocUrl().
- */
-export async function uploadPrivateDocument(
-  file: File,
-  userId: string,
-  docType: string,
-): Promise<string> {
-  const validationError = validateFile(file);
-  if (validationError) throw new Error(validationError);
-
-  // The bucket's RLS policies key off the first path segment being the uploader.
-  const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
-  const path = `${userId}/${docType}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage
-    .from(DOC_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw error;
-  return path;
-}
-
-/**
- * Time-limited signed URL for a stored document. Rows written before the move
- * hold a full Cloudinary URL and pass straight through, so old and new rows
- * both render from one call site.
- */
-export async function signedDocUrl(
-  value: string | null | undefined,
-  expiresIn = 300,
-): Promise<string> {
-  if (!value) return '';
-  if (/^https?:\/\//i.test(value)) return value;
-  const { data, error } = await supabase.storage.from(DOC_BUCKET).createSignedUrl(value, expiresIn);
-  if (error) return '';
-  return data?.signedUrl ?? '';
-}
-
 /** Uploads one or more files / images to Cloudinary. */
 export async function uploadToCloudinary(
   files: File | File[],
@@ -207,4 +161,66 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
 
   window.dispatchEvent(new CustomEvent('accommo:avatar-change', { detail: { url } }));
   return url;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sensitive documents: Cloudinary `authenticated` delivery                    */
+/* -------------------------------------------------------------------------- */
+//
+// Identity documents, enrolment records and accommodation permits must not sit at
+// a public URL — with the default `upload` delivery type the link itself is the
+// credential, readable by anyone who ever sees it and unaffected by a later
+// rejection. These upload with delivery type `authenticated` and are read back
+// through short-lived signed URLs.
+//
+// Both signatures come from the `doc-access` edge function, because computing
+// them needs the Cloudinary API secret and that must never reach client code.
+// Photos, avatars and listing images deliberately keep using the public,
+// unsigned path above.
+
+/** What we store in file_url: cld:<resource_type>:<type>:<format>:<public_id> */
+export type DocumentRef = string;
+
+export type DocumentTable = 'verification_documents' | 'accommodation_documents';
+
+/** Uploads a document to Cloudinary with authenticated delivery; returns the ref to store. */
+export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
+  const validationError = validateFile(file);
+  if (validationError) throw new Error(validationError);
+
+  const isPdf = file.type === 'application/pdf';
+  const { data: params, error } = await supabase.functions.invoke('doc-access', {
+    body: { action: 'upload-params', resourceType: isPdf ? 'raw' : 'image' },
+  });
+  if (error) throw error;
+
+  const form = new FormData();
+  form.append('file', file);
+  form.append('api_key', params.apiKey);
+  form.append('timestamp', String(params.timestamp));
+  form.append('folder', params.folder);
+  form.append('type', params.type);
+  form.append('signature', params.signature);
+
+  const endpoint = `https://api.cloudinary.com/v1_1/${params.cloudName}/${params.resourceType}/upload`;
+  const response = await fetch(endpoint, { method: 'POST', body: form });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(`Upload failed (${response.status}): ${json?.error?.message || response.statusText}`);
+  }
+  return ['cld', params.resourceType, json.type || 'authenticated', json.format || '', json.public_id].join(':');
+}
+
+/**
+ * Short-lived signed URL for one document row. Authorization happens inside the
+ * function via this caller's own RLS, so a row you cannot select yields nothing.
+ * Returns '' when the document is missing or not permitted.
+ */
+export async function secureDocUrl(table: DocumentTable, id: string | null | undefined): Promise<string> {
+  if (!id) return '';
+  const { data, error } = await supabase.functions.invoke('doc-access', {
+    body: { action: 'view', table, id },
+  });
+  if (error) return '';
+  return (data?.url as string) || '';
 }

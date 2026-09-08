@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/utils/supabase';
-import { uploadPrivateDocument } from '@/utils/upload';
+import { uploadSecureDocument } from '@/utils/upload';
 import type { RegisterForm } from '@/types/forms';
 
 // The database role enum uses 'accommodation_manager' where the app's UI and
@@ -194,8 +194,8 @@ export const useAuthStore = defineStore('auth', {
     ) {
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
-      if (form.schoolIdFile) schoolIdUrl = await uploadPrivateDocument(form.schoolIdFile, userId, 'school_id');
-      if (form.assessmentFile) assessmentUrl = await uploadPrivateDocument(form.assessmentFile, userId, 'assessment');
+      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
+      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile);
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -238,8 +238,8 @@ export const useAuthStore = defineStore('auth', {
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
 
-      if (form.schoolIdFile) schoolIdUrl = await uploadPrivateDocument(form.schoolIdFile, userId, 'school_id');
-      if (form.assessmentFile) assessmentUrl = await uploadPrivateDocument(form.assessmentFile, userId, 'assessment');
+      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
+      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile);
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -286,14 +286,14 @@ export const useAuthStore = defineStore('auth', {
 
       if (form.schoolIdFile) {
         try {
-          schoolIdUrl = await uploadPrivateDocument(form.schoolIdFile, userId, 'school_id');
+          schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
         } catch {
           schoolIdUrl = null;
         }
       }
       if (form.assessmentFile) {
         try {
-          assessmentUrl = await uploadPrivateDocument(form.assessmentFile, userId, 'assessment');
+          assessmentUrl = await uploadSecureDocument(form.assessmentFile);
         } catch {
           assessmentUrl = null;
         }
@@ -312,6 +312,10 @@ export const useAuthStore = defineStore('auth', {
         });
 
       if (profileError) throw sanitizeError(profileError);
+
+      // Google already vouched for this address, so there is no code to type.
+      try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
+
       await this.submitStudentVerificationDocuments(userId, [
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
@@ -336,8 +340,13 @@ export const useAuthStore = defineStore('auth', {
 
     async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
       await this.submitManagerVerificationDocuments(userId, form);
-      // After submit, the manager is signed out and “pending” until OSAS approves.
-      await supabase.auth.signOut();
+      // Deliberately stays signed in. Signing out here pretended to hold the
+      // manager at the door until OSAS approved, but login never checked status,
+      // so they simply signed back in — and a rejected manager could not have
+      // re-uploaded anything while locked out. Access is gated by status where it
+      // is actually enforceable (suspension blocks sign-in; accreditation and
+      // lease policies gate what a pending manager can do).
+      this.cachedRole = 'manager';
     },
 
     // --- MANAGER REGISTRATION (legacy one-shot) ---
@@ -363,7 +372,8 @@ export const useAuthStore = defineStore('auth', {
       await this.ensureUserRow(userId, form.email, profileData, 'pending');
       await this.submitManagerVerificationDocuments(userId, form);
 
-      await supabase.auth.signOut();
+      // Same reasoning as finalizeManagerAccount: no fake lock-out.
+      this.cachedRole = 'manager';
 
       return response.data;
     },
@@ -380,6 +390,9 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
+      // Google already vouched for this address, so there is no code to type.
+      try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
+
       await this.submitManagerVerificationDocuments(userId, form);
     },
 
@@ -389,8 +402,8 @@ export const useAuthStore = defineStore('auth', {
       }
 
       const [governmentIdUrl, businessPermitUrl] = await Promise.all([
-        uploadPrivateDocument(form.governmentIdFile, userId, 'government_id'),
-        uploadPrivateDocument(form.businessPermitFile, userId, 'business_permit'),
+        uploadSecureDocument(form.governmentIdFile),
+        uploadSecureDocument(form.businessPermitFile),
       ]);
 
       const { error } = await supabase.from('verification_documents').insert([
@@ -423,13 +436,28 @@ export const useAuthStore = defineStore('auth', {
       if (authError) throw sanitizeError(authError);
       if (!authData?.user) throw new Error('Login failed: No user returned.');
 
+      // maybeSingle, not single: a missing users row is its own situation, and
+      // single() surfaced it as PGRST116 -> "Registration failed due to a
+      // database conflict", which is nonsense on a sign-in screen.
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('role')
+        .select('role, status, email_verified_at')
         .eq('id', authData.user.id)
-        .single();
+        .maybeSingle();
 
       if (userError) throw sanitizeError(userError);
+      if (!userData) {
+        await supabase.auth.signOut();
+        throw new Error('This account is not set up yet. Please finish registration.');
+      }
+
+      // A suspended account must not hold a session. Nothing downstream checked
+      // status, so suspending someone previously did nothing at all: they signed
+      // straight back in and kept working.
+      if (userData.status === 'suspended') {
+        await supabase.auth.signOut();
+        throw new Error('This account has been suspended. Contact OSAS if you think this is a mistake.');
+      }
 
       let role = toAppRole(userData?.role);
 
@@ -451,7 +479,24 @@ export const useAuthStore = defineStore('auth', {
       return {
         session: authData.session,
         role,
+        status: userData.status as string,
+        // Auto-confirm means Supabase marks every address confirmed at signup, so
+        // this is the only evidence the applicant actually reads it: stamped by
+        // confirm_email_ownership() once they enter a mailed code. The session is
+        // deliberately kept so they can finish verifying from the login screen.
+        emailVerified: userData.email_verified_at !== null,
       };
+    },
+
+    /**
+     * Records that the signed-in user proved they read their e-mail. Only succeeds
+     * when the current token came from an e-mail code (or an OAuth provider that
+     * already vouched for the address) — the check runs server-side against the
+     * token's own `amr` claim, so the client cannot simply assert it.
+     */
+    async confirmEmailOwnership() {
+      const { error } = await supabase.rpc('confirm_email_ownership');
+      if (error) throw sanitizeError(error);
     },
 
     // --- PHONE VERIFICATION (proof of ownership, not a login) ---

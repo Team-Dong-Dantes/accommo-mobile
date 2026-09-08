@@ -368,17 +368,18 @@ async function handleRegister() {
 
     if (isGoogleMode.value) {
       await authStore.completeGoogleManagerProfile(googleUserId.value, form);
-      notify.success('Application submitted successfully!');
-      void router.push('/manager/dashboard');
     } else {
       if (createdUserId) {
         await authStore.finalizeManagerAccount(createdUserId, form);
       } else {
         await authStore.registerManager(form); // safety fallback (no early account)
       }
-      notify.success('Application submitted! OSAS will review your documents. Check your e-mail for updates.');
-      void router.push('/login');
     }
+    // Both paths land in the same place. Previously the Google path stayed signed
+    // in on the dashboard while the password path was signed out to /login, so
+    // the same application produced two different outcomes.
+    notify.success('Application submitted — OSAS will review your documents.');
+    void router.push('/manager/osas-compliance');
   } catch (error: unknown) {
     notify.error(error instanceof Error ? error.message : 'An unexpected error occurred');
   } finally {

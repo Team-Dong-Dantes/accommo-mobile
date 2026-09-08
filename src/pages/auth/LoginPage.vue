@@ -4,6 +4,17 @@
       <h3 class="welcome-title">Welcome back</h3>
       <p class="welcome-subtitle">Sign in to your account</p>
 
+      <template v-if="needsEmailVerify">
+        <p class="verify-note">
+          Confirm your e-mail address to finish setting up this account. We've sent a
+          code to <strong>{{ email }}</strong>.
+        </p>
+        <EmailVerifyInline :email="email" @verified="onEmailVerified" />
+        <q-btn flat dense no-caps label="Use a different account" class="q-mt-md"
+          @click="cancelEmailVerify" />
+      </template>
+
+      <template v-else>
       <AuthGoogleBtn @click="handleGoogleAuth" />
       <AuthDivider />
 
@@ -36,12 +47,14 @@
         <q-btn flat dense no-caps color="teal-9" label="Create Account" to="/register/role"
           class="text-weight-bold q-ml-sm" />
       </div>
+      </template>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { Capacitor } from '@capacitor/core';
 import { useRouter, useRoute } from 'vue-router';
 import type { QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
@@ -52,6 +65,7 @@ import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
 import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
 import AuthDivider from '@/components/auth/AuthDivider.vue';
+import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -64,13 +78,57 @@ const showPassword = ref(false);
 const loading = ref(false);
 const forgotPasswordLoading = ref(false);
 const loginFormRef = ref<QForm | null>(null);
+const needsEmailVerify = ref(false);
+const verifiedRole = ref<string | null>(null);
 
 onMounted(() => {
   if (route.query.accountExists) {
-    notify.info('Account already exists. Please log in.');
+    notify.info('You already have an account — sign in to finish submitting your documents.');
     void router.replace('/login');
   }
+  if (route.query.suspended) {
+    notify.error('This account has been suspended. Contact OSAS if you think this is a mistake.');
+    void router.replace('/login');
+  }
+  if (route.query.adminUsesWeb) {
+    notify.info('Admin accounts sign in on the OSAS web app, not here.');
+    void router.replace('/login');
+  }
+  // Bounced here by the router: signed in, but the address was never confirmed.
+  if (route.query.verifyEmail) {
+    void resumeEmailVerify();
+  }
 });
+
+// The router keeps the session when it bounces an unconfirmed address, so the
+// e-mail is read back from it rather than asking the user to retype it.
+async function resumeEmailVerify() {
+  const { data } = await supabase.auth.getUser();
+  if (!data?.user?.email) {
+    void router.replace('/login');
+    return;
+  }
+  email.value = data.user.email;
+  verifiedRole.value = authStore.cachedRole;
+  needsEmailVerify.value = true;
+  void router.replace('/login');
+}
+
+async function onEmailVerified() {
+  needsEmailVerify.value = false;
+  notify.success('E-mail confirmed.');
+  const role = verifiedRole.value ?? (await authStore.getSessionProfile()).profile?.role ?? null;
+  if (role === 'student') void router.push('/student/home');
+  else if (role === 'manager') void router.push('/manager/dashboard');
+  else void router.push('/');
+}
+
+async function cancelEmailVerify() {
+  await supabase.auth.signOut();
+  authStore.clearCachedRole();
+  needsEmailVerify.value = false;
+  password.value = '';
+}
 
 async function handleGoogleAuth() {
   try {
@@ -90,12 +148,38 @@ async function handleLogin() {
 
   try {
     loading.value = true;
-    const { role } = await authStore.login(email.value, password.value);
-    notify.success('Welcome back!');
+    const { role, status, emailVerified } = await authStore.login(email.value, password.value);
 
-    if (role === 'student') void router.push('/student/home');
-    else if (role === 'manager') void router.push('/manager/dashboard');
-    else if (role === 'admin') void router.push('/admin/dashboard');
+    // Admin/OSAS lives in the web client; this app has no admin surface, and
+    // pushing to /admin/dashboard used to land them on a 404.
+    if (role === 'admin') {
+      await supabase.auth.signOut();
+      notify.info('Admin accounts sign in on the OSAS web app, not here.');
+      return;
+    }
+
+    // Session is kept on purpose: the code they need is sent to this account, and
+    // signing them out here would leave no way to ever confirm the address.
+    if (!emailVerified) {
+      verifiedRole.value = role;
+      needsEmailVerify.value = true;
+      notify.info('Confirm your e-mail address to continue.');
+      return;
+    }
+
+    if (status === 'rejected') {
+      notify.warning('OSAS rejected your documents — re-upload them to try again.');
+    } else if (status === 'pending' || status === 'reviewing') {
+      notify.info('Your account is still awaiting OSAS review.');
+    } else {
+      notify.success('Welcome back!');
+    }
+
+    // A rejected or pending user is sent straight to the screen where they can
+    // actually act on it, instead of a home page that never mentions it.
+    const needsOsas = status === 'rejected' || status === 'reviewing';
+    if (role === 'student') void router.push(needsOsas ? '/student/support' : '/student/home');
+    else if (role === 'manager') void router.push(needsOsas ? '/manager/osas-compliance' : '/manager/dashboard');
     else {
       notify.info('Your account role is not set. Please complete registration.');
       await supabase.auth.signOut();
@@ -116,9 +200,13 @@ async function handleForgotPassword() {
 
   forgotPasswordLoading.value = true;
   try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
-        redirectTo: window.location.origin + '/#/login',
-      });
+      // On a Capacitor build window.location.origin is not a reachable web
+      // origin, so the reset link had nowhere to come back to. Same custom
+      // scheme the Google flow already registers.
+      const redirectTo = Capacitor.isNativePlatform()
+        ? 'com.accommo.app://auth/callback'
+        : window.location.origin + '/#/login';
+      const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo });
     if (error) throw error;
     notify.success('Password reset link sent to your email.');
   } catch {
@@ -152,6 +240,13 @@ async function handleForgotPassword() {
   color: var(--m-muted);
   margin-top: 6px;
   margin-bottom: 24px;
+}
+
+.verify-note {
+  color: var(--m-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
 }
 
 .forgot-link {

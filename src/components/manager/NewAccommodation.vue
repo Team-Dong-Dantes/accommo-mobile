@@ -284,7 +284,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument, uploadPrivateDocument } from '@/utils/upload'
+import { uploadDocument, uploadSecureDocument } from '@/utils/upload'
 import { AMENITY_META, AMENITY_KEYS, BUILDING_TYPE_LABEL } from '@/utils/listings'
 import { staticMapUrl } from '@/utils/geo'
 import { to12Hour } from '@/utils/format'
@@ -439,12 +439,8 @@ async function takePermitPhoto(docType: string) {
 async function uploadPermit(file: File, docType: string) {
   uploadingPermit.value = docType
   try {
-    // Permits are sensitive: private bucket, signed on read. The bucket policies
-    // key off the first path segment, so it has to be the uploader's own id.
-    const { data: authData } = await supabase.auth.getUser()
-    const uid = authData?.user?.id
-    if (!uid) throw new Error('Not signed in.')
-    permits[docType] = await uploadPrivateDocument(file, uid, docType)
+    // Permits are sensitive: authenticated delivery, signed on read.
+    permits[docType] = await uploadSecureDocument(file)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload that permit.'))
   } finally {

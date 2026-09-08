@@ -1526,12 +1526,14 @@ export type Database = {
         Args: { p_student_id: string }
         Returns: boolean
       }
+      confirm_email_ownership: { Args: never; Returns: boolean }
       current_is_superadmin: { Args: never; Returns: boolean }
       get_my_role: { Args: never; Returns: string }
       get_verification_queue: {
         Args: never
         Returns: {
           created_at: string
+          doc_id: string
           doc_status: string
           doc_type: string
           email: string
@@ -1566,6 +1568,7 @@ export type Database = {
         Args: { p_ip_address?: string; p_user_agent?: string }
         Returns: undefined
       }
+      sweep_expired_permits: { Args: never; Returns: undefined }
     }
     Enums: {
       accommodation_status:

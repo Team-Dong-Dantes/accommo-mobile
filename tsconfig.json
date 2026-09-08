@@ -1,3 +1,7 @@
 {
-  "extends": "./.quasar/tsconfig.json"
+  "extends": "./.quasar/tsconfig.json",
+  // supabase/functions is Deno code (Deno globals, jsr: imports) deployed to the
+  // edge runtime, not part of the Quasar browser build — vue-tsc must not try to
+  // typecheck it against the DOM lib.
+  "exclude": ["supabase/functions"]
 }
