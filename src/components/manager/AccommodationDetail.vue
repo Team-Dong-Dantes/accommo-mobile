@@ -957,7 +957,7 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument, signedDocUrl } from '@/utils/upload'
+import { uploadDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, roomTypeLabel } from '@/utils/listings'
@@ -1499,7 +1499,7 @@ async function load() {
 async function loadDocs() {
   const { data, error: docError } = await supabase
     .from('accommodation_documents')
-    .select('doc_type, file_url, expires_at, uploaded_at, version')
+    .select('id, doc_type, file_url, expires_at, uploaded_at, version')
     .eq('accommodation_id', id)
     .order('version', { ascending: false })
   if (docError) throw docError
@@ -1510,9 +1510,10 @@ async function loadDocs() {
     seen.add(d.doc_type)
     return true
   })
-  // Permits live in the private `documents` bucket; sign before rendering.
+  // Permits use Cloudinary authenticated delivery: file_url holds a ref, so each
+  // one is signed for this viewer.
   docRows.value = await Promise.all(
-    latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+    latest.map(async (d) => ({ ...d, file_url: await secureDocUrl('accommodation_documents', d.id) })),
   )
 }
 

@@ -178,7 +178,7 @@ import { errorMessage } from '@/utils/errors'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument, uploadPrivateDocument, signedDocUrl } from '@/utils/upload'
+import { uploadDocument, uploadSecureDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
@@ -322,10 +322,10 @@ async function load() {
         seen.add(d.doc_type)
         return true
       })
-    // file_url is a private storage path (legacy rows hold a Cloudinary URL and
-    // pass through), so it has to be signed before anything renders it.
+    // Documents use Cloudinary authenticated delivery, so file_url holds a ref
+    // rather than a readable URL — each one is signed for this viewer.
     docRows.value = await Promise.all(
-      latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+      latest.map(async (d) => ({ ...d, file_url: await secureDocUrl('verification_documents', d.id) })),
     )
 
     tickets.value = (ticketData ?? []).map((t) => ({
@@ -349,23 +349,19 @@ async function onDocSelected(event: Event, docType: string) {
   if (!file || !myId.value) return
   uploadingDoc.value = true
   try {
-    // Stored as a private storage path; signed for display below.
-    const url = await uploadPrivateDocument(file, myId.value, docType)
+    const url = await uploadSecureDocument(file)
     const existing = docRows.value.find((d) => d.doc_type === docType)
 
     // Resubmission updates the same row back to pending rather than inserting
     // a duplicate — verification_documents has no version column to
     // disambiguate "latest" the way accommodation_documents does.
-    // The row stores the storage path; the local copy holds a signed URL so the
-    // preview renders without a reload.
-    const display = await signedDocUrl(url)
     if (existing) {
       const { error: updateError } = await supabase
         .from('verification_documents')
         .update({ file_url: url, filename: file.name, status: 'pending', uploaded_at: new Date().toISOString(), verified_at: null })
         .eq('id', existing.id)
       if (updateError) throw updateError
-      existing.file_url = display
+      existing.file_url = await secureDocUrl('verification_documents', existing.id)
       existing.status = 'pending'
       existing.uploaded_at = new Date().toISOString()
       existing.verified_at = null
@@ -377,7 +373,7 @@ async function onDocSelected(event: Event, docType: string) {
         .single()
       if (insertError) throw insertError
       docRows.value = [
-        { id: created.id, doc_type: docType, file_url: display, status: 'pending', uploaded_at: created.uploaded_at ?? new Date().toISOString(), verified_at: null },
+        { id: created.id, doc_type: docType, file_url: await secureDocUrl('verification_documents', created.id), status: 'pending', uploaded_at: created.uploaded_at ?? new Date().toISOString(), verified_at: null },
         ...docRows.value,
       ]
     }

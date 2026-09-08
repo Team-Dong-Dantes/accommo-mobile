@@ -129,6 +129,9 @@ async function verify() {
   busy.value = true
   try {
     await auth.verifyEmailOtp(props.email, code.value)
+    // Records the proof server-side. verifyOtp returns a fresh token whose amr
+    // claim says "otp", which is what confirm_email_ownership() checks.
+    await auth.confirmEmailOwnership()
     emit('verified')
   } catch (err) {
     errorText.value = err instanceof Error ? err.message : 'That code didn’t work. Check it and try again.'

@@ -273,7 +273,7 @@ import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadPrivateDocument, signedDocUrl } from '@/utils/upload'
+import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -420,7 +420,7 @@ const myDocs = computed<DocRow[]>(() =>
 async function loadDocsFor(accommodationId: string) {
   const { data, error: docError } = await supabase
     .from('accommodation_documents')
-    .select('doc_type, file_url, expires_at, uploaded_at, version')
+    .select('id, doc_type, file_url, expires_at, uploaded_at, version')
     .eq('accommodation_id', accommodationId)
     .order('version', { ascending: false })
   if (docError) throw docError
@@ -431,9 +431,10 @@ async function loadDocsFor(accommodationId: string) {
     seen.add(d.doc_type)
     return true
   })
-  // Permits live in the private `documents` bucket; sign before rendering.
+  // Permits use Cloudinary authenticated delivery: file_url holds a ref, so each
+  // one is signed for this viewer.
   docRows.value = await Promise.all(
-    latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+    latest.map(async (d) => ({ ...d, file_url: await secureDocUrl('accommodation_documents', d.id) })),
   )
 }
 
@@ -452,7 +453,7 @@ async function loadMyDocs(userId: string) {
     return true
   })
   myDocRows.value = (await Promise.all(
-    latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+    latest.map(async (d) => ({ ...d, file_url: await secureDocUrl('verification_documents', d.id) })),
   )) as typeof myDocRows.value
 }
 
@@ -550,7 +551,7 @@ async function submitDocUpload() {
   uploadingDoc.value = true
   try {
     const docType = uploadDocType.value
-    const url = await uploadPrivateDocument(uploadForm.file, myId.value, docType)
+    const url = await uploadSecureDocument(uploadForm.file)
     const existing = docRows.value.find((d) => d.doc_type === docType)
     const { error: insertError } = await supabase.from('accommodation_documents').insert({
       accommodation_id: selectedId.value,
@@ -577,7 +578,7 @@ async function onMyDocSelected(event: Event, docType: string) {
   if (!file || !myId.value) return
   uploadingMyDoc.value = true
   try {
-    const url = await uploadPrivateDocument(file, myId.value, docType)
+    const url = await uploadSecureDocument(file)
     const existing = myDocRows.value.find((d) => d.doc_type === docType)
 
     // Resubmission updates the same row back to pending rather than inserting

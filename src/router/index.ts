@@ -21,10 +21,15 @@ export default defineRouter(() => {
   });
 
   let roleFetchInProgress: Promise<string | null> | null = null;
+  // Account status is checked on every navigation, not just at sign-in: a
+  // session minted before a suspension would otherwise keep working until it
+  // expired. Cached per navigation batch alongside the role lookup.
+  let lastStatus: string | null = null;
+  let lastEmailVerified: boolean | null = null;
 
   async function fetchUserRole(session: { user: { id: string; user_metadata?: Record<string, unknown> } }): Promise<string | null> {
     const authStore = useAuthStore();
-    if (authStore.cachedRole) return authStore.cachedRole;
+    if (authStore.cachedRole && lastStatus) return authStore.cachedRole;
 
     if (roleFetchInProgress) return roleFetchInProgress;
 
@@ -32,11 +37,14 @@ export default defineRouter(() => {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('role')
+          .select('role, status, email_verified_at')
           .eq('id', session.user.id)
           .maybeSingle();
 
         if (error || !data) return null;
+
+        lastStatus = typeof data.status === 'string' ? data.status : null;
+        lastEmailVerified = data.email_verified_at !== null;
 
         let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
         if (role === 'accommodation_manager') role = 'manager';
@@ -76,6 +84,23 @@ export default defineRouter(() => {
     }
 
     if (isAuthenticated) {
+      // Suspension has to bite here too, or an already-signed-in user keeps the
+      // run of the app for the life of their token.
+      if (!to.path.startsWith('/register')) {
+        const role = await fetchUserRole(session);
+        if (role !== null && lastStatus === 'suspended') {
+          await supabase.auth.signOut();
+          useAuthStore().clearCachedRole();
+          lastStatus = null;
+          return '/login?suspended=true';
+        }
+        // Signed in but never proved they read their e-mail. The session is kept
+        // so the login screen can offer them a code instead of a dead end.
+        if (role !== null && lastEmailVerified === false) {
+          return '/login?verifyEmail=true';
+        }
+      }
+
       if (to.path.startsWith('/register')) {
         // Existing accounts shouldn't re-register — sign out and send them to
         // login. But a brand-new Google signup has a session and NO users row
@@ -108,6 +133,15 @@ export default defineRouter(() => {
         // would re-trigger this guard and loop forever.
         await supabase.auth.signOut();
         return role === null ? '/register?newUser=true' : '/login';
+      }
+
+      // Admin/OSAS has no surface in this app. Without this, LoginPage's push to
+      // /admin/dashboard fell through to a 404 instead of saying so.
+      const adminRole = await fetchUserRole(session);
+      if (adminRole === 'admin') {
+        await supabase.auth.signOut();
+        useAuthStore().clearCachedRole();
+        return '/login?adminUsesWeb=true';
       }
 
       // Role-based authorization: protect student vs manager routes
