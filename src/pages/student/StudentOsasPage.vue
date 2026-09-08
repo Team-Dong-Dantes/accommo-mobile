@@ -38,11 +38,13 @@
           <q-tab-panels v-model="tab" animated swipeable class="panels">
             <!-- DOCUMENTS -->
             <q-tab-panel name="docs" class="tab-panel">
-              <div v-if="myStatus === 'rejected'" class="reject-banner">
+              <!-- 'reviewing' is a soft reject: OSAS wants a better document and
+                   the account can still be verified once it arrives. -->
+              <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
                 <IconifyIcon icon="lucide:triangle-alert" width="16" />
                 <div>
-                  <p class="reject-title">Verification rejected</p>
-                  <p class="reject-text">{{ rejectionReason || 'OSAS rejected your submission — please resubmit below.' }}</p>
+                  <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : 'Verification rejected' }}</p>
+                  <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
                 </div>
               </div>
               <p class="sec-hint">OSAS reviews these before your account is verified. Tap one to view or resubmit.</p>
@@ -176,7 +178,7 @@ import { errorMessage } from '@/utils/errors'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument } from '@/utils/upload'
+import { uploadDocument, uploadPrivateDocument, signedDocUrl } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
@@ -296,27 +298,35 @@ async function load() {
     if (ticketError) throw ticketError
     if (userError) throw userError
     myStatus.value = userData?.status || ''
-    if (myStatus.value === 'rejected') {
-      const { data: reasonRow } = await supabase
-        .from('notifications')
-        .select('body')
-        .eq('user_id', user.id)
-        .eq('title', 'Verification rejected')
-        .order('created_at', { ascending: false })
+    if (myStatus.value === 'rejected' || myStatus.value === 'reviewing') {
+      // verification_requests is the decision trail. This used to string-match a
+      // notification *title*, so renaming that copy silently lost every reason.
+      const { data: decision } = await supabase
+        .from('verification_requests')
+        .select('decision_notes, rejection_reasons')
+        .eq('entity_type', 'user')
+        .eq('entity_id', user.id)
+        .order('reviewed_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      rejectionReason.value = reasonRow?.body || ''
+      rejectionReason.value =
+        decision?.decision_notes || (decision?.rejection_reasons ?? []).join(', ') || ''
     }
 
     // Keep only the most recent row per doc type.
     const seen = new Set<string>()
-    docRows.value = (docData ?? [])
+    const latest = (docData ?? [])
       .filter((d): d is typeof d & { doc_type: string; file_url: string; uploaded_at: string } => Boolean(d.doc_type && d.file_url && d.uploaded_at))
       .filter((d) => {
         if (seen.has(d.doc_type)) return false
         seen.add(d.doc_type)
         return true
       })
+    // file_url is a private storage path (legacy rows hold a Cloudinary URL and
+    // pass through), so it has to be signed before anything renders it.
+    docRows.value = await Promise.all(
+      latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+    )
 
     tickets.value = (ticketData ?? []).map((t) => ({
       id: t.id,
@@ -339,19 +349,23 @@ async function onDocSelected(event: Event, docType: string) {
   if (!file || !myId.value) return
   uploadingDoc.value = true
   try {
-    const url = await uploadDocument(file, myId.value, docType)
+    // Stored as a private storage path; signed for display below.
+    const url = await uploadPrivateDocument(file, myId.value, docType)
     const existing = docRows.value.find((d) => d.doc_type === docType)
 
     // Resubmission updates the same row back to pending rather than inserting
     // a duplicate — verification_documents has no version column to
     // disambiguate "latest" the way accommodation_documents does.
+    // The row stores the storage path; the local copy holds a signed URL so the
+    // preview renders without a reload.
+    const display = await signedDocUrl(url)
     if (existing) {
       const { error: updateError } = await supabase
         .from('verification_documents')
         .update({ file_url: url, filename: file.name, status: 'pending', uploaded_at: new Date().toISOString(), verified_at: null })
         .eq('id', existing.id)
       if (updateError) throw updateError
-      existing.file_url = url
+      existing.file_url = display
       existing.status = 'pending'
       existing.uploaded_at = new Date().toISOString()
       existing.verified_at = null
@@ -363,10 +377,16 @@ async function onDocSelected(event: Event, docType: string) {
         .single()
       if (insertError) throw insertError
       docRows.value = [
-        { id: created.id, doc_type: docType, file_url: url, status: 'pending', uploaded_at: created.uploaded_at ?? new Date().toISOString(), verified_at: null },
+        { id: created.id, doc_type: docType, file_url: display, status: 'pending', uploaded_at: created.uploaded_at ?? new Date().toISOString(), verified_at: null },
         ...docRows.value,
       ]
     }
+    // A rejected account has to be put back in the queue, or the re-upload is
+    // never looked at. No-ops for any other status.
+    const { error: resubmitError } = await supabase.rpc('resubmit_verification')
+    if (resubmitError) throw resubmitError
+    myStatus.value = myStatus.value === 'rejected' ? 'pending' : myStatus.value
+
     notify.success('Uploaded — awaiting review.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload this document.'))

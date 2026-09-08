@@ -19,27 +19,16 @@
 </template>
 
 <script setup lang="ts">
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { capturePhoto } from '@/utils/camera';
+import { useNotify } from '@/utils/notify';
 
 const model = defineModel<File | null>();
+const notify = useNotify();
 
-// A plain <input capture> silently falls back to the file picker in
-// Capacitor's WebView because it never actually requests the runtime camera
-// permission — the Camera plugin handles that permission prompt properly.
 async function openCamera() {
-  try {
-    const photo = await Camera.getPhoto({
-      source: CameraSource.Camera,
-      resultType: CameraResultType.Uri,
-      quality: 80,
-    });
-    if (!photo.webPath) return;
-    const blob = await (await fetch(photo.webPath)).blob();
-    const ext = photo.format || 'jpeg';
-    model.value = new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` });
-  } catch {
-    // User cancelled the camera (or denied permission) — no error toast for a cancel.
-  }
+  const { file, error } = await capturePhoto();
+  if (error) notify.error(error);
+  if (file) model.value = file;
 }
 </script>
 

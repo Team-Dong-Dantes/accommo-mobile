@@ -46,6 +46,40 @@ export function phNationalDigits(raw: string | number | null | undefined): strin
 // `Z` to a string with no time part isn't reliably valid across engines.
 // Already-correct `timestamptz` columns (e.g. notifications.created_at)
 // pass through unchanged either way.
+// House-rule times are stored as free text, so the pickers write one
+// canonical shape ("10:00 PM", "10:00 PM – 6:00 AM") and read older,
+// hand-typed values back as best they can.
+
+/** "22:00" (an <input type="time"> value) -> "10:00 PM". */
+export function to12Hour(value: string): string {
+  const [h, m] = (value || '').split(':');
+  const hour = Number(h);
+  if (!value || Number.isNaN(hour) || !m) return '';
+  const suffix = hour < 12 ? 'AM' : 'PM';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${m} ${suffix}`;
+}
+
+/** "10:00 PM" / "10PM" / "22:00" -> "22:00" for an <input type="time">. */
+export function to24Hour(value: string): string {
+  const text = (value || '').trim();
+  const match = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/.exec(text);
+  if (!match) return '';
+  let hour = Number(match[1]);
+  const minutes = match[2] ?? '00';
+  const suffix = match[3]?.toUpperCase();
+  if (hour > 23 || Number(minutes) > 59) return '';
+  if (suffix === 'PM' && hour < 12) hour += 12;
+  if (suffix === 'AM' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${minutes}`;
+}
+
+/** Splits a stored range ("10:00 PM – 6:00 AM") into two picker values. */
+export function splitTimeRange(value: string): [string, string] {
+  const [from, to] = (value || '').split(/[–-]/);
+  return [to24Hour(from ?? ''), to24Hour(to ?? '')];
+}
+
 export function parseServerTime(iso: string): Date {
   const hasTime = /[T ]/.test(iso);
   const hasTz = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso);

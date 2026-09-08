@@ -98,11 +98,6 @@
               <span class="view-value">{{ BUILDING_TYPE_LABEL[acc.accommodationType] || '—' }}</span>
               <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
             </button>
-            <button type="button" class="view-row view-row--tap" @click="openFieldDialog('address')">
-              <span class="view-label">Address</span>
-              <span class="view-value">{{ acc.address || '—' }}</span>
-              <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
-            </button>
             <button type="button" class="view-row view-row--tap" @click="openFieldDialog('barangay')">
               <span class="view-label">Barangay</span>
               <span class="view-value">{{ acc.barangay || '—' }}</span>
@@ -245,11 +240,6 @@
               <span class="view-value">{{ rules.visitorPolicy || '—' }}</span>
               <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
             </button>
-            <button type="button" class="view-row view-row--tap" @click="openFieldDialog('minStay')">
-              <span class="view-label">Min. stay (months)</span>
-              <span class="view-value">{{ rules.minStay ?? '—' }}</span>
-              <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
-            </button>
           </div>
           <div class="toggles">
             <label v-for="t in RULE_TOGGLES" :key="t.key" class="toggle-row">
@@ -385,6 +375,24 @@
             class="field-input field-textarea"
             rows="4"
           />
+          <input
+            v-else-if="editingField && FIELD_META[editingField].type === 'time'"
+            v-model="fieldDraft"
+            type="time"
+            class="field-input"
+          />
+          <!-- Quiet hours is a range, so it takes two pickers and is stored
+               back as one "10:00 PM – 6:00 AM" string. -->
+          <div v-else-if="editingField && FIELD_META[editingField].type === 'timerange'" class="field-row">
+            <label class="field">
+              <span class="field-label">From</span>
+              <input v-model="fieldDraft" type="time" class="field-input" />
+            </label>
+            <label class="field">
+              <span class="field-label">Until</span>
+              <input v-model="fieldDraftTo" type="time" class="field-input" />
+            </label>
+          </div>
           <input v-else v-model="fieldDraft" type="text" class="field-input" />
         </div>
 
@@ -946,16 +954,16 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso } from '@/utils/format'
+import { formatPeso, to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument } from '@/utils/upload'
+import { uploadDocument, signedDocUrl } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, roomTypeLabel } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import type { Database } from '@/types/database.gen'
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { capturePhoto } from '@/utils/camera'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
@@ -1050,6 +1058,8 @@ const fieldDialogOpen = ref(false)
 const savingField = ref(false)
 const editingField = ref<FieldKey | null>(null)
 const fieldDraft = ref('')
+// Second half of a time range (quiet hours "until"); unused by other types.
+const fieldDraftTo = ref('')
 const fieldDraftNum = ref<number | null>(null)
 
 const acc = reactive({
@@ -1094,9 +1104,10 @@ const distance = computed(() => campusDistanceLabel(acc.lat, acc.lng))
 const mapUrl = computed(() => staticMapUrl(acc.lat, acc.lng))
 const locationPickerOpen = ref(false)
 
-async function onLocationConfirmed(payload: { lat: number; lng: number; address: string; barangay: string; city: string }) {
+// The picker no longer guesses a street address — barangay and city are what
+// it fills. Address stays editable on its own row here.
+async function onLocationConfirmed(payload: { lat: number; lng: number; barangay: string; city: string }) {
   const fields: Database['public']['Tables']['accommodations']['Update'] = { lat: payload.lat, lng: payload.lng }
-  if (!acc.address && payload.address) fields.address = payload.address
   if (!acc.barangay && payload.barangay) fields.barangay = payload.barangay
   if (!acc.city && payload.city) fields.city = payload.city
   try {
@@ -1104,7 +1115,6 @@ async function onLocationConfirmed(payload: { lat: number; lng: number; address:
     if (updateError) throw updateError
     acc.lat = payload.lat
     acc.lng = payload.lng
-    if (fields.address) acc.address = fields.address as string
     if (fields.barangay) acc.barangay = fields.barangay as string
     if (fields.city) acc.city = fields.city as string
     notify.success('Location saved.')
@@ -1304,7 +1314,8 @@ async function uploadFacilityPhoto(event: Event, facilityId: string) {
 }
 
 async function takeFacilityPhoto(facilityId: string) {
-  const file = await capturePhoto()
+  const { file, error } = await capturePhoto()
+  if (error) notify.error(error)
   if (file) await addFacilityPhotos([file], facilityId)
 }
 
@@ -1494,11 +1505,15 @@ async function loadDocs() {
   if (docError) throw docError
 
   const seen = new Set<string>()
-  docRows.value = (data ?? []).filter((d) => {
+  const latest = (data ?? []).filter((d) => {
     if (seen.has(d.doc_type)) return false
     seen.add(d.doc_type)
     return true
   })
+  // Permits live in the private `documents` bucket; sign before rendering.
+  docRows.value = await Promise.all(
+    latest.map(async (d) => ({ ...d, file_url: await signedDocUrl(d.file_url) })),
+  )
 }
 
 async function saveAmenities() {
@@ -1533,30 +1548,37 @@ async function saveToggle(key: 'cooking' | 'laundry' | 'pets') {
 }
 
 type FieldKey =
-  | 'name' | 'accommodationType' | 'address' | 'barangay' | 'city' | 'totalFloors' | 'description'
-  | 'curfewTime' | 'quietHours' | 'visitorPolicy' | 'minStay'
+  | 'name' | 'accommodationType' | 'barangay' | 'city' | 'totalFloors' | 'description'
+  | 'curfewTime' | 'quietHours' | 'visitorPolicy'
 
-const FIELD_META: Record<FieldKey, { label: string; type: 'text' | 'select' | 'number' | 'textarea'; table: 'accommodations' | 'accommodation_policies'; column: string }> = {
+const FIELD_META: Record<FieldKey, { label: string; type: 'text' | 'select' | 'number' | 'textarea' | 'time' | 'timerange'; table: 'accommodations' | 'accommodation_policies'; column: string }> = {
   name: { label: 'Name', type: 'text', table: 'accommodations', column: 'name' },
   accommodationType: { label: 'Type', type: 'select', table: 'accommodations', column: 'accommodation_type' },
-  address: { label: 'Address', type: 'text', table: 'accommodations', column: 'address' },
   barangay: { label: 'Barangay', type: 'text', table: 'accommodations', column: 'barangay' },
   city: { label: 'City', type: 'text', table: 'accommodations', column: 'city' },
   totalFloors: { label: 'Floors', type: 'number', table: 'accommodations', column: 'total_floors' },
   description: { label: 'Description', type: 'textarea', table: 'accommodations', column: 'description' },
-  curfewTime: { label: 'Curfew', type: 'text', table: 'accommodation_policies', column: 'curfew_time' },
-  quietHours: { label: 'Quiet hours', type: 'text', table: 'accommodation_policies', column: 'quiet_hours' },
+  curfewTime: { label: 'Curfew', type: 'time', table: 'accommodation_policies', column: 'curfew_time' },
+  quietHours: { label: 'Quiet hours', type: 'timerange', table: 'accommodation_policies', column: 'quiet_hours' },
   visitorPolicy: { label: 'Visitor policy', type: 'text', table: 'accommodation_policies', column: 'visitor_policy' },
-  minStay: { label: 'Min. stay (months)', type: 'number', table: 'accommodation_policies', column: 'min_stay' },
 }
 
 function openFieldDialog(key: FieldKey) {
   editingField.value = key
   const meta = FIELD_META[key]
+  const raw = key in acc ? acc[key as keyof typeof acc] : rules[key as keyof typeof rules]
+  fieldDraftTo.value = ''
   if (meta.type === 'number') {
-    fieldDraftNum.value = (key in acc ? acc[key as keyof typeof acc] : rules[key as keyof typeof rules]) as number | null
+    fieldDraftNum.value = raw as number | null
+  } else if (meta.type === 'time') {
+    // Seed the picker from whatever's stored, including older hand-typed
+    // values like "10PM"; anything unparseable just starts blank.
+    fieldDraft.value = to24Hour(String(raw ?? ''))
+  } else if (meta.type === 'timerange') {
+    const [from, to] = splitTimeRange(String(raw ?? ''))
+    fieldDraft.value = from
+    fieldDraftTo.value = to
   } else {
-    const raw = key in acc ? acc[key as keyof typeof acc] : rules[key as keyof typeof rules]
     fieldDraft.value = String(raw ?? '')
   }
   fieldDialogOpen.value = true
@@ -1571,7 +1593,13 @@ async function saveField() {
     let value: string | number | null
     if (meta.type === 'number') value = fieldDraftNum.value
     else if (meta.type === 'select') value = fieldDraft.value || null
-    else value = fieldDraft.value.trim() || null
+    else if (meta.type === 'time') value = to12Hour(fieldDraft.value) || null
+    else if (meta.type === 'timerange') {
+      value =
+        fieldDraft.value && fieldDraftTo.value
+          ? `${to12Hour(fieldDraft.value)} – ${to12Hour(fieldDraftTo.value)}`
+          : null
+    } else value = fieldDraft.value.trim() || null
 
     if (meta.table === 'accommodations') {
       const payload = { [meta.column]: value } as Database['public']['Tables']['accommodations']['Update']
@@ -1588,7 +1616,6 @@ async function saveField() {
     switch (key) {
       case 'name': acc.name = String(value ?? ''); break
       case 'accommodationType': acc.accommodationType = String(value ?? ''); break
-      case 'address': acc.address = String(value ?? ''); break
       case 'barangay': acc.barangay = String(value ?? ''); break
       case 'city': acc.city = String(value ?? ''); break
       case 'description': acc.description = String(value ?? ''); break
@@ -1596,7 +1623,6 @@ async function saveField() {
       case 'curfewTime': rules.curfewTime = String(value ?? ''); break
       case 'quietHours': rules.quietHours = String(value ?? ''); break
       case 'visitorPolicy': rules.visitorPolicy = String(value ?? ''); break
-      case 'minStay': rules.minStay = value as number | null; break
     }
 
     fieldDialogOpen.value = false
@@ -1887,26 +1913,6 @@ async function addFloor() {
   }
 }
 
-// Native camera capture for every "Take photo" button on this page — a plain
-// <input capture> silently falls back to the file picker in Capacitor's
-// WebView because it never actually requests the runtime camera permission.
-async function capturePhoto(): Promise<File | null> {
-  try {
-    const photo = await Camera.getPhoto({
-      source: CameraSource.Camera,
-      resultType: CameraResultType.Uri,
-      quality: 80,
-    })
-    if (!photo.webPath) return null
-    const blob = await (await fetch(photo.webPath)).blob()
-    const ext = photo.format || 'jpeg'
-    return new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` })
-  } catch {
-    // User cancelled the camera (or denied permission) — no error toast for a cancel.
-    return null
-  }
-}
-
 async function addRoomPhotos(files: File[]) {
   if (!files.length || !editingRoomId.value) return
   uploadingRoomPhoto.value = true
@@ -1941,7 +1947,8 @@ async function onRoomPhotosSelected(event: Event) {
 }
 
 async function takeRoomPhoto() {
-  const file = await capturePhoto()
+  const { file, error } = await capturePhoto()
+  if (error) notify.error(error)
   if (file) await addRoomPhotos([file])
 }
 

@@ -482,32 +482,46 @@ onMounted(load)
   gap: 8px;
 }
 .dock-field {
-  position: relative;
   display: flex;
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: var(--m-shadow);
+}
+.dock-field:focus-within {
+  border-color: var(--m-primary);
 }
 .dock-icon {
-  position: absolute;
-  left: 13px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
   color: var(--m-muted);
   pointer-events: none;
 }
 .dock-input {
   width: 100%;
-  height: 44px;
-  padding: 0 14px 0 35px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  box-shadow: var(--m-shadow);
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--m-ink);
   font: inherit;
   font-size: 13.5px;
 }
+.dock-input::placeholder {
+  color: var(--m-muted);
+  opacity: 0.85;
+}
 .dock-input:focus {
-  border-color: var(--m-primary);
   outline: none;
 }
 .dock-btn {
@@ -517,9 +531,11 @@ onMounted(load)
   height: 44px;
   flex: 0 0 44px;
   place-items: center;
-  border: 1px solid var(--m-border);
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 50%;
-  background: var(--m-surface);
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   box-shadow: var(--m-shadow);
   color: var(--m-ink);
   cursor: pointer;

@@ -339,7 +339,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px var(--m-page-gutter) 24px;
+  /* Bottom clears the now-floating dock, same as the sibling sub-pages. */
+  padding: 10px var(--m-page-gutter) 74px;
 }
 .sk {
   border-radius: var(--m-radius);
@@ -361,39 +362,60 @@ onUnmounted(() => {
 }
 
 /* Search + filter, sitting in normal flow just below the header */
+/* Floats over the list like every other search dock. This is a sub-page —
+   back-arrow header, no bottom nav — so it sits on the safe-area inset
+   rather than the 68px the tabbed pages use to clear the nav. */
 .dock {
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: var(--m-page-gutter);
+  right: var(--m-page-gutter);
+  z-index: 60;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px var(--m-page-gutter) 0;
 }
 .dock-field {
-  position: relative;
   display: flex;
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: var(--m-shadow);
+}
+.dock-field:focus-within {
+  border-color: var(--m-primary);
 }
 .dock-icon {
-  position: absolute;
-  left: 13px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
   color: var(--m-muted);
   pointer-events: none;
 }
 .dock-input {
   width: 100%;
-  height: 44px;
-  padding: 0 14px 0 35px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  box-shadow: var(--m-shadow);
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--m-ink);
   font: inherit;
   font-size: 13.5px;
 }
+.dock-input::placeholder {
+  color: var(--m-muted);
+  opacity: 0.85;
+}
 .dock-input:focus {
-  border-color: var(--m-primary);
   outline: none;
 }
 .dock-btn {
@@ -403,9 +425,11 @@ onUnmounted(() => {
   height: 44px;
   flex: 0 0 44px;
   place-items: center;
-  border: 1px solid var(--m-border);
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 50%;
-  background: var(--m-surface);
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   box-shadow: var(--m-shadow);
   color: var(--m-ink);
   cursor: pointer;

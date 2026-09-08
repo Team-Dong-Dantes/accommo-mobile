@@ -12,26 +12,35 @@
           <p class="none">Map unavailable — VITE_MAPBOX_TOKEN isn't configured.</p>
         </template>
         <template v-else>
-          <label class="field">
-            <span class="field-label">Search</span>
-            <input v-model="query" type="text" class="field-input" placeholder="Search an address or landmark" @input="onQueryInput" />
-          </label>
+          <!-- The suggestion list floats over the sheet instead of sitting in
+               flow, where it was pushing the map down and getting clipped by
+               the scroll container. -->
+          <div class="search-wrap">
+            <label class="field">
+              <span class="field-label">Search</span>
+              <input v-model="query" type="text" class="field-input" placeholder="Search an address or landmark" @input="onQueryInput" />
+            </label>
 
-          <div v-if="searching" class="sec-hint">Searching…</div>
-          <div v-else-if="results.length" class="group">
-            <button v-for="r in results" :key="r.id" type="button" class="facility-row" @click="pickResult(r)">
-              <span class="facility-icon"><IconifyIcon icon="lucide:map-pin" width="16" /></span>
-              <span class="facility-body">
-                <span class="facility-name">{{ r.name }}</span>
-                <span v-if="r.addressGuess" class="facility-sub">{{ r.addressGuess }}</span>
-              </span>
-            </button>
+            <div v-if="searching" class="search-pop search-pop--hint">Searching…</div>
+            <div v-else-if="results.length" class="search-pop">
+              <button v-for="r in results" :key="r.id" type="button" class="facility-row" @click="pickResult(r)">
+                <span class="facility-icon"><IconifyIcon icon="lucide:map-pin" width="16" /></span>
+                <span class="facility-body">
+                  <span class="facility-name">{{ r.name }}</span>
+                  <span v-if="r.addressGuess" class="facility-sub">{{ r.addressGuess }}</span>
+                </span>
+              </button>
+            </div>
           </div>
 
           <div class="location-map-wrap">
             <div ref="mapEl" class="location-map" aria-label="Map used to set the accommodation location" />
           </div>
           <p class="sec-hint">Tap the map to drop a pin, or use search / your current location above.</p>
+          <div v-if="barangayGuess || cityGuess" class="picked">
+            <IconifyIcon icon="lucide:map-pin" width="14" />
+            <span>{{ [barangayGuess, cityGuess].filter(Boolean).join(', ') }}</span>
+          </div>
         </template>
       </div>
 
@@ -66,7 +75,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useNotify } from '@/utils/notify'
-import { CAMPUS } from '@/utils/geo'
+import { CAMPUS, geolocationErrorMessage } from '@/utils/geo'
 
 const props = defineProps<{
   modelValue: boolean
@@ -76,7 +85,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [boolean]
-  confirm: [{ lat: number; lng: number; address: string; barangay: string; city: string }]
+  confirm: [{ lat: number; lng: number; barangay: string; city: string }]
 }>()
 
 const notify = useNotify()
@@ -107,6 +116,7 @@ const cityGuess = ref('')
 
 let map: mapboxgl.Map | null = null
 let marker: mapboxgl.Marker | null = null
+let mapResizeObserver: ResizeObserver | null = null
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 function setPin(pinLng: number, pinLat: number, zoom = 16) {
@@ -133,10 +143,24 @@ function initMap() {
   map.on('load', () => {
     if (props.initialLat != null && props.initialLng != null) setPin(props.initialLng, props.initialLat)
   })
-  map.on('click', (event) => setPin(event.lngLat.lng, event.lngLat.lat))
+  // Dropping a pin has to fill the fields too — before, clicking only moved
+  // the marker and left barangay/city empty unless you'd used search.
+  map.on('click', (event) => {
+    setPin(event.lngLat.lng, event.lngLat.lat)
+    void reverseGeocode(event.lngLat.lng, event.lngLat.lat, { overwrite: true })
+  })
+
+  // The sheet animates open, so the container has no usable size for the
+  // first few frames and mapbox renders into nothing. Mapbox never watches
+  // its own container, so observe it and resize whenever it actually gets a
+  // size — that covers the open animation without guessing at a delay.
+  mapResizeObserver = new ResizeObserver(() => map?.resize())
+  mapResizeObserver.observe(mapEl.value)
 }
 
 function destroyMap() {
+  mapResizeObserver?.disconnect()
+  mapResizeObserver = null
   marker = null
   map?.remove()
   map = null
@@ -145,6 +169,11 @@ function destroyMap() {
 // A dialog's content isn't in the DOM with real dimensions until it opens —
 // mapbox-gl needs a visible, sized container to render into, so wait for
 // that instead of initializing on component mount.
+//
+// `immediate` matters: the callers mount this with `v-if="open"`, so the
+// component is created when modelValue is *already* true. A plain watcher
+// never fires for that first value, initMap() was never reached, and the
+// map simply never rendered.
 watch(
   () => props.modelValue,
   (open) => {
@@ -156,16 +185,14 @@ watch(
       addressGuess.value = ''
       barangayGuess.value = ''
       cityGuess.value = ''
-      void nextTick(() => {
-        setTimeout(() => {
-          initMap()
-          map?.resize()
-        }, 50)
-      })
+      // No arbitrary delay needed — the ResizeObserver set up in initMap()
+      // resizes the map as the sheet animates to its real size.
+      void nextTick(initMap)
     } else {
       destroyMap()
     }
   },
+  { immediate: true },
 )
 
 onBeforeUnmount(destroyMap)
@@ -231,22 +258,30 @@ function useCurrentLocation() {
     notify.error('Your device does not support location services.')
     return
   }
+  // Bail before prompting when the origin can't produce a position at all —
+  // geolocationErrorMessage() explains which case it is.
+  if (!window.isSecureContext) {
+    notify.error(geolocationErrorMessage())
+    return
+  }
   locating.value = true
   navigator.geolocation.getCurrentPosition(
     (position) => {
       locating.value = false
       setPin(position.coords.longitude, position.coords.latitude)
-      void reverseGeocode(position.coords.longitude, position.coords.latitude)
+      void reverseGeocode(position.coords.longitude, position.coords.latitude, { overwrite: true })
     },
-    () => {
+    (error) => {
       locating.value = false
-      notify.error('Could not get your current location.')
+      notify.error(`${geolocationErrorMessage(error)} You can still tap the map to drop a pin.`)
     },
-    { enableHighAccuracy: true, timeout: 10000 },
+    // A first indoor fix regularly takes longer than 10s; allowing a recent
+    // cached position also lets a repeat press answer immediately.
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
   )
 }
 
-async function reverseGeocode(pinLng: number, pinLat: number) {
+async function reverseGeocode(pinLng: number, pinLat: number, opts?: { overwrite?: boolean }) {
   if (!hasToken) return
   try {
     const url =
@@ -259,10 +294,21 @@ async function reverseGeocode(pinLng: number, pinLat: number) {
       properties?: { place_formatted?: string; full_address?: string; context?: Record<string, { name?: string }> }
     } | undefined
     if (!feature) return
-    addressGuess.value ||= feature.properties?.place_formatted || feature.properties?.full_address || ''
-    barangayGuess.value ||=
+    const address = feature.properties?.place_formatted || feature.properties?.full_address || ''
+    const barangay =
       contextName(feature.properties?.context, 'locality') || contextName(feature.properties?.context, 'neighborhood')
-    cityGuess.value ||= contextName(feature.properties?.context, 'place')
+    const city = contextName(feature.properties?.context, 'place')
+    // A fresh pin replaces what the last one guessed; the fill-only-if-blank
+    // form is still used when we're just topping up before confirming.
+    if (opts?.overwrite) {
+      addressGuess.value = address
+      barangayGuess.value = barangay
+      cityGuess.value = city
+    } else {
+      addressGuess.value ||= address
+      barangayGuess.value ||= barangay
+      cityGuess.value ||= city
+    }
   } catch {
     // Best-effort only — a failed reverse-geocode still leaves lat/lng set.
   }
@@ -278,7 +324,6 @@ async function confirmLocation() {
     emit('confirm', {
       lat: lat.value,
       lng: lng.value,
-      address: addressGuess.value,
       barangay: barangayGuess.value,
       city: cityGuess.value,
     })
@@ -438,6 +483,38 @@ async function confirmLocation() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Anchors the floating suggestion list, and keeps it above the map. */
+.search-wrap {
+  position: relative;
+  z-index: 2;
+}
+.search-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+}
+.search-pop--hint {
+  padding: 10px 12px;
+  color: var(--m-muted);
+  font-size: 12px;
+}
+.picked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--m-primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .location-map-wrap {
   flex: 1;
   min-height: 220px;

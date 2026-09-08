@@ -68,6 +68,10 @@ export default defineConfig((/* ctx */) => {
         'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
         'import.meta.env.VITE_DEMO_MODE': JSON.stringify(env.VITE_DEMO_MODE),
         'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify(env.VITE_MAPBOX_TOKEN),
+        // Quasar only auto-exposes QCLI_-prefixed vars, so every VITE_ one
+        // has to be inlined here or it reads as undefined in client code.
+        'import.meta.env.VITE_CLOUDINARY_CLOUD_NAME': JSON.stringify(env.VITE_CLOUDINARY_CLOUD_NAME),
+        'import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET': JSON.stringify(env.VITE_CLOUDINARY_UPLOAD_PRESET),
       },
       // ignorePublicFolder: true,
       // minify: false,

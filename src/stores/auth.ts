@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/utils/supabase';
-import { uploadDocument } from '@/utils/upload';
+import { uploadPrivateDocument } from '@/utils/upload';
 import type { RegisterForm } from '@/types/forms';
 
 // The database role enum uses 'accommodation_manager' where the app's UI and
@@ -194,12 +194,17 @@ export const useAuthStore = defineStore('auth', {
     ) {
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
-      if (form.schoolIdFile) schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id');
-      if (form.assessmentFile) assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment');
+      if (form.schoolIdFile) schoolIdUrl = await uploadPrivateDocument(form.schoolIdFile, userId, 'school_id');
+      if (form.assessmentFile) assessmentUrl = await uploadPrivateDocument(form.assessmentFile, userId, 'assessment');
 
       const { error: profileError } = await supabase
         .from('student_profiles')
         .update({
+          // createStudentAccount runs at the Account step, before the student
+          // number is even asked for, so it inserted null. Without this line the
+          // number typed on the Verification step was thrown away and the student
+          // ended up with no QR identity at all.
+          student_id: form.studentId || null,
           college: form.college,
           program: form.program,
           year_level: parseInt(form.yearLevel.charAt(0)) || 1,
@@ -233,8 +238,8 @@ export const useAuthStore = defineStore('auth', {
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
 
-      if (form.schoolIdFile) schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id');
-      if (form.assessmentFile) assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment');
+      if (form.schoolIdFile) schoolIdUrl = await uploadPrivateDocument(form.schoolIdFile, userId, 'school_id');
+      if (form.assessmentFile) assessmentUrl = await uploadPrivateDocument(form.assessmentFile, userId, 'assessment');
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -281,14 +286,14 @@ export const useAuthStore = defineStore('auth', {
 
       if (form.schoolIdFile) {
         try {
-          schoolIdUrl = await uploadDocument(form.schoolIdFile, userId, 'school_id');
+          schoolIdUrl = await uploadPrivateDocument(form.schoolIdFile, userId, 'school_id');
         } catch {
           schoolIdUrl = null;
         }
       }
       if (form.assessmentFile) {
         try {
-          assessmentUrl = await uploadDocument(form.assessmentFile, userId, 'assessment');
+          assessmentUrl = await uploadPrivateDocument(form.assessmentFile, userId, 'assessment');
         } catch {
           assessmentUrl = null;
         }
@@ -384,8 +389,8 @@ export const useAuthStore = defineStore('auth', {
       }
 
       const [governmentIdUrl, businessPermitUrl] = await Promise.all([
-        uploadDocument(form.governmentIdFile, userId, 'government_id'),
-        uploadDocument(form.businessPermitFile, userId, 'business_permit'),
+        uploadPrivateDocument(form.governmentIdFile, userId, 'government_id'),
+        uploadPrivateDocument(form.businessPermitFile, userId, 'business_permit'),
       ]);
 
       const { error } = await supabase.from('verification_documents').insert([

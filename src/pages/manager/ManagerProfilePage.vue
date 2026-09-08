@@ -316,7 +316,7 @@ async function load(silent = false) {
     const [{ data: profile, error: profileError }, { data: managerProfile }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, email, phone, initials, status, created_at, updated_at')
+        .select('full_name, email, phone, initials, status, created_at, updated_at, avatar_url')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -335,7 +335,9 @@ async function load(silent = false) {
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
 
-    // Avatar from metadata
+    // Avatar from metadata, falling back to the stored column — this
+    // session's metadata can be stale or empty (uploaded on another device,
+    // or written straight to the database).
     const metadata = user.user_metadata as Record<string, unknown> | undefined
     const picture =
       typeof metadata?.avatar_url === 'string'
@@ -343,7 +345,8 @@ async function load(silent = false) {
         : typeof metadata?.picture === 'string'
           ? metadata.picture
           : ''
-    avatarUrl.value = picture ? resolveAsset(picture) : null
+    const storedAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url || ''
+    avatarUrl.value = resolveAsset(picture || storedAvatar) || null
     responseRate.value = managerProfile?.response_rate ?? null
 
     // Never clobber an in-progress edit with a silent (realtime-triggered)

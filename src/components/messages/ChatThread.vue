@@ -152,7 +152,7 @@ import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
 import { respondToApplication } from '@/utils/applications'
 import { uploadToCloudinary } from '@/utils/upload'
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { capturePhoto } from '@/utils/camera'
 
 const props = defineProps<{ conversationId: string; role: 'manager' | 'student'; roomId?: string | undefined }>()
 const emit = defineEmits<{ close: [] }>()
@@ -253,21 +253,11 @@ function onAttach(e: Event) {
 }
 
 async function takePhoto() {
-  try {
-    const photo = await Camera.getPhoto({
-      source: CameraSource.Camera,
-      resultType: CameraResultType.Uri,
-      quality: 80,
-    })
-    if (!photo.webPath) return
-    const blob = await (await fetch(photo.webPath)).blob()
-    const ext = photo.format || 'jpeg'
-    pendingFile.value = new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` })
-    void send()
-  } catch {
-    // ponytail: user cancelling the camera (or denying permission) throws the
-    // same way — swallow it, no error toast for a cancel.
-  }
+  const { file, error } = await capturePhoto()
+  if (error) notify.error(error)
+  if (!file) return
+  pendingFile.value = file
+  void send()
 }
 
 function onTakePhotoClick() {

@@ -108,6 +108,52 @@ async function performUpload(file: File): Promise<CloudinaryUploadResult> {
   return withTimeout;
 }
 
+const DOC_BUCKET = 'documents';
+
+/**
+ * Uploads a sensitive document (identity, enrolment, permit) to the PRIVATE
+ * `documents` bucket and returns its storage PATH, not a URL.
+ *
+ * Cloudinary delivery URLs are unauthenticated: the link itself is the
+ * credential, so anyone who ever sees one can read that student's school ID or
+ * that manager's government ID forever, and it survives any later rejection.
+ * Photos and avatars stay on Cloudinary — only documents move here. Read these
+ * back with signedDocUrl().
+ */
+export async function uploadPrivateDocument(
+  file: File,
+  userId: string,
+  docType: string,
+): Promise<string> {
+  const validationError = validateFile(file);
+  if (validationError) throw new Error(validationError);
+
+  // The bucket's RLS policies key off the first path segment being the uploader.
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+  const path = `${userId}/${docType}-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from(DOC_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+/**
+ * Time-limited signed URL for a stored document. Rows written before the move
+ * hold a full Cloudinary URL and pass straight through, so old and new rows
+ * both render from one call site.
+ */
+export async function signedDocUrl(
+  value: string | null | undefined,
+  expiresIn = 300,
+): Promise<string> {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const { data, error } = await supabase.storage.from(DOC_BUCKET).createSignedUrl(value, expiresIn);
+  if (error) return '';
+  return data?.signedUrl ?? '';
+}
+
 /** Uploads one or more files / images to Cloudinary. */
 export async function uploadToCloudinary(
   files: File | File[],
