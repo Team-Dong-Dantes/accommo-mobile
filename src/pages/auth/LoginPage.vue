@@ -90,6 +90,14 @@ onMounted(() => {
     notify.error('This account has been suspended. Contact OSAS if you think this is a mistake.');
     void router.replace('/login');
   }
+  if (route.query.awaitingApproval) {
+    notify.info('Your application is still being reviewed by OSAS. You can sign in once it is approved.');
+    void router.replace('/login');
+  }
+  if (route.query.applicationRejected) {
+    notify.error('OSAS did not approve this application. Contact OSAS to reapply.');
+    void router.replace('/login');
+  }
   if (route.query.adminUsesWeb) {
     notify.info('Admin accounts sign in on the OSAS web app, not here.');
     void router.replace('/login');
@@ -97,8 +105,62 @@ onMounted(() => {
   // Bounced here by the router: signed in, but the address was never confirmed.
   if (route.query.verifyEmail) {
     void resumeEmailVerify();
+    return;
   }
+  void handleOAuthReturn();
 });
+
+/**
+ * "Continue with Google" returns to this screen, and signInWithOAuth provisions
+ * the account whether or not the person had ever registered. Nothing was reading
+ * that outcome, so a brand-new Google user just landed back on a login form with
+ * no message, and a manager still awaiting OSAS got no explanation either.
+ */
+async function handleOAuthReturn() {
+  // Supabase reports OAuth failures (a banned account among them) in the fragment.
+  const fragment = window.location.hash.replace(/^#\/?/, '');
+  if (fragment) {
+    const params = new URLSearchParams(fragment);
+    const failure = params.get('error_description') || params.get('error');
+    if (failure) {
+      const text = decodeURIComponent(failure).replace(/\+/g, ' ');
+      notify.error(/banned|blocked/i.test(text)
+        ? 'Your application is still being reviewed by OSAS. You can sign in once it is approved.'
+        : text);
+      history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+  }
+
+  const { session, profile, registered, status } = await authStore.getSessionProfile();
+  if (!session) return;
+
+  if (!registered) {
+    notify.info("This account isn't registered yet — let's finish setting it up.");
+    void router.push('/register/role');
+    return;
+  }
+
+  const role = profile?.role;
+  if (role === 'manager') {
+    if (status === 'pending') {
+      await supabase.auth.signOut();
+      authStore.clearCachedRole();
+      notify.info('Your application is still being reviewed by OSAS. You can sign in once it is approved.');
+      return;
+    }
+    if (status === 'rejected' || status === 'reviewing') {
+      notify.warning('OSAS needs changes to your application — update it below.');
+      void router.push('/register/manager?resubmit=true');
+      return;
+    }
+    void router.push('/manager/dashboard');
+    return;
+  }
+  if (role === 'student') {
+    void router.push(status === 'rejected' || status === 'reviewing' ? '/student/support' : '/student/home');
+  }
+}
 
 // The router keeps the session when it bounces an unconfirmed address, so the
 // e-mail is read back from it rather than asking the user to retype it.
@@ -167,6 +229,12 @@ async function handleLogin() {
       return;
     }
 
+    if (role === 'manager' && (status === 'rejected' || status === 'reviewing')) {
+      notify.warning('OSAS needs changes to your application — update it below.');
+      void router.push('/register/manager?resubmit=true');
+      return;
+    }
+
     if (status === 'rejected') {
       notify.warning('OSAS rejected your documents — re-upload them to try again.');
     } else if (status === 'pending' || status === 'reviewing') {
@@ -175,11 +243,12 @@ async function handleLogin() {
       notify.success('Welcome back!');
     }
 
-    // A rejected or pending user is sent straight to the screen where they can
-    // actually act on it, instead of a home page that never mentions it.
-    const needsOsas = status === 'rejected' || status === 'reviewing';
-    if (role === 'student') void router.push(needsOsas ? '/student/support' : '/student/home');
-    else if (role === 'manager') void router.push(needsOsas ? '/manager/osas-compliance' : '/manager/dashboard');
+    // Students are sent straight to the screen where they can act on their
+    // status. Managers only ever reach this point when already verified —
+    // login() refuses the sign-in otherwise.
+    const studentNeedsOsas = status === 'rejected' || status === 'reviewing';
+    if (role === 'student') void router.push(studentNeedsOsas ? '/student/support' : '/student/home');
+    else if (role === 'manager') void router.push('/manager/dashboard');
     else {
       notify.info('Your account role is not set. Please complete registration.');
       await supabase.auth.signOut();

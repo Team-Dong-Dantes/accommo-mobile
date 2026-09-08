@@ -2,15 +2,27 @@
   <q-page class="register-page">
     <div class="register-container column">
       <h3 class="auth-title col-auto">
-        {{ isGoogleMode ? 'Complete Profile' : 'Manager Application' }}
+        {{ isResubmit ? 'Update Application' : isGoogleMode ? 'Complete Profile' : 'Manager Application' }}
       </h3>
-      <p class="auth-subtitle col-auto">Partner with Accommo to rent your property</p>
+      <p class="auth-subtitle col-auto">
+        {{ isResubmit ? 'OSAS reviewed your application and needs changes' : 'Partner with Accommo to rent your property' }}
+      </p>
+
+      <div v-if="isResubmit" class="reject-banner col-auto">
+        <IconifyIcon icon="lucide:triangle-alert" width="16" />
+        <div>
+          <p class="reject-title">What OSAS asked for</p>
+          <p class="reject-text">
+            {{ decisionReason || 'OSAS needs clearer copies of your documents — re-upload them below.' }}
+          </p>
+        </div>
+      </div>
 
       <q-form ref="registerFormRef" class="col column" @submit.prevent="handleRegister">
         <q-stepper v-model="step" ref="stepper" color="teal-9" active-color="teal-9" done-color="teal-9" animated flat
           alternative-labels class="bg-transparent auth-stepper col-auto">
 
-          <q-step :name="1" title="Personal" icon="person" :done="step > 1">
+          <q-step v-if="!isResubmit" :name="1" title="Personal" icon="person" :done="step > 1">
             <template v-if="!isGoogleMode">
               <AuthGoogleBtn @click="handleGoogleAuth">Continue with Google</AuthGoogleBtn>
               <AuthDivider />
@@ -53,7 +65,7 @@
             </AuthInput>
           </q-step>
 
-          <q-step v-if="!isGoogleMode" :name="2" title="Account" icon="settings" :done="step > 2">
+          <q-step v-if="!isGoogleMode && !isResubmit" :name="2" title="Account" icon="settings" :done="step > 2">
             <AuthInput
               v-model="form.emailUser"
               label="Email"
@@ -114,7 +126,7 @@
             </AuthInput>
           </q-step>
 
-          <q-step v-if="!isGoogleMode" :name="3" title="Confirm e-mail" icon="mail" :done="step > 3">
+          <q-step v-if="!isGoogleMode && !isResubmit" :name="3" title="Confirm e-mail" icon="mail" :done="step > 3">
             <template v-if="!emailCreated">
               <div class="q-pa-sm">
                 <p class="otp-note text-grey-7">We’ll create your manager account, then send a code to your inbox to confirm your e-mail before you continue.</p>
@@ -263,6 +275,10 @@ function syncFullName() {
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const loading = ref(false);
+// OSAS sent the application back: sign-in is allowed again so it can be
+// corrected, and only the Verification step is relevant.
+const isResubmit = ref(false);
+const decisionReason = ref('');
 
 onMounted(async () => {
   if (route.query.newUser) {
@@ -270,9 +286,27 @@ onMounted(async () => {
     void router.replace('/register/manager');
   }
 
-  const { session, profile } = await authStore.getSessionProfile();
+  const { session, profile, registered, status } = await authStore.getSessionProfile();
 
-  if (session && !profile) {
+  // Resubmission: an existing manager OSAS has asked to change something. Their
+  // account and documents already exist, so only the Verification step applies.
+  if (session && profile && registered && (status === 'rejected' || status === 'reviewing')) {
+    isResubmit.value = true;
+    googleUserId.value = session.user.id;
+    form.email = session.user.email || '';
+    const split = splitFullName(String(session.user.user_metadata?.full_name || ''));
+    form.firstName = split.firstName;
+    form.lastName = split.lastName;
+    syncFullName();
+    decisionReason.value = await authStore.fetchDecisionReason(session.user.id);
+    step.value = 4;
+    return;
+  }
+
+  // See RegisterPage: the auth trigger always writes the users row, so the old
+  // "session && !profile" test could never be true.
+  const viaOAuth = (session?.user?.app_metadata as Record<string, unknown> | undefined)?.provider !== 'email';
+  if (session && profile && !registered && viaOAuth) {
     isGoogleMode.value = true;
     googleUserId.value = session.user.id;
     form.email = session.user.email || '';
@@ -290,6 +324,20 @@ async function createAccountNow(): Promise<boolean> {
     syncFullName();
     if (form.phoneDigits) form.phone = normalizePhPhone(form.phoneDigits);
     if (!isGoogleMode.value) form.email = `${form.emailUser}@${form.emailDomain}`;
+
+  // Resuming an unfinished registration: the auth account already exists (it is
+  // created when leaving the Account step, and half-finished accounts are now
+  // routed back here), so signing up again would only fail with "already
+  // registered" and trap the user in a loop. Reuse the live session instead.
+  const existing = await supabase.auth.getUser();
+  const existingUser = existing.data?.user;
+  if (existingUser) {
+    createdUserId = existingUser.id;
+    emailCreated.value = true;
+    creatingAccount.value = false;
+    return true;
+  }
+
     createdUserId = await authStore.createManagerAccount(form);
     emailCreated.value = true;
     return true;
@@ -366,6 +414,13 @@ async function handleRegister() {
   try {
     loading.value = true;
 
+    if (isResubmit.value) {
+      await authStore.resubmitManagerApplication(googleUserId.value, form);
+      notify.success('Application updated. OSAS will review it again — you can sign in once it is approved.');
+      void router.push('/login');
+      return;
+    }
+
     if (isGoogleMode.value) {
       await authStore.completeGoogleManagerProfile(googleUserId.value, form);
     } else {
@@ -375,11 +430,11 @@ async function handleRegister() {
         await authStore.registerManager(form); // safety fallback (no early account)
       }
     }
-    // Both paths land in the same place. Previously the Google path stayed signed
-    // in on the dashboard while the password path was signed out to /login, so
-    // the same application produced two different outcomes.
-    notify.success('Application submitted — OSAS will review your documents.');
-    void router.push('/manager/osas-compliance');
+    // Both paths end the same way: signed out, waiting on OSAS. A manager holds
+    // no session until the application is approved, and login() enforces that,
+    // so there is nowhere in the app to send them yet.
+    notify.success('Application submitted. OSAS will review your documents — you can sign in once it is approved.');
+    void router.push('/login');
   } catch (error: unknown) {
     notify.error(error instanceof Error ? error.message : 'An unexpected error occurred');
   } finally {
@@ -394,6 +449,20 @@ function onEmailVerified() {
 </script>
 
 <style scoped>
+.reject-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--m-danger) 35%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--m-danger) 8%, transparent);
+  color: var(--m-danger);
+}
+.reject-title { margin: 0 0 2px; font-size: 13px; font-weight: 700; }
+.reject-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--m-ink); }
+
 .register-container {
   background: var(--m-surface);
   border-radius: 0 0 28px 28px;

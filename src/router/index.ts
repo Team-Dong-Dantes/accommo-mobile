@@ -26,6 +26,8 @@ export default defineRouter(() => {
   // expired. Cached per navigation batch alongside the role lookup.
   let lastStatus: string | null = null;
   let lastEmailVerified: boolean | null = null;
+  let lastRegistered: boolean | null = null;
+  let lastRejected = false;
 
   async function fetchUserRole(session: { user: { id: string; user_metadata?: Record<string, unknown> } }): Promise<string | null> {
     const authStore = useAuthStore();
@@ -37,7 +39,7 @@ export default defineRouter(() => {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('role, status, email_verified_at')
+          .select('role, status, email_verified_at, registered_at')
           .eq('id', session.user.id)
           .maybeSingle();
 
@@ -45,6 +47,8 @@ export default defineRouter(() => {
 
         lastStatus = typeof data.status === 'string' ? data.status : null;
         lastEmailVerified = data.email_verified_at !== null;
+        lastRegistered = data.registered_at !== null;
+        lastRejected = data.status === 'rejected';
 
         let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
         if (role === 'accommodation_manager') role = 'manager';
@@ -96,17 +100,37 @@ export default defineRouter(() => {
         }
         // Signed in but never proved they read their e-mail. The session is kept
         // so the login screen can offer them a code instead of a dead end.
+        //
+        // Must ALLOW /login and /register here rather than redirect: returning a
+        // new location unconditionally made this guard redirect on every call,
+        // including the call for /login?verifyEmail=true itself, which Vue Router
+        // aborts as an infinite redirect and the app never boots.
         if (role !== null && lastEmailVerified === false) {
+          if (to.path === '/login' || to.path.startsWith('/register')) return true;
           return '/login?verifyEmail=true';
+        }
+        // The account exists but its owner never finished registering — the normal
+        // state right after "Continue with Google", because signInWithOAuth
+        // provisions the user whether they came from login or register. Send them
+        // to pick a role rather than dropping them into the app as a student.
+        if (role !== null && lastRegistered === false) {
+          if (to.path.startsWith('/register') || to.path === '/login') return true;
+          return '/register/role';
         }
       }
 
       if (to.path.startsWith('/register')) {
-        // Existing accounts shouldn't re-register — sign out and send them to
-        // login. But a brand-new Google signup has a session and NO users row
-        // yet; let it through so RegisterPage's profile-completion mode runs.
+        // Only a FINISHED account is barred from re-registering. The old check
+        // was "has a users row", but the auth trigger always creates one, so a
+        // brand-new Google signup was evicted with "account already exists" and
+        // could never complete its profile.
         const role = await fetchUserRole(session);
-        if (role !== null) {
+        // A manager OSAS has sent back is registered, but must be allowed onto the
+        // register screen to correct the application — otherwise the eviction below
+        // would sign them out before the resubmission redirect could ever run.
+        const resubmitting = role === 'manager'
+          && (lastStatus === 'rejected' || lastStatus === 'reviewing');
+        if (role !== null && lastRegistered === true && !resubmitting) {
           await supabase.auth.signOut();
           return '/login?accountExists=true';
         }
@@ -146,6 +170,25 @@ export default defineRouter(() => {
 
       // Role-based authorization: protect student vs manager routes
       const role = await fetchUserRole(session);
+
+      // A manager holds no session at all until OSAS approves the application —
+      // not a reduced surface, no session. Enforced here as well as in login()
+      // so a session that predates the decision (or one left open while OSAS
+      // rejects) is dropped on the next navigation.
+      //
+      // Students are deliberately NOT treated this way: a pending student may
+      // browse while waiting, and the lease policy already stops them acting.
+      if (role === 'manager' && lastStatus === 'pending') {
+        await supabase.auth.signOut();
+        useAuthStore().clearCachedRole();
+        lastStatus = null;
+        return '/login?awaitingApproval=true';
+      }
+      // OSAS has replied and wants changes: let them in, but only to the screen
+      // where they can act on it.
+      if (role === 'manager' && (lastStatus === 'rejected' || lastStatus === 'reviewing')) {
+        if (!to.path.startsWith('/register')) return '/register/manager?resubmit=true';
+      }
       if (to.path.startsWith('/student') && role !== 'student') {
         return role === 'manager' ? '/manager/dashboard' : '/login';
       }

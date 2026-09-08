@@ -1354,6 +1354,7 @@ export type Database = {
           notification_prefs: Json
           onboarding_complete: boolean
           phone: string
+          registered_at: string | null
           role: Database["public"]["Enums"]["user_role"]
           sex: string | null
           status: Database["public"]["Enums"]["user_status"]
@@ -1373,6 +1374,7 @@ export type Database = {
           notification_prefs?: Json
           onboarding_complete?: boolean
           phone: string
+          registered_at?: string | null
           role: Database["public"]["Enums"]["user_role"]
           sex?: string | null
           status?: Database["public"]["Enums"]["user_status"]
@@ -1392,6 +1394,7 @@ export type Database = {
           notification_prefs?: Json
           onboarding_complete?: boolean
           phone?: string
+          registered_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           sex?: string | null
           status?: Database["public"]["Enums"]["user_status"]
@@ -1558,6 +1561,10 @@ export type Database = {
           p_type: string
         }
         Returns: undefined
+      }
+      purge_unverified_accounts: {
+        Args: { p_older_than?: string }
+        Returns: number
       }
       recompute_room_occupancy: {
         Args: { p_room_id: string }
