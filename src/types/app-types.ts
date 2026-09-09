@@ -8,14 +8,6 @@ export interface ManagerProfile {
   totalReviews: number
   propertiesActive: number
   occupancyRate: number
-  osasCompliance: ComplianceItem[]
-}
-
-export interface ComplianceItem {
-  id?: string
-  documentName: string
-  expiryDate: string
-  status: 'Valid' | 'Expiring' | 'Missing'
 }
 
 export interface ScannedStudent {
@@ -67,8 +59,6 @@ export interface PaymentRecord {
 export type PaymentStatus = 'Pending' | 'Paid' | 'Overdue'
 
 export type TenantStatus = 'Current' | 'Moved Out' | 'Evicted'
-
-export type ComplianceStatus = 'Valid' | 'Expiring' | 'Missing'
 
 export interface QRScanResult {
   studentId: string

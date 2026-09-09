@@ -115,12 +115,12 @@
                 message="Account, verification or technical issues you raise with OSAS will show up here."
               />
               <div v-else class="group">
-                <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="openTicket(t)">
+                <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
                   <span class="ticket-body">
                     <span class="ticket-subject">{{ t.subject }}</span>
                     <span class="ticket-when">{{ since(t.reportedAt) }}</span>
                   </span>
-                  <span class="ticket-chip" :class="`ticket-chip--${TICKET_TONE[t.status] || 'grey'}`">{{ titleCase(t.status) }}</span>
+                  <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
                 </button>
               </div>
             </q-tab-panel>
@@ -129,58 +129,43 @@
       </div>
     </div>
 
-    <q-dialog v-model="ticketOpen" position="bottom">
-      <q-card v-if="selectedTicket" class="detail-sheet">
-        <h3 class="detail-title">{{ selectedTicket.subject }}</h3>
-        <span class="ticket-chip" :class="`ticket-chip--${TICKET_TONE[selectedTicket.status] || 'grey'}`">{{ titleCase(selectedTicket.status) }}</span>
-        <p class="detail-label">{{ titleCase(selectedTicket.category) }} · {{ since(selectedTicket.reportedAt) }}</p>
-        <p class="detail-text">{{ selectedTicket.description || 'No description given.' }}</p>
-        <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="ticketOpen = false" />
-      </q-card>
-    </q-dialog>
+    <TicketThread v-if="openTicket" :key="openTicket.id" :ticket="openTicket" @close="closeTicket" />
 
-    <q-dialog v-model="newTicketOpen" position="bottom">
-      <q-card class="new-sheet">
-        <h3 class="new-title">Raise a ticket</h3>
-        <label class="field">
-          <span class="field-label">Category</span>
-          <select v-model="ticketForm.category" class="field-input">
-            <option value="verification">Verification</option>
-            <option value="accommodation">Accommodation</option>
-            <option value="technical">Technical / app issue</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-        <label class="field">
-          <span class="field-label">Subject</span>
-          <input v-model="ticketForm.subject" type="text" class="field-input" placeholder="Short summary" />
-        </label>
-        <label class="field">
-          <span class="field-label">Description</span>
-          <textarea v-model="ticketForm.description" class="field-input field-textarea" rows="4" placeholder="What happened?" />
-        </label>
-        <label class="field">
-          <span class="field-label">Screenshot (optional)</span>
-          <input type="file" accept="image/*" class="submit-file" @change="onTicketPhotoSelected" />
-          <span v-if="uploadingPhoto" class="sec-hint">Uploading…</span>
-        </label>
-        <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="submittingTicket" label="Submit" @click="submitTicket" />
-      </q-card>
-    </q-dialog>
+    <TicketCompose
+      v-if="newTicketOpen"
+      attachment
+      :categories="TICKET_CATEGORIES"
+      :submitting="submittingTicket"
+      @close="newTicketOpen = false"
+      @submit="submitTicket"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
+import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
+import { chatFullscreen } from '@/utils/chatFullscreen'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument, uploadSecureDocument, secureDocUrl } from '@/utils/upload'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
+import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import TicketThread from '@/components/shared/TicketThread.vue'
+import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
+
+const TICKET_CATEGORIES = [
+  { value: 'verification', label: 'Verification' },
+  { value: 'accommodation', label: 'Accommodation' },
+  { value: 'technical', label: 'Technical / app issue' },
+  { value: 'other', label: 'Other' },
+]
 
 const TABS = [
   { key: 'docs', label: 'Documents' },
@@ -188,16 +173,6 @@ const TABS = [
 ] as const
 
 const REQUIRED_DOCS = ['school_id', 'assessment_of_fees']
-
-const TICKET_TONE: Record<string, string> = {
-  open: 'amber',
-  pending: 'amber',
-  assigned: 'orange',
-  in_progress: 'orange',
-  under_review: 'orange',
-  resolved: 'green',
-  closed: 'grey',
-}
 
 interface DocRow {
   type: string
@@ -216,9 +191,12 @@ interface Ticket {
   category: string
   status: string
   reportedAt: string
+  photoUrls: string[]
 }
 
 const notify = useNotify()
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
@@ -254,15 +232,7 @@ const docs = computed<DocRow[]>(() =>
   }),
 )
 
-function titleCase(raw: string | null | undefined) {
-  if (!raw) return ''
-  return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-}
-
 /** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
-function isPdf(url: string) {
-  return /\.pdf(\?|$)/i.test(url)
-}
 
 function openFile(url: string) {
   if (url) window.open(resolveAsset(url), '_blank', 'noopener')
@@ -272,7 +242,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
       error.value = 'Not signed in.'
@@ -289,7 +259,7 @@ async function load() {
         .order('uploaded_at', { ascending: false }),
       supabase
         .from('tickets')
-        .select('id, subject, description, category, status, reported_at')
+        .select('id, subject, description, category, status, reported_at, photo_urls')
         .eq('student_id', user.id)
         .order('reported_at', { ascending: false }),
       supabase.from('users').select('status').eq('id', user.id).maybeSingle(),
@@ -335,6 +305,7 @@ async function load() {
       category: t.category || 'other',
       status: t.status,
       reportedAt: t.reported_at,
+      photoUrls: t.photo_urls ?? [],
     }))
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
@@ -392,50 +363,36 @@ async function onDocSelected(event: Event, docType: string) {
   }
 }
 
-const ticketOpen = ref(false)
-const selectedTicket = ref<Ticket | null>(null)
-function openTicket(t: Ticket) {
-  selectedTicket.value = t
-  ticketOpen.value = true
+// ?t=<id> opens the ticket thread over this page, so the hardware/browser back
+// button closes it — the same arrangement MessagesPage uses for a conversation.
+const openTicket = computed(
+  () => tickets.value.find((t) => t.id === route.query.t) ?? null,
+)
+function showTicket(t: Ticket) {
+  void router.push({ path: route.path, query: { t: t.id } })
 }
+function closeTicket() {
+  void router.push({ path: route.path })
+}
+
+// An open thread covers the screen, so the shell's nav and FAB step aside.
+watch(openTicket, (t) => { chatFullscreen.value = Boolean(t) }, { immediate: true })
+onUnmounted(() => { chatFullscreen.value = false })
 
 const newTicketOpen = ref(false)
 const submittingTicket = ref(false)
-const uploadingPhoto = ref(false)
-const ticketForm = reactive({ category: 'verification', subject: '', description: '', photoUrl: '' })
 
 function openNewTicket() {
-  ticketForm.category = 'verification'
-  ticketForm.subject = ''
-  ticketForm.description = ''
-  ticketForm.photoUrl = ''
   newTicketOpen.value = true
 }
 
-async function onTicketPhotoSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  uploadingPhoto.value = true
-  try {
-    ticketForm.photoUrl = await uploadDocument(file, '', 'ticket_photo')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not upload that screenshot.'))
-  } finally {
-    uploadingPhoto.value = false
-    input.value = ''
-  }
-}
-
-async function submitTicket() {
+// TicketCompose owns the form, its validation and the screenshot upload; this
+// only does the insert.
+async function submitTicket(draft: TicketDraft) {
   if (submittingTicket.value) return
-  if (!ticketForm.subject.trim()) {
-    notify.error('Give your ticket a subject.')
-    return
-  }
   submittingTicket.value = true
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) throw new Error('Not signed in.')
 
@@ -443,19 +400,19 @@ async function submitTicket() {
       .from('tickets')
       .insert({
         student_id: user.id,
-        subject: ticketForm.subject.trim(),
-        description: ticketForm.description.trim() || null,
-        category: ticketForm.category,
-        photo_urls: ticketForm.photoUrl ? [ticketForm.photoUrl] : [],
+        subject: draft.subject,
+        description: draft.description || null,
+        category: draft.category,
+        photo_urls: draft.photoUrl ? [draft.photoUrl] : [],
         status: 'open',
         priority: 'medium',
       })
-      .select('id, subject, description, category, status, reported_at')
+      .select('id, subject, description, category, status, reported_at, photo_urls')
       .single()
     if (insertError) throw insertError
 
     tickets.value = [
-      { id: created.id, subject: created.subject || 'Untitled', description: created.description || '', category: created.category || 'other', status: created.status, reportedAt: created.reported_at },
+      { id: created.id, subject: created.subject || 'Untitled', description: created.description || '', category: created.category || 'other', status: created.status, reportedAt: created.reported_at, photoUrls: created.photo_urls ?? [] },
       ...tickets.value,
     ]
 
@@ -478,8 +435,19 @@ function measureStickyTop() {
   if (header) stickyTop.value = Math.ceil(header.getBoundingClientRect().bottom)
 }
 
+// This screen is kept alive (see MainLayout's KEEP_ALIVE_PAGES), so without
+// this it would fetch once and never again — an OSAS verification decision or
+// ticket reply would not surface until the app restarted.
+useLiveData({
+  key: 'student-osas',
+  load,
+  watch: (uid) => [
+    { table: 'verification_documents', filter: `user_id=eq.${uid}` },
+    { table: 'tickets', filter: `student_id=eq.${uid}` },
+  ],
+})
+
 onMounted(() => {
-  load()
   void nextTick(measureStickyTop)
   window.addEventListener('resize', measureStickyTop)
 })
@@ -869,79 +837,5 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
 .ticket-chip--grey {
   background: var(--m-bg);
   color: var(--m-muted);
-}
-
-.detail-sheet,
-.new-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.detail-title,
-.new-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.detail-label {
-  margin: 4px 0 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.detail-text {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.detail-close {
-  min-height: 46px;
-  margin-top: 6px;
-  font-weight: 700;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.field-label {
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.field-input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 14px;
-}
-.field-textarea {
-  min-height: 90px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-.submit-file {
-  font-size: 13px;
-}
-.new-submit {
-  min-height: 48px;
-  font-weight: 700;
 }
 </style>

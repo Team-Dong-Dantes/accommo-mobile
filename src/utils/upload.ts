@@ -119,7 +119,7 @@ export async function uploadToCloudinary(
 
 /**
  * Legacy/central upload entry point. Keeps the previous signature used by the
- * rest of the app (ManagerOSASCompliance, PropertyDetail, StudentPayments,
+ * rest of the app (ManagerOsas, PropertyDetail, StudentPayments,
  * StudentProfile, stores, AddPropertyWizard, …). Returns the Cloudinary URL.
  *
  * @param file    the File to upload (image or PDF)

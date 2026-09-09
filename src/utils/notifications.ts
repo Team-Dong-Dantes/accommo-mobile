@@ -37,13 +37,18 @@ const ROUTES = new Set([
   '/manager/messages',
   '/manager/profile',
   '/manager/notifications',
-  '/manager/osas-compliance',
+  '/manager/osas',
   '/manager/support',
   '/manager/properties',
+  // Reviews live on the History screens, and both review notifications point
+  // there. Missing from this set, a link silently degrades to the BY_TYPE
+  // fallback below and drops the reader somewhere unrelated.
+  '/manager/profile/history',
   '/student/home',
   '/student/discover',
   '/student/messages',
   '/student/profile',
+  '/student/profile/history',
   '/student/notifications',
   '/student/support',
   '/student/concerns',
@@ -54,13 +59,13 @@ const ROUTES = new Set([
 /** Where each type belongs when its own link_url is unusable here. */
 const BY_TYPE: Record<Role, Record<string, string>> = {
   manager: {
-    verification: '/manager/osas-compliance',
+    verification: '/manager/osas',
     accommodation: '/manager/properties',
     application: '/manager/tenants',
     lease: '/manager/tenants',
     leave: '/manager/tenants',
     payment: '/manager/tenants',
-    ticket: '/manager/support',
+    ticket: '/manager/osas',
     review: '/manager/profile',
   },
   student: {
@@ -70,7 +75,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     lease: '/student/stay',
     leave: '/student/stay',
     payment: '/student/payments',
-    ticket: '/student/concerns',
+    ticket: '/student/support',
     review: '/student/profile',
   },
 };

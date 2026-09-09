@@ -323,11 +323,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, reactive, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { createNotification } from '@/boot/notify'
@@ -473,12 +473,16 @@ async function load(silent = false) {
     }))
 
     if (data.status === 'ended' || data.status === 'terminated') {
+      // The review this manager wrote, read back through the "written by me"
+      // view. `unique (lease_id)` now guarantees at most one row, which is what
+      // maybeSingle() always assumed — a second row used to make it throw.
       const { data: reviewRow } = await supabase
-        .from('tenant_reviews')
+        .from('review_written_leases')
         .select('rating,comment')
+        .eq('kind', 'tenant')
         .eq('lease_id', leaseId.value)
         .maybeSingle()
-      tenantReview.value = reviewRow ? { rating: reviewRow.rating, comment: reviewRow.comment || '' } : null
+      tenantReview.value = reviewRow ? { rating: reviewRow.rating ?? 0, comment: reviewRow.comment || '' } : null
     }
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
@@ -517,7 +521,12 @@ async function approveLeave() {
       .eq('id', leaseId.value)
     if (updateError) throw updateError
 
-    await supabase.from('boarding_history').insert({
+    // This row is what the student's History screen lists, and rating a stay
+    // hangs off that list — so if it fails to write, the student can never
+    // review this stay. It used to be fired and forgotten; the approval itself
+    // has already gone through, so say what happened rather than claim the
+    // whole thing failed.
+    const { error: historyError } = await supabase.from('boarding_history').insert({
       student_id: lease.studentId,
       accommodation_id: lease.accommodationId,
       accommodation_name: lease.accommodationName,
@@ -528,8 +537,24 @@ async function approveLeave() {
     })
 
     lease.status = 'ended'
-    void createNotification(lease.studentId, 'Leave request approved', `Your move-out from ${lease.roomLabel} was approved.`, 'lease', '/student/profile')
-    notify.success('Leave request approved.')
+
+    // Approving the leave is what opens reviewing for the student (the RLS
+    // insert policies require an ended or terminated lease), so the notice
+    // invites the review and lands on the screen that has the button, rather
+    // than on the profile root where they'd have to go looking.
+    void createNotification(
+      lease.studentId,
+      'Leave request approved',
+      `Your move-out from ${lease.roomLabel} was approved. You can now rate your stay.`,
+      'lease',
+      '/student/profile/history',
+    )
+
+    if (historyError) {
+      notify.warning('Leave approved, but the stay was not added to their history — they will not be able to rate it.')
+    } else {
+      notify.success('Leave request approved.')
+    }
   } catch (e) {
     notify.error(errorMessage(e, 'Could not approve the leave request.'))
   } finally {
@@ -570,7 +595,7 @@ async function verifyPayment(paymentId: string) {
   if (verifying.value) return
   verifying.value = paymentId
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const paidAt = new Date().toISOString()
     const { error: updateError } = await supabase
       .from('payments')
@@ -602,7 +627,7 @@ async function rejectPayment(paymentId: string) {
   if (verifying.value || !reason) return
   verifying.value = paymentId
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const { error: updateError } = await supabase
       .from('payments')
       .update({ status: 'rejected', rejection_reason: reason, verified_by: authData?.user?.id || null })
@@ -645,7 +670,7 @@ async function submitTenantReview() {
   }
   submittingReview.value = true
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const managerId = authData?.user?.id
     if (!managerId) throw new Error('Not signed in.')
 
@@ -658,6 +683,16 @@ async function submitTenantReview() {
     })
     if (insertError) throw insertError
 
+    // The student is told they were reviewed, but never by whom — reviews are
+    // anonymous in both directions, so no manager or accommodation name here.
+    void createNotification(
+      lease.studentId,
+      'You received a review',
+      'A manager left a review after one of your past stays.',
+      'review',
+      '/student/profile/history',
+    )
+
     tenantReview.value = { rating: reviewForm.rating, comment: reviewForm.comment.trim() }
     reviewOpen.value = false
     notify.success('Review submitted.')
@@ -669,29 +704,19 @@ async function submitTenantReview() {
 }
 
 // Kept alive per lease id (see MainLayout's KEEP_ALIVE_PAGES + the
-// route.fullPath key), so this only really runs once per tenant per session.
-// Lease and payment changes push here instead of the page re-asking on
-// return — same channel shape as stores/notifications.ts, just refetching
-// instead of merging since this page has no per-row incremental-update need.
-let leaseChannel: RealtimeChannel | null = null
-let paymentChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  if (typeof supabase.channel !== 'function') return
-  leaseChannel = supabase
-    .channel(`tenant-lease:${leaseId.value}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'leases', filter: `id=eq.${leaseId.value}` }, () => void load(true))
-    .subscribe()
-  paymentChannel = supabase
-    .channel(`tenant-payments:${leaseId.value}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `lease_id=eq.${leaseId.value}` }, () => void load(true))
-    .subscribe()
-})
-
-onUnmounted(() => {
-  if (leaseChannel) void supabase.removeChannel(leaseChannel)
-  if (paymentChannel) void supabase.removeChannel(paymentChannel)
+// route.fullPath key), so lease and payment changes push here instead of the
+// page re-asking on return. utils/useLiveData.ts owns the whole policy — the
+// key folds in the lease id so each tenant gets its own freshness clock.
+useLiveData({
+  key: () => `manager-tenant:${leaseId.value}`,
+  load,
+  watch: () =>
+    leaseId.value
+      ? [
+          { table: 'leases', filter: `id=eq.${leaseId.value}` },
+          { table: 'payments', filter: `lease_id=eq.${leaseId.value}` },
+        ]
+      : [],
 })
 </script>
 

@@ -59,7 +59,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useMessagesStore } from '@/stores/messages'
 import { chatFullscreen } from '@/utils/chatFullscreen'
@@ -125,7 +125,7 @@ watch(
 )
 
 onMounted(async () => {
-  const { data } = await supabase.auth.getUser()
+  const { data } = await authUser()
   const user = data?.user
   if (!user) {
     void router.push('/login')

@@ -52,6 +52,13 @@
 
     <!-- QR scanning uses getUserMedia on the back camera. -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- The map picker and "near me" call navigator.geolocation from the WebView.
+         Capacitor's WebChromeClient only forwards that prompt for permissions the
+         app declares here; without them Android denies it outright and every
+         lookup comes back as PERMISSION_DENIED. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>

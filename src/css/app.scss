@@ -200,3 +200,25 @@ select,
   font-size: 22px !important;
 }
 
+
+/* ---- Pull-to-refresh puller ----
+   Global (non-scoped) for the same reason as `.custom-notify` above: QPullToRefresh
+   builds its puller inside its own render, so a scoped rule on a page never reaches
+   it, and eight pages would otherwise repeat this block.
+
+   Same frosted-glass recipe as the search docks and the map buttons — 62% surface
+   over a blur, hairline border at 55% — so the puller reads as part of the same
+   floating-control family rather than a stock Quasar circle. `!important` beats the
+   `bg-*` / `text-*` utility classes Quasar puts on the element itself. */
+.q-pull-to-refresh__puller {
+  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--m-surface) 62%, transparent) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: var(--m-shadow) !important;
+}
+.q-pull-to-refresh__puller,
+.q-pull-to-refresh__puller .q-icon,
+.q-pull-to-refresh__puller .q-spinner {
+  color: var(--m-primary) !important;
+}

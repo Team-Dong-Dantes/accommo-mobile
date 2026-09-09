@@ -21,7 +21,7 @@
     <div v-else-if="error" class="stack">
       <q-card flat bordered class="card">
         <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load OSAS compliance</p>
+        <p class="err-title">Couldn't load OSAS</p>
         <p class="err-sub">{{ error }}</p>
         <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
       </q-card>
@@ -191,15 +191,15 @@
                 variant="compact"
                 icon="lucide:life-buoy"
                 title="No tickets yet"
-                message="Compliance, accreditation or technical issues you raise with OSAS will show up here."
+                message="Accreditation or technical issues you raise with OSAS will show up here."
               />
               <div v-else class="group">
-                <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="openTicket(t)">
+                <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
                   <span class="ticket-body">
                     <span class="ticket-subject">{{ t.subject }}</span>
                     <span class="ticket-when">{{ since(t.reportedAt) }}</span>
                   </span>
-                  <span class="ticket-chip" :class="`ticket-chip--${TICKET_TONE[t.status] || 'grey'}`">{{ titleCase(t.status) }}</span>
+                  <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
                 </button>
               </div>
             </q-tab-panel>
@@ -229,54 +229,44 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="ticketOpen" position="bottom">
-      <q-card v-if="selectedTicket" class="detail-sheet">
-        <h3 class="detail-title">{{ selectedTicket.subject }}</h3>
-        <span class="ticket-chip" :class="`ticket-chip--${TICKET_TONE[selectedTicket.status] || 'grey'}`">{{ titleCase(selectedTicket.status) }}</span>
-        <p class="detail-label">{{ titleCase(selectedTicket.category) }} · {{ since(selectedTicket.reportedAt) }}</p>
-        <p class="detail-text">{{ selectedTicket.description || 'No description given.' }}</p>
-        <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="ticketOpen = false" />
-      </q-card>
-    </q-dialog>
+    <TicketThread v-if="openTicket" :key="openTicket.id" :ticket="openTicket" @close="closeTicket" />
 
-    <q-dialog v-model="newTicketOpen" position="bottom">
-      <q-card class="new-sheet">
-        <h3 class="new-title">Raise a ticket</h3>
-        <label class="field">
-          <span class="field-label">Category</span>
-          <select v-model="ticketForm.category" class="field-input">
-            <option value="compliance">Compliance / accreditation</option>
-            <option value="accommodation">Accommodation</option>
-            <option value="technical">Technical / app issue</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-        <label class="field">
-          <span class="field-label">Subject</span>
-          <input v-model="ticketForm.subject" type="text" class="field-input" placeholder="Short summary" />
-        </label>
-        <label class="field">
-          <span class="field-label">Description</span>
-          <textarea v-model="ticketForm.description" class="field-input field-textarea" rows="4" placeholder="What happened?" />
-        </label>
-        <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="submittingTicket" label="Submit" @click="submitTicket" />
-      </q-card>
-    </q-dialog>
+    <TicketCompose
+      v-if="newTicketOpen"
+      :categories="TICKET_CATEGORIES"
+      :submitting="submittingTicket"
+      @close="newTicketOpen = false"
+      @submit="submitTicket"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
+import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
+import { chatFullscreen } from '@/utils/chatFullscreen'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import TicketThread from '@/components/shared/TicketThread.vue'
+import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
+
+// `compliance` is the stored DB value — legacy rows and the admin client both
+// read it, so only the label follows the app's "accreditation" wording.
+const TICKET_CATEGORIES = [
+  { value: 'compliance', label: 'Accreditation' },
+  { value: 'accommodation', label: 'Accommodation' },
+  { value: 'technical', label: 'Technical / app issue' },
+  { value: 'other', label: 'Other' },
+]
 
 const TABS = [
   { key: 'property', label: 'Property' },
@@ -297,15 +287,6 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 // doc_status, independent of any accommodation.
 const MY_DOC_TYPES = ['government_id', 'business_permit'] as const
 
-const TICKET_TONE: Record<string, string> = {
-  open: 'amber',
-  pending: 'amber',
-  assigned: 'orange',
-  in_progress: 'orange',
-  under_review: 'orange',
-  resolved: 'green',
-  closed: 'grey',
-}
 
 interface Accommodation {
   id: string
@@ -328,8 +309,10 @@ interface Ticket {
   category: string
   status: string
   reportedAt: string
+  photoUrls: string[]
 }
 
+const route = useRoute()
 const router = useRouter()
 const notify = useNotify()
 
@@ -365,23 +348,15 @@ const uploadingMyDoc = ref(false)
 
 const tickets = ref<Ticket[]>([])
 
-function titleCase(raw: string | null | undefined) {
-  if (!raw) return ''
-  return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-}
-
 /** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
-function isPdf(url: string) {
-  return /\.pdf(\?|$)/i.test(url)
-}
 
 function openFile(url: string) {
   if (url) window.open(resolveAsset(url), '_blank', 'noopener')
 }
 
 // Property permits have no admin-reviewed status column yet (see the OSAS
-// compliance brainstorm) — every tone here is expiry-derived, never a real
-// OSAS approval, so replacement is never locked.
+// accreditation brainstorm) — every tone here is expiry-derived, never a
+// real OSAS approval, so replacement is never locked.
 const docs = computed<DocRow[]>(() =>
   DOC_TYPES.map((type) => {
     const row = docRows.value.find((d) => d.doc_type === type)
@@ -461,7 +436,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
       error.value = 'Not signed in.'
@@ -473,7 +448,7 @@ async function load() {
       supabase.from('accommodations').select('id, name').eq('accommodation_manager_id', user.id).order('name'),
       supabase
         .from('tickets')
-        .select('id, subject, description, category, status, reported_at')
+        .select('id, subject, description, category, status, reported_at, photo_urls')
         .eq('accommodation_manager_id', user.id)
         .order('reported_at', { ascending: false }),
       supabase.from('users').select('status').eq('id', user.id).maybeSingle(),
@@ -509,6 +484,7 @@ async function load() {
       category: t.category || 'other',
       status: t.status,
       reportedAt: t.reported_at,
+      photoUrls: t.photo_urls ?? [],
     }))
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
@@ -614,33 +590,35 @@ async function onMyDocSelected(event: Event, docType: string) {
   }
 }
 
-const ticketOpen = ref(false)
-const selectedTicket = ref<Ticket | null>(null)
-function openTicket(t: Ticket) {
-  selectedTicket.value = t
-  ticketOpen.value = true
+// ?t=<id> opens the ticket thread over this page, so the hardware/browser back
+// button closes it — the same arrangement MessagesPage uses for a conversation.
+const openTicket = computed(
+  () => tickets.value.find((t) => t.id === route.query.t) ?? null,
+)
+function showTicket(t: Ticket) {
+  void router.push({ path: route.path, query: { t: t.id } })
 }
+function closeTicket() {
+  void router.push({ path: route.path })
+}
+
+// An open thread covers the screen, so the shell's nav and FAB step aside.
+watch(openTicket, (t) => { chatFullscreen.value = Boolean(t) }, { immediate: true })
+onUnmounted(() => { chatFullscreen.value = false })
 
 const newTicketOpen = ref(false)
 const submittingTicket = ref(false)
-const ticketForm = reactive({ category: 'compliance', subject: '', description: '' })
 
 function openNewTicket() {
-  ticketForm.category = 'compliance'
-  ticketForm.subject = ''
-  ticketForm.description = ''
   newTicketOpen.value = true
 }
 
-async function submitTicket() {
+// TicketCompose owns the form and its validation; this only does the insert.
+async function submitTicket(draft: TicketDraft) {
   if (submittingTicket.value) return
-  if (!ticketForm.subject.trim()) {
-    notify.error('Give your ticket a subject.')
-    return
-  }
   submittingTicket.value = true
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) throw new Error('Not signed in.')
 
@@ -649,18 +627,18 @@ async function submitTicket() {
       .insert({
         accommodation_manager_id: user.id,
         accommodation_id: selectedId.value || null,
-        subject: ticketForm.subject.trim(),
-        description: ticketForm.description.trim() || null,
-        category: ticketForm.category,
+        subject: draft.subject,
+        description: draft.description || null,
+        category: draft.category,
         status: 'open',
         priority: 'medium',
       })
-      .select('id, subject, description, category, status, reported_at')
+      .select('id, subject, description, category, status, reported_at, photo_urls')
       .single()
     if (insertError) throw insertError
 
     tickets.value = [
-      { id: created.id, subject: created.subject || 'Untitled', description: created.description || '', category: created.category || 'other', status: created.status, reportedAt: created.reported_at },
+      { id: created.id, subject: created.subject || 'Untitled', description: created.description || '', category: created.category || 'other', status: created.status, reportedAt: created.reported_at, photoUrls: created.photo_urls ?? [] },
       ...tickets.value,
     ]
 
@@ -683,8 +661,24 @@ function measureStickyTop() {
   if (header) stickyTop.value = Math.ceil(header.getBoundingClientRect().bottom)
 }
 
+// This screen is kept alive (see MainLayout's KEEP_ALIVE_PAGES), so without
+// this it would fetch once and never again — an OSAS decision or ticket reply
+// would not surface until the app restarted. The permit watch follows the
+// accommodation currently selected in the chip row, which is the only one
+// whose documents are on screen.
+useLiveData({
+  key: 'manager-osas',
+  load,
+  watch: (uid) => [
+    ...(selectedId.value
+      ? [{ table: 'accommodation_documents', filter: `accommodation_id=eq.${selectedId.value}` }]
+      : []),
+    { table: 'verification_documents', filter: `user_id=eq.${uid}` },
+    { table: 'tickets', filter: `accommodation_manager_id=eq.${uid}` },
+  ],
+})
+
 onMounted(() => {
-  load()
   void nextTick(measureStickyTop)
   window.addEventListener('resize', measureStickyTop)
 })
@@ -1102,7 +1096,6 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   color: var(--m-muted);
 }
 
-.detail-sheet,
 .new-sheet {
   display: flex;
   width: 100%;
@@ -1113,31 +1106,11 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
   border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
 }
-.detail-title,
 .new-title {
   margin: 0;
   color: var(--m-ink);
   font-family: var(--m-font-display);
   font-size: 17px;
-  font-weight: 700;
-}
-.detail-label {
-  margin: 4px 0 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.detail-text {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.detail-close {
-  min-height: 46px;
-  margin-top: 6px;
   font-weight: 700;
 }
 
@@ -1197,11 +1170,6 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   height: 100%;
   opacity: 0;
   cursor: pointer;
-}
-.field-textarea {
-  min-height: 90px;
-  padding: 10px 12px;
-  resize: vertical;
 }
 .new-submit {
   min-height: 48px;

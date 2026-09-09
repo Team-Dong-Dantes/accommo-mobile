@@ -287,7 +287,7 @@ export type Database = {
           {
             foreignKeyName: "accommodation_manager_reviews_lease_id_fkey"
             columns: ["lease_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "leases"
             referencedColumns: ["id"]
           },
@@ -395,7 +395,7 @@ export type Database = {
           {
             foreignKeyName: "accommodation_reviews_lease_id_fkey"
             columns: ["lease_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "leases"
             referencedColumns: ["id"]
           },
@@ -1185,7 +1185,7 @@ export type Database = {
           {
             foreignKeyName: "tenant_reviews_lease_id_fkey"
             columns: ["lease_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "leases"
             referencedColumns: ["id"]
           },
@@ -1522,6 +1522,41 @@ export type Database = {
           },
         ]
       }
+      review_admin_feed: {
+        Row: {
+          accommodation_id: string | null
+          author_id: string | null
+          comment: string | null
+          created_at: string | null
+          id: string | null
+          kind: string | null
+          lease_id: string | null
+          rating: number | null
+          subject_id: string | null
+        }
+        Relationships: []
+      }
+      review_inbox: {
+        Row: {
+          accommodation_id: string | null
+          accommodation_name: string | null
+          comment: string | null
+          created_at: string | null
+          id: string | null
+          kind: string | null
+          rating: number | null
+        }
+        Relationships: []
+      }
+      review_written_leases: {
+        Row: {
+          comment: string | null
+          kind: string | null
+          lease_id: string | null
+          rating: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_notify: { Args: { target: string }; Returns: boolean }
@@ -1573,6 +1608,18 @@ export type Database = {
       resubmit_verification: { Args: never; Returns: undefined }
       set_audit_context: {
         Args: { p_ip_address?: string; p_user_agent?: string }
+        Returns: undefined
+      }
+      submit_student_review: {
+        Args: {
+          p_acc_comment: string
+          p_acc_rating: number
+          p_accommodation_id: string
+          p_accommodation_manager_id: string
+          p_lease_id: string
+          p_manager_comment: string
+          p_manager_rating: number
+        }
         Returns: undefined
       }
       sweep_expired_permits: { Args: never; Returns: undefined }

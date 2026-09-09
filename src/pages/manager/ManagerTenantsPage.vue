@@ -1,202 +1,207 @@
 <template>
   <q-page class="tp">
-    <div v-if="loading" class="stack">
-      <div class="tabs">
-        <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
-      </div>
-      <div v-for="n in 2" :key="n" class="acc">
-        <div class="acc-head">
-          <q-skeleton type="rect" size="36px" />
-          <span class="acc-head-body">
-            <q-skeleton type="text" width="55%" height="15px" />
-            <q-skeleton type="text" width="35%" height="12px" />
-          </span>
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
+        <div class="tabs">
+          <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
+          <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
+        </div>
+        <div v-for="n in 2" :key="n" class="acc">
+          <div class="acc-head">
+            <q-skeleton type="rect" size="36px" />
+            <span class="acc-head-body">
+              <q-skeleton type="text" width="55%" height="15px" />
+              <q-skeleton type="text" width="35%" height="12px" />
+            </span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your tenants</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-      </q-card>
-    </div>
-
-    <EmptyState
-      v-else-if="!accommodations.length"
-      icon="lucide:users"
-      title="No tenants yet"
-      message="When a student applies for one of your rooms and you accept them, they show up here grouped by room — empty beds included, plus any applications still waiting on you."
-    />
-
-    <div v-else class="stack">
-      <div class="tabbed">
-      <div class="tabs">
-        <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'tenants' }" @click="activeTab = 'tenants'">
-          By tenant
-        </button>
-        <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
-          Payments
-          <span v-if="paymentsNeedingVerification.length" class="tab-dot">{{ paymentsNeedingVerification.length }}</span>
-        </button>
+      <div v-else-if="error" class="stack">
+        <q-card flat bordered class="card">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load your tenants</p>
+          <p class="err-sub">{{ error }}</p>
+          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
+        </q-card>
       </div>
 
-      <div class="panel">
-      <q-tab-panels v-model="activeTab" animated swipeable class="panels">
-        <q-tab-panel name="tenants" class="tab-panel">
-          <button type="button" class="sheet-done top-pay-btn" @click="pickingPayment = !pickingPayment">
-            <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:receipt'" width="16" />
-            {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
-          </button>
-          <p v-if="pickingPayment" class="picking-hint">Tap a tenant below to log their payment.</p>
+      <EmptyState
+        v-else-if="!accommodations.length"
+        icon="lucide:users"
+        title="No tenants yet"
+        message="When a student applies for one of your rooms and you accept them, they show up here grouped by room — empty beds included, plus any applications still waiting on you."
+      />
 
-          <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
-            <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
-              <span class="acc-thumb" :class="`acc-thumb--${occupancyTone(accSummary.get(acc.id)?.occupancyPct ?? 0)}`">
-                <img v-if="acc.coverUrl" :src="acc.coverUrl" alt="" />
-                <IconifyIcon v-else icon="lucide:building-2" width="17" />
-              </span>
-              <span class="acc-head-body">
-                <h2 class="acc-title">{{ acc.name }}</h2>
-                <span class="acc-stats">
-                  <span class="acc-stat"><IconifyIcon icon="lucide:door-open" width="11" />{{ accSummary.get(acc.id)?.rooms ?? acc.rooms.length }}</span>
-                  <span class="acc-stat"><IconifyIcon icon="lucide:users" width="11" />{{ accSummary.get(acc.id)?.tenants ?? 0 }}</span>
-                </span>
-              </span>
-              <span v-if="accAlertCounts.get(acc.id)" class="acc-badge">{{ accAlertCounts.get(acc.id) }}</span>
-              <IconifyIcon :icon="collapsedAccIds.has(acc.id) ? 'lucide:chevron-down' : 'lucide:chevron-up'" width="16" class="acc-chevron" />
+      <div v-else class="stack">
+        <div class="tabbed">
+        <div class="tabs">
+          <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'tenants' }" @click="activeTab = 'tenants'">
+            By tenant
+          </button>
+          <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
+            Payments
+            <span v-if="paymentsNeedingVerification.length" class="tab-dot">{{ paymentsNeedingVerification.length }}</span>
+          </button>
+        </div>
+
+        <div class="panel">
+        <q-tab-panels v-model="activeTab" animated swipeable class="panels">
+          <q-tab-panel name="tenants" class="tab-panel">
+            <button type="button" class="sheet-done top-pay-btn" @click="pickingPayment = !pickingPayment">
+              <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:receipt'" width="16" />
+              {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
             </button>
-            <div class="acc-occ-track"><span class="acc-occ-fill" :style="{ width: (accSummary.get(acc.id)?.occupancyPct ?? 0) + '%' }" /></div>
-            <q-slide-transition>
-              <div v-show="!collapsedAccIds.has(acc.id)">
-                <div v-for="room in acc.rooms" :key="room.id" class="room">
-                  <div class="room-head">
-                    <span class="room-name">{{ room.label }}</span>
-                    <span class="room-occ" :class="{ 'room-occ--full': roomOccupancy(room).full }">
-                      <IconifyIcon icon="lucide:bed" width="12" />
-                      {{ roomOccupancy(room).label }}
-                    </span>
-                  </div>
-                  <div v-if="room.leases.length" class="room-list">
-                    <div v-for="l in room.leases" :key="l.id" class="lease-row">
-                      <button
-                        type="button"
-                        class="lease-main"
-                        :class="{ 'lease-main--pick': pickingPayment && isPayable(l) }"
-                        :disabled="pickingPayment && !isPayable(l)"
-                        @click="pickingPayment ? handlePick(l) : router.push(`/manager/tenant/${l.id}`)"
-                      >
-                        <span class="lease-avatar" :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []">
-                          <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" class="lease-avatar-img" @error="l.avatarUrl = null" />
-                          <template v-else>{{ initialsOf(l.studentName) }}</template>
-                        </span>
-                        <span class="lease-body">
-                          <span class="lease-name">{{ l.studentName }}</span>
-                          <span class="lease-sub">{{ leaseSubline(l) }}</span>
-                        </span>
-                        <span class="lease-chip" :class="`lease-chip--${statusColor(LEASE_STATUS, l.status)}`">
-                          {{ statusText(LEASE_STATUS, l.status) }}
-                        </span>
-                      </button>
-                      <div v-if="!pickingPayment && l.status === 'pending'" class="lease-actions">
+            <p v-if="pickingPayment" class="picking-hint">Tap a tenant below to log their payment.</p>
+
+            <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
+              <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
+                <span class="acc-thumb" :class="`acc-thumb--${occupancyTone(accSummary.get(acc.id)?.occupancyPct ?? 0)}`">
+                  <img v-if="acc.coverUrl" :src="acc.coverUrl" alt="" />
+                  <IconifyIcon v-else icon="lucide:building-2" width="17" />
+                </span>
+                <span class="acc-head-body">
+                  <h2 class="acc-title">{{ acc.name }}</h2>
+                  <span class="acc-stats">
+                    <span class="acc-stat"><IconifyIcon icon="lucide:door-open" width="11" />{{ accSummary.get(acc.id)?.rooms ?? acc.rooms.length }}</span>
+                    <span class="acc-stat"><IconifyIcon icon="lucide:users" width="11" />{{ accSummary.get(acc.id)?.tenants ?? 0 }}</span>
+                  </span>
+                </span>
+                <span v-if="accAlertCounts.get(acc.id)" class="acc-badge">{{ accAlertCounts.get(acc.id) }}</span>
+                <IconifyIcon :icon="collapsedAccIds.has(acc.id) ? 'lucide:chevron-down' : 'lucide:chevron-up'" width="16" class="acc-chevron" />
+              </button>
+              <div class="acc-occ-track"><span class="acc-occ-fill" :style="{ width: (accSummary.get(acc.id)?.occupancyPct ?? 0) + '%' }" /></div>
+              <q-slide-transition>
+                <div v-show="!collapsedAccIds.has(acc.id)">
+                  <div v-for="room in acc.rooms" :key="room.id" class="room">
+                    <div class="room-head">
+                      <span class="room-name">{{ room.label }}</span>
+                      <span class="room-occ" :class="{ 'room-occ--full': roomOccupancy(room).full }">
+                        <IconifyIcon icon="lucide:bed" width="12" />
+                        {{ roomOccupancy(room).label }}
+                      </span>
+                    </div>
+                    <div v-if="room.leases.length" class="room-list">
+                      <div v-for="l in room.leases" :key="l.id" class="lease-row">
                         <button
                           type="button"
-                          class="lease-act lease-act--ghost"
-                          :disabled="decidingId === l.id"
-                          @click="decideApplication(l, room.label, 'rejected')"
+                          class="lease-main"
+                          :class="{ 'lease-main--pick': pickingPayment && isPayable(l) }"
+                          :disabled="pickingPayment && !isPayable(l)"
+                          @click="pickingPayment ? handlePick(l) : router.push(`/manager/tenant/${l.id}`)"
                         >
-                          Decline
+                          <span class="lease-avatar" :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []">
+                            <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" class="lease-avatar-img" @error="l.avatarUrl = null" />
+                            <template v-else>{{ initialsOf(l.studentName) }}</template>
+                          </span>
+                          <span class="lease-body">
+                            <span class="lease-name">{{ l.studentName }}</span>
+                            <span class="lease-sub">{{ leaseSubline(l) }}</span>
+                          </span>
+                          <span class="lease-chip" :class="`lease-chip--${statusColor(LEASE_STATUS, l.status)}`">
+                            {{ statusText(LEASE_STATUS, l.status) }}
+                          </span>
                         </button>
+                        <div v-if="!pickingPayment && l.status === 'pending'" class="lease-actions">
+                          <button
+                            type="button"
+                            class="lease-act lease-act--ghost"
+                            :disabled="decidingId === l.id"
+                            @click="decideApplication(l, room.label, 'rejected')"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            type="button"
+                            class="lease-act"
+                            :disabled="decidingId === l.id"
+                            @click="decideApplication(l, room.label, 'active')"
+                          >
+                            Accept
+                          </button>
+                        </div>
                         <button
+                          v-else-if="!pickingPayment"
                           type="button"
-                          class="lease-act"
-                          :disabled="decidingId === l.id"
-                          @click="decideApplication(l, room.label, 'active')"
+                          class="lease-msg"
+                          aria-label="Message tenant"
+                          @click="router.push(`/manager/messages?to=${l.studentId}`)"
                         >
-                          Accept
+                          <IconifyIcon icon="lucide:message-circle" width="15" />
                         </button>
                       </div>
-                      <button
-                        v-else-if="!pickingPayment"
-                        type="button"
-                        class="lease-msg"
-                        aria-label="Message tenant"
-                        @click="router.push(`/manager/messages?to=${l.studentId}`)"
-                      >
-                        <IconifyIcon icon="lucide:message-circle" width="15" />
-                      </button>
                     </div>
+                    <p v-else class="room-none">No tenants</p>
                   </div>
-                  <p v-else class="room-none">No tenants</p>
+                </div>
+              </q-slide-transition>
+            </section>
+          </q-tab-panel>
+
+          <q-tab-panel name="payments" class="tab-panel">
+            <section v-if="paymentsNeedingVerification.length" class="pay-section">
+              <h2 class="sec-title">Needs verification</h2>
+              <div class="group">
+                <div v-for="p in paymentsNeedingVerification" :key="p.id" class="pay-row">
+                  <button type="button" class="pay-row-tap" @click="openPaymentDetail(p)">
+                    <div class="pay-row-main">
+                      <span class="pay-row-month">{{ p.studentName }}</span>
+                      <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
+                    </div>
+                    <div class="pay-row-sub">
+                      <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }}</span>
+                      <span class="pay-row-review">
+                        Tap to review
+                        <IconifyIcon icon="lucide:chevron-right" width="13" />
+                      </span>
+                    </div>
+                  </button>
                 </div>
               </div>
-            </q-slide-transition>
-          </section>
-        </q-tab-panel>
+            </section>
 
-        <q-tab-panel name="payments" class="tab-panel">
-          <section v-if="paymentsNeedingVerification.length" class="pay-section">
-            <h2 class="sec-title">Needs verification</h2>
-            <div class="group">
-              <div v-for="p in paymentsNeedingVerification" :key="p.id" class="pay-row">
-                <button type="button" class="pay-row-tap" @click="openPaymentDetail(p)">
+            <section class="pay-section">
+              <div class="sec-head">
+                <h2 class="sec-title">History</h2>
+                <button type="button" class="sec-link" @click="router.push('/manager/profile/history?tab=payments')">View all</button>
+              </div>
+              <div v-if="recentPayments.length" class="group">
+                <button
+                  v-for="p in recentPayments"
+                  :key="p.id"
+                  type="button"
+                  class="pay-row pay-row--tap"
+                  @click="openPaymentDetail(p)"
+                >
                   <div class="pay-row-main">
                     <span class="pay-row-month">{{ p.studentName }}</span>
                     <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
                   </div>
                   <div class="pay-row-sub">
-                    <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }}</span>
-                    <span class="pay-row-review">
-                      Tap to review
-                      <IconifyIcon icon="lucide:chevron-right" width="13" />
-                    </span>
+                    <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }} · {{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
+                    <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
                   </div>
                 </button>
               </div>
-            </div>
-          </section>
-
-          <section class="pay-section">
-            <div class="sec-head">
-              <h2 class="sec-title">History</h2>
-              <button type="button" class="sec-link" @click="router.push('/manager/profile/history?tab=payments')">View all</button>
-            </div>
-            <div v-if="recentPayments.length" class="group">
-              <button
-                v-for="p in recentPayments"
-                :key="p.id"
-                type="button"
-                class="pay-row pay-row--tap"
-                @click="openPaymentDetail(p)"
-              >
-                <div class="pay-row-main">
-                  <span class="pay-row-month">{{ p.studentName }}</span>
-                  <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
-                </div>
-                <div class="pay-row-sub">
-                  <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }} · {{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
-                  <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
-                </div>
-              </button>
-            </div>
-            <EmptyState
-              v-else
-              variant="compact"
-              icon="lucide:receipt"
-              title="No payments logged yet"
-              message="Payments you log for any tenant will show up here."
-            />
-          </section>
-        </q-tab-panel>
-      </q-tab-panels>
+              <EmptyState
+                v-else
+                variant="compact"
+                icon="lucide:receipt"
+                title="No payments logged yet"
+                message="Payments you log for any tenant will show up here."
+              />
+            </section>
+          </q-tab-panel>
+        </q-tab-panels>
+        </div>
+        </div>
       </div>
-      </div>
-    </div>
 
-    <!-- Search sits on the FAB's baseline so the two read as one control band -->
+    </q-pull-to-refresh>
+
+    <!-- Search sits on the FAB's baseline so the two read as one control band.
+         Outside the pull-to-refresh wrapper on purpose: it transforms its
+         content while you pull, which would drag this fixed dock along. -->
     <div v-if="!loading && !error" class="dock">
       <button
         type="button"
@@ -388,11 +393,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
@@ -549,7 +554,7 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
       error.value = 'Not signed in.'
@@ -557,29 +562,69 @@ async function load(silent = false) {
     }
     myId.value = user.id
 
-    const { data: accRows, error: accError } = await supabase
-      .from('accommodations')
-      .select('id,name,status,accommodation_images(url,sort_order)')
-      .eq('accommodation_manager_id', user.id)
+    // Accommodations and leases both key only off the manager's id, so they go
+    // out together; rooms and payments each need an id list from this wave and
+    // follow in the second one below.
+    const [
+      { data: accRows, error: accError },
+      { data: leaseRows, error: leaseError },
+    ] = await Promise.all([
+      supabase
+        .from('accommodations')
+        .select('id,name,status,accommodation_images(url,sort_order)')
+        .eq('accommodation_manager_id', user.id),
+      supabase
+        .from('leases')
+        .select('id,status,room_id,student_id,start_date,monthly_rent,users!leases_student_id_fkey(full_name,avatar_color,avatar_url)')
+        .eq('accommodation_manager_id', user.id)
+        .in('status', ['active', 'pending', 'leave_requested']),
+    ])
     if (accError) throw accError
+    if (leaseError) throw leaseError
 
     const accIds = (accRows ?? []).map((a) => a.id)
-    let roomRows: { id: string; label: string | null; room_number: string | null; capacity: number | null; accommodation_id: string }[] = []
-    if (accIds.length) {
-      const { data, error: roomError } = await supabase
-        .from('rooms')
-        .select('id,label,room_number,capacity,accommodation_id')
-        .in('accommodation_id', accIds)
-      if (roomError) throw roomError
-      roomRows = data ?? []
-    }
+    const leaseIds = (leaseRows ?? []).map((l) => l.id)
 
-    const { data: leaseRows, error: leaseError } = await supabase
-      .from('leases')
-      .select('id,status,room_id,student_id,start_date,monthly_rent,users!leases_student_id_fkey(full_name,avatar_color,avatar_url)')
-      .eq('accommodation_manager_id', user.id)
-      .in('status', ['active', 'pending', 'leave_requested'])
-    if (leaseError) throw leaseError
+    // Second wave: rooms key off the accommodation ids, payments off the lease
+    // ids. Both id lists are known now, so the two go out together instead of
+    // one after the other with all the row-shaping work in between. Either is
+    // skipped when its id list is empty rather than round-tripping for nothing.
+    let roomRows: { id: string; label: string | null; room_number: string | null; capacity: number | null; accommodation_id: string }[] = []
+    let paymentRows: {
+      id: string
+      month: string
+      amount: number
+      method: string
+      status: string
+      lease_id: string
+      description: string | null
+      txn_reference: string | null
+      proof_url: string | null
+      paid_at: string | null
+      rejection_reason: string | null
+      verified_by_user: { full_name: string | null } | null
+    }[] = []
+    const [roomsResult, paymentsResult] = await Promise.all([
+      accIds.length
+        ? supabase
+            .from('rooms')
+            .select('id,label,room_number,capacity,accommodation_id')
+            .in('accommodation_id', accIds)
+        : null,
+      leaseIds.length
+        ? supabase
+            .from('payments')
+            .select(
+              'id,month,amount,method,status,lease_id,description,txn_reference,proof_url,paid_at,rejection_reason,verified_by_user:users!payments_verified_by_fkey(full_name)',
+            )
+            .in('lease_id', leaseIds)
+            .order('month', { ascending: false })
+        : null,
+    ])
+    if (roomsResult?.error) throw roomsResult.error
+    roomRows = roomsResult?.data ?? []
+    if (paymentsResult?.error) throw paymentsResult.error
+    paymentRows = (paymentsResult?.data ?? []) as unknown as typeof paymentRows
 
     const leasesByRoom = new Map<string, Lease[]>()
     for (const l of leaseRows ?? []) {
@@ -639,32 +684,6 @@ async function load(silent = false) {
       })
     }
 
-    const leaseIds = (leaseRows ?? []).map((l) => l.id)
-    let paymentRows: {
-      id: string
-      month: string
-      amount: number
-      method: string
-      status: string
-      lease_id: string
-      description: string | null
-      txn_reference: string | null
-      proof_url: string | null
-      paid_at: string | null
-      rejection_reason: string | null
-      verified_by_user: { full_name: string | null } | null
-    }[] = []
-    if (leaseIds.length) {
-      const { data, error: paymentError } = await supabase
-        .from('payments')
-        .select(
-          'id,month,amount,method,status,lease_id,description,txn_reference,proof_url,paid_at,rejection_reason,verified_by_user:users!payments_verified_by_fkey(full_name)',
-        )
-        .in('lease_id', leaseIds)
-        .order('month', { ascending: false })
-      if (paymentError) throw paymentError
-      paymentRows = (data ?? []) as unknown as typeof paymentRows
-    }
     payments.value = paymentRows.map((p) => {
       const info = leaseInfo.get(p.lease_id)
       return {
@@ -693,31 +712,22 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. The database
-// pushes lease changes here instead of the page re-asking on every return —
-// same channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need.
-let leaseChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  const { data: authData } = await supabase.auth.getUser()
-  const uid = authData?.user?.id
-  if (!uid || typeof supabase.channel !== 'function') return
-  leaseChannel = supabase
-    .channel(`tenant-leases:${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'leases', filter: `accommodation_manager_id=eq.${uid}` },
-      () => void load(true),
-    )
-    .subscribe()
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so the
+// database pushes lease changes here instead of the page re-asking on every
+// return. utils/useLiveData.ts owns the whole policy — first load, the
+// subscription's lifetime, and how stale the data may be on return.
+const { refresh } = useLiveData({
+  key: 'manager-tenants',
+  load,
+  watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
 })
 
-onUnmounted(() => {
-  if (leaseChannel) void supabase.removeChannel(leaseChannel)
-})
+// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
+// loads silently (no skeleton behind the spinner) and resets the freshness
+// clock, so returning to the screen does not immediately fetch again.
+function onPull(done: () => void) {
+  void refresh().finally(done)
+}
 
 // Rent is stated as expected from leases.monthly_rent, not a collection/arrears
 // status — the payments table is too sparse against active leases to build that on.

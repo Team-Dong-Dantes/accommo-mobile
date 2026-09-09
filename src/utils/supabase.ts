@@ -145,3 +145,23 @@ if (supabaseUrl && supabaseAnonKey) {
 }
 
 export const supabase = _supabaseInstance;
+
+/**
+ * The signed-in user, read from the locally stored session rather than the
+ * `/auth/v1/user` endpoint.
+ *
+ * `supabase.auth.getUser()` is a network round trip on every call, and nearly
+ * every screen made one before it could issue its first query — a serialized
+ * hop in front of each load. `getSession()` reads local storage (refreshing the
+ * token only when it has actually expired) and returns the same User object, so
+ * `.id`, `.email` and the rest are unchanged.
+ *
+ * Safe for building queries because the database still enforces RLS against the
+ * JWT — the client's copy of the id is never what grants access. Auth flows that
+ * must confirm the account server-side (sign-in, registration, email/password
+ * changes) deliberately keep calling `supabase.auth.getUser()`.
+ */
+export async function authUser() {
+  const { data } = await supabase.auth.getSession();
+  return { data: { user: data?.session?.user ?? null } };
+}

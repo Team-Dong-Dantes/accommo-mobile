@@ -38,8 +38,8 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/manager/ManagerNotificationsPage.vue'),
   },
   {
-    path: '/manager/osas-compliance',
-    component: () => import('@/pages/manager/ManagerOsasCompliancePage.vue'),
+    path: '/manager/osas',
+    component: () => import('@/pages/manager/ManagerOsasPage.vue'),
   },
   {
     path: '/manager/support',

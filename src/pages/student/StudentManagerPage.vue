@@ -93,11 +93,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, reactive, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { initialsOf, parseServerTime } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
@@ -207,27 +207,16 @@ async function load(silent = false) {
 }
 
 // Kept alive per manager id (see MainLayout's KEEP_ALIVE_PAGES + the
-// route.fullPath key), so this only really runs once per manager per
-// session. New/updated listings push here instead of the page re-asking on
-// return — same channel shape as stores/notifications.ts, just refetching
-// instead of merging since this page has no per-row incremental-update need.
-let listingsChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  if (!id.value || typeof supabase.channel !== 'function') return
-  listingsChannel = supabase
-    .channel(`manager-listings:${id.value}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'accommodations', filter: `accommodation_manager_id=eq.${id.value}` },
-      () => void load(true),
-    )
-    .subscribe()
-})
-
-onUnmounted(() => {
-  if (listingsChannel) void supabase.removeChannel(listingsChannel)
+// route.fullPath key), so new and updated listings push here instead of the
+// page re-asking on return. utils/useLiveData.ts owns the whole policy — the
+// key folds in the id so each manager gets its own freshness clock.
+useLiveData({
+  key: () => `student-manager:${id.value}`,
+  load,
+  watch: () =>
+    id.value
+      ? [{ table: 'accommodations', filter: `accommodation_manager_id=eq.${id.value}` }]
+      : [],
 })
 </script>
 

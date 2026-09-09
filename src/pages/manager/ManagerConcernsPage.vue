@@ -161,10 +161,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData, type LivePayload } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { initialsOf, CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
@@ -214,7 +214,6 @@ const response = ref('')
 const deciding = ref(false)
 const escalating = ref(false)
 
-let channel: RealtimeChannel | null = null
 
 const visibleRows = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -239,7 +238,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
       error.value = 'Not signed in.'
@@ -280,7 +279,6 @@ async function load() {
       }
     })
 
-    startRealtime(user.id)
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -288,63 +286,68 @@ async function load() {
   }
 }
 
-/** New reports and status/response edits land live; RLS scopes the feed to this manager's own leases. */
-function startRealtime(managerId: string) {
-  if (channel || typeof supabase.channel !== 'function') return
-  channel = supabase
-    .channel(`concerns:manager:${managerId}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'concerns' }, async (payload) => {
-      const id = (payload.new as { id: string }).id
-      if (rows.value.some((r) => r.id === id)) return
-      const { data } = await supabase
-        .from('concerns')
-        .select(
-          'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(accommodation_manager_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
-        )
-        .eq('id', id)
-        .maybeSingle()
-      if (!data) return
-      const lease = data.leases as unknown as {
-        student_id: string
-        users: { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
-        rooms: { accommodation_id: string | null; room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
-      }
-      const room = lease.rooms
-      rows.value = [
-        {
-          id: data.id,
-          leaseId: data.lease_id,
-          studentId: lease.student_id,
-          photoUrl: data.photo_url || '',
-          accommodationId: room?.accommodation_id || null,
-          category: data.category,
-          description: data.description || '',
-          status: data.status,
-          reportedAt: data.reported_at,
-          managerResponse: data.manager_response || '',
-          where: room?.accommodations?.name || room?.label || 'Accommodation',
-          studentName: lease.users?.full_name || 'A student',
-          avatarColor: lease.users?.avatar_color ?? null,
-          avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url) : null,
-        },
-        ...rows.value,
-      ]
-    })
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'concerns' }, (payload) => {
-      const row = payload.new as { id: string; status: string; manager_response: string | null }
-      const patch = (c: Concern) => {
-        c.status = row.status
-        c.managerResponse = row.manager_response || ''
-      }
-      const listed = rows.value.find((c) => c.id === row.id)
-      if (listed) patch(listed)
-      if (selected.value?.id === row.id) patch(selected.value)
-    })
-    .subscribe()
+/**
+ * New reports and status/response edits land live; RLS scopes the feed to this
+ * manager's own leases. Both handlers patch `rows` in place rather than
+ * refetching — a concerns feed grows one row at a time, so a full reload for
+ * each would be wasteful.
+ */
+async function onConcernInserted(payload: LivePayload) {
+  const id = (payload.new as { id: string }).id
+  if (rows.value.some((r) => r.id === id)) return
+  const { data } = await supabase
+    .from('concerns')
+    .select(
+      'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(accommodation_manager_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
+    )
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) return
+  const lease = data.leases as unknown as {
+    student_id: string
+    users: { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
+    rooms: { accommodation_id: string | null; room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
+  }
+  const room = lease.rooms
+  rows.value = [
+    {
+      id: data.id,
+      leaseId: data.lease_id,
+      studentId: lease.student_id,
+      photoUrl: data.photo_url || '',
+      accommodationId: room?.accommodation_id || null,
+      category: data.category,
+      description: data.description || '',
+      status: data.status,
+      reportedAt: data.reported_at,
+      managerResponse: data.manager_response || '',
+      where: room?.accommodations?.name || room?.label || 'Accommodation',
+      studentName: lease.users?.full_name || 'A student',
+      avatarColor: lease.users?.avatar_color ?? null,
+      avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url) : null,
+    },
+    ...rows.value,
+  ]
 }
 
-onUnmounted(() => {
-  if (channel) void supabase.removeChannel(channel)
+function onConcernUpdated(payload: LivePayload) {
+  const row = payload.new as { id: string; status: string; manager_response: string | null }
+  const patch = (c: Concern) => {
+    c.status = row.status
+    c.managerResponse = row.manager_response || ''
+  }
+  const listed = rows.value.find((c) => c.id === row.id)
+  if (listed) patch(listed)
+  if (selected.value?.id === row.id) patch(selected.value)
+}
+
+useLiveData({
+  key: 'manager-concerns',
+  load,
+  watch: () => [
+    { table: 'concerns', event: 'INSERT', onChange: (p) => void onConcernInserted(p) },
+    { table: 'concerns', event: 'UPDATE', onChange: onConcernUpdated },
+  ],
 })
 
 const STATUS_VERB: Record<string, string> = {
@@ -405,7 +408,7 @@ async function escalate() {
   if (escalating.value || !selected.value) return
   escalating.value = true
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) throw new Error('Not signed in.')
 
@@ -432,7 +435,6 @@ async function escalate() {
   }
 }
 
-onMounted(load)
 </script>
 
 <style scoped>

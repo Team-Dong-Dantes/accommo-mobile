@@ -14,7 +14,6 @@
       :icon="icon"
       :title="emptyTitle"
       :message="emptyMessage"
-      variant="expanded"
     >
       <template #actions>
         <button

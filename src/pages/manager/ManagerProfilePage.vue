@@ -144,10 +144,10 @@
                 <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
               </div>
             </div>
-            <p v-else class="empty-text">No documents submitted yet</p>
-            <button class="link-btn" @click="go('/manager/osas-compliance')">
+            <EmptyState v-else variant="compact" icon="lucide:file-text" title="No documents yet" message="Documents you submit to OSAS show up here." />
+            <button class="link-btn" @click="go('/manager/osas')">
               <IconifyIcon icon="lucide:arrow-right" width="16" />
-              <span>Open OSAS compliance</span>
+              <span>Open OSAS</span>
             </button>
           </ProfileBlock>
 
@@ -188,16 +188,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 import ProfileField from '@/components/shared/ProfileField.vue'
 import ProfileHero from '@/components/shared/ProfileHero.vue'
+import EmptyState from '@/components/shared/EmptyState.vue'
 import ProfileCard from '@/components/shared/ProfileCard.vue'
 import ProfileBlock from '@/components/shared/ProfileBlock.vue'
 import EditButton from '@/components/shared/EditButton.vue'
@@ -305,7 +306,7 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await supabase.auth.getUser()
+    const { data: auth } = await authUser()
     const user = auth?.user
     if (!user) {
       void router.push('/login')
@@ -403,28 +404,14 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. An OSAS
-// verification decision pushes here instead of the page re-asking on return —
-// same channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need.
-let docsChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  if (!userId.value || typeof supabase.channel !== 'function') return
-  docsChannel = supabase
-    .channel(`profile-docs:${userId.value}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'verification_documents', filter: `user_id=eq.${userId.value}` },
-      () => void load(true),
-    )
-    .subscribe()
-})
-
-onUnmounted(() => {
-  if (docsChannel) void supabase.removeChannel(docsChannel)
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so an
+// OSAS verification decision pushes here instead of the page re-asking on
+// return. utils/useLiveData.ts owns the whole policy — first load, the
+// subscription's lifetime, and how stale the data may be on return.
+useLiveData({
+  key: 'manager-profile',
+  load,
+  watch: (uid) => [{ table: 'verification_documents', filter: `user_id=eq.${uid}` }],
 })
 </script>
 
@@ -708,13 +695,6 @@ onUnmounted(() => {
   color: var(--m-danger);
 }
 
-.empty-text {
-  margin: 0;
-  font-size: 14px;
-  color: var(--m-muted);
-  text-align: center;
-  padding: 16px 0;
-}
 
 /* ===== LINK BUTTONS ===== */
 .link-btn {

@@ -281,7 +281,7 @@
 import { reactive, ref, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument, uploadSecureDocument } from '@/utils/upload'
@@ -469,7 +469,7 @@ async function submit() {
   step.value = 5
   submitting.value = true
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) throw new Error('Not signed in.')
 
