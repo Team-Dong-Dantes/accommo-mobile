@@ -50,3 +50,8 @@ export function resolveAsset(url: string | null | undefined): string {
   if (GOOGLE_USERCONTENT_RE.test(url)) return viaCloudinaryFetch(url)
   return url
 }
+
+/** True when a stored asset URL points at a PDF rather than an image. */
+export function isPdf(url: string | null | undefined): boolean {
+  return !!url && /\.pdf(\?|$)/i.test(url)
+}

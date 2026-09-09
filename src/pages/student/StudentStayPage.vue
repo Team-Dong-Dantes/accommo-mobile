@@ -1,239 +1,241 @@
 <template>
   <q-page class="sp">
-    <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="120px" class="sk" />
-      <q-skeleton type="rect" height="90px" class="sk" />
-    </div>
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
+        <q-skeleton type="rect" height="120px" class="sk" />
+        <q-skeleton type="rect" height="90px" class="sk" />
+      </div>
 
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your stay</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-      </q-card>
-    </div>
+      <div v-else-if="error" class="stack">
+        <q-card flat bordered class="card">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load your stay</p>
+          <p class="err-sub">{{ error }}</p>
+          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
+        </q-card>
+      </div>
 
-    <EmptyState
-      v-else-if="!lease && !payments.length"
-      icon="lucide:home"
-      title="No active stay"
-      message="Once a manager accepts your application, your tenancy details, rent and manager contact will show up here."
-    >
-      <template #actions>
-        <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
-      </template>
-    </EmptyState>
+      <EmptyState
+        v-else-if="!lease && !payments.length"
+        icon="lucide:home"
+        title="No active stay"
+        message="Once a manager accepts your application, your tenancy details, rent and manager contact will show up here."
+      >
+        <template #actions>
+          <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
+        </template>
+      </EmptyState>
 
-    <div v-else class="stack">
-      <div class="tabbed">
-        <div class="tabs">
-          <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'stay' }" @click="activeTab = 'stay'">
-            My Stay
-          </button>
-          <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
-            Payments
-          </button>
-        </div>
+      <div v-else class="stack">
+        <div class="tabbed">
+          <div class="tabs">
+            <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'stay' }" @click="activeTab = 'stay'">
+              My Stay
+            </button>
+            <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
+              Payments
+            </button>
+          </div>
 
-        <div class="panel">
-          <q-tab-panels v-model="activeTab" animated swipeable class="panels">
-            <q-tab-panel name="stay" class="tab-panel">
-              <template v-if="lease">
-                <div class="head">
-                  <div class="head-top">
-                    <span class="head-name">{{ lease.accommodationName }}</span>
-                    <button type="button" class="head-history-link" @click="router.push('/student/profile/history')">View history</button>
+          <div class="panel">
+            <q-tab-panels v-model="activeTab" animated swipeable class="panels">
+              <q-tab-panel name="stay" class="tab-panel">
+                <template v-if="lease">
+                  <div class="head">
+                    <div class="head-top">
+                      <span class="head-name">{{ lease.accommodationName }}</span>
+                      <button type="button" class="head-history-link" @click="router.push('/student/profile/history')">View history</button>
+                    </div>
+                    <span v-if="lease.roomLabel" class="head-room">{{ lease.roomLabel }}</span>
+                    <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">{{ statusText(LEASE_STATUS, lease.status) }}</span>
+                    <p v-if="lease.status === 'pending'" class="head-note">Application pending — awaiting manager decision.</p>
+                    <p v-else-if="lease.status === 'leave_requested'" class="head-note">Leave requested — awaiting manager decision.</p>
                   </div>
-                  <span v-if="lease.roomLabel" class="head-room">{{ lease.roomLabel }}</span>
-                  <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">{{ statusText(LEASE_STATUS, lease.status) }}</span>
-                  <p v-if="lease.status === 'pending'" class="head-note">Application pending — awaiting manager decision.</p>
-                  <p v-else-if="lease.status === 'leave_requested'" class="head-note">Leave requested — awaiting manager decision.</p>
-                </div>
 
-                <!-- Manager contact -->
-                <section class="sec">
-                  <h2 class="sec-title">Managed by</h2>
-                  <div class="mgr">
-                    <span class="mgr-avatar">
-                      <img v-if="lease.managerAvatarUrl" :src="lease.managerAvatarUrl" alt="" class="mgr-avatar-img" @error="lease.managerAvatarUrl = null" />
-                      <template v-else>{{ lease.managerInitials }}</template>
-                    </span>
-                    <span class="mgr-body">
-                      <span class="mgr-name">{{ lease.managerName }}</span>
-                      <span class="mgr-sub">{{ lease.replyMinutes ? `Replies in ~${lease.replyMinutes} min` : 'Accommodation manager' }}</span>
-                    </span>
-                    <button type="button" class="mgr-msg" @click="router.push(`/student/messages?to=${lease.managerId}`)">
-                      <IconifyIcon icon="lucide:message-circle" width="15" />
-                      Message
-                    </button>
-                  </div>
-                </section>
+                  <!-- Manager contact -->
+                  <section class="sec">
+                    <h2 class="sec-title">Managed by</h2>
+                    <div class="mgr">
+                      <span class="mgr-avatar">
+                        <img v-if="lease.managerAvatarUrl" :src="lease.managerAvatarUrl" alt="" class="mgr-avatar-img" @error="lease.managerAvatarUrl = null" />
+                        <template v-else>{{ lease.managerInitials }}</template>
+                      </span>
+                      <span class="mgr-body">
+                        <span class="mgr-name">{{ lease.managerName }}</span>
+                        <span class="mgr-sub">{{ lease.replyMinutes ? `Replies in ~${lease.replyMinutes} min` : 'Accommodation manager' }}</span>
+                      </span>
+                      <button type="button" class="mgr-msg" @click="router.push(`/student/messages?to=${lease.managerId}`)">
+                        <IconifyIcon icon="lucide:message-circle" width="15" />
+                        Message
+                      </button>
+                    </div>
+                  </section>
 
-                <!-- Money at a glance -->
-                <section class="sec">
-                  <h2 class="sec-title">Money at a glance</h2>
-                  <div class="group">
-                    <div class="rule">
-                      <span class="rule-label">Monthly rent</span>
-                      <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
+                  <!-- Money at a glance -->
+                  <section class="sec">
+                    <h2 class="sec-title">Money at a glance</h2>
+                    <div class="group">
+                      <div class="rule">
+                        <span class="rule-label">Monthly rent</span>
+                        <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
+                      </div>
+                      <div v-if="lease.advancePaid" class="rule">
+                        <span class="rule-label">Advance paid</span>
+                        <span class="rule-value">{{ formatPeso(lease.advancePaid) }}</span>
+                      </div>
+                      <div v-if="lease.depositPaid" class="rule">
+                        <span class="rule-label">Deposit paid</span>
+                        <span class="rule-value">{{ formatPeso(lease.depositPaid) }}</span>
+                      </div>
+                      <div class="rule">
+                        <span class="rule-label">Lease term</span>
+                        <span class="rule-value">{{ formatDate(lease.startDate) }} – {{ formatDate(lease.endDate) }}</span>
+                      </div>
                     </div>
-                    <div v-if="lease.advancePaid" class="rule">
-                      <span class="rule-label">Advance paid</span>
-                      <span class="rule-value">{{ formatPeso(lease.advancePaid) }}</span>
-                    </div>
-                    <div v-if="lease.depositPaid" class="rule">
-                      <span class="rule-label">Deposit paid</span>
-                      <span class="rule-value">{{ formatPeso(lease.depositPaid) }}</span>
-                    </div>
-                    <div class="rule">
-                      <span class="rule-label">Lease term</span>
-                      <span class="rule-value">{{ formatDate(lease.startDate) }} – {{ formatDate(lease.endDate) }}</span>
-                    </div>
-                  </div>
-                </section>
+                  </section>
 
-                <!-- Room & boarding house -->
-                <section class="sec">
-                  <h2 class="sec-title">About your room</h2>
-                  <div class="group">
-                    <div class="rule">
-                      <span class="rule-label">Room type</span>
-                      <span class="rule-value">{{ lease.roomType || '—' }}</span>
+                  <!-- Room & boarding house -->
+                  <section class="sec">
+                    <h2 class="sec-title">About your room</h2>
+                    <div class="group">
+                      <div class="rule">
+                        <span class="rule-label">Room type</span>
+                        <span class="rule-value">{{ lease.roomType || '—' }}</span>
+                      </div>
+                      <div v-if="lease.capacity" class="rule">
+                        <span class="rule-label">Capacity</span>
+                        <span class="rule-value">{{ lease.capacity }} {{ lease.capacity === 1 ? 'person' : 'people' }}</span>
+                      </div>
+                      <div v-if="lease.roommateCount !== null" class="rule">
+                        <span class="rule-label">Roommates</span>
+                        <span class="rule-value">
+                          {{ lease.roommateCount > 0 ? `${lease.roommateCount} other${lease.roommateCount === 1 ? '' : 's'} in this room` : 'None — you have it to yourself' }}
+                        </span>
+                      </div>
+                      <div v-if="lease.address" class="rule">
+                        <span class="rule-label">Address</span>
+                        <span class="rule-value">{{ lease.address }}</span>
+                      </div>
                     </div>
-                    <div v-if="lease.capacity" class="rule">
-                      <span class="rule-label">Capacity</span>
-                      <span class="rule-value">{{ lease.capacity }} {{ lease.capacity === 1 ? 'person' : 'people' }}</span>
-                    </div>
-                    <div v-if="lease.roommateCount !== null" class="rule">
-                      <span class="rule-label">Roommates</span>
-                      <span class="rule-value">
-                        {{ lease.roommateCount > 0 ? `${lease.roommateCount} other${lease.roommateCount === 1 ? '' : 's'} in this room` : 'None — you have it to yourself' }}
+                  </section>
+
+                  <section v-if="lease.amenities.length" class="sec">
+                    <h2 class="sec-title">Amenities</h2>
+                    <div class="icon-grid">
+                      <span v-for="a in lease.amenities" :key="a" class="icon-item">
+                        <span class="icon-circle"><IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="19" /></span>
+                        <small>{{ AMENITY_META[a]?.label || a }}</small>
                       </span>
                     </div>
-                    <div v-if="lease.address" class="rule">
-                      <span class="rule-label">Address</span>
-                      <span class="rule-value">{{ lease.address }}</span>
+                  </section>
+
+                  <section v-if="lease.rules.length" class="sec">
+                    <h2 class="sec-title">House rules</h2>
+                    <div class="group">
+                      <div v-for="rule in lease.rules" :key="rule.label" class="rule">
+                        <span class="rule-label">{{ rule.label }}</span>
+                        <span class="rule-value">{{ rule.value }}</span>
+                      </div>
                     </div>
-                  </div>
-                </section>
+                  </section>
 
-                <section v-if="lease.amenities.length" class="sec">
-                  <h2 class="sec-title">Amenities</h2>
-                  <div class="icon-grid">
-                    <span v-for="a in lease.amenities" :key="a" class="icon-item">
-                      <span class="icon-circle"><IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="19" /></span>
-                      <small>{{ AMENITY_META[a]?.label || a }}</small>
-                    </span>
-                  </div>
-                </section>
-
-                <section v-if="lease.rules.length" class="sec">
-                  <h2 class="sec-title">House rules</h2>
-                  <div class="group">
-                    <div v-for="rule in lease.rules" :key="rule.label" class="rule">
-                      <span class="rule-label">{{ rule.label }}</span>
-                      <span class="rule-value">{{ rule.value }}</span>
+                  <!-- Quick links -->
+                  <section class="sec">
+                    <div class="group">
+                      <button type="button" class="row-link" @click="router.push('/student/concerns')">
+                        <IconifyIcon icon="lucide:message-square-warning" width="16" />
+                        <span>Concerns</span>
+                        <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+                      </button>
                     </div>
-                  </div>
-                </section>
+                  </section>
 
-                <!-- Quick links -->
-                <section class="sec">
-                  <div class="group">
-                    <button type="button" class="row-link" @click="router.push('/student/concerns')">
-                      <IconifyIcon icon="lucide:message-square-warning" width="16" />
-                      <span>Concerns</span>
-                      <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-                    </button>
-                  </div>
-                </section>
-
-                <button v-if="lease.status === 'active'" type="button" class="leave-link" @click="leaveDialog = true">
-                  Request to leave
-                </button>
-              </template>
-
-              <EmptyState
-                v-else
-                variant="compact"
-                icon="lucide:home"
-                title="No active stay"
-                message="Once a manager accepts your application, your tenancy details, rent and manager contact will show up here."
-              >
-                <template #actions>
-                  <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
+                  <button v-if="lease.status === 'active'" type="button" class="leave-link" @click="leaveDialog = true">
+                    Request to leave
+                  </button>
                 </template>
-              </EmptyState>
-            </q-tab-panel>
 
-            <q-tab-panel name="payments" class="tab-panel">
-              <div v-if="lease" class="pay-head">
-                <span class="pay-head-label">Expected rent</span>
-                <span class="pay-head-rent">{{ formatPeso(lease.monthlyRent) }}<span class="pay-head-per">/mo</span></span>
-                <span class="pay-head-sub">{{ lease.roomLabel || 'Your room' }} · {{ lease.accommodationName }}</span>
-                <button v-if="canPay" type="button" class="pay-head-btn" @click="openSubmit('rent')">
-                  <IconifyIcon icon="lucide:circle-plus" width="16" />
-                  Submit a payment
-                </button>
-                <p v-else class="pay-head-note">You'll be able to submit payments once your application is accepted.</p>
+                <EmptyState
+                  v-else
+                  variant="compact"
+                  icon="lucide:home"
+                  title="No active stay"
+                  message="Once a manager accepts your application, your tenancy details, rent and manager contact will show up here."
+                >
+                  <template #actions>
+                    <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
+                  </template>
+                </EmptyState>
+              </q-tab-panel>
 
-                <div v-if="canPay && (canPayAdvance || canPayDeposit)" class="pay-dues">
-                  <button v-if="canPayAdvance" type="button" class="pay-due" @click="openSubmit('advance')">
-                    <span class="pay-due-body">
-                      <span class="pay-due-label">Advance</span>
-                      <span class="pay-due-note">Not yet paid</span>
-                    </span>
-                    <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
+              <q-tab-panel name="payments" class="tab-panel">
+                <div v-if="lease" class="pay-head">
+                  <span class="pay-head-label">Expected rent</span>
+                  <span class="pay-head-rent">{{ formatPeso(lease.monthlyRent) }}<span class="pay-head-per">/mo</span></span>
+                  <span class="pay-head-sub">{{ lease.roomLabel || 'Your room' }} · {{ lease.accommodationName }}</span>
+                  <button v-if="canPay" type="button" class="pay-head-btn" @click="openSubmit('rent')">
+                    <IconifyIcon icon="lucide:circle-plus" width="16" />
+                    Submit a payment
                   </button>
-                  <button v-if="canPayDeposit" type="button" class="pay-due" @click="openSubmit('deposit')">
-                    <span class="pay-due-body">
-                      <span class="pay-due-label">Deposit</span>
-                      <span class="pay-due-note">Not yet paid</span>
-                    </span>
-                    <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
-                  </button>
-                </div>
-              </div>
+                  <p v-else class="pay-head-note">You'll be able to submit payments once your application is accepted.</p>
 
-              <section class="sec">
-                <div class="sec-head">
-                  <h2 class="sec-title">{{ showAllPayments ? 'All payments' : 'History' }}</h2>
-                  <button v-if="hasOtherLeasePayments" type="button" class="sec-link" @click="showAllPayments = !showAllPayments">
-                    {{ showAllPayments ? 'Current room only' : 'View all payments' }}
-                  </button>
-                </div>
-                <p v-if="!showAllPayments && lease" class="pay-head-note">Payments for {{ lease.roomLabel || 'your current room' }}.</p>
-                <div v-if="visibleHistoryPayments.length" class="group">
-                  <button
-                    v-for="p in visibleHistoryPayments"
-                    :key="p.id"
-                    type="button"
-                    class="pay-row"
-                    @click="openPaymentDetail(p)"
-                  >
-                    <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
-                    <span class="pay-body">
-                      <span class="pay-month">{{ formatMonth(p.month) }}</span>
-                      <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.accommodationName }}</span>
-                    </span>
-                    <span class="pay-side">
-                      <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
-                      <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                        {{ statusText(PAYMENT_STATUS, p.status) }}
+                  <div v-if="canPay && (canPayAdvance || canPayDeposit)" class="pay-dues">
+                    <button v-if="canPayAdvance" type="button" class="pay-due" @click="openSubmit('advance')">
+                      <span class="pay-due-body">
+                        <span class="pay-due-label">Advance</span>
+                        <span class="pay-due-note">Not yet paid</span>
                       </span>
-                    </span>
-                    <IconifyIcon icon="lucide:chevron-right" width="16" class="pay-chevron" />
-                  </button>
+                      <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
+                    </button>
+                    <button v-if="canPayDeposit" type="button" class="pay-due" @click="openSubmit('deposit')">
+                      <span class="pay-due-body">
+                        <span class="pay-due-label">Deposit</span>
+                        <span class="pay-due-note">Not yet paid</span>
+                      </span>
+                      <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
+                    </button>
+                  </div>
                 </div>
-                <p v-else class="none">No payments {{ showAllPayments ? 'submitted yet' : 'for this room yet' }}.</p>
-              </section>
-            </q-tab-panel>
-          </q-tab-panels>
+
+                <section class="sec">
+                  <div class="sec-head">
+                    <h2 class="sec-title">{{ showAllPayments ? 'All payments' : 'History' }}</h2>
+                    <button v-if="hasOtherLeasePayments" type="button" class="sec-link" @click="showAllPayments = !showAllPayments">
+                      {{ showAllPayments ? 'Current room only' : 'View all payments' }}
+                    </button>
+                  </div>
+                  <p v-if="!showAllPayments && lease" class="pay-head-note">Payments for {{ lease.roomLabel || 'your current room' }}.</p>
+                  <div v-if="visibleHistoryPayments.length" class="group">
+                    <button
+                      v-for="p in visibleHistoryPayments"
+                      :key="p.id"
+                      type="button"
+                      class="pay-row"
+                      @click="openPaymentDetail(p)"
+                    >
+                      <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
+                      <span class="pay-body">
+                        <span class="pay-month">{{ formatMonth(p.month) }}</span>
+                        <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.accommodationName }}</span>
+                      </span>
+                      <span class="pay-side">
+                        <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
+                        <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
+                          {{ statusText(PAYMENT_STATUS, p.status) }}
+                        </span>
+                      </span>
+                      <IconifyIcon icon="lucide:chevron-right" width="16" class="pay-chevron" />
+                    </button>
+                  </div>
+                  <p v-else class="none">No payments {{ showAllPayments ? 'submitted yet' : 'for this room yet' }}.</p>
+                </section>
+              </q-tab-panel>
+            </q-tab-panels>
+          </div>
         </div>
       </div>
-    </div>
 
+    </q-pull-to-refresh>
     <q-dialog v-model="leaveDialog" position="bottom">
       <q-card class="leave-sheet">
         <span class="sheet-grip" aria-hidden="true" />
@@ -368,11 +370,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import {
   formatPeso,
@@ -529,7 +531,7 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
       error.value = 'Not signed in.'
@@ -677,7 +679,7 @@ async function requestLeave() {
   if (leaving.value || !lease.value) return
   leaving.value = true
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) throw new Error('Not signed in.')
 
@@ -816,31 +818,22 @@ async function submitPayment() {
   }
 }
 
-// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. The database
-// pushes lease changes here instead of the page re-asking on every return —
-// same channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need.
-let leaseChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  const { data: authData } = await supabase.auth.getUser()
-  const uid = authData?.user?.id
-  if (!uid || typeof supabase.channel !== 'function') return
-  leaseChannel = supabase
-    .channel(`stay-leases:${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'leases', filter: `student_id=eq.${uid}` },
-      () => void load(true),
-    )
-    .subscribe()
+// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so the
+// database pushes lease changes here instead of the page re-asking on every
+// return. utils/useLiveData.ts owns the whole policy — first load, the
+// subscription's lifetime, and how stale the data may be on return.
+const { refresh } = useLiveData({
+  key: 'student-stay',
+  load,
+  watch: (uid) => [{ table: 'leases', filter: `student_id=eq.${uid}` }],
 })
 
-onUnmounted(() => {
-  if (leaseChannel) void supabase.removeChannel(leaseChannel)
-})
+// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
+// loads silently (no skeleton behind the spinner) and resets the freshness
+// clock, so returning to the screen does not immediately fetch again.
+function onPull(done: () => void) {
+  void refresh().finally(done)
+}
 </script>
 
 <style scoped>

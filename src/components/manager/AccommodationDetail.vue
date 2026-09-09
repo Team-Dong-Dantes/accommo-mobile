@@ -249,7 +249,7 @@
           </div>
 
           <h2 class="sec-title">Permits</h2>
-          <p class="sec-hint">Accreditation depends on these staying current. Manage uploads from OSAS Compliance.</p>
+          <p class="sec-hint">Accreditation depends on these staying current. Manage uploads from OSAS.</p>
           <div class="group">
             <div v-for="d in docs" :key="d.type" class="doc-row">
               <span class="doc-icon" :class="`doc-icon--${d.tone}`">
@@ -330,7 +330,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- PERMIT FILE PREVIEW (view-only — uploads happen on OSAS Compliance) -->
+    <!-- PERMIT FILE PREVIEW (view-only — uploads happen on OSAS) -->
     <q-dialog v-model="docPreviewOpen" position="bottom">
       <q-card class="room-sheet">
         <span class="sheet-grip" aria-hidden="true" />
@@ -958,7 +958,7 @@ import { formatPeso, to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument, secureDocUrl } from '@/utils/upload'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, roomTypeLabel } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -1340,9 +1340,6 @@ const docs = computed(() =>
 )
 
 /** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
-function isPdf(url: string) {
-  return /\.pdf(\?|$)/i.test(url)
-}
 
 const docPreviewOpen = ref(false)
 const docPreviewUrl = ref('')

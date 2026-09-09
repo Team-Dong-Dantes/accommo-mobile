@@ -21,17 +21,19 @@
       </q-card>
     </div>
 
-    <div v-else-if="!store.threads.length" class="empty">
-      <span class="empty-icon"><IconifyIcon icon="lucide:message-circle" width="26" /></span>
-      <p class="empty-title">No conversations yet</p>
-      <p class="empty-text">{{ emptyMessage }}</p>
-    </div>
+    <EmptyState
+      v-else-if="!store.threads.length"
+      icon="lucide:message-circle"
+      title="No conversations yet"
+      :message="emptyMessage"
+    />
 
-    <div v-else-if="!visibleThreads.length" class="empty">
-      <span class="empty-icon"><IconifyIcon icon="lucide:search-x" width="26" /></span>
-      <p class="empty-title">Nothing matches</p>
-      <p class="empty-text">Try a different search or filter.</p>
-    </div>
+    <EmptyState
+      v-else-if="!visibleThreads.length"
+      icon="lucide:search-x"
+      title="Nothing matches"
+      message="Try a different search or filter."
+    />
 
     <div v-else class="stack">
       <button
@@ -67,6 +69,7 @@ import { computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useMessagesStore } from '@/stores/messages'
 import { since } from '@/utils/notifications'
+import EmptyState from '@/components/shared/EmptyState.vue'
 
 const props = withDefaults(
   defineProps<{ emptyMessage: string; query?: string; filter?: 'all' | 'unread' }>(),
@@ -204,38 +207,4 @@ const visibleThreads = computed(() => {
   font-weight: 800;
 }
 
-.empty {
-  display: flex;
-  min-height: 60vh;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 24px var(--m-page-gutter);
-  text-align: center;
-}
-.empty-icon {
-  display: grid;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  margin-bottom: 6px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary);
-}
-.empty-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 16px;
-  font-weight: 700;
-}
-.empty-text {
-  margin: 0;
-  max-width: 280px;
-  color: var(--m-muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
 </style>

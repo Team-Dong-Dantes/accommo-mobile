@@ -72,7 +72,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
 import { getStoredTheme, setStoredTheme } from '@/utils/theme'
 import { APP_VERSION } from '@/utils/config'
@@ -118,7 +118,7 @@ async function signOut() {
 }
 
 onMounted(async () => {
-  const { data } = await supabase.auth.getUser()
+  const { data } = await authUser()
   const identities = data.user?.identities ?? []
   googleLinked.value = identities.some((i) => i.provider === 'google')
 })

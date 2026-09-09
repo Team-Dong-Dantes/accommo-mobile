@@ -1,106 +1,111 @@
 <template>
   <q-page class="history-page">
-    <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="40px" class="sk" />
-      <q-skeleton type="rect" height="90px" class="sk" />
-      <q-skeleton type="rect" height="90px" class="sk" />
-    </div>
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
+        <q-skeleton type="rect" height="40px" class="sk" />
+        <q-skeleton type="rect" height="90px" class="sk" />
+        <q-skeleton type="rect" height="90px" class="sk" />
+      </div>
 
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your history</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
-      </q-card>
-    </div>
+      <div v-else-if="error" class="stack">
+        <q-card flat bordered class="card">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load your history</p>
+          <p class="err-sub">{{ error }}</p>
+          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
+        </q-card>
+      </div>
 
-    <div v-else class="stack">
-      <div class="tabbed">
-        <div class="tabs">
-          <button type="button" class="tab" :class="{ 'tab--on': tab === 'history' }" @click="tab = 'history'">
-            Boarding history
-          </button>
-          <button type="button" class="tab" :class="{ 'tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
-            Reviews
-          </button>
-          <button type="button" class="tab" :class="{ 'tab--on': tab === 'payments' }" @click="tab = 'payments'">
-            Payments
-          </button>
-        </div>
+      <div v-else class="stack">
+        <div class="tabbed">
+          <div class="tabs">
+            <button type="button" class="tab" :class="{ 'tab--on': tab === 'history' }" @click="tab = 'history'">
+              Boarding history
+            </button>
+            <button type="button" class="tab" :class="{ 'tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
+              Reviews
+            </button>
+            <button type="button" class="tab" :class="{ 'tab--on': tab === 'payments' }" @click="tab = 'payments'">
+              Payments
+            </button>
+          </div>
 
-        <div class="panel">
-          <q-tab-panels v-model="tab" animated swipeable class="panels">
-            <q-tab-panel name="history" class="tab-panel">
-              <div v-if="visibleHistory.length" class="group">
-                <div v-for="row in visibleHistory" :key="row.id" class="history-row">
-                  <button type="button" class="history-info" @click="openHistoryDetail(row)">
-                    <span class="history-text">
-                      <span class="history-name">{{ row.name }}</span>
-                      <span class="history-meta">{{ row.meta }}</span>
+          <div class="panel">
+            <q-tab-panels v-model="tab" animated swipeable class="panels">
+              <q-tab-panel name="history" class="tab-panel">
+                <div v-if="visibleHistory.length" class="group">
+                  <div v-for="row in visibleHistory" :key="row.id" class="history-row">
+                    <button type="button" class="history-info" @click="openHistoryDetail(row)">
+                      <span class="history-text">
+                        <span class="history-name">{{ row.name }}</span>
+                        <span class="history-meta">{{ row.meta }}</span>
+                      </span>
+                      <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
+                    </button>
+                    <div class="history-side">
+                      <span class="history-when">{{ row.period }}</span>
+                      <span v-if="row.reviewed" class="history-rated">Rated ✓</span>
+                      <button v-else-if="row.leaseId" type="button" class="history-rate" @click="openReview(row)">Rate stay</button>
+                    </div>
+                  </div>
+                </div>
+                <EmptyState v-else-if="history.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
+                <EmptyState v-else variant="compact" icon="lucide:history" title="No stays yet" message="Once a stay ends, it lands here and you can rate it." />
+              </q-tab-panel>
+
+              <q-tab-panel name="reviews" class="tab-panel">
+                <template v-if="visibleReviews.length">
+                  <div class="rating-summary">
+                    <StarRating :model-value="avgManagerRating" :size="18" />
+                    <span class="rating-count">{{ avgManagerRating.toFixed(1) }} · {{ reviewsFromManagers.length }} review{{ reviewsFromManagers.length === 1 ? '' : 's' }}</span>
+                  </div>
+                  <div class="group">
+                    <button v-for="r in visibleReviews" :key="r.id" type="button" class="review-row" @click="openReviewDetail(r)">
+                      <div class="review-top">
+                        <span class="review-author">A past manager</span>
+                        <StarRating :model-value="r.rating" :size="13" />
+                        <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
+                      </div>
+                      <p v-if="r.comment" class="review-comment">{{ r.comment }}</p>
+                    </button>
+                  </div>
+                </template>
+                <EmptyState v-else-if="reviewsFromManagers.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
+                <EmptyState v-else variant="compact" icon="lucide:star" title="No reviews yet" message="Reviews a manager leaves after a stay will show up here." />
+              </q-tab-panel>
+
+              <q-tab-panel name="payments" class="tab-panel">
+                <div v-if="visiblePayments.length" class="group">
+                  <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row" @click="openPaymentDetail(p)">
+                    <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
+                    <span class="pay-body">
+                      <span class="pay-month">{{ formatMonth(p.month) }}</span>
+                      <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.roomLabel }}, {{ p.accommodationName }}</span>
+                    </span>
+                    <span class="pay-side">
+                      <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
+                      <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
+                        {{ statusText(PAYMENT_STATUS, p.status) }}
+                      </span>
                     </span>
                     <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
                   </button>
-                  <div class="history-side">
-                    <span class="history-when">{{ row.period }}</span>
-                    <span v-if="row.reviewed" class="history-rated">Rated ✓</span>
-                    <button v-else-if="row.leaseId" type="button" class="history-rate" @click="openReview(row)">Rate stay</button>
-                  </div>
                 </div>
-              </div>
-              <p v-else-if="history.length" class="empty-message">Nothing matches your search or filter.</p>
-              <p v-else class="empty-message">You haven't boarded anywhere yet.</p>
-            </q-tab-panel>
-
-            <q-tab-panel name="reviews" class="tab-panel">
-              <template v-if="visibleReviews.length">
-                <div class="rating-summary">
-                  <StarRating :model-value="avgManagerRating" :size="18" />
-                  <span class="rating-count">{{ avgManagerRating.toFixed(1) }} · {{ reviewsFromManagers.length }} review{{ reviewsFromManagers.length === 1 ? '' : 's' }}</span>
-                </div>
-                <div class="group">
-                  <button v-for="r in visibleReviews" :key="r.id" type="button" class="review-row" @click="openReviewDetail(r)">
-                    <div class="review-top">
-                      <span class="review-author">{{ r.authorName }}</span>
-                      <StarRating :model-value="r.rating" :size="13" />
-                      <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                    </div>
-                    <p v-if="r.comment" class="review-comment">{{ r.comment }}</p>
-                  </button>
-                </div>
-              </template>
-              <p v-else-if="reviewsFromManagers.length" class="empty-message">Nothing matches your search or filter.</p>
-              <p v-else class="empty-message">No reviews from managers yet.</p>
-            </q-tab-panel>
-
-            <q-tab-panel name="payments" class="tab-panel">
-              <div v-if="visiblePayments.length" class="group">
-                <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row" @click="openPaymentDetail(p)">
-                  <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
-                  <span class="pay-body">
-                    <span class="pay-month">{{ formatMonth(p.month) }}</span>
-                    <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.roomLabel }}, {{ p.accommodationName }}</span>
-                  </span>
-                  <span class="pay-side">
-                    <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
-                    <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                      {{ statusText(PAYMENT_STATUS, p.status) }}
-                    </span>
-                  </span>
-                  <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                </button>
-              </div>
-              <p v-else-if="payments.length" class="empty-message">Nothing matches your search or filter.</p>
-              <p v-else class="empty-message">No payment records yet.</p>
-            </q-tab-panel>
-          </q-tab-panels>
+                <EmptyState v-else-if="payments.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
+                <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Rent payments you make will be recorded here." />
+              </q-tab-panel>
+            </q-tab-panels>
+          </div>
         </div>
       </div>
-    </div>
+
+    </q-pull-to-refresh>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band
          on a tab-shell page — but History is a subpage (no FAB, no bottom
-         nav), so it just spans the full width instead of reserving FAB room. -->
+         nav), so it just spans the full width instead of reserving FAB room.
+         Outside the pull-to-refresh wrapper on purpose: it transforms its
+         content while you pull, which would drag this fixed dock along. -->
     <div v-if="!loading && !error" class="dock">
       <button
         type="button"
@@ -227,7 +232,7 @@
     <q-dialog v-model="reviewDetailOpen" position="bottom">
       <q-card v-if="reviewDetailTarget" class="detail-sheet">
         <span class="sheet-grip" aria-hidden="true" />
-        <h3 class="detail-title">{{ reviewDetailTarget.authorName }}</h3>
+        <h3 class="detail-title">A past manager</h3>
         <StarRating :model-value="reviewDetailTarget.rating" :size="20" />
         <p v-if="reviewDetailTarget.comment" class="detail-text">{{ reviewDetailTarget.comment }}</p>
         <p class="detail-sub">{{ formatDate(reviewDetailTarget.createdAt) }}</p>
@@ -319,10 +324,11 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
 import StarRating from '@/components/shared/StarRating.vue'
+import EmptyState from '@/components/shared/EmptyState.vue'
 import { period } from '@/utils/profile'
 import { formatPeso, formatMonth, formatDate, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
@@ -346,7 +352,6 @@ interface ManagerReview {
   rating: number
   comment: string
   createdAt: string
-  authorName: string
 }
 interface PaymentRow {
   id: string
@@ -433,7 +438,7 @@ const visibleReviews = computed(() => {
   let list = reviewsFromManagers.value
   if (reviewDateFilter.value !== 'all') list = list.filter((r) => withinDateFilter(r.createdAt, reviewDateFilter.value))
   const q = query.value.trim().toLowerCase()
-  if (q) list = list.filter((r) => `${r.authorName} ${r.comment}`.toLowerCase().includes(q))
+  if (q) list = list.filter((r) => `${r.comment}`.toLowerCase().includes(q))
   return list
 })
 const visiblePayments = computed(() => {
@@ -497,30 +502,28 @@ async function submitReview() {
   }
   submittingReview.value = true
   try {
-    const { error: accError } = await supabase.from('accommodation_reviews').insert({
-      lease_id: row.leaseId,
-      student_id: userId.value,
-      accommodation_id: row.accommodationId,
-      rating: reviewForm.accRating,
-      comment: reviewForm.accComment.trim() || null,
+    // Both halves in one transaction. As two sequential inserts, a failure on
+    // the second left the first committed — and since a stay counts as rated
+    // once either row exists, the student could never supply the missing half.
+    const { error: reviewError } = await supabase.rpc('submit_student_review', {
+      p_lease_id: row.leaseId,
+      p_accommodation_id: row.accommodationId,
+      p_accommodation_manager_id: row.managerId,
+      p_acc_rating: reviewForm.accRating,
+      p_acc_comment: reviewForm.accComment,
+      p_manager_rating: reviewForm.managerRating,
+      p_manager_comment: reviewForm.managerComment,
     })
-    if (accError) throw accError
+    if (reviewError) throw reviewError
 
-    const { error: managerError } = await supabase.from('accommodation_manager_reviews').insert({
-      lease_id: row.leaseId,
-      student_id: userId.value,
-      accommodation_manager_id: row.managerId,
-      rating: reviewForm.managerRating,
-      comment: reviewForm.managerComment.trim() || null,
-    })
-    if (managerError) throw managerError
-
+    // Anonymous both ways: the manager is told a review arrived, not who wrote
+    // it or what they scored — the star count would identify it on their list.
     void createNotification(
       row.managerId,
       'New review',
-      `${studentName.value || 'A student'} left a ${reviewForm.managerRating}★ review after staying at ${row.name}.`,
+      'A past tenant left a review of their stay.',
       'review',
-      '/manager/profile',
+      '/manager/profile/history',
     )
 
     const target = history.value.find((h) => h.id === row.id)
@@ -534,11 +537,11 @@ async function submitReview() {
   }
 }
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await supabase.auth.getUser()
+    const { data: auth } = await authUser()
     const user = auth?.user
     if (!user) {
       void router.push('/login')
@@ -550,8 +553,7 @@ async function load() {
       { data: userRow },
       { data: past },
       { data: endedLeases },
-      { data: myAccReviews },
-      { data: myManagerReviews },
+      { data: myWrittenReviews },
       { data: reviewsAboutMe },
       { data: paymentRows },
     ] = await Promise.all([
@@ -566,12 +568,15 @@ async function load() {
         .select('id, accommodation_manager_id, rooms(accommodation_id)')
         .eq('student_id', user.id)
         .in('status', ['ended', 'terminated']),
-      supabase.from('accommodation_reviews').select('lease_id').eq('student_id', user.id),
-      supabase.from('accommodation_manager_reviews').select('lease_id').eq('student_id', user.id),
+      // Which stays this student has already rated. One view instead of two
+      // table reads, and it is scoped to the caller by the view itself.
+      supabase.from('review_written_leases').select('lease_id').in('kind', ['accommodation', 'manager']),
+      // Reviews managers left about this student — anonymous, so no name join:
+      // the manager's identity is not exposed by the view at all.
       supabase
-        .from('tenant_reviews')
-        .select('id, rating, comment, created_at, users!tenant_reviews_accommodation_manager_id_fkey(full_name)')
-        .eq('student_id', user.id)
+        .from('review_inbox')
+        .select('id, rating, comment, created_at')
+        .eq('kind', 'tenant')
         .order('created_at', { ascending: false }),
       supabase
         .from('payments')
@@ -591,10 +596,7 @@ async function load() {
         leaseByAccommodation.set(accId, { leaseId: l.id, managerId: l.accommodation_manager_id })
       }
     }
-    const reviewedLeaseIds = new Set([
-      ...((myAccReviews ?? []).map((r) => r.lease_id)),
-      ...((myManagerReviews ?? []).map((r) => r.lease_id)),
-    ])
+    const reviewedLeaseIds = new Set((myWrittenReviews ?? []).map((r) => r.lease_id))
 
     history.value = (past || []).map((h) => {
       const match = h.accommodation_id ? leaseByAccommodation.get(h.accommodation_id) : undefined
@@ -615,11 +617,10 @@ async function load() {
     })
 
     reviewsFromManagers.value = (reviewsAboutMe ?? []).map((r) => ({
-      id: r.id,
-      rating: r.rating,
+      id: r.id ?? '',
+      rating: r.rating ?? 0,
       comment: r.comment || '',
-      createdAt: r.created_at,
-      authorName: (r.users as unknown as { full_name: string | null } | null)?.full_name || 'A manager',
+      createdAt: r.created_at ?? '',
     }))
 
     payments.value = (paymentRows ?? []).map((p) => {
@@ -657,6 +658,12 @@ watch(tab, () => {
   historyFilter.value = 'all'
   reviewDateFilter.value = 'all'
 })
+
+// Not kept alive and with no realtime watch behind it, so a pull is the only
+// way to see anything that changed since the screen was opened.
+function onPull(done: () => void) {
+  void load(true).finally(done)
+}
 
 onMounted(load)
 </script>
@@ -855,13 +862,6 @@ onMounted(load)
   margin: 0;
   color: var(--m-muted);
   font-size: 11.5px;
-}
-.empty-message {
-  margin: 0;
-  font-size: 13px;
-  color: var(--m-muted);
-  text-align: center;
-  padding: 16px 0;
 }
 
 .history-row {

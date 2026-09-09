@@ -1,73 +1,76 @@
 <template>
   <q-page class="notif">
-    <div v-if="store.loading && !store.ready" class="stack">
-      <q-skeleton type="rect" height="34px" class="sk" />
-      <q-skeleton type="rect" height="72px" class="sk" />
-      <q-skeleton type="rect" height="72px" class="sk" />
-      <q-skeleton type="rect" height="72px" class="sk" />
-    </div>
-
-    <div v-else-if="store.error && !store.items.length" class="stack">
-      <q-card flat bordered class="card card--pad text-center">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load notifications</p>
-        <p class="err-sub">{{ store.error }}</p>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          dense
-          color="primary"
-          label="Try again"
-          class="q-mt-sm q-px-md"
-          @click="reload"
-        />
-      </q-card>
-    </div>
-
-    <div v-else-if="!store.items.length" class="empty">
-      <span class="empty-icon"><IconifyIcon icon="lucide:bell" width="26" /></span>
-      <p class="empty-title">No notifications yet</p>
-      <p class="empty-text">{{ emptyMessage }}</p>
-    </div>
-
-    <div v-else class="stack">
-      <div class="strip">
-        <span class="strip-count">
-          {{ store.unread ? `${store.unread} unread` : 'All caught up' }}
-        </span>
-        <button v-if="store.unread" type="button" class="strip-act" @click="store.markAllRead()">
-          Mark all read
-        </button>
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="store.loading && !store.ready" class="stack">
+        <q-skeleton type="rect" height="34px" class="sk" />
+        <q-skeleton type="rect" height="72px" class="sk" />
+        <q-skeleton type="rect" height="72px" class="sk" />
+        <q-skeleton type="rect" height="72px" class="sk" />
       </div>
 
-      <section v-for="group in groups" :key="group.label" class="sec">
-        <h2 class="sec-title">{{ group.label }}</h2>
-        <div class="list">
-          <component
-            :is="row.route ? 'button' : 'div'"
-            v-for="row in group.rows"
-            :key="row.id"
-            :type="row.route ? 'button' : undefined"
-            class="item"
-            :class="{ 'item--unread': !row.read, 'item--flat': !row.route }"
-            @click="open(row)"
-          >
-            <span class="item-icon" :class="`item-icon--${row.tone}`">
-              <IconifyIcon :icon="row.icon" width="16" />
-            </span>
-            <span class="item-body">
-              <span class="item-title">{{ row.title }}</span>
-              <span class="item-text">{{ row.body }}</span>
-            </span>
-            <span class="item-side">
-              <span class="item-when">{{ row.when }}</span>
-              <span v-if="!row.read" class="item-dot" aria-label="Unread" />
-            </span>
-          </component>
+      <div v-else-if="store.error && !store.items.length" class="stack">
+        <q-card flat bordered class="card card--pad text-center">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load notifications</p>
+          <p class="err-sub">{{ store.error }}</p>
+          <q-btn
+            unelevated
+            rounded
+            no-caps
+            dense
+            color="primary"
+            label="Try again"
+            class="q-mt-sm q-px-md"
+            @click="reload"
+          />
+        </q-card>
+      </div>
+
+      <EmptyState
+        v-else-if="!store.items.length"
+        icon="lucide:bell"
+        title="No notifications yet"
+        :message="emptyMessage"
+      />
+
+      <div v-else class="stack">
+        <div class="strip">
+          <span class="strip-count">
+            {{ store.unread ? `${store.unread} unread` : 'All caught up' }}
+          </span>
+          <button v-if="store.unread" type="button" class="strip-act" @click="store.markAllRead()">
+            Mark all read
+          </button>
         </div>
-      </section>
-    </div>
+
+        <section v-for="group in groups" :key="group.label" class="sec">
+          <h2 class="sec-title">{{ group.label }}</h2>
+          <div class="list">
+            <component
+              :is="row.route ? 'button' : 'div'"
+              v-for="row in group.rows"
+              :key="row.id"
+              :type="row.route ? 'button' : undefined"
+              class="item"
+              :class="{ 'item--unread': !row.read, 'item--flat': !row.route }"
+              @click="open(row)"
+            >
+              <span class="item-icon" :class="`item-icon--${row.tone}`">
+                <IconifyIcon :icon="row.icon" width="16" />
+              </span>
+              <span class="item-body">
+                <span class="item-title">{{ row.title }}</span>
+                <span class="item-text">{{ row.body }}</span>
+              </span>
+              <span class="item-side">
+                <span class="item-when">{{ row.when }}</span>
+                <span v-if="!row.read" class="item-dot" aria-label="Unread" />
+              </span>
+            </component>
+          </div>
+        </section>
+      </div>
+    </q-pull-to-refresh>
   </q-page>
 </template>
 
@@ -75,7 +78,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
 import {
   notifLook,
@@ -85,6 +88,7 @@ import {
   since,
   type Role,
 } from '@/utils/notifications'
+import EmptyState from '@/components/shared/EmptyState.vue'
 
 const props = defineProps<{ role: Role; emptyMessage: string }>()
 
@@ -131,8 +135,16 @@ function open(row: Row) {
 }
 
 async function reload() {
-  const { data } = await supabase.auth.getUser()
+  const { data } = await authUser()
   if (data?.user) await store.start(data.user.id)
+}
+
+// The store keeps this live over realtime, but a dropped socket event is
+// invisible from here — the pull is the manual way back to certain.
+// `store.ready` stays true after the first load, so no skeleton flashes
+// behind the spinner.
+function onPull(done: () => void) {
+  void reload().finally(done)
 }
 
 onMounted(reload)
@@ -316,38 +328,4 @@ onMounted(reload)
 }
 
 /* Empty */
-.empty {
-  display: flex;
-  min-height: 60vh;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 24px var(--m-page-gutter);
-  text-align: center;
-}
-.empty-icon {
-  display: grid;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  margin-bottom: 6px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary);
-}
-.empty-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 16px;
-  font-weight: 700;
-}
-.empty-text {
-  margin: 0;
-  max-width: 280px;
-  color: var(--m-muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
 </style>

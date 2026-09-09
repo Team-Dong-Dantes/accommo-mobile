@@ -1,255 +1,258 @@
 <template>
   <q-page class="dash">
-    <div v-if="loading" class="stack">
-      <div class="greet">
-        <q-skeleton type="text" width="60px" height="17px" />
-        <q-skeleton type="text" width="100px" height="20px" />
-      </div>
-      <q-skeleton type="rect" height="96px" class="sk" />
-      <div class="chips">
-        <div class="chip">
-          <q-skeleton type="text" width="56px" height="17px" />
-          <q-skeleton type="text" width="72px" height="12px" />
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
+        <div class="greet">
+          <q-skeleton type="text" width="60px" height="17px" />
+          <q-skeleton type="text" width="100px" height="20px" />
         </div>
-        <div class="chip-div" />
-        <div class="chip">
-          <q-skeleton type="text" width="34px" height="17px" />
-          <q-skeleton type="text" width="60px" height="12px" />
-        </div>
-      </div>
-      <section class="sec">
-        <q-skeleton type="text" width="120px" height="16px" />
-        <div class="lead">
-          <div class="lead-top">
-            <q-skeleton type="circle" size="25px" />
-            <q-skeleton type="text" width="90px" height="11px" />
+        <q-skeleton type="rect" height="96px" class="sk" />
+        <div class="chips">
+          <div class="chip">
+            <q-skeleton type="text" width="56px" height="17px" />
+            <q-skeleton type="text" width="72px" height="12px" />
           </div>
-          <q-skeleton type="text" width="75%" height="15px" />
-          <div class="lead-row">
-            <q-skeleton type="text" width="55%" height="12px" />
+          <div class="chip-div" />
+          <div class="chip">
+            <q-skeleton type="text" width="34px" height="17px" />
+            <q-skeleton type="text" width="60px" height="12px" />
           </div>
         </div>
-      </section>
-    </div>
-
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card card--pad text-center">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your dashboard</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-      </q-card>
-    </div>
-
-    <div v-else class="stack">
-      <!-- Greeting -->
-      <div class="greet">
-        <span class="greet-time">{{ greeting }},</span>
-        <span class="greet-name">{{ firstName }}</span>
-      </div>
-      <span v-if="reviewCount > 0" class="rating-badge">
-        <IconifyIcon icon="lucide:star" width="12" />
-        {{ ratingAvg?.toFixed(1) }} · {{ reviewCount }} {{ reviewCount === 1 ? 'review' : 'reviews' }}
-      </span>
-
-      <!-- Occupancy Card -->
-      <q-card flat class="occ" :class="{ 'occ--empty': !hasAccommodations }">
-        <div class="occ-left">
-          <span class="occ-cap">Occupancy</span>
-          <span class="occ-pct">
-            {{ hasAccommodations ? occupancyRate : 0 }}<span class="occ-sign">%</span>
-          </span>
-          <span class="occ-sub">
-            {{ hasAccommodations ? `${tenants} of ${totalBeds} beds filled` : 'No beds listed yet' }}
-          </span>
-        </div>
-        <div class="occ-right" aria-hidden="true">
-          <svg viewBox="0 0 120 120" class="ring">
-            <circle cx="60" cy="60" r="52" class="ring-track" />
-            <circle
-              cx="60" cy="60" r="52" class="ring-fill"
-              :stroke-dasharray="`${(occupancyRate / 100) * 326.7} 326.7`"
-              transform="rotate(-90 60 60)"
-            />
-          </svg>
-        </div>
-      </q-card>
-
-      <!-- Stat chips -->
-      <div class="chips">
-        <div class="chip">
-          <span class="chip-value">{{ formatPeso(expectedMonthly) }}</span>
-          <span class="chip-label">Expected/mo</span>
-        </div>
-        <div class="chip-div" />
-        <div class="chip">
-          <span class="chip-value">{{ vacantBeds }}</span>
-          <span class="chip-label">{{ vacantBeds === 1 ? 'Bed free' : 'Beds free' }}</span>
-        </div>
+        <section class="sec">
+          <q-skeleton type="text" width="120px" height="16px" />
+          <div class="lead">
+            <div class="lead-top">
+              <q-skeleton type="circle" size="25px" />
+              <q-skeleton type="text" width="90px" height="11px" />
+            </div>
+            <q-skeleton type="text" width="75%" height="15px" />
+            <div class="lead-row">
+              <q-skeleton type="text" width="55%" height="12px" />
+            </div>
+          </div>
+        </section>
       </div>
 
-      <!-- Needs attention -->
-      <section class="sec">
-        <div class="sec-head">
-          <h2 class="sec-title">Needs attention</h2>
+      <div v-else-if="error" class="stack">
+        <q-card flat bordered class="card card--pad text-center">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load your dashboard</p>
+          <p class="err-sub">{{ error }}</p>
+          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
+        </q-card>
+      </div>
+
+      <div v-else class="stack">
+        <!-- Greeting -->
+        <div class="greet">
+          <span class="greet-time">{{ greeting }},</span>
+          <span class="greet-name">{{ firstName }}</span>
+        </div>
+        <span v-if="reviewCount > 0" class="rating-badge">
+          <IconifyIcon icon="lucide:star" width="12" />
+          {{ ratingAvg?.toFixed(1) }} · {{ reviewCount }} {{ reviewCount === 1 ? 'review' : 'reviews' }}
+        </span>
+
+        <!-- Occupancy Card -->
+        <q-card flat class="occ" :class="{ 'occ--empty': !hasAccommodations }">
+          <div class="occ-left">
+            <span class="occ-cap">Occupancy</span>
+            <span class="occ-pct">
+              {{ hasAccommodations ? occupancyRate : 0 }}<span class="occ-sign">%</span>
+            </span>
+            <span class="occ-sub">
+              {{ hasAccommodations ? `${tenants} of ${totalBeds} beds filled` : 'No beds listed yet' }}
+            </span>
+          </div>
+          <div class="occ-right" aria-hidden="true">
+            <svg viewBox="0 0 120 120" class="ring">
+              <circle cx="60" cy="60" r="52" class="ring-track" />
+              <circle
+                cx="60" cy="60" r="52" class="ring-fill"
+                :stroke-dasharray="`${(occupancyRate / 100) * 326.7} 326.7`"
+                transform="rotate(-90 60 60)"
+              />
+            </svg>
+          </div>
+        </q-card>
+
+        <!-- Stat chips -->
+        <div class="chips">
+          <div class="chip">
+            <span class="chip-value">{{ formatPeso(expectedMonthly) }}</span>
+            <span class="chip-label">Expected/mo</span>
+          </div>
+          <div class="chip-div" />
+          <div class="chip">
+            <span class="chip-value">{{ vacantBeds }}</span>
+            <span class="chip-label">{{ vacantBeds === 1 ? 'Bed free' : 'Beds free' }}</span>
+          </div>
         </div>
 
-        <template v-if="attention.length">
-          <q-carousel
-            v-model="carouselSlide"
-            class="lead-carousel"
-            animated
-            transition-prev="slide-right"
-            transition-next="slide-left"
-            autoplay
-            :interval="3000"
-            infinite
-            swipeable
-          >
-            <q-carousel-slide
-              v-for="item in attention"
-              :key="item.id"
-              :name="item.id"
-              class="lead-slide"
+        <!-- Needs attention -->
+        <section class="sec">
+          <div class="sec-head">
+            <h2 class="sec-title">Needs attention</h2>
+          </div>
+
+          <template v-if="attention.length">
+            <q-carousel
+              v-model="carouselSlide"
+              class="lead-carousel"
+              animated
+              transition-prev="slide-right"
+              transition-next="slide-left"
+              autoplay
+              :interval="3000"
+              infinite
+              swipeable
             >
-              <div class="lead" :class="`lead--${item.tone}`">
-                <div class="lead-top">
-                  <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
-                  <span class="lead-kind">{{ item.kind }}</span>
-                  <span v-if="item.when" class="lead-when">{{ item.when }}</span>
-                </div>
-                <div class="lead-row">
-                  <div class="lead-body">
-                    <p class="lead-label">{{ item.label }}</p>
-                    <p class="lead-hint">{{ item.hint }}</p>
+              <q-carousel-slide
+                v-for="item in attention"
+                :key="item.id"
+                :name="item.id"
+                class="lead-slide"
+              >
+                <div class="lead" :class="`lead--${item.tone}`">
+                  <div class="lead-top">
+                    <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
+                    <span class="lead-kind">{{ item.kind }}</span>
+                    <span v-if="item.when" class="lead-when">{{ item.when }}</span>
                   </div>
-                  <button type="button" class="lead-action" @click="go(item.route)">
-                    {{ item.action }}
-                    <IconifyIcon icon="lucide:arrow-right" width="15" />
-                  </button>
+                  <div class="lead-row">
+                    <div class="lead-body">
+                      <p class="lead-label">{{ item.label }}</p>
+                      <p class="lead-hint">{{ item.hint }}</p>
+                    </div>
+                    <button type="button" class="lead-action" @click="go(item.route)">
+                      {{ item.action }}
+                      <IconifyIcon icon="lucide:arrow-right" width="15" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </q-carousel-slide>
-          </q-carousel>
+              </q-carousel-slide>
+            </q-carousel>
 
-          <div v-if="attention.length > 1" class="dots">
-            <button
-              v-for="item in attention"
-              :key="item.id"
-              type="button"
-              class="dot"
-              :class="{ 'dot--active': item.id === carouselSlide }"
-              :aria-label="`Show ${item.kind}`"
-              @click="carouselSlide = item.id"
-            />
+            <div v-if="attention.length > 1" class="dots">
+              <button
+                v-for="item in attention"
+                :key="item.id"
+                type="button"
+                class="dot"
+                :class="{ 'dot--active': item.id === carouselSlide }"
+                :aria-label="`Show ${item.kind}`"
+                @click="carouselSlide = item.id"
+              />
+            </div>
+          </template>
+
+          <div v-if="!attention.length" class="clear">
+            <IconifyIcon icon="lucide:smile" width="24" class="clear-icon" />
+            <span class="clear-text">
+              <span class="clear-label">Nothing needs you</span>
+              <span class="clear-hint">Concerns, applications and accreditation land here</span>
+            </span>
           </div>
-        </template>
+        </section>
 
-        <div v-if="!attention.length" class="clear">
-          <IconifyIcon icon="lucide:smile" width="24" class="clear-icon" />
-          <span class="clear-text">
-            <span class="clear-label">Nothing needs you</span>
-            <span class="clear-hint">Concerns, applications and compliance land here</span>
-          </span>
-        </div>
-      </section>
+        <!-- Property health -->
+        <section class="sec">
+          <div class="sec-head">
+            <h2 class="sec-title">Your properties</h2>
+            <button
+              v-if="hasAccommodations"
+              type="button"
+              class="sec-link"
+              @click="go('/manager/properties')"
+            >
+              Manage
+            </button>
+          </div>
 
-      <!-- Property health -->
-      <section class="sec">
-        <div class="sec-head">
-          <h2 class="sec-title">Your properties</h2>
-          <button
-            v-if="hasAccommodations"
-            type="button"
-            class="sec-link"
-            @click="go('/manager/properties')"
-          >
-            Manage
-          </button>
-        </div>
-
-        <div class="plist">
-          <button
-            v-for="a in accommodations"
-            :key="a.id"
-            type="button"
-            class="pcard"
-            @click="go(`/manager/properties/${a.id}`)"
-          >
-            <span class="pcard-photo" :class="{ 'pcard-photo--empty': !a.photoUrl }">
-              <img v-if="a.photoUrl" :src="a.photoUrl" alt="" />
-              <span v-else class="pcard-photo-empty">
-                <IconifyIcon icon="lucide:image-off" width="24" />
-                <span class="pcard-photo-empty-label">No photo</span>
-              </span>
-              <span class="pcard-status" :class="`pcard-status--${toneOf(a.status)}`">
-                <IconifyIcon :icon="statusIcon(a.status)" width="10" />
-                {{ statusLabel(a.status) }}
-              </span>
-              <span class="pcard-health-dot" :class="`pcard-health-dot--${healthTone(a)}`" />
-            </span>
-
-            <span class="pcard-body">
-              <span class="pcard-head">
-                <span class="pcard-name">{{ a.name }}</span>
-                <span v-if="a.type" class="pcard-type">{{ a.type }}</span>
-              </span>
-              <span v-if="a.address" class="pcard-address">
-                <IconifyIcon icon="lucide:map-pin" width="12" />
-                {{ a.address }}
-              </span>
-
-              <span class="facts">
-                <span class="fact">
-                  <span class="fact-value">{{ a.roomCount ?? '—' }}</span>
-                  <span class="fact-label">{{ a.roomCount === 1 ? 'Room' : 'Rooms' }}</span>
+          <div class="plist">
+            <button
+              v-for="a in accommodations"
+              :key="a.id"
+              type="button"
+              class="pcard"
+              @click="go(`/manager/properties/${a.id}`)"
+            >
+              <span class="pcard-photo" :class="{ 'pcard-photo--empty': !a.photoUrl }">
+                <img v-if="a.photoUrl" :src="a.photoUrl" alt="" />
+                <span v-else class="pcard-photo-empty">
+                  <IconifyIcon icon="lucide:image-off" width="24" />
+                  <span class="pcard-photo-empty-label">No photo</span>
                 </span>
-                <span class="fact-div" />
-                <span class="fact">
-                  <span class="fact-value">{{ a.filled }}/{{ a.capacity }}</span>
-                  <span class="fact-label">Beds filled</span>
+                <span class="pcard-status" :class="`pcard-status--${toneOf(a.status)}`">
+                  <IconifyIcon :icon="statusIcon(a.status)" width="10" />
+                  {{ statusLabel(a.status) }}
                 </span>
+                <span class="pcard-health-dot" :class="`pcard-health-dot--${healthTone(a)}`" />
               </span>
 
-              <span class="pcard-doc-summary">
-                <span v-if="a.expired > 0" class="doc-expired">
-                  <IconifyIcon icon="lucide:file-warning" width="14" />
-                  {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
+              <span class="pcard-body">
+                <span class="pcard-head">
+                  <span class="pcard-name">{{ a.name }}</span>
+                  <span v-if="a.type" class="pcard-type">{{ a.type }}</span>
                 </span>
-                <span v-else-if="a.expiringSoon > 0" class="doc-expiring">
-                  <IconifyIcon icon="lucide:clock" width="14" />
-                  {{ a.expiringSoon }} expiring soon
+                <span v-if="a.address" class="pcard-address">
+                  <IconifyIcon icon="lucide:map-pin" width="12" />
+                  {{ a.address }}
                 </span>
-                <span v-else class="doc-ok">
-                  <IconifyIcon icon="lucide:check-circle" width="14" />
-                  All permits up to date
+
+                <span class="facts">
+                  <span class="fact">
+                    <span class="fact-value">{{ a.roomCount ?? '—' }}</span>
+                    <span class="fact-label">{{ a.roomCount === 1 ? 'Room' : 'Rooms' }}</span>
+                  </span>
+                  <span class="fact-div" />
+                  <span class="fact">
+                    <span class="fact-value">{{ a.filled }}/{{ a.capacity }}</span>
+                    <span class="fact-label">Beds filled</span>
+                  </span>
+                </span>
+
+                <span class="pcard-doc-summary">
+                  <span v-if="a.expired > 0" class="doc-expired">
+                    <IconifyIcon icon="lucide:file-warning" width="14" />
+                    {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
+                  </span>
+                  <span v-else-if="a.expiringSoon > 0" class="doc-expiring">
+                    <IconifyIcon icon="lucide:clock" width="14" />
+                    {{ a.expiringSoon }} expiring soon
+                  </span>
+                  <span v-else class="doc-ok">
+                    <IconifyIcon icon="lucide:check-circle" width="14" />
+                    All permits up to date
+                  </span>
                 </span>
               </span>
-            </span>
-          </button>
+            </button>
 
-          <!-- Add card -->
-          <button type="button" class="pcard pcard--add" @click="go('/manager/properties/new')">
-            <span class="pcard-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
-            <span class="pcard-add-label">
-              {{ hasAccommodations ? 'Add another' : 'Add your first accommodation' }}
-            </span>
-          </button>
-        </div>
-      </section>
-    </div>
+            <!-- Add card -->
+            <button type="button" class="pcard pcard--add" @click="go('/manager/properties/new')">
+              <span class="pcard-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
+              <span class="pcard-add-label">
+                {{ hasAccommodations ? 'Add another' : 'Add your first accommodation' }}
+              </span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </q-pull-to-refresh>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso } from '@/utils/format'
 import { ago } from '@/utils/profile'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
+import EmptyState from '@/components/shared/EmptyState.vue'
 
 interface AccommodationCard {
   id: string
@@ -351,46 +354,94 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await supabase.auth.getUser()
+    const { data: auth } = await authUser()
     const user = auth?.user
     if (!user) {
       void router.push('/login')
       return
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('full_name')
-      .eq('id', user.id)
-      .maybeSingle()
-    firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
-
-    const { data: accRows, error: accError } = await supabase
-      .from('accommodations')
-      .select('id, name, status, address, barangay, city, accommodation_type, total_rooms')
-      .eq('accommodation_manager_id', user.id)
+    // Everything keyed only off the manager's own id goes out at once. These
+    // ran as nine round trips in series, which was comfortably the slowest
+    // thing about the first screen a manager sees.
+    const [
+      { data: profile },
+      { data: accRows, error: accError },
+      { data: leaseRows, error: leaseError },
+      { data: concernRows },
+      { data: peopleRows },
+      { data: reviewRows },
+    ] = await Promise.all([
+      supabase.from('users').select('full_name').eq('id', user.id).maybeSingle(),
+      supabase
+        .from('accommodations')
+        .select('id, name, status, address, barangay, city, accommodation_type, total_rooms')
+        .eq('accommodation_manager_id', user.id),
+      supabase
+        .from('leases')
+        .select('id, status, monthly_rent, room_id')
+        .eq('accommodation_manager_id', user.id)
+        .in('status', ['active', 'pending', 'leave_requested']),
+      supabase
+        .from('concerns')
+        .select(
+          'id, category, reported_at, leases!inner(accommodation_manager_id, users!leases_student_id_fkey(full_name), rooms(accommodations(name)))',
+        )
+        .eq('leases.accommodation_manager_id', user.id)
+        .neq('status', 'resolved')
+        .order('reported_at', { ascending: false })
+        .limit(6),
+      supabase
+        .from('leases')
+        .select(
+          'id, status, start_date, leave_requested_at, users!leases_student_id_fkey(full_name), rooms(room_number, accommodations(name))',
+        )
+        .eq('accommodation_manager_id', user.id)
+        .in('status', ['pending', 'leave_requested'])
+        .limit(6),
+      // Own rating, via the anonymous inbox view — the base table is no longer
+      // readable, and the reviewer's identity is not this screen's business.
+      supabase.from('review_inbox').select('rating').eq('kind', 'manager'),
+    ])
     if (accError) throw accError
+    if (leaseError) throw leaseError
+
+    firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
 
     const accs = accRows || []
     const accIds = accs.map((a) => a.id)
     const accName = new Map(accs.map((a) => [a.id, a.name]))
 
+    // Second wave: rooms, photos and permits all key off the accommodation ids
+    // above, so they couldn't join the first — but they can go out together.
+    // Skipped entirely for a manager with no accommodations, which is half of
+    // them (see the data notes in CLAUDE.md).
     let roomRows: { id: string; accommodation_id: string; capacity: number | null }[] = []
+    let imageRows: { accommodation_id: string; url: string; sort_order: number | null }[] = []
+    let docRows: {
+      id: string
+      doc_type: string
+      expires_at: string | null
+      accommodation_id: string
+    }[] = []
     if (accIds.length) {
-      const { data, error: roomError } = await supabase
-        .from('rooms')
-        .select('id, accommodation_id, capacity')
-        .in('accommodation_id', accIds)
-      if (roomError) throw roomError
-      roomRows = data || []
+      const [rooms, images, docs] = await Promise.all([
+        supabase.from('rooms').select('id, accommodation_id, capacity').in('accommodation_id', accIds),
+        supabase
+          .from('accommodation_images')
+          .select('accommodation_id, url, sort_order')
+          .in('accommodation_id', accIds)
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('accommodation_documents')
+          .select('id, doc_type, expires_at, accommodation_id')
+          .in('accommodation_id', accIds),
+      ])
+      if (rooms.error) throw rooms.error
+      roomRows = rooms.data || []
+      imageRows = images.data || []
+      docRows = docs.data || []
     }
-
-    const { data: leaseRows, error: leaseError } = await supabase
-      .from('leases')
-      .select('id, status, monthly_rent, room_id')
-      .eq('accommodation_manager_id', user.id)
-      .in('status', ['active', 'pending', 'leave_requested'])
-    if (leaseError) throw leaseError
 
     const leases = leaseRows || []
     const roomToAcc = new Map(roomRows.map((r) => [r.id, r.accommodation_id]))
@@ -416,16 +467,9 @@ async function load(silent = false) {
 
     // A photo per accommodation, fetched once for the whole portfolio.
     const photoByAcc = new Map<string, string>()
-    if (accIds.length) {
-      const { data: imageRows } = await supabase
-        .from('accommodation_images')
-        .select('accommodation_id, url, sort_order')
-        .in('accommodation_id', accIds)
-        .order('sort_order', { ascending: true })
-      for (const img of imageRows || []) {
-        if (!photoByAcc.has(img.accommodation_id)) {
-          photoByAcc.set(img.accommodation_id, resolveAsset(img.url))
-        }
+    for (const img of imageRows) {
+      if (!photoByAcc.has(img.accommodation_id)) {
+        photoByAcc.set(img.accommodation_id, resolveAsset(img.url))
       }
     }
 
@@ -434,15 +478,11 @@ async function load(silent = false) {
     const expiringSoonByAcc = new Map<string, number>()
     const items: AttentionItem[] = []
 
-    if (accIds.length) {
-      const { data: docRows } = await supabase
-        .from('accommodation_documents')
-        .select('id, doc_type, expires_at, accommodation_id')
-        .in('accommodation_id', accIds)
+    {
       const now = Date.now()
       const soon = now + 30 * 24 * 60 * 60 * 1000
 
-      for (const d of docRows || []) {
+      for (const d of docRows) {
         if (!d.expires_at) continue
         const t = new Date(d.expires_at).getTime()
         const where = accName.get(d.accommodation_id) || 'Accommodation'
@@ -451,12 +491,12 @@ async function load(silent = false) {
           items.push({
             id: `doc-${d.id}`,
             icon: 'lucide:file-warning',
-            kind: 'Compliance',
+            kind: 'OSAS',
             label: `${titleCase(d.doc_type)} expired`,
             hint: `${where} — accreditation is at risk until this is renewed`,
             when: ago(d.expires_at),
             action: 'Upload renewal',
-            route: '/manager/osas-compliance',
+            route: '/manager/osas',
             tone: 'danger',
             rank: 1,
           })
@@ -465,12 +505,12 @@ async function load(silent = false) {
           items.push({
             id: `doc-soon-${d.id}`,
             icon: 'lucide:calendar-clock',
-            kind: 'Compliance',
+            kind: 'OSAS',
             label: `${titleCase(d.doc_type)} expires soon`,
             hint: `${where} — renew it before it lapses`,
             when: '',
             action: 'Renew now',
-            route: '/manager/osas-compliance',
+            route: '/manager/osas',
             tone: 'warn',
             rank: 3,
           })
@@ -493,17 +533,10 @@ async function load(silent = false) {
       expiringSoon: expiringSoonByAcc.get(a.id) || 0,
     }))
 
-    // Rest of attention items (concerns, applications, leave requests)
-    const { data: concernRows } = await supabase
-      .from('concerns')
-      .select(
-        'id, category, reported_at, leases!inner(accommodation_manager_id, users!leases_student_id_fkey(full_name), rooms(accommodations(name)))',
-      )
-      .eq('leases.accommodation_manager_id', user.id)
-      .neq('status', 'resolved')
-      .order('reported_at', { ascending: false })
-      .limit(6)
-
+    // Rest of attention items (concerns, applications, leave requests). Both
+    // sets were fetched in the first wave; the ordering here still decides
+    // where they land among the equal-rank items, since the sort below is
+    // stable.
     for (const c of concernRows || []) {
       const lease = c.leases as unknown as {
         users: { full_name: string } | null
@@ -524,15 +557,6 @@ async function load(silent = false) {
         rank: 0,
       })
     }
-
-    const { data: peopleRows } = await supabase
-      .from('leases')
-      .select(
-        'id, status, start_date, leave_requested_at, users!leases_student_id_fkey(full_name), rooms(room_number, accommodations(name))',
-      )
-      .eq('accommodation_manager_id', user.id)
-      .in('status', ['pending', 'leave_requested'])
-      .limit(6)
 
     for (const l of peopleRows || []) {
       const who =
@@ -579,10 +603,6 @@ async function load(silent = false) {
     if (!silent) carouselSlide.value = attention.value[0]?.id ?? ''
 
     // Self rating — hidden until at least one review exists.
-    const { data: reviewRows } = await supabase
-      .from('accommodation_manager_reviews')
-      .select('rating')
-      .eq('accommodation_manager_id', user.id)
     const reviews = reviewRows || []
     reviewCount.value = reviews.length
     ratingAvg.value =
@@ -594,31 +614,22 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. The database
-// pushes lease changes here instead of the page re-asking on every return —
-// same channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need.
-let leaseChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  const { data: authData } = await supabase.auth.getUser()
-  const uid = authData?.user?.id
-  if (!uid || typeof supabase.channel !== 'function') return
-  leaseChannel = supabase
-    .channel(`dashboard-leases:${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'leases', filter: `accommodation_manager_id=eq.${uid}` },
-      () => void load(true),
-    )
-    .subscribe()
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so the
+// database pushes lease changes here instead of the page re-asking on every
+// return. utils/useLiveData.ts owns the whole policy — first load, the
+// subscription's lifetime, and how stale the data may be on return.
+const { refresh } = useLiveData({
+  key: 'manager-dashboard',
+  load,
+  watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
 })
 
-onUnmounted(() => {
-  if (leaseChannel) void supabase.removeChannel(leaseChannel)
-})
+// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
+// loads silently (no skeleton behind the spinner) and resets the freshness
+// clock, so returning to the screen does not immediately fetch again.
+function onPull(done: () => void) {
+  void refresh().finally(done)
+}
 </script>
 
 <style scoped>

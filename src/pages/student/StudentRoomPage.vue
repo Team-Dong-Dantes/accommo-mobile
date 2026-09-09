@@ -210,7 +210,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
@@ -405,7 +405,7 @@ async function load() {
       manager.replyMinutes = profile?.avg_response_minutes ?? null
     }
 
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const uid = authData?.user?.id
     if (uid) {
       const { data: mine } = await supabase

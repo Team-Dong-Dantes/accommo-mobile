@@ -47,20 +47,22 @@
       </q-card>
     </div>
 
-    <div v-else-if="!results.length" class="empty">
-      <span class="empty-icon"><IconifyIcon icon="lucide:search-x" width="26" /></span>
-      <p class="empty-title">{{ listings.length ? 'Nothing matches' : 'No listings yet' }}</p>
-      <p class="empty-text">
-        {{
-          listings.length
-            ? 'Try a different search, or loosen your filters.'
-            : 'Accredited accommodations will appear here once OSAS approves them.'
-        }}
-      </p>
-      <button v-if="listings.length && activeFilterCount" type="button" class="empty-act" @click="resetFilters">
-        Clear filters
-      </button>
-    </div>
+    <EmptyState
+      v-else-if="!results.length"
+      :icon="listings.length ? 'lucide:search-x' : 'lucide:building-2'"
+      :title="listings.length ? 'Nothing matches' : 'No listings yet'"
+      :message="
+        listings.length
+          ? 'Try a different search, or loosen your filters.'
+          : 'Accredited accommodations will appear here once OSAS approves them.'
+      "
+    >
+      <template v-if="listings.length && activeFilterCount" #actions>
+        <button type="button" class="empty-act" @click="resetFilters">
+          Clear filters
+        </button>
+      </template>
+    </EmptyState>
 
     <div v-else class="stack">
       <div class="count">
@@ -151,17 +153,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, listingMonogram } from '@/utils/listings'
 import PropertyCard from '@/components/student/PropertyCard.vue'
+import EmptyState from '@/components/shared/EmptyState.vue'
 
 interface Listing {
   id: string
@@ -308,25 +311,15 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. New/updated
-// listings push here instead of the page re-asking on every return — same
-// channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need. Public
-// data (accredited listings), so no per-user filter is needed.
-let listingsChannel: RealtimeChannel | null = null
-
-onMounted(() => {
-  void load()
-  if (typeof supabase.channel !== 'function') return
-  listingsChannel = supabase
-    .channel('properties-listings')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'accommodations' }, () => void load(true))
-    .subscribe()
-})
-
-onUnmounted(() => {
-  if (listingsChannel) void supabase.removeChannel(listingsChannel)
+// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so new and
+// updated listings push here instead of the page re-asking on every return.
+// utils/useLiveData.ts owns the whole policy — first load, the subscription's
+// lifetime, and how stale the data may be on return. Public data (accredited
+// listings), so no per-user filter is needed.
+useLiveData({
+  key: 'student-properties',
+  load,
+  watch: () => [{ table: 'accommodations' }],
 })
 </script>
 
@@ -474,40 +467,6 @@ onUnmounted(() => {
 }
 
 /* Empty */
-.empty {
-  display: flex;
-  min-height: 55vh;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 24px var(--m-page-gutter);
-  text-align: center;
-}
-.empty-icon {
-  display: grid;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  margin-bottom: 6px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary);
-}
-.empty-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 16px;
-  font-weight: 700;
-}
-.empty-text {
-  margin: 0;
-  max-width: 280px;
-  color: var(--m-muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
 .empty-act {
   min-height: 40px;
   margin-top: 10px;

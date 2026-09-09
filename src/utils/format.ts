@@ -86,6 +86,21 @@ export function parseServerTime(iso: string): Date {
   return new Date(hasTime && !hasTz ? `${iso}Z` : iso);
 }
 
+/** Separator label above a run of messages sent on the same day. */
+export function dayLabel(iso: string): string {
+  const date = parseServerTime(iso);
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  if (date.getTime() >= start.getTime()) return 'Today';
+  if (date.getTime() >= start.getTime() - 86400000) return 'Yesterday';
+  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** Clock time shown under a message bubble. */
+export function clockTime(iso: string): string {
+  return parseServerTime(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+}
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
@@ -135,6 +150,18 @@ export const CONCERN_STATUS: Record<string, StatusMeta> = {
   in_progress: { text: 'In Progress', color: 'orange' },
   resolved: { text: 'Resolved', color: 'green' },
   rejected: { text: 'Rejected', color: 'red' },
+};
+
+/** tickets.status — OSAS support tickets. Legacy values are kept because the
+ *  database check constraint still permits them on older rows. */
+export const TICKET_STATUS: Record<string, StatusMeta> = {
+  open: { text: 'Open', color: 'amber' },
+  pending: { text: 'Pending', color: 'amber' },
+  assigned: { text: 'Assigned', color: 'orange' },
+  in_progress: { text: 'In Progress', color: 'orange' },
+  under_review: { text: 'Under Review', color: 'orange' },
+  resolved: { text: 'Resolved', color: 'green' },
+  closed: { text: 'Closed', color: 'grey' },
 };
 
 export const CONCERN_CATEGORY_LABEL: Record<string, string> = {

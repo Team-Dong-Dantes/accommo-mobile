@@ -143,9 +143,9 @@
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf, parseServerTime, formatDate, formatPeso } from '@/utils/format'
+import { initialsOf, parseServerTime, formatDate, formatPeso, dayLabel, clockTime } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
@@ -222,20 +222,11 @@ const grouped = computed(() => {
       mine: m.senderId === me.value,
       read: m.status === 'read',
       delivered: m.status === 'delivered',
-      time: parseServerTime(m.sentAt).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }),
+      time: clockTime(m.sentAt),
     })
   }
   return out
 })
-
-function dayLabel(iso: string) {
-  const date = parseServerTime(iso)
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  if (date.getTime() >= start.getTime()) return 'Today'
-  if (date.getTime() >= start.getTime() - 86400000) return 'Yesterday'
-  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 async function toBottom() {
   await nextTick()
@@ -344,7 +335,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await supabase.auth.getUser()
+    const { data: auth } = await authUser()
     const user = auth?.user
     if (!user) return
     me.value = user.id

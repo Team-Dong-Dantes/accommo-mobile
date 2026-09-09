@@ -46,7 +46,7 @@
 
     <div class="settings-group">
       <p class="settings-group-label">Support</p>
-      <SettingsRow icon="lucide:shield-check" label="OSAS compliance" @click="go('/manager/osas-compliance')" />
+      <SettingsRow icon="lucide:shield-check" label="OSAS" @click="go('/manager/osas')" />
       <SettingsRow icon="lucide:message-square-warning" label="Concerns" @click="go('/manager/support')" />
     </div>
 
@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
 import { getStoredTheme, setStoredTheme } from '@/utils/theme'
 import { APP_VERSION } from '@/utils/config'
@@ -117,7 +117,7 @@ async function signOut() {
 }
 
 onMounted(async () => {
-  const { data } = await supabase.auth.getUser()
+  const { data } = await authUser()
   const identities = data.user?.identities ?? []
   googleLinked.value = identities.some((i) => i.provider === 'google')
 })

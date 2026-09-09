@@ -81,7 +81,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useMessagesStore } from '@/stores/messages'
 import { initialsOf } from '@/utils/format'
@@ -109,7 +109,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { name: 'menu', route: '/manager/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
     quickActions: [
-      { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas-compliance' },
+      { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
       { icon: 'lucide:building-2', label: 'My Properties', route: '/manager/properties' },
     ],
@@ -119,7 +119,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: '/manager/osas-compliance', title: 'OSAS Compliance', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
       { path: '/manager/properties', title: 'My Properties', back: '/manager/dashboard', backLabel: 'dashboard' },
@@ -183,7 +183,7 @@ const config = computed(() => SHELLS[role.value])
 const KEEP_ALIVE_PAGES = [
   'ManagerDashboard', 'ManagerTenantsPage', 'ManagerMessagesPage', 'ManagerProfilePage',
   'StudentDashboard', 'StudentDiscoverPage', 'StudentMessagesPage', 'StudentProfilePage',
-  'ManagerAccommodationsPage', 'ManagerConcernsPage', 'ManagerOsasCompliancePage', 'TenantProfile',
+  'ManagerAccommodationsPage', 'ManagerConcernsPage', 'ManagerOsasPage', 'TenantProfile',
   'StudentPropertiesPage', 'StudentOsasPage', 'StudentConcernsPage', 'StudentStayPage', 'StudentManagerPage',
 ]
 
@@ -331,7 +331,7 @@ onMounted(async () => {
   document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
   onScroll()
   try {
-    const { data } = await supabase.auth.getUser()
+    const { data } = await authUser()
     const user = data?.user
     if (!user) return
 

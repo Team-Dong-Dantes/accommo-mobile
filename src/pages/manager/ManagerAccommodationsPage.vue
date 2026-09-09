@@ -1,98 +1,100 @@
 <template>
   <q-page class="ap">
-    <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="230px" class="sk" />
-      <q-skeleton type="rect" height="230px" class="sk" />
-    </div>
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
+        <q-skeleton type="rect" height="230px" class="sk" />
+        <q-skeleton type="rect" height="230px" class="sk" />
+      </div>
 
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your accommodations</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-      </q-card>
-    </div>
+      <div v-else-if="error" class="stack">
+        <q-card flat bordered class="card">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load your accommodations</p>
+          <p class="err-sub">{{ error }}</p>
+          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
+        </q-card>
+      </div>
 
-    <EmptyState
-      v-else-if="!rows.length"
-      icon="lucide:building-2"
-      title="No accommodations listed yet"
-      message="Add your first place and its rooms so students can find and apply to stay with you."
-    >
-      <template #actions>
-        <q-btn unelevated rounded no-caps color="primary" label="Add accommodation" @click="router.push('/manager/properties/new')" />
-      </template>
-    </EmptyState>
+      <EmptyState
+        v-else-if="!rows.length"
+        icon="lucide:building-2"
+        title="No accommodations listed yet"
+        message="Add your first place and its rooms so students can find and apply to stay with you."
+      >
+        <template #actions>
+          <q-btn unelevated rounded no-caps color="primary" label="Add accommodation" @click="router.push('/manager/properties/new')" />
+        </template>
+      </EmptyState>
 
-    <div v-else class="stack">
-      <button v-for="a in rows" :key="a.id" type="button" class="acc-card" @click="router.push(`/manager/properties/${a.id}`)">
-        <span class="acc-photo" :class="{ 'acc-photo--empty': !a.image }">
-          <img v-if="a.image" :src="a.image" :alt="a.name" loading="lazy" />
-          <span v-else class="acc-photo-empty">
-            <IconifyIcon icon="lucide:image-off" width="24" />
-            <span class="acc-photo-empty-label">No photo</span>
-          </span>
-          <span class="acc-status" :class="`acc-status--${STATUS_TONE[a.status] || 'grey'}`">
-            <IconifyIcon :icon="STATUS_ICON[a.status] || 'lucide:circle'" width="10" />
-            {{ STATUS_LABEL[a.status] || a.status }}
-          </span>
-          <span class="acc-health-dot" :class="`acc-health-dot--${healthTone(a)}`" />
-        </span>
-
-        <span class="acc-body">
-          <span class="acc-head">
-            <span class="acc-name">{{ a.name }}</span>
-            <span v-if="a.type" class="acc-type">{{ a.type }}</span>
-          </span>
-          <span v-if="a.address" class="acc-addr">
-            <IconifyIcon icon="lucide:map-pin" width="12" />
-            {{ a.address }}
-          </span>
-
-          <span class="facts">
-            <span class="fact">
-              <span class="fact-value">{{ a.roomCount }}</span>
-              <span class="fact-label">{{ a.roomCount === 1 ? 'Room' : 'Rooms' }}</span>
+      <div v-else class="stack">
+        <button v-for="a in rows" :key="a.id" type="button" class="acc-card" @click="router.push(`/manager/properties/${a.id}`)">
+          <span class="acc-photo" :class="{ 'acc-photo--empty': !a.image }">
+            <img v-if="a.image" :src="a.image" :alt="a.name" loading="lazy" />
+            <span v-else class="acc-photo-empty">
+              <IconifyIcon icon="lucide:image-off" width="24" />
+              <span class="acc-photo-empty-label">No photo</span>
             </span>
-            <span class="fact-div" />
-            <span class="fact">
-              <span class="fact-value">{{ a.filled }}/{{ a.capacity }}</span>
-              <span class="fact-label">Beds filled</span>
+            <span class="acc-status" :class="`acc-status--${STATUS_TONE[a.status] || 'grey'}`">
+              <IconifyIcon :icon="STATUS_ICON[a.status] || 'lucide:circle'" width="10" />
+              {{ STATUS_LABEL[a.status] || a.status }}
             </span>
+            <span class="acc-health-dot" :class="`acc-health-dot--${healthTone(a)}`" />
           </span>
 
-          <span class="acc-doc-summary">
-            <span v-if="a.expired > 0" class="doc-expired">
-              <IconifyIcon icon="lucide:file-warning" width="14" />
-              {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
+          <span class="acc-body">
+            <span class="acc-head">
+              <span class="acc-name">{{ a.name }}</span>
+              <span v-if="a.type" class="acc-type">{{ a.type }}</span>
             </span>
-            <span v-else-if="a.expiringSoon > 0" class="doc-expiring">
-              <IconifyIcon icon="lucide:clock" width="14" />
-              {{ a.expiringSoon }} expiring soon
+            <span v-if="a.address" class="acc-addr">
+              <IconifyIcon icon="lucide:map-pin" width="12" />
+              {{ a.address }}
             </span>
-            <span v-else class="doc-ok">
-              <IconifyIcon icon="lucide:check-circle" width="14" />
-              All permits up to date
+
+            <span class="facts">
+              <span class="fact">
+                <span class="fact-value">{{ a.roomCount }}</span>
+                <span class="fact-label">{{ a.roomCount === 1 ? 'Room' : 'Rooms' }}</span>
+              </span>
+              <span class="fact-div" />
+              <span class="fact">
+                <span class="fact-value">{{ a.filled }}/{{ a.capacity }}</span>
+                <span class="fact-label">Beds filled</span>
+              </span>
+            </span>
+
+            <span class="acc-doc-summary">
+              <span v-if="a.expired > 0" class="doc-expired">
+                <IconifyIcon icon="lucide:file-warning" width="14" />
+                {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
+              </span>
+              <span v-else-if="a.expiringSoon > 0" class="doc-expiring">
+                <IconifyIcon icon="lucide:clock" width="14" />
+                {{ a.expiringSoon }} expiring soon
+              </span>
+              <span v-else class="doc-ok">
+                <IconifyIcon icon="lucide:check-circle" width="14" />
+                All permits up to date
+              </span>
             </span>
           </span>
-        </span>
-      </button>
+        </button>
 
-      <button type="button" class="acc-card acc-card--add" @click="router.push('/manager/properties/new')">
-        <span class="acc-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
-        <span class="acc-add-label">Add another</span>
-      </button>
-    </div>
+        <button type="button" class="acc-card acc-card--add" @click="router.push('/manager/properties/new')">
+          <span class="acc-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
+          <span class="acc-add-label">Add another</span>
+        </button>
+      </div>
+    </q-pull-to-refresh>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -155,7 +157,7 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
       error.value = 'Not signed in.'
@@ -240,31 +242,22 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. The database
-// pushes lease changes here instead of the page re-asking on every return —
-// same channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need.
-let leaseChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  const { data: authData } = await supabase.auth.getUser()
-  const uid = authData?.user?.id
-  if (!uid || typeof supabase.channel !== 'function') return
-  leaseChannel = supabase
-    .channel(`accommodations-leases:${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'leases', filter: `accommodation_manager_id=eq.${uid}` },
-      () => void load(true),
-    )
-    .subscribe()
+// Kept alive across navigation (see MainLayout's KEEP_ALIVE_PAGES), so the
+// database pushes lease changes here instead of the page re-asking on every
+// return. utils/useLiveData.ts owns the whole policy — first load, the
+// subscription's lifetime, and how stale the data may be on return.
+const { refresh } = useLiveData({
+  key: 'manager-accommodations',
+  load,
+  watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
 })
 
-onUnmounted(() => {
-  if (leaseChannel) void supabase.removeChannel(leaseChannel)
-})
+// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
+// loads silently (no skeleton behind the spinner) and resets the freshness
+// clock, so returning to the screen does not immediately fetch again.
+function onPull(done: () => void) {
+  void refresh().finally(done)
+}
 </script>
 
 <style scoped>

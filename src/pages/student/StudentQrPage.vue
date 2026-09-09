@@ -59,7 +59,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import QRCode from 'qrcode'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
 
 const router = useRouter()
@@ -106,7 +106,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await supabase.auth.getUser()
+    const { data: auth } = await authUser()
     const user = auth?.user
     if (!user) {
       void router.push('/login')

@@ -1,298 +1,296 @@
 <template>
   <q-page class="dash">
-    <div v-if="loading" class="stack">
-      <div class="greet">
-        <q-skeleton type="text" width="60px" height="17px" />
-        <q-skeleton type="text" width="100px" height="20px" />
-      </div>
-      <div class="tiles">
-        <q-skeleton type="rect" height="84px" class="sk" />
-        <q-skeleton type="rect" height="84px" class="sk" />
-      </div>
-      <div class="chips">
-        <div class="chip">
-          <q-skeleton type="text" width="40px" height="15px" />
-          <q-skeleton type="text" width="50px" height="11px" />
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
+        <div class="greet">
+          <q-skeleton type="text" width="60px" height="17px" />
+          <q-skeleton type="text" width="100px" height="20px" />
         </div>
-        <div class="chip-div" />
-        <div class="chip">
-          <q-skeleton type="text" width="18px" height="15px" />
-          <q-skeleton type="text" width="42px" height="11px" />
-        </div>
-        <div class="chip-div" />
-        <div class="chip">
-          <q-skeleton type="text" width="18px" height="15px" />
-          <q-skeleton type="text" width="55px" height="11px" />
-        </div>
-      </div>
-      <section class="sec">
-        <q-skeleton type="text" width="120px" height="16px" />
-        <div class="lead">
-          <div class="lead-top">
-            <q-skeleton type="circle" size="25px" />
-            <q-skeleton type="text" width="90px" height="11px" />
-          </div>
-          <div class="lead-row">
-            <q-skeleton type="text" width="75%" height="15px" />
-          </div>
-        </div>
-      </section>
-      <q-skeleton type="rect" height="66px" class="sk" />
-    </div>
-
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card card--pad text-center">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your dashboard</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-      </q-card>
-    </div>
-
-    <div v-else class="stack">
-      <div class="greet">
-        <span class="greet-time">{{ greeting }},</span>
-        <span class="greet-name">{{ firstName }}</span>
-      </div>
-
-      <!-- Stat tiles -->
-      <template v-if="stay">
         <div class="tiles">
-          <div class="tile tile--rent">
-            <span class="tile-cap">Rent</span>
-            <span class="tile-value">{{ formatPeso(stay.monthlyRent) }}<span class="tile-unit">/mo</span></span>
-          </div>
-          <div class="tile tile--lease" :class="{ 'tile--nudge': renewalSoon }">
-            <template v-if="stay.status === 'pending'">
-              <span class="tile-cap">Lease</span>
-              <span class="tile-value tile-value--sm">Awaiting approval</span>
-            </template>
-            <template v-else>
-              <div class="tile-left">
-                <span class="tile-cap">{{ renewalSoon ? 'Ends soon' : 'Lease' }}</span>
-                <span class="tile-value tile-value--sm">{{ daysLeft }}d left</span>
-                <span v-if="renewalSoon" class="tile-note">Talk to your manager about renewing</span>
-              </div>
-              <svg viewBox="0 0 120 120" class="tile-ring" aria-hidden="true">
-                <circle cx="60" cy="60" r="52" class="tile-ring-track" />
-                <circle
-                  cx="60" cy="60" r="52" class="tile-ring-fill"
-                  :stroke-dasharray="`${(leaseProgressPct / 100) * 326.7} 326.7`"
-                  transform="rotate(-90 60 60)"
-                />
-              </svg>
-            </template>
-          </div>
+          <q-skeleton type="rect" height="84px" class="sk" />
+          <q-skeleton type="rect" height="84px" class="sk" />
         </div>
-
         <div class="chips">
-          <button type="button" class="chip chip--link" @click="go('/student/payments')">
-            <span class="chip-value">{{ nextPayment ? formatPeso(nextPayment.amount) : 'None' }}</span>
-            <span class="chip-label">{{ nextPayment ? (nextPayment.overdue ? 'Overdue' : 'Next due') : 'Dues on file' }}</span>
-          </button>
-          <div class="chip-div" />
           <div class="chip">
-            <span class="chip-value">{{ attention.length || '✓' }}</span>
-            <span class="chip-label">{{ attention.length ? 'Alerts' : 'All clear' }}</span>
+            <q-skeleton type="text" width="40px" height="15px" />
+            <q-skeleton type="text" width="50px" height="11px" />
           </div>
           <div class="chip-div" />
           <div class="chip">
-            <span class="chip-value">{{ roommates.length || '—' }}</span>
-            <span class="chip-label">{{ roommates.length ? 'Roommates' : 'Alone here' }}</span>
+            <q-skeleton type="text" width="18px" height="15px" />
+            <q-skeleton type="text" width="42px" height="11px" />
+          </div>
+          <div class="chip-div" />
+          <div class="chip">
+            <q-skeleton type="text" width="18px" height="15px" />
+            <q-skeleton type="text" width="55px" height="11px" />
           </div>
         </div>
-      </template>
-
-      <!-- No active stay -->
-      <div v-else class="stay stay--empty">
-        <span class="stay-cap">No stay yet</span>
-        <p class="stay-name">Find a place to stay</p>
-        <p class="stay-room">Your room, rent and dates land here once a manager accepts you</p>
-        <button type="button" class="stay-cta" @click="go('/student/discover')">
-          Browse rooms
-          <IconifyIcon icon="lucide:arrow-right" width="15" />
-        </button>
+        <section class="sec">
+          <q-skeleton type="text" width="120px" height="16px" />
+          <div class="lead">
+            <div class="lead-top">
+              <q-skeleton type="circle" size="25px" />
+              <q-skeleton type="text" width="90px" height="11px" />
+            </div>
+            <div class="lead-row">
+              <q-skeleton type="text" width="75%" height="15px" />
+            </div>
+          </div>
+        </section>
+        <q-skeleton type="rect" height="66px" class="sk" />
       </div>
 
-      <!-- Getting settled checklist -->
-      <section v-if="showChecklist" class="sec">
-        <div class="sec-head">
-          <h2 class="sec-title">Getting settled</h2>
+      <div v-else-if="error" class="stack">
+        <q-card flat bordered class="card card--pad text-center">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load your dashboard</p>
+          <p class="err-sub">{{ error }}</p>
+          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
+        </q-card>
+      </div>
+
+      <div v-else class="stack">
+        <div class="greet">
+          <span class="greet-time">{{ greeting }},</span>
+          <span class="greet-name">{{ firstName }}</span>
         </div>
-        <div class="steps">
-          <div v-for="row in checklist" :key="row.id" class="step">
-            <template v-if="row.kind === 'row'">
-              <span class="step-icon" :class="`step-icon--${row.state}`">
-                <IconifyIcon :icon="row.icon" width="15" />
-              </span>
-              <span class="step-text">
-                <span class="step-label">{{ row.label }}</span>
-                <span v-if="row.hint" class="step-hint">{{ row.hint }}</span>
-              </span>
-              <button v-if="row.action" type="button" class="step-action" @click="go(row.route)">
-                {{ row.action }}
-              </button>
-            </template>
-            <template v-else>
-              <div class="stepper">
-                <span class="stepper-label">{{ row.label }}</span>
-                <div class="stepper-track">
-                  <span
-                    v-for="(n, i) in ['Submitted', 'Under review', 'Decided']"
-                    :key="n"
-                    class="stepper-node"
-                    :class="{ 'stepper-node--active': i === 1, 'stepper-node--done': i < 1 }"
-                  >{{ n }}</span>
+
+        <!-- Stat tiles -->
+        <template v-if="stay">
+          <div class="tiles">
+            <div class="tile tile--rent">
+              <span class="tile-cap">Rent</span>
+              <span class="tile-value">{{ formatPeso(stay.monthlyRent) }}<span class="tile-unit">/mo</span></span>
+            </div>
+            <div class="tile tile--lease" :class="{ 'tile--nudge': renewalSoon }">
+              <template v-if="stay.status === 'pending'">
+                <span class="tile-cap">Lease</span>
+                <span class="tile-value tile-value--sm">Awaiting approval</span>
+              </template>
+              <template v-else>
+                <div class="tile-left">
+                  <span class="tile-cap">{{ renewalSoon ? 'Ends soon' : 'Lease' }}</span>
+                  <span class="tile-value tile-value--sm">{{ daysLeft }}d left</span>
+                  <span v-if="renewalSoon" class="tile-note">Talk to your manager about renewing</span>
                 </div>
-              </div>
-            </template>
+                <svg viewBox="0 0 120 120" class="tile-ring" aria-hidden="true">
+                  <circle cx="60" cy="60" r="52" class="tile-ring-track" />
+                  <circle
+                    cx="60" cy="60" r="52" class="tile-ring-fill"
+                    :stroke-dasharray="`${(leaseProgressPct / 100) * 326.7} 326.7`"
+                    transform="rotate(-90 60 60)"
+                  />
+                </svg>
+              </template>
+            </div>
           </div>
-        </div>
-      </section>
 
-      <!-- Room identity -->
-      <div v-if="stay" class="room-card">
-        <div class="room-photo" :class="{ 'room-photo--empty': !stay.photoUrl }">
-          <img v-if="stay.photoUrl" :src="stay.photoUrl" alt="" />
-          <span v-else class="shot-empty">
-            <IconifyIcon icon="lucide:image-off" width="24" />
-            <span class="shot-empty-label">No photo</span>
-          </span>
-          <span class="room-tag">{{ statusLabel(stay.status) }}</span>
-        </div>
-
-        <div class="room-body">
-          <p class="room-name">{{ stay.accommodationName }}</p>
-          <p class="room-room">{{ roomLabel }}</p>
-          <button v-if="mapUrl" type="button" class="room-map-link" @click="mapDialog = true">
-            <IconifyIcon icon="lucide:map-pin" width="13" />
-            View on map
-          </button>
-
-          <div v-if="houseRuleChips.length" class="rules">
-            <span v-for="r in houseRuleChips" :key="r.label" class="rule-chip">{{ r.label }}: {{ r.value }}</span>
-            <button type="button" class="rules-more" @click="go(`/student/listing/${stay.accommodationId}`)">
-              View all
+          <div class="chips">
+            <button type="button" class="chip chip--link" @click="go('/student/payments')">
+              <span class="chip-value">{{ nextPayment ? formatPeso(nextPayment.amount) : 'None' }}</span>
+              <span class="chip-label">{{ nextPayment ? (nextPayment.overdue ? 'Overdue' : 'Next due') : 'Dues on file' }}</span>
             </button>
-          </div>
-
-          <div v-if="manager" class="person">
-            <span class="person-avatar">
-              <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="person-avatar-img" @error="manager.avatarUrl = null" />
-              <template v-else>{{ manager.initials }}</template>
-            </span>
-            <span class="person-body">
-              <span class="person-name">{{ manager.name }}</span>
-              <span class="person-role">
-                Your manager<template v-if="manager.replyMinutes"> · replies in ~{{ manager.replyMinutes }} min</template>
-              </span>
-              <span v-if="manager.reviewCount > 0" class="person-rating">
-                <IconifyIcon icon="lucide:star" width="11" />
-                {{ manager.ratingAvg?.toFixed(1) }} ({{ manager.reviewCount }})
-              </span>
-            </span>
-            <span class="person-actions">
-              <button type="button" class="icon-btn" aria-label="Message manager" @click.stop="messageManager">
-                <IconifyIcon icon="lucide:message-circle" width="17" />
-              </button>
-            </span>
-          </div>
-
-          <div v-if="roommates.length" class="mates">
-            <span class="mates-stack" aria-hidden="true">
-              <span v-for="m in roommates.slice(0, 4)" :key="m.id" class="mates-avatar">
-                <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="mates-avatar-img" @error="m.avatarUrl = null" />
-                <template v-else>{{ m.initials }}</template>
-              </span>
-              <span v-if="roommates.length > 4" class="mates-avatar mates-avatar--more">
-                +{{ roommates.length - 4 }}
-              </span>
-            </span>
-            <span class="mates-text">
-              Sharing {{ stay?.roomNumber ? `Room ${stay.roomNumber}` : 'your room' }}
-              with {{ roommates.length }} {{ roommates.length === 1 ? 'other' : 'others' }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Broadcast from OSAS -->
-      <button v-if="notice" type="button" class="notice" @click="go('/student/support')">
-        <span class="notice-icon"><IconifyIcon icon="lucide:megaphone" width="16" /></span>
-        <span class="notice-body">
-          <span class="notice-title">{{ notice.title }}</span>
-          <span class="notice-text">{{ notice.body }}</span>
-        </span>
-        <span class="notice-when">{{ notice.when }}</span>
-      </button>
-
-      <!-- Needs attention -->
-      <section class="sec">
-        <div class="sec-head">
-          <h2 class="sec-title">Needs attention</h2>
-        </div>
-
-        <template v-if="attention.length">
-          <q-carousel
-            v-model="carouselSlide"
-            class="lead-carousel"
-            animated
-            transition-prev="slide-right"
-            transition-next="slide-left"
-            autoplay
-            :interval="3000"
-            infinite
-            swipeable
-          >
-            <q-carousel-slide
-              v-for="item in attention"
-              :key="item.id"
-              :name="item.id"
-              class="lead-slide"
-            >
-              <div class="lead" :class="`lead--${item.tone}`">
-                <div class="lead-top">
-                  <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
-                  <span class="lead-kind">{{ item.kind }}</span>
-                  <span v-if="item.when" class="lead-when">{{ item.when }}</span>
-                </div>
-                <div class="lead-row">
-                  <div class="lead-body">
-                    <p class="lead-label">{{ item.label }}</p>
-                    <p class="lead-hint">{{ item.hint }}</p>
-                  </div>
-                  <button v-if="item.action" type="button" class="lead-action" @click="go(item.route)">
-                    {{ item.action }}
-                    <IconifyIcon icon="lucide:arrow-right" width="15" />
-                  </button>
-                </div>
-              </div>
-            </q-carousel-slide>
-          </q-carousel>
-
-          <div v-if="attention.length > 1" class="dots">
-            <button
-              v-for="item in attention"
-              :key="item.id"
-              type="button"
-              class="dot"
-              :class="{ 'dot--active': item.id === carouselSlide }"
-              :aria-label="`Show ${item.kind}`"
-              @click="carouselSlide = item.id"
-            />
+            <div class="chip-div" />
+            <div class="chip">
+              <span class="chip-value">{{ attention.length || '✓' }}</span>
+              <span class="chip-label">{{ attention.length ? 'Alerts' : 'All clear' }}</span>
+            </div>
+            <div class="chip-div" />
+            <div class="chip">
+              <span class="chip-value">{{ roommates.length || '—' }}</span>
+              <span class="chip-label">{{ roommates.length ? 'Roommates' : 'Alone here' }}</span>
+            </div>
           </div>
         </template>
 
-        <div v-if="!attention.length" class="clear">
-          <span class="clear-icon"><IconifyIcon icon="lucide:check" width="17" /></span>
-          <span class="clear-text">
-            <span class="clear-label">Nothing needs you</span>
-            <span class="clear-hint">Concerns and manager replies land here</span>
-          </span>
+        <!-- No active stay -->
+        <div v-else class="stay stay--empty">
+          <span class="stay-cap">No stay yet</span>
+          <p class="stay-name">Find a place to stay</p>
+          <p class="stay-room">Your room, rent and dates land here once a manager accepts you</p>
+          <button type="button" class="stay-cta" @click="go('/student/discover')">
+            Browse rooms
+            <IconifyIcon icon="lucide:arrow-right" width="15" />
+          </button>
         </div>
-      </section>
-    </div>
 
+        <!-- Getting settled checklist -->
+        <section v-if="showChecklist" class="sec">
+          <div class="sec-head">
+            <h2 class="sec-title">Getting settled</h2>
+          </div>
+          <div class="steps">
+            <div v-for="row in checklist" :key="row.id" class="step">
+              <template v-if="row.kind === 'row'">
+                <span class="step-icon" :class="`step-icon--${row.state}`">
+                  <IconifyIcon :icon="row.icon" width="15" />
+                </span>
+                <span class="step-text">
+                  <span class="step-label">{{ row.label }}</span>
+                  <span v-if="row.hint" class="step-hint">{{ row.hint }}</span>
+                </span>
+                <button v-if="row.action" type="button" class="step-action" @click="go(row.route)">
+                  {{ row.action }}
+                </button>
+              </template>
+              <template v-else>
+                <div class="stepper">
+                  <span class="stepper-label">{{ row.label }}</span>
+                  <div class="stepper-track">
+                    <span
+                      v-for="(n, i) in ['Submitted', 'Under review', 'Decided']"
+                      :key="n"
+                      class="stepper-node"
+                      :class="{ 'stepper-node--active': i === 1, 'stepper-node--done': i < 1 }"
+                    >{{ n }}</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </section>
+
+        <!-- Room identity -->
+        <div v-if="stay" class="room-card">
+          <div class="room-photo" :class="{ 'room-photo--empty': !stay.photoUrl }">
+            <img v-if="stay.photoUrl" :src="stay.photoUrl" alt="" />
+            <span v-else class="shot-empty">
+              <IconifyIcon icon="lucide:image-off" width="24" />
+              <span class="shot-empty-label">No photo</span>
+            </span>
+            <span class="room-tag">{{ statusLabel(stay.status) }}</span>
+          </div>
+
+          <div class="room-body">
+            <p class="room-name">{{ stay.accommodationName }}</p>
+            <p class="room-room">{{ roomLabel }}</p>
+            <button v-if="mapUrl" type="button" class="room-map-link" @click="mapDialog = true">
+              <IconifyIcon icon="lucide:map-pin" width="13" />
+              View on map
+            </button>
+
+            <div v-if="houseRuleChips.length" class="rules">
+              <span v-for="r in houseRuleChips" :key="r.label" class="rule-chip">{{ r.label }}: {{ r.value }}</span>
+              <button type="button" class="rules-more" @click="go(`/student/listing/${stay.accommodationId}`)">
+                View all
+              </button>
+            </div>
+
+            <div v-if="manager" class="person">
+              <span class="person-avatar">
+                <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="person-avatar-img" @error="manager.avatarUrl = null" />
+                <template v-else>{{ manager.initials }}</template>
+              </span>
+              <span class="person-body">
+                <span class="person-name">{{ manager.name }}</span>
+                <span class="person-role">
+                  Your manager<template v-if="manager.replyMinutes"> · replies in ~{{ manager.replyMinutes }} min</template>
+                </span>
+              </span>
+              <span class="person-actions">
+                <button type="button" class="icon-btn" aria-label="Message manager" @click.stop="messageManager">
+                  <IconifyIcon icon="lucide:message-circle" width="17" />
+                </button>
+              </span>
+            </div>
+
+            <div v-if="roommates.length" class="mates">
+              <span class="mates-stack" aria-hidden="true">
+                <span v-for="m in roommates.slice(0, 4)" :key="m.id" class="mates-avatar">
+                  <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="mates-avatar-img" @error="m.avatarUrl = null" />
+                  <template v-else>{{ m.initials }}</template>
+                </span>
+                <span v-if="roommates.length > 4" class="mates-avatar mates-avatar--more">
+                  +{{ roommates.length - 4 }}
+                </span>
+              </span>
+              <span class="mates-text">
+                Sharing {{ stay?.roomNumber ? `Room ${stay.roomNumber}` : 'your room' }}
+                with {{ roommates.length }} {{ roommates.length === 1 ? 'other' : 'others' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Broadcast from OSAS -->
+        <button v-if="notice" type="button" class="notice" @click="go('/student/support')">
+          <span class="notice-icon"><IconifyIcon icon="lucide:megaphone" width="16" /></span>
+          <span class="notice-body">
+            <span class="notice-title">{{ notice.title }}</span>
+            <span class="notice-text">{{ notice.body }}</span>
+          </span>
+          <span class="notice-when">{{ notice.when }}</span>
+        </button>
+
+        <!-- Needs attention -->
+        <section class="sec">
+          <div class="sec-head">
+            <h2 class="sec-title">Needs attention</h2>
+          </div>
+
+          <template v-if="attention.length">
+            <q-carousel
+              v-model="carouselSlide"
+              class="lead-carousel"
+              animated
+              transition-prev="slide-right"
+              transition-next="slide-left"
+              autoplay
+              :interval="3000"
+              infinite
+              swipeable
+            >
+              <q-carousel-slide
+                v-for="item in attention"
+                :key="item.id"
+                :name="item.id"
+                class="lead-slide"
+              >
+                <div class="lead" :class="`lead--${item.tone}`">
+                  <div class="lead-top">
+                    <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
+                    <span class="lead-kind">{{ item.kind }}</span>
+                    <span v-if="item.when" class="lead-when">{{ item.when }}</span>
+                  </div>
+                  <div class="lead-row">
+                    <div class="lead-body">
+                      <p class="lead-label">{{ item.label }}</p>
+                      <p class="lead-hint">{{ item.hint }}</p>
+                    </div>
+                    <button v-if="item.action" type="button" class="lead-action" @click="go(item.route)">
+                      {{ item.action }}
+                      <IconifyIcon icon="lucide:arrow-right" width="15" />
+                    </button>
+                  </div>
+                </div>
+              </q-carousel-slide>
+            </q-carousel>
+
+            <div v-if="attention.length > 1" class="dots">
+              <button
+                v-for="item in attention"
+                :key="item.id"
+                type="button"
+                class="dot"
+                :class="{ 'dot--active': item.id === carouselSlide }"
+                :aria-label="`Show ${item.kind}`"
+                @click="carouselSlide = item.id"
+              />
+            </div>
+          </template>
+
+          <div v-if="!attention.length" class="clear">
+            <span class="clear-icon"><IconifyIcon icon="lucide:check" width="17" /></span>
+            <span class="clear-text">
+              <span class="clear-label">Nothing needs you</span>
+              <span class="clear-hint">Concerns and manager replies land here</span>
+            </span>
+          </div>
+        </section>
+      </div>
+
+    </q-pull-to-refresh>
     <q-dialog v-model="mapDialog" position="bottom" class="map-dialog">
       <div class="map-card">
         <span class="map-grip" aria-hidden="true" />
@@ -304,14 +302,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { ago } from '@/utils/profile'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
+import EmptyState from '@/components/shared/EmptyState.vue'
 import { staticMapUrl } from '@/utils/geo'
 
 interface Stay {
@@ -380,8 +379,6 @@ interface Manager {
   initials: string
   avatarUrl: string | null
   replyMinutes: number | null
-  ratingAvg: number | null
-  reviewCount: number
 }
 
 interface Roommate {
@@ -476,7 +473,7 @@ async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await supabase.auth.getUser()
+    const { data: auth } = await authUser()
     const user = auth?.user
     if (!user) {
       void router.push('/login')
@@ -595,30 +592,28 @@ async function load(silent = false) {
       } | null
       const managerId = room?.accommodations?.accommodation_manager_id
 
+      // No rating on the manager card. It used to average
+      // `accommodation_manager_reviews` filtered to this manager, but RLS only
+      // ever returned the reviews *this student* had written — so the number
+      // shown was the student's own score played back at them. Students don't
+      // see ratings while browsing either, so there is nothing to replace it
+      // with; the card is name, response time and the actions.
       if (managerId) {
-        const [{ data: mgr }, { data: mgrProfile }, { data: mgrReviews }] = await Promise.all([
+        const [{ data: mgr }, { data: mgrProfile }] = await Promise.all([
           supabase.from('users').select('full_name, initials, avatar_url').eq('id', managerId).maybeSingle(),
           supabase
             .from('accommodation_manager_profiles')
             .select('avg_response_minutes')
             .eq('user_id', managerId)
             .maybeSingle(),
-          supabase.from('accommodation_manager_reviews').select('rating').eq('accommodation_manager_id', managerId),
         ])
         if (mgr) {
-          const reviewRows = mgrReviews || []
-          const reviewCount = reviewRows.length
           manager.value = {
             id: managerId,
             name: mgr.full_name,
             initials: mgr.initials || initialsOf(mgr.full_name),
             avatarUrl: mgr.avatar_url ? resolveAsset(mgr.avatar_url) : null,
             replyMinutes: mgrProfile?.avg_response_minutes ?? null,
-            ratingAvg:
-              reviewCount > 0
-                ? reviewRows.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviewCount
-                : null,
-            reviewCount,
           }
         }
       }
@@ -811,31 +806,22 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. The database
-// pushes lease changes here instead of the page re-asking on every return —
-// same channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need.
-let leaseChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  const { data: authData } = await supabase.auth.getUser()
-  const uid = authData?.user?.id
-  if (!uid || typeof supabase.channel !== 'function') return
-  leaseChannel = supabase
-    .channel(`dashboard-leases:${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'leases', filter: `student_id=eq.${uid}` },
-      () => void load(true),
-    )
-    .subscribe()
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so the
+// database pushes lease changes here instead of the page re-asking on every
+// return. utils/useLiveData.ts owns the whole policy — first load, the
+// subscription's lifetime, and how stale the data may be on return.
+const { refresh } = useLiveData({
+  key: 'student-dashboard',
+  load,
+  watch: (uid) => [{ table: 'leases', filter: `student_id=eq.${uid}` }],
 })
 
-onUnmounted(() => {
-  if (leaseChannel) void supabase.removeChannel(leaseChannel)
-})
+// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
+// loads silently (no skeleton behind the spinner) and resets the freshness
+// clock, so returning to the screen does not immediately fetch again.
+function onPull(done: () => void) {
+  void refresh().finally(done)
+}
 </script>
 
 <style scoped>

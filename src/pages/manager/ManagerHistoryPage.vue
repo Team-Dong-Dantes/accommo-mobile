@@ -1,131 +1,136 @@
 <template>
   <q-page class="history-page">
-    <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="40px" class="sk" />
-      <q-skeleton type="rect" height="90px" class="sk" />
-      <q-skeleton type="rect" height="90px" class="sk" />
-    </div>
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
+        <q-skeleton type="rect" height="40px" class="sk" />
+        <q-skeleton type="rect" height="90px" class="sk" />
+        <q-skeleton type="rect" height="90px" class="sk" />
+      </div>
 
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your history</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
-      </q-card>
-    </div>
+      <div v-else-if="error" class="stack">
+        <q-card flat bordered class="card">
+          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
+          <p class="err-title">Couldn't load your history</p>
+          <p class="err-sub">{{ error }}</p>
+          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
+        </q-card>
+      </div>
 
-    <div v-else class="stack">
-      <div class="tabbed">
-        <div class="tabs">
-          <button type="button" class="tab" :class="{ 'tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
-            Reviews
-          </button>
-          <button type="button" class="tab" :class="{ 'tab--on': tab === 'payments' }" @click="tab = 'payments'">
-            Payments
-          </button>
-        </div>
+      <div v-else class="stack">
+        <div class="tabbed">
+          <div class="tabs">
+            <button type="button" class="tab" :class="{ 'tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
+              Reviews
+            </button>
+            <button type="button" class="tab" :class="{ 'tab--on': tab === 'payments' }" @click="tab = 'payments'">
+              Payments
+            </button>
+          </div>
 
-        <div class="panel">
-          <q-tab-panels v-model="tab" animated swipeable class="panels">
-            <q-tab-panel name="reviews" class="tab-panel">
-              <template v-if="reviews.length">
-                <div class="rating-summary">
-                  <StarRating :model-value="avgRating" :size="18" />
-                  <span class="rating-count">{{ avgRating.toFixed(1) }} · {{ reviews.length }} review{{ reviews.length === 1 ? '' : 's' }}</span>
-                </div>
-                <div class="chips">
-                  <button
-                    v-for="f in REVIEW_FILTERS"
-                    :key="f.key"
-                    type="button"
-                    class="chip"
-                    :class="{ 'chip--on': reviewFilter === f.key }"
-                    @click="reviewFilter = f.key"
-                  >
-                    {{ f.label }}
-                  </button>
-                </div>
-                <div v-if="visibleReviews.length" class="group">
-                  <button
-                    v-for="r in visibleReviews"
-                    :key="r.id"
-                    type="button"
-                    class="review-row"
-                    @click="reviewDetailTarget = r; reviewDetailOpen = true"
-                  >
-                    <div class="review-top">
-                      <span class="review-author">{{ r.authorName }} <span class="review-source">· {{ r.source }}</span></span>
-                      <StarRating :model-value="r.rating" :size="13" />
-                      <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                    </div>
-                    <p v-if="r.comment" class="review-comment">{{ r.comment }}</p>
-                  </button>
-                </div>
-                <p v-else class="empty-message">Nothing matches your search or filters.</p>
-              </template>
-              <p v-else class="empty-message">No reviews yet.</p>
-            </q-tab-panel>
+          <div class="panel">
+            <q-tab-panels v-model="tab" animated swipeable class="panels">
+              <q-tab-panel name="reviews" class="tab-panel">
+                <template v-if="reviews.length">
+                  <div class="rating-summary">
+                    <StarRating :model-value="avgRating" :size="18" />
+                    <span class="rating-count">{{ avgRating.toFixed(1) }} · {{ reviews.length }} review{{ reviews.length === 1 ? '' : 's' }}</span>
+                  </div>
+                  <div class="chips">
+                    <button
+                      v-for="f in REVIEW_FILTERS"
+                      :key="f.key"
+                      type="button"
+                      class="chip"
+                      :class="{ 'chip--on': reviewFilter === f.key }"
+                      @click="reviewFilter = f.key"
+                    >
+                      {{ f.label }}
+                    </button>
+                  </div>
+                  <div v-if="visibleReviews.length" class="group">
+                    <button
+                      v-for="r in visibleReviews"
+                      :key="r.id"
+                      type="button"
+                      class="review-row"
+                      @click="reviewDetailTarget = r; reviewDetailOpen = true"
+                    >
+                      <div class="review-top">
+                        <span class="review-author">Anonymous <span class="review-source">· {{ r.source }}</span></span>
+                        <StarRating :model-value="r.rating" :size="13" />
+                        <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
+                      </div>
+                      <p v-if="r.comment" class="review-comment">{{ r.comment }}</p>
+                    </button>
+                  </div>
+                  <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
+                </template>
+                <EmptyState v-else variant="compact" icon="lucide:star" title="No reviews yet" message="Reviews from past tenants will show up here." />
+              </q-tab-panel>
 
-            <q-tab-panel name="payments" class="tab-panel">
-              <template v-if="payments.length">
-                <div v-if="paymentProperties.length > 1" class="chips">
-                  <button
-                    type="button"
-                    class="chip"
-                    :class="{ 'chip--on': propertyFilter === 'all' }"
-                    @click="propertyFilter = 'all'"
-                  >
-                    All
-                  </button>
-                  <button
-                    v-for="name in paymentProperties"
-                    :key="name"
-                    type="button"
-                    class="chip"
-                    :class="{ 'chip--on': propertyFilter === name }"
-                    @click="propertyFilter = name"
-                  >
-                    {{ name }}
-                  </button>
-                </div>
-                <div v-if="visiblePayments.length" class="group">
-                  <button
-                    v-for="p in visiblePayments"
-                    :key="p.id"
-                    type="button"
-                    class="pay-row"
-                    @click="router.push(`/manager/tenant/${p.leaseId}`)"
-                  >
-                    <span class="pay-avatar" :class="p.avatarColor ? [`bg-${p.avatarColor}`, 'text-white'] : []">
-                      <img v-if="p.avatarUrl" :src="p.avatarUrl" alt="" class="pay-avatar-img" @error="p.avatarUrl = null" />
-                      <template v-else>{{ initialsOf(p.studentName) }}</template>
-                    </span>
-                    <span class="pay-body">
-                      <span class="pay-name">{{ p.studentName }}</span>
-                      <span class="pay-sub">{{ p.roomLabel }} · {{ formatMonth(p.month) }}</span>
-                    </span>
-                    <span class="pay-side">
-                      <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
-                      <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                        {{ statusText(PAYMENT_STATUS, p.status) }}
+              <q-tab-panel name="payments" class="tab-panel">
+                <template v-if="payments.length">
+                  <div v-if="paymentProperties.length > 1" class="chips">
+                    <button
+                      type="button"
+                      class="chip"
+                      :class="{ 'chip--on': propertyFilter === 'all' }"
+                      @click="propertyFilter = 'all'"
+                    >
+                      All
+                    </button>
+                    <button
+                      v-for="name in paymentProperties"
+                      :key="name"
+                      type="button"
+                      class="chip"
+                      :class="{ 'chip--on': propertyFilter === name }"
+                      @click="propertyFilter = name"
+                    >
+                      {{ name }}
+                    </button>
+                  </div>
+                  <div v-if="visiblePayments.length" class="group">
+                    <button
+                      v-for="p in visiblePayments"
+                      :key="p.id"
+                      type="button"
+                      class="pay-row"
+                      @click="router.push(`/manager/tenant/${p.leaseId}`)"
+                    >
+                      <span class="pay-avatar" :class="p.avatarColor ? [`bg-${p.avatarColor}`, 'text-white'] : []">
+                        <img v-if="p.avatarUrl" :src="p.avatarUrl" alt="" class="pay-avatar-img" @error="p.avatarUrl = null" />
+                        <template v-else>{{ initialsOf(p.studentName) }}</template>
                       </span>
-                    </span>
-                    <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                  </button>
-                </div>
-                <p v-else class="empty-message">Nothing matches your search or filters.</p>
-              </template>
-              <p v-else class="empty-message">No payments yet.</p>
-            </q-tab-panel>
-          </q-tab-panels>
+                      <span class="pay-body">
+                        <span class="pay-name">{{ p.studentName }}</span>
+                        <span class="pay-sub">{{ p.roomLabel }} · {{ formatMonth(p.month) }}</span>
+                      </span>
+                      <span class="pay-side">
+                        <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
+                        <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
+                          {{ statusText(PAYMENT_STATUS, p.status) }}
+                        </span>
+                      </span>
+                      <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
+                    </button>
+                  </div>
+                  <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
+                </template>
+                <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Payments you log against a tenant will be listed here." />
+              </q-tab-panel>
+            </q-tab-panels>
+          </div>
         </div>
       </div>
-    </div>
+
+    </q-pull-to-refresh>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band
          on a tab-shell page — but History is a subpage (no FAB, no bottom
-         nav), so it just spans the full width instead of reserving FAB room. -->
+         nav), so it just spans the full width instead of reserving FAB room.
+         Outside the pull-to-refresh wrapper on purpose: it transforms its
+         content while you pull, which would drag this fixed dock along. -->
     <div v-if="!loading && !error" class="dock">
       <button
         type="button"
@@ -193,7 +198,7 @@
       <q-card v-if="reviewDetailTarget" class="detail-sheet">
         <span class="sheet-grip" aria-hidden="true" />
         <h3 class="detail-title">
-          {{ reviewDetailTarget.authorName }} <span class="review-source">· {{ reviewDetailTarget.source }}</span>
+          Anonymous <span class="review-source">· {{ reviewDetailTarget.source }}</span>
         </h3>
         <StarRating :model-value="reviewDetailTarget.rating" :size="20" />
         <p v-if="reviewDetailTarget.comment" class="detail-text">{{ reviewDetailTarget.comment }}</p>
@@ -208,8 +213,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
 import StarRating from '@/components/shared/StarRating.vue'
+import EmptyState from '@/components/shared/EmptyState.vue'
 import { formatPeso, formatMonth, formatDate, initialsOf, PAYMENT_STATUS, statusText, statusColor } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 
@@ -218,7 +224,6 @@ interface Review {
   rating: number
   comment: string
   createdAt: string
-  authorName: string
   source: string
   kind: 'user' | 'property'
 }
@@ -298,7 +303,7 @@ const visibleReviews = computed(() => {
   if (reviewFilter.value !== 'all') list = list.filter((r) => r.kind === reviewFilter.value)
   if (reviewDateFilter.value !== 'all') list = list.filter((r) => withinDateFilter(r.createdAt, reviewDateFilter.value))
   const q = query.value.trim().toLowerCase()
-  if (q) list = list.filter((r) => `${r.authorName} ${r.source} ${r.comment}`.toLowerCase().includes(q))
+  if (q) list = list.filter((r) => `${r.source} ${r.comment}`.toLowerCase().includes(q))
   return list
 })
 const visiblePayments = computed(() => {
@@ -318,36 +323,27 @@ watch(tab, () => {
   propertyFilter.value = 'all'
 })
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await supabase.auth.getUser()
+    const { data: auth } = await authUser()
     const user = auth?.user
     if (!user) {
       void router.push('/login')
       return
     }
 
-    const { data: accommodations } = await supabase
-      .from('accommodations')
-      .select('id')
-      .eq('accommodation_manager_id', user.id)
-    const accommodationIds = (accommodations || []).map((a) => a.id)
-
-    const [{ data: managerReviews }, { data: accReviews }, { data: paymentRows }] = await Promise.all([
+    const [{ data: inboxRows }, { data: paymentRows }] = await Promise.all([
+      // Reviews received, about this manager and about their accommodations.
+      // `review_inbox` scopes to the caller and carries no reviewer identity —
+      // reviews are anonymous to the person being reviewed, and the base tables
+      // are no longer readable, so there is nothing to join a name from.
       supabase
-        .from('accommodation_manager_reviews')
-        .select('id, rating, comment, created_at, users!accommodation_manager_reviews_student_id_fkey(full_name)')
-        .eq('accommodation_manager_id', user.id)
+        .from('review_inbox')
+        .select('id, kind, rating, comment, created_at, accommodation_name')
+        .in('kind', ['manager', 'accommodation'])
         .order('created_at', { ascending: false }),
-      accommodationIds.length
-        ? supabase
-            .from('accommodation_reviews')
-            .select('id, rating, comment, created_at, accommodations(name), users!accommodation_reviews_student_id_fkey(full_name)')
-            .in('accommodation_id', accommodationIds)
-            .order('created_at', { ascending: false })
-        : Promise.resolve({ data: [] as never[] }),
       supabase
         .from('payments')
         .select(
@@ -357,25 +353,16 @@ async function load() {
         .order('month', { ascending: false }),
     ])
 
-    const fromManager = (managerReviews ?? []).map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment || '',
-      createdAt: r.created_at,
-      authorName: (r.users as unknown as { full_name: string | null } | null)?.full_name || 'A student',
-      source: 'You',
-      kind: 'user' as const,
-    }))
-    const fromAcc = (accReviews ?? []).map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment || '',
-      createdAt: r.created_at,
-      authorName: (r.users as unknown as { full_name: string | null } | null)?.full_name || 'A student',
-      source: (r.accommodations as unknown as { name: string | null } | null)?.name || 'A property',
-      kind: 'property' as const,
-    }))
-    reviews.value = [...fromManager, ...fromAcc].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    reviews.value = (inboxRows ?? [])
+      .map((r) => ({
+        id: r.id ?? '',
+        rating: r.rating ?? 0,
+        comment: r.comment || '',
+        createdAt: r.created_at ?? '',
+        source: r.kind === 'manager' ? 'You' : r.accommodation_name || 'A property',
+        kind: r.kind === 'manager' ? ('user' as const) : ('property' as const),
+      }))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
     payments.value = (paymentRows ?? []).map((p) => {
       const lease = p.leases as unknown as {
@@ -405,6 +392,12 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+// Not kept alive and with no realtime watch behind it, so a pull is the only
+// way to see anything that changed since the screen was opened.
+function onPull(done: () => void) {
+  void load(true).finally(done)
 }
 
 onMounted(load)
@@ -512,13 +505,6 @@ onMounted(load)
   border-radius: var(--m-radius);
   background: var(--m-bg);
   overflow: hidden;
-}
-.empty-message {
-  margin: 0;
-  font-size: 13px;
-  color: var(--m-muted);
-  text-align: center;
-  padding: 16px 0;
 }
 
 .rating-summary {

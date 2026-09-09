@@ -45,6 +45,7 @@
       <div
         v-if="hasMapToken"
         class="map-region"
+        :class="{ 'map-region--full': mapExpanded }"
         :style="mapRegionStyle"
       >
         <div ref="mapEl" class="map-el" aria-label="Map of accommodations" />
@@ -319,13 +320,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, onDeactivated, nextTick } from 'vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/utils/supabase'
+import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
@@ -422,13 +423,15 @@ function measureViewport() {
  * and why pins sat off-screen and slid around when zooming. */
 const mapFillHeight = computed(() => (mapExpanded.value ? '100dvh' : `${MAP_PREVIEW_VH}vh`))
 
-// Plain in-flow block — no sticky/fixed positioning, so it scrolls away
-// with the rest of the page like any other section. Pulled up by the
-// header's reserved padding so it still fills that space (running behind
-// the floating header) instead of leaving a blank gap above it.
+// In preview it's a plain in-flow block that scrolls away with the rest of the
+// page, pulled up by the header's reserved padding so it fills that space
+// (running behind the floating header) instead of leaving a blank gap above
+// it. Expanded, `.map-region--full` lifts it out of flow entirely — see there
+// for why. The negative margin has to go with it, or the fixed box would sit
+// that far above the viewport.
 const mapRegionStyle = computed(() => ({
   height: mapFillHeight.value,
-  marginTop: `-${headerReservedPx.value}px`,
+  marginTop: mapExpanded.value ? '0px' : `-${headerReservedPx.value}px`,
   // The map runs up behind the floating header, so mapbox's own controls
   // land underneath it and can't be tapped at all. Push them clear by the
   // same amount the header reserves.
@@ -835,20 +838,11 @@ function clearSelectedPin() {
 
 // Leaving the expanded map shouldn't leave a stale selection waiting behind
 // the rail next time it's re-opened.
-// The map is a plain in-flow box, not a true overlay — without locking
-// scroll, the page keeps scrolling underneath it and you reach the list
-// below while the map is supposed to be full-screen.
-// The document is what scrolls here — measured: documentElement has
-// clientHeight 844 against scrollHeight 1576 and is the element whose
-// scrollTop actually moves. `.q-page-container` and `body` are plain
-// content-height blocks (clientHeight == scrollHeight), so setting overflow
-// on them does nothing at all.
 watch(mapExpanded, (expanded) => {
   if (!expanded) {
     selectedPin.value = null
     clearCampusLink()
   }
-  document.documentElement.style.overflow = expanded ? 'hidden' : ''
 })
 
 // The map used to read the raw property list, so searching and filtering only
@@ -1008,37 +1002,32 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so this
-// only really runs once per session rather than on every visit. New/updated
-// listings push here instead of the page re-asking on every return — same
-// channel shape as stores/notifications.ts, just refetching instead of
-// merging since this page has no per-row incremental-update need. Public
+// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so new
+// and updated listings push here instead of the page re-asking on every
+// return. utils/useLiveData.ts owns the whole policy — first load, the
+// subscription's lifetime, and how stale the data may be on return. Public
 // data (accredited listings), so no per-user filter is needed.
-let listingsChannel: RealtimeChannel | null = null
-
-onMounted(async () => {
-  await load()
-  await nextTick()
-  initMap()
-  measureViewport()
-  window.addEventListener('resize', measureViewport)
-  if (typeof supabase.channel !== 'function') return
-  listingsChannel = supabase
-    .channel('discover-listings')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'accommodations' }, () => void load(true))
-    .subscribe()
+useLiveData({
+  key: 'student-discover',
+  load,
+  watch: () => [{ table: 'accommodations' }],
 })
 
-// This page is kept alive (see MainLayout's KEEP_ALIVE_PAGES) — switching
-// tabs away from it doesn't unmount it, so the scroll lock from an expanded
-// map has to be released here too, or it'd leak onto every other page.
-onDeactivated(() => {
-  document.documentElement.style.overflow = ''
+// The map container sits in the `v-else` branch, so it does not exist in the
+// DOM until the first load clears `loading` — mounting is too early to reach
+// it, and initMap() bails on a null ref without ever retrying. Waiting on the
+// template ref itself instead runs it the moment the element is really there,
+// whichever order the load and the render happen to finish in.
+watch(mapEl, (el) => {
+  if (el) initMap()
+}, { flush: 'post' })
+
+onMounted(() => {
+  measureViewport()
+  window.addEventListener('resize', measureViewport)
 })
 
 onUnmounted(() => {
-  document.documentElement.style.overflow = ''
-  if (listingsChannel) void supabase.removeChannel(listingsChannel)
   window.removeEventListener('resize', measureViewport)
   mapResizeObserver?.disconnect()
   mapResizeObserver = null
@@ -1063,6 +1052,21 @@ onUnmounted(() => {
   min-height: 0;
   overflow: hidden;
   transition: height 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+/* Expanded, the map is a real overlay rather than a very tall in-flow box.
+   As an in-flow box the page simply carried on scrolling underneath it and
+   you reached the listings while the map was meant to be full-screen; locking
+   `documentElement`'s overflow was an attempt to hold that back and did not
+   survive contact with a touch screen. Out of flow there is nothing left to
+   scroll: the box covers the viewport and mapbox owns every gesture on it.
+   Sits under the bottom nav (z-index 50 in MainLayout) and under the collapse
+   button, floating rail and search dock, which are already fixed above it. */
+.map-region--full {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 40;
 }
 .map-el {
   width: 100%;

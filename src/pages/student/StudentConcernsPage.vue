@@ -171,10 +171,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import type { RealtimeChannel } from '@supabase/supabase-js'
-import { supabase } from '@/utils/supabase'
+import { supabase, authUser } from '@/utils/supabase'
+import { useLiveData, type LivePayload } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
 import { since } from '@/utils/notifications'
@@ -221,7 +221,6 @@ const newOpen = ref(false)
 const submitting = ref(false)
 const form = reactive({ category: 'maintenance', description: '', photo: null as File | null })
 
-let channel: RealtimeChannel | null = null
 
 // A single timeline replaces the old step-tracker + activity list: each row
 // is "done" once its timestamp lands, so a rejected report still shows
@@ -268,7 +267,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
       error.value = 'Not signed in.'
@@ -314,7 +313,6 @@ async function load() {
       }
     })
 
-    startRealtime()
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -322,40 +320,48 @@ async function load() {
   }
 }
 
-/** Live status/response updates from the manager land on an open list or detail sheet without a manual reload. */
-function startRealtime() {
-  if (channel || !activeLease.value || typeof supabase.channel !== 'function') return
-  channel = supabase
-    .channel(`concerns:student:${activeLease.value.id}`)
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'concerns', filter: `lease_id=eq.${activeLease.value.id}` },
-      (payload) => {
-        const row = payload.new as {
-          id: string
-          status: string
-          acknowledged_at: string | null
-          in_progress_at: string | null
-          resolved_at: string | null
-          manager_response: string | null
-        }
-        const patch = (c: Concern) => {
-          c.status = row.status
-          c.acknowledgedAt = row.acknowledged_at
-          c.inProgressAt = row.in_progress_at
-          c.resolvedAt = row.resolved_at
-          c.managerResponse = row.manager_response || ''
-        }
-        const listed = rows.value.find((c) => c.id === row.id)
-        if (listed) patch(listed)
-        if (selected.value?.id === row.id) patch(selected.value)
-      },
-    )
-    .subscribe()
+/**
+ * Live status/response updates from the manager land on an open list or detail
+ * sheet without a manual reload. Patched in place rather than refetched — only
+ * these five fields ever change on an existing concern.
+ */
+function onConcernUpdated(payload: LivePayload) {
+  const row = payload.new as {
+    id: string
+    status: string
+    acknowledged_at: string | null
+    in_progress_at: string | null
+    resolved_at: string | null
+    manager_response: string | null
+  }
+  const patch = (c: Concern) => {
+    c.status = row.status
+    c.acknowledgedAt = row.acknowledged_at
+    c.inProgressAt = row.in_progress_at
+    c.resolvedAt = row.resolved_at
+    c.managerResponse = row.manager_response || ''
+  }
+  const listed = rows.value.find((c) => c.id === row.id)
+  if (listed) patch(listed)
+  if (selected.value?.id === row.id) patch(selected.value)
 }
 
-onUnmounted(() => {
-  if (channel) void supabase.removeChannel(channel)
+// The lease id is only known once `load` has run, so the watch is evaluated
+// after it — see utils/useLiveData.ts.
+useLiveData({
+  key: 'student-concerns',
+  load,
+  watch: () =>
+    activeLease.value
+      ? [
+          {
+            table: 'concerns',
+            event: 'UPDATE',
+            filter: `lease_id=eq.${activeLease.value.id}`,
+            onChange: onConcernUpdated,
+          },
+        ]
+      : [],
 })
 
 async function submit() {
@@ -411,7 +417,6 @@ async function submit() {
   }
 }
 
-onMounted(load)
 </script>
 
 <style scoped>
