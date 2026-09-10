@@ -1,4 +1,4 @@
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Camera } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 
 export interface CaptureOutcome {
@@ -16,10 +16,10 @@ const NO_CAMERA_API = "This browser won't give the page camera access. Use Uploa
  * Last-resort capture that goes through the WebView instead of the native
  * camera intent.
  *
- * `<input capture>` opens the camera app on Android and hands the image back
- * through the page, so it needs no FileProvider — which is exactly what fails
- * when the native project is missing its provider config and getPhoto() dies
- * with "Unable to create photo on disk".
+ * `<input capture>` hands an image back through the page, so it needs no
+ * native plumbing at all. Kept as a last resort for a device where the
+ * in-app camera cannot start; note Android may show a chooser rather than
+ * going straight to the camera, so it is a fallback, never the first choice.
  */
 function captureViaInput(): Promise<File | null> {
   return new Promise((resolve) => {
@@ -54,7 +54,7 @@ function captureViaInput(): Promise<File | null> {
  * needs `navigator.mediaDevices.getUserMedia`, and browsers only expose that
  * on a secure origin. Serving the app over a LAN IP (`http://192.168.x.x`)
  * therefore leaves `navigator.mediaDevices` undefined and the custom element
- * unregistered, so getPhoto() throws.
+ * unregistered, so the camera call throws.
  *
  * Every call site used to swallow that in a bare `catch`, which made a
  * genuinely broken camera look identical to the user tapping cancel: nothing
@@ -68,14 +68,17 @@ export async function capturePhoto(): Promise<CaptureOutcome> {
   }
 
   try {
-    const photo = await Camera.getPhoto({
-      source: CameraSource.Camera,
-      resultType: CameraResultType.Uri,
-      quality: 80,
-    });
-    if (!photo.webPath) return { file: null, error: null };
-    const blob = await (await fetch(photo.webPath)).blob();
-    const ext = photo.format || 'jpeg';
+    // takePhoto(), not the deprecated getPhoto(): on Android the old call runs
+    // through LegacyCameraFlow, which hands the system camera app a file via
+    // the app's FileProvider — the step that fails with "Unable to create photo
+    // on disk" when that provider is misconfigured, and which then degrades to
+    // a file chooser. takePhoto() uses the plugin's own in-app camera and never
+    // touches FileProvider.
+    const photo = await Camera.takePhoto({ quality: 80 });
+    const path = photo.webPath || photo.uri;
+    if (!path) return { file: null, error: null };
+    const blob = await (await fetch(path)).blob();
+    const ext = blob.type.split('/')[1] || 'jpeg';
     return {
       file: new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` }),
       error: null,
@@ -88,7 +91,7 @@ export async function capturePhoto(): Promise<CaptureOutcome> {
     // The native intent could not be given a file to write to — the app's
     // FileProvider is misconfigured. The WebView can still reach the camera,
     // so try that before telling the user the camera is broken.
-    if (/photo on disk|fileprovider|configured root/i.test(message)) {
+    if (/photo on disk|fileprovider|configured root|unimplemented/i.test(message)) {
       const file = await captureViaInput();
       if (file) return { file, error: null };
       return {

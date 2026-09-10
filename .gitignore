@@ -44,11 +44,10 @@ discover_out.json
 prop_out.json
 room_out.json
 
-# Claude Code: keep shared CLAUDE.md + .claude/settings.json (system-related,
-# committed on purpose), ignore personal/local/ephemeral agent state
-.claude/settings.local.json
-.claude/*.log
+# Claude Code: agent config and guidance stay on the machine, not in the repo
+.claude/
+CLAUDE.md
 .mcp-auth/
 
-# Local audit/scratch reports, not shared team docs
-docs/audits/
+# Internal working documents (specs, diagrams, drafts) — local only
+docs/
