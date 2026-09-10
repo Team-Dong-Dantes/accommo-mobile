@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -139,6 +139,17 @@ onMounted(async () => {
 
 onUnmounted(() => {
   chatFullscreen.value = false
+})
+
+// Both messages pages are kept alive, so navigating out of an open thread —
+// to the other person's profile, say — deactivates this page instead of
+// unmounting it, and onUnmounted never runs. Without these the shell's header
+// and nav would stay hidden on whatever screen came next.
+onDeactivated(() => {
+  chatFullscreen.value = false
+})
+onActivated(() => {
+  chatFullscreen.value = Boolean(openId.value)
 })
 </script>
 

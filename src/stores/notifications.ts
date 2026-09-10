@@ -9,6 +9,10 @@ export interface NotifRow {
   title: string;
   body: string;
   link_url: string | null;
+  /** What the row is about — an announcement id for type 'announcement'. */
+  ref_id: string | null;
+  /** Who it is from, e.g. "System Admin" or an accommodation's name. */
+  source: string | null;
   read_at: string | null;
   created_at: string;
 }
@@ -45,7 +49,7 @@ export const useNotificationsStore = defineStore('notifications', {
       try {
         const { data, error } = await supabase
           .from('notifications')
-          .select('id, type, title, body, link_url, read_at, created_at')
+          .select('id, type, title, body, link_url, ref_id, source, read_at, created_at')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(100);

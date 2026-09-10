@@ -49,110 +49,26 @@
     </button>
   </div>
 
-  <!-- Result sheet -->
-  <q-dialog v-model="qrBottomSheetOpen" position="bottom" class="result-dialog">
-    <q-card class="sheet-card full-width pb-safe">
-      <div class="sheet-header">
-        <span class="sheet-grip" aria-hidden="true" />
-        <h2 class="sheet-title">Student found</h2>
-        <q-btn v-if="scannedStudent" flat round dense icon="close" color="grey-6" v-close-popup aria-label="Close" />
-      </div>
-
-      <div v-if="scannedStudent" class="sheet-body">
-        <div class="result-hero">
-          <q-avatar size="60px" class="result-avatar">
-            <img v-if="scannedStudent.avatarUrl" :src="scannedStudent.avatarUrl" alt="" @error="scannedStudent.avatarUrl = null" />
-            <template v-else>{{ scannedStudent.name.trim().charAt(0).toUpperCase() || '?' }}</template>
-          </q-avatar>
-          <div class="result-copy">
-            <strong>{{ scannedStudent.name }}</strong>
-            <span>{{ scannedStudent.course || '—' }}{{ scannedStudent.yearLevel && scannedStudent.yearLevel !== '—' ? ` · Year ${scannedStudent.yearLevel}` : '' }}</span>
-          </div>
-          <q-badge class="result-badge" :color="scannedStudent.osasVerified ? 'positive' : 'warning'">
-            <IconifyIcon :icon="scannedStudent.osasVerified ? 'lucide:shield-check' : 'lucide:shield-alert'" width="13" />
-            {{ scannedStudent.osasVerified ? 'Verified' : 'Not verified' }}
-          </q-badge>
-        </div>
-
-        <div class="result-block">
-          <dl>
-            <div><dt>Student ID</dt><dd>{{ scannedStudent.studentId }}</dd></div>
-            <div v-if="scannedStudent.currentBoarding">
-              <dt>Accommodation</dt>
-              <dd>{{ scannedStudent.currentBoarding.propertyName }}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div v-if="scannedStudent.currentBoarding" class="stay-facts">
-          <div><span>Unit</span><strong>{{ scannedStudent.currentBoarding.unit }}</strong></div>
-          <div><span>Status</span><strong>Active</strong></div>
-          <div><span>Monthly</span><strong>₱{{ scannedStudent.currentBoarding.monthlyRate.toLocaleString() }}</strong></div>
-        </div>
-
-        <div class="result-actions">
-          <q-btn unelevated no-caps color="primary" class="sheet-cta" label="View tenancy history" @click="qrBottomSheetOpen = false; tenancyDialog = true" />
-          <q-btn outline no-caps color="primary" text-color="primary" class="sheet-cta sheet-cta--ghost-row" label="Mark attendance" @click="markAttendance" />
-        </div>
-      </div>
-    </q-card>
-  </q-dialog>
-
-  <!-- Tenancy history -->
-  <q-dialog v-model="tenancyDialog" position="bottom" class="result-dialog">
-    <q-card class="sheet-card full-width pb-safe housesheet">
-      <div class="sheet-header sheet-header--fixed">
-        <span class="sheet-grip sheet-grip--inline" aria-hidden="true" />
-        <h2 class="sheet-title">Tenancy history</h2>
-      </div>
-      <div class="sheet-body sheet-body--scroll">
-        <p v-if="!(scannedStudent?.tenancyHistory?.length)" class="empty-note">No lease records with your property.</p>
-        <div v-else class="history-list">
-          <div v-for="(h, i) in scannedStudent?.tenancyHistory ?? []" :key="i" class="history-row">
-            <span class="history-icon"><IconifyIcon icon="lucide:building-2" width="18" /></span>
-            <div class="history-copy">
-              <strong>{{ h.propertyName }}</strong>
-              <small>{{ h.address }}</small>
-              <small>{{ h.period }}</small>
-            </div>
-            <q-badge class="history-status" :color="h.status === 'Current' ? 'teal' : 'grey'">{{ h.status }}</q-badge>
-          </div>
-        </div>
-      </div>
-    </q-card>
-  </q-dialog>
 </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useQrStore } from '@/stores/qr'
 import { Html5Qrcode } from 'html5-qrcode'
 
 const $q = useQuasar()
+const router = useRouter()
 const qrStore = useQrStore()
 
-const qrBottomSheetOpen = ref(false)
-const scannedStudent = ref<any | null>(null)
 const cameraError = ref('')
 const manualMode = ref(false)
 const manualCode = ref('')
-const tenancyDialog = ref(false)
 const readerRef = ref<HTMLElement | null>(null)
 let html5Scanner: Html5Qrcode | null = null
 let disposed = false
-
-// Watch the store so a successful scan (camera or manual) opens the sheet.
-watch(
-  () => qrStore.scannedStudent,
-  (newStudent) => {
-    if (newStudent) {
-      scannedStudent.value = newStudent
-      qrBottomSheetOpen.value = true
-    }
-  },
-)
 
 function onScanSuccess(decodedText: string) {
   stopScanner()
@@ -163,11 +79,14 @@ async function lookup(code: string) {
   const trimmed = code.trim()
   if (!trimmed) return
   try {
-    await qrStore.scanStudent(trimmed)
-    // The watch above opens the bottom sheet once the store updates.
+    const student = await qrStore.scanStudent(trimmed)
+    // The result is a full profile screen, the same one a conversation opens,
+    // rather than a bottom sheet that duplicates it badly.
+    void router.push(`/manager/person/${student.userId}`)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to look up student.'
     $q.notify({ message, color: 'negative', position: 'top', icon: 'error_outline' })
+    void startScanner()
   }
 }
 
@@ -187,18 +106,6 @@ watch(manualMode, (isManual) => {
   if (isManual) stopScanner()
   else void startScanner()
 })
-
-function markAttendance() {
-  if (!scannedStudent.value) return
-  $q.notify({
-    message: `Attendance recorded for ${scannedStudent.value.name}.`,
-    color: 'teal-9',
-    position: 'top',
-    icon: 'check_circle',
-  })
-  // No attendance table exists in the current schema — this confirms the
-  // scanned student was identified but doesn't persist a record.
-}
 
 async function startScanner() {
   cameraError.value = ''

@@ -34,6 +34,22 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/manager/ManagerHistoryPage.vue'),
   },
   {
+    path: '/manager/profile/policies',
+    component: () => import('@/pages/manager/ManagerPoliciesPage.vue'),
+  },
+  {
+    path: '/manager/announcements',
+    component: () => import('@/pages/manager/ManagerAnnouncePage.vue'),
+  },
+  {
+    path: '/manager/announcement/:id',
+    component: () => import('@/pages/shared/AnnouncementPage.vue'),
+  },
+  {
+    path: '/manager/person/:id',
+    component: () => import('@/pages/shared/PersonPage.vue'),
+  },
+  {
     path: '/manager/notifications',
     component: () => import('@/pages/manager/ManagerNotificationsPage.vue'),
   },

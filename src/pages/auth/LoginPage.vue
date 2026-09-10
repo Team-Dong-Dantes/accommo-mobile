@@ -136,8 +136,18 @@ async function handleOAuthReturn() {
   if (!session) return;
 
   if (!registered) {
-    notify.info("This account isn't registered yet — let's finish setting it up.");
-    void router.push('/register/role');
+    // signInWithOAuth provisions an account for whoever clicks the button, so an
+    // unregistered session arriving HERE means there was nothing to sign in to.
+    // Drop it and let them choose: pushing them into onboarding trapped them,
+    // because the guard bounces every route but /login and /register back to the
+    // role picker, and this handler bounced /login straight back again.
+    // A half-finished e-mail signup is left alone — handleLogin() resumes those
+    // when the person actually signs in.
+    if (session.user.app_metadata?.provider === 'google') {
+      await supabase.auth.signOut();
+      authStore.clearCachedRole();
+      notify.info('That Google account isn\'t registered yet. Tap Create Account to sign up.');
+    }
     return;
   }
 
