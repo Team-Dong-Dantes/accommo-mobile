@@ -1,7 +1,7 @@
 {
   "appId": "com.accommo.app",
   "appName": "Accommo Mobile",
-  "webDir": "www",
+  "webDir": "dist/spa",
   "bundledWebRuntime": false,
   "backgroundColor": "#f6f7f8"
 }

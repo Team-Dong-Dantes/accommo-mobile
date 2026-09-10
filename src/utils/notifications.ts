@@ -24,6 +24,8 @@ const LOOK: Record<string, NotifLook> = {
   payment: { icon: 'lucide:wallet-cards', tone: 'good' },
   ticket: { icon: 'lucide:triangle-alert', tone: 'warn' },
   review: { icon: 'lucide:star', tone: 'good' },
+  announcement: { icon: 'lucide:megaphone', tone: 'info' },
+  policy: { icon: 'lucide:scroll-text', tone: 'warn' },
 };
 
 export function notifLook(type: string | null | undefined): NotifLook {
@@ -44,11 +46,13 @@ const ROUTES = new Set([
   // there. Missing from this set, a link silently degrades to the BY_TYPE
   // fallback below and drops the reader somewhere unrelated.
   '/manager/profile/history',
+  '/manager/profile/policies',
   '/student/home',
   '/student/discover',
   '/student/messages',
   '/student/profile',
   '/student/profile/history',
+  '/student/profile/policies',
   '/student/notifications',
   '/student/support',
   '/student/concerns',
@@ -67,6 +71,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     payment: '/manager/tenants',
     ticket: '/manager/osas',
     review: '/manager/profile',
+    policy: '/manager/profile/policies',
   },
   student: {
     verification: '/student/support',
@@ -77,6 +82,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     payment: '/student/payments',
     ticket: '/student/support',
     review: '/student/profile',
+    policy: '/student/profile/policies',
   },
 };
 
@@ -88,7 +94,11 @@ export function resolveNotifLink(
   linkUrl: string | null | undefined,
   type: string | null | undefined,
   role: Role,
+  refId?: string | null,
 ): string | null {
+  // An announcement carries its own screen, addressed by the id the fan-out
+  // stamped on the row — the same page for both roles, under their own prefix.
+  if (type === 'announcement' && refId) return `/${role}/announcement/${refId}`;
   if (linkUrl) {
     const base = linkUrl.split('?')[0] ?? '';
     // Own-role routes only: a student must never be sent into manager screens.

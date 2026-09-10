@@ -519,36 +519,67 @@ export type Database = {
       }
       announcements: {
         Row: {
+          accommodation_id: string | null
           archived: boolean
           audience: Database["public"]["Enums"]["audience_type"]
           author_id: string
           body: string
+          deadline_at: string | null
+          event_at: string | null
+          event_end: string | null
           expires_at: string | null
           id: string
+          image_url: string | null
+          location: string | null
+          notified_at: string | null
           published_at: string | null
+          summary: string | null
           title: string
         }
         Insert: {
+          accommodation_id?: string | null
           archived?: boolean
           audience?: Database["public"]["Enums"]["audience_type"]
           author_id: string
           body: string
+          deadline_at?: string | null
+          event_at?: string | null
+          event_end?: string | null
           expires_at?: string | null
           id?: string
+          image_url?: string | null
+          location?: string | null
+          notified_at?: string | null
           published_at?: string | null
+          summary?: string | null
           title: string
         }
         Update: {
+          accommodation_id?: string | null
           archived?: boolean
           audience?: Database["public"]["Enums"]["audience_type"]
           author_id?: string
           body?: string
+          deadline_at?: string | null
+          event_at?: string | null
+          event_end?: string | null
           expires_at?: string | null
           id?: string
+          image_url?: string | null
+          location?: string | null
+          notified_at?: string | null
           published_at?: string | null
+          summary?: string | null
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "announcements_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "announcements_author_id_fkey"
             columns: ["author_id"]
@@ -873,6 +904,8 @@ export type Database = {
           id: string
           link_url: string | null
           read_at: string | null
+          ref_id: string | null
+          source: string | null
           title: string
           type: string
           user_id: string
@@ -883,6 +916,8 @@ export type Database = {
           id?: string
           link_url?: string | null
           read_at?: string | null
+          ref_id?: string | null
+          source?: string | null
           title: string
           type: string
           user_id: string
@@ -893,6 +928,8 @@ export type Database = {
           id?: string
           link_url?: string | null
           read_at?: string | null
+          ref_id?: string | null
+          source?: string | null
           title?: string
           type?: string
           user_id?: string
@@ -1005,6 +1042,48 @@ export type Database = {
           },
         ]
       }
+      qr_scans: {
+        Row: {
+          id: string
+          method: string
+          result: string
+          scanned_at: string
+          scanner_id: string
+          student_id: string | null
+        }
+        Insert: {
+          id?: string
+          method?: string
+          result: string
+          scanned_at?: string
+          scanner_id: string
+          student_id?: string | null
+        }
+        Update: {
+          id?: string
+          method?: string
+          result?: string
+          scanned_at?: string
+          scanner_id?: string
+          student_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_scans_scanner_id_fkey"
+            columns: ["scanner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scans_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       room_images: {
         Row: {
           id: string
@@ -1103,6 +1182,8 @@ export type Database = {
           osas_verified_at: string | null
           program: string | null
           qr_code_token: string | null
+          qr_token_expires_at: string | null
+          qr_token_rotated_at: string | null
           school_id_url: string | null
           student_id: string | null
           user_id: string
@@ -1117,6 +1198,8 @@ export type Database = {
           osas_verified_at?: string | null
           program?: string | null
           qr_code_token?: string | null
+          qr_token_expires_at?: string | null
+          qr_token_rotated_at?: string | null
           school_id_url?: string | null
           student_id?: string | null
           user_id: string
@@ -1131,6 +1214,8 @@ export type Database = {
           osas_verified_at?: string | null
           program?: string | null
           qr_code_token?: string | null
+          qr_token_expires_at?: string | null
+          qr_token_rotated_at?: string | null
           school_id_url?: string | null
           student_id?: string | null
           user_id?: string
@@ -1358,6 +1443,7 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
           sex: string | null
           status: Database["public"]["Enums"]["user_status"]
+          terms_accepted_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1378,6 +1464,7 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
           sex?: string | null
           status?: Database["public"]["Enums"]["user_status"]
+          terms_accepted_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1398,6 +1485,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
           sex?: string | null
           status?: Database["public"]["Enums"]["user_status"]
+          terms_accepted_at?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1559,6 +1647,15 @@ export type Database = {
       }
     }
     Functions: {
+      announce_due: { Args: never; Returns: number }
+      announcement_reach: {
+        Args: { p_id: string }
+        Returns: {
+          seen: number
+          sent: number
+        }[]
+      }
+      archive_expired_announcements: { Args: never; Returns: number }
       can_notify: { Args: { target: string }; Returns: boolean }
       check_student_id_exists: {
         Args: { p_student_id: string }
@@ -1566,6 +1663,14 @@ export type Database = {
       }
       confirm_email_ownership: { Args: never; Returns: boolean }
       current_is_superadmin: { Args: never; Returns: boolean }
+      current_qr_token: {
+        Args: never
+        Returns: {
+          expires_at: string
+          token: string
+        }[]
+      }
+      fanout_announcement: { Args: { p_id: string }; Returns: number }
       get_my_role: { Args: never; Returns: string }
       get_verification_queue: {
         Args: never
@@ -1588,6 +1693,12 @@ export type Database = {
         Args: { p_conversation: string }
         Returns: undefined
       }
+      my_accommodation_ids: {
+        Args: never
+        Returns: {
+          id: string
+        }[]
+      }
       notify_admins: {
         Args: {
           p_body: string
@@ -1606,6 +1717,7 @@ export type Database = {
         Returns: undefined
       }
       resubmit_verification: { Args: never; Returns: undefined }
+      rotate_qr_token: { Args: never; Returns: string }
       set_audit_context: {
         Args: { p_ip_address?: string; p_user_agent?: string }
         Returns: undefined
@@ -1623,6 +1735,7 @@ export type Database = {
         Returns: undefined
       }
       sweep_expired_permits: { Args: never; Returns: undefined }
+      verify_student_qr: { Args: { p_code: string }; Returns: Json }
     }
     Enums: {
       accommodation_status:

@@ -59,12 +59,19 @@
                 <IconifyIcon :icon="row.icon" width="16" />
               </span>
               <span class="item-body">
-                <span class="item-title">{{ row.title }}</span>
+                <span class="item-head">
+                  <span class="item-title">{{ row.title }}</span>
+                  <span v-if="!row.read" class="item-dot" aria-label="Unread" />
+                </span>
                 <span class="item-text">{{ row.body }}</span>
-              </span>
-              <span class="item-side">
-                <span class="item-when">{{ row.when }}</span>
-                <span v-if="!row.read" class="item-dot" aria-label="Unread" />
+                <!-- Sender and age read as one footer: who it is from is only
+                     useful next to when it arrived, and keeping both out of the
+                     title row lets the title use the full width. -->
+                <span class="item-meta">
+                  <span v-if="row.source" class="item-from">{{ row.source }}</span>
+                  <span v-if="row.source" class="item-meta-dot">·</span>
+                  <span>{{ row.when }}</span>
+                </span>
               </span>
             </component>
           </div>
@@ -104,6 +111,7 @@ interface Row {
   tone: string
   read: boolean
   route: string | null
+  source: string | null
 }
 
 const groups = computed(() => {
@@ -122,7 +130,8 @@ const groups = computed(() => {
       icon: look.icon,
       tone: look.tone,
       read: Boolean(n.read_at),
-      route: resolveNotifLink(n.link_url, n.type, props.role),
+      route: resolveNotifLink(n.link_url, n.type, props.role, n.ref_id),
+      source: n.source,
     })
   }
 
@@ -290,13 +299,36 @@ onMounted(reload)
   flex-direction: column;
   gap: 2px;
 }
+.item-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
 .item-title {
+  min-width: 0;
+  flex: 1 1 auto;
   color: var(--m-ink);
   font-size: 13.5px;
   font-weight: 700;
   line-height: 1.25;
   text-wrap: pretty;
 }
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.item-from {
+  overflow: hidden;
+  color: var(--m-info);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-meta-dot { opacity: 0.6; }
 .item-text {
   color: var(--m-text);
   font-size: 12px;
@@ -307,22 +339,11 @@ onMounted(reload)
   -webkit-box-orient: vertical;
 }
 
-.item-side {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-}
-.item-when {
-  color: var(--m-muted);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
 .item-dot {
   width: 8px;
   height: 8px;
+  flex: 0 0 8px;
+  margin-top: 4px;
   border-radius: 999px;
   background: var(--m-primary);
 }

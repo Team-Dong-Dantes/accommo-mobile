@@ -85,6 +85,8 @@
                 </div>
               </template>
             </AuthInput>
+
+            <AuthTermsCheck ref="termsRef" v-model="agreedToTerms" />
           </q-step>
 
           <q-step v-if="!isGoogleMode" :name="2" title="Account" icon="settings" :done="step > 2">
@@ -328,6 +330,7 @@ import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthSelect from '@/components/auth/AuthSelect.vue';
 import AuthFileDropZone from '@/components/auth/AuthFileDropZone.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
+import AuthTermsCheck from '@/components/auth/AuthTermsCheck.vue';
 import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
 import AuthDivider from '@/components/auth/AuthDivider.vue';
 import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
@@ -341,6 +344,8 @@ const notify = useNotify();
 const authStore = useAuthStore();
 
 const step = ref(1);
+const agreedToTerms = ref(false);
+const termsRef = ref<InstanceType<typeof AuthTermsCheck> | null>(null);
 const registerFormRef = ref<QForm | null>(null);
 const isGoogleMode = ref(false);
 const googleUserId = ref('');
@@ -497,7 +502,22 @@ function prevStep() {
   else if (step.value > 1) step.value--;
 }
 
+/**
+ * Consent has to come before anything is created, and both paths create
+ * something on leaving step 1: the email path an account two steps later, the
+ * Google path an auth user immediately. Next is covered by the step's own form
+ * validation — the terms box is a required field like any other — so this only
+ * has to cover the Google button, which creates an auth user without ever
+ * running the form.
+ */
+function termsAccepted(): boolean {
+  if (agreedToTerms.value) return true;
+  termsRef.value?.validate();
+  return false;
+}
+
 async function handleGoogleAuth() {
+  if (!termsAccepted()) return;
   try {
     await authStore.loginWithGoogle('/register');
   } catch (error: unknown) {

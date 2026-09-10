@@ -42,8 +42,20 @@ const studentRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/student/StudentSettingsPage.vue'),
   },
   {
+    path: '/student/profile/policies',
+    component: () => import('@/pages/student/StudentPoliciesPage.vue'),
+  },
+  {
     path: '/student/profile/qr',
     component: () => import('@/pages/student/StudentQrPage.vue'),
+  },
+  {
+    path: '/student/announcement/:id',
+    component: () => import('@/pages/shared/AnnouncementPage.vue'),
+  },
+  {
+    path: '/student/person/:id',
+    component: () => import('@/pages/shared/PersonPage.vue'),
   },
   {
     path: '/student/notifications',

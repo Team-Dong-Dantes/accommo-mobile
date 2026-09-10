@@ -36,6 +36,8 @@
           </q-btn>
         </template>
       </div>
+
+      <BroadcastBanner :role="role" />
     </q-header>
 
     <q-page-container class="page-container">
@@ -65,6 +67,8 @@
       />
     </q-footer>
 
+    <TermsGate />
+
     <QuickActions
       v-if="!chatFullscreen"
       v-model:open="menuOpen"
@@ -88,6 +92,8 @@ import { initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import BottomNav from '@/components/layout/BottomNav.vue'
+import TermsGate from '@/components/shared/TermsGate.vue'
+import BroadcastBanner from '@/components/shared/BroadcastBanner.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
 import type { SecondaryPage, ShellConfig } from '@/types/app-types'
 
@@ -112,13 +118,18 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
       { icon: 'lucide:building-2', label: 'My Properties', route: '/manager/properties' },
+      { icon: 'lucide:megaphone', label: 'Announce', route: '/manager/announcements' },
     ],
     secondaryPages: [
       { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/profile/settings', title: 'Settings', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
+      { path: '/manager/profile/policies', title: 'Policies & Guidelines', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/announcements', title: 'Announce', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: /^\/manager\/announcement\/[^/]+$/, title: 'Announcement', back: '/manager/notifications', backLabel: 'notifications' },
+      { path: /^\/manager\/person\/[^/]+$/, title: 'Profile', back: '/manager/messages', backLabel: 'messages' },
       { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
@@ -146,7 +157,10 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/student/profile/settings', title: 'Settings', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/profile/qr', title: 'My QR', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/profile/history', title: 'History', back: '/student/profile', backLabel: 'profile' },
+      { path: '/student/profile/policies', title: 'Policies & Guidelines', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
+      { path: /^\/student\/announcement\/[^/]+$/, title: 'Announcement', back: '/student/notifications', backLabel: 'notifications' },
+      { path: /^\/student\/person\/[^/]+$/, title: 'Profile', back: '/student/messages', backLabel: 'messages' },
       { path: '/student/support', title: 'OSAS', back: '/student/home', backLabel: 'home' },
       { path: '/student/concerns', title: 'Concerns', back: '/student/home', backLabel: 'home' },
       { path: '/student/stay', title: 'My Stay', back: '/student/home', backLabel: 'home' },
@@ -377,6 +391,8 @@ onMounted(async () => {
     // this same store instance, so start() here is a no-op once that page
     // also calls it (see the userId/channel guard in stores/messages.ts).
     await messagesStore.start(user.id)
+
+
   } catch {
     userInitials.value = 'U'
   }

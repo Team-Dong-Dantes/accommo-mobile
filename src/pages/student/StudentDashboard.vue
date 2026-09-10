@@ -213,16 +213,6 @@
           </div>
         </div>
 
-        <!-- Broadcast from OSAS -->
-        <button v-if="notice" type="button" class="notice" @click="go('/student/support')">
-          <span class="notice-icon"><IconifyIcon icon="lucide:megaphone" width="16" /></span>
-          <span class="notice-body">
-            <span class="notice-title">{{ notice.title }}</span>
-            <span class="notice-text">{{ notice.body }}</span>
-          </span>
-          <span class="notice-when">{{ notice.when }}</span>
-        </button>
-
         <!-- Needs attention -->
         <section class="sec">
           <div class="sec-head">
@@ -367,12 +357,6 @@ interface NextPayment {
   overdue: boolean
 }
 
-interface Notice {
-  title: string
-  body: string
-  when: string
-}
-
 interface Manager {
   id: string
   name: string
@@ -398,7 +382,6 @@ const carouselSlide = ref('')
 const checklist = ref<ChecklistRow[]>([])
 const houseRuleChips = ref<HouseRuleChip[]>([])
 const nextPayment = ref<NextPayment | null>(null)
-const notice = ref<Notice | null>(null)
 const manager = ref<Manager | null>(null)
 const roommates = ref<Roommate[]>([])
 const mapDialog = ref(false)
@@ -570,21 +553,6 @@ async function load(silent = false) {
       stay.value = null
       houseRuleChips.value = []
     }
-
-    // Newest live broadcast aimed at students.
-    const { data: noticeRows } = await supabase
-      .from('announcements')
-      .select('title, body, published_at, expires_at')
-      .in('audience', ['all', 'students'])
-      .eq('archived', false)
-      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-      .order('published_at', { ascending: false })
-      .limit(1)
-
-    const top = noticeRows?.[0]
-    notice.value = top
-      ? { title: top.title, body: top.body || '', when: ago(top.published_at) }
-      : null
 
     if (leaseRow) {
       const room = leaseRow.rooms as unknown as {
@@ -1086,34 +1054,6 @@ function onPull(done: () => void) {
 .mates-avatar--more { background: var(--m-border); color: var(--m-text); }
 .mates-text { color: var(--m-muted); font-size: 12px; font-weight: 600; }
 
-/* Broadcast notice */
-.notice {
-  display: flex;
-  width: 100%;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 9px 11px;
-  border: 1px solid color-mix(in srgb, var(--m-info) 22%, var(--m-border));
-  border-radius: var(--m-radius);
-  background: var(--m-info-soft);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.notice-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 999px; background: var(--m-surface); color: var(--m-info); }
-.notice-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.notice-title { color: var(--m-ink); font-size: 13px; font-weight: 700; line-height: 1.25; }
-.notice-text {
-  color: var(--m-text);
-  font-size: 11.5px;
-  line-height: 1.35;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.notice-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11px; font-weight: 600; }
 
 /* Sections */
 .sec { display: flex; flex-direction: column; gap: 5px; }

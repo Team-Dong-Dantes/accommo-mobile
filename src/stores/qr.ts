@@ -2,12 +2,33 @@ import { defineStore } from 'pinia'
 import { supabase } from '@/utils/supabase'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 
+export interface ScannedStudent {
+  userId: string
+  studentId: string | null
+  name: string
+  initials: string
+  avatarUrl: string | null
+  program: string | null
+  college: string | null
+  yearLevel: number | null
+  osasVerified: boolean
+  verifiedAt: string | null
+  accountStatus: string | null
+  isMyTenant: boolean
+  method: string
+  scannedAt: string
+}
+
+// The lookup runs entirely in verify_student_qr(): a SECURITY DEFINER function,
+// because the point of scanning is to check someone who is NOT yet your tenant,
+// and student_profiles RLS only ever exposes people you already lease to. The
+// function also writes the qr_scans row and enforces the rate limit, so there
+// is no client-side path that skips either.
 export const useQrStore = defineStore('qr', {
   state: () => ({
     isScanning: false,
-    scannedStudent: null as any | null,
-    scanHistory: [] as any[],
-    lastScannedAt: '' as string,
+    scannedStudent: null as ScannedStudent | null,
+    scanHistory: [] as ScannedStudent[],
   }),
 
   getters: {
@@ -15,97 +36,46 @@ export const useQrStore = defineStore('qr', {
   },
 
   actions: {
-    async scanStudent(studentId: string) {
+    async scanStudent(code: string): Promise<ScannedStudent> {
+      const trimmed = code.trim()
+      if (!trimmed) throw new Error('Empty QR code.')
+
       this.isScanning = true
-      this.scannedStudent = null
       try {
-        if (!studentId) {
-          throw new Error('Empty QR code.')
-        }
+        const { data, error } = await supabase.rpc('verify_student_qr', { p_code: trimmed })
+        if (error) throw new Error(error.message)
 
-        // Look up the student profile by school student_id. RLS
-        // (accommodation_managers_read_lease_student_profiles) only returns a row
-        // when this manager actually has a lease with the student, so a null
-        // result means the scanned student is not this manager's tenant.
-        const { data: profile, error: profileError } = await supabase
-          .from('student_profiles')
-          .select('user_id, program, college, year_level, osas_verified_at')
-          .eq('student_id', studentId)
-          .maybeSingle()
-
-        if (profileError) throw profileError
-        if (!profile) {
-          throw new Error('No tenant matches this QR code. The student may not board at your property.')
-        }
-
-        const userId = profile.user_id as string
-
-        // User record (RLS: only when linked by a lease to this manager).
-        const { data: userRow } = await supabase
-          .from('users')
-          .select('full_name, initials, avatar_url')
-          .eq('id', userId)
-          .maybeSingle()
-
-        // Leases between this manager and the student (RLS enforces accommodation_manager_id).
-        const { data: leases } = await (supabase as any)
-          .from('leases')
-          .select(
-            'id, status, start_date, end_date, monthly_rent, room:rooms(room_number, accommodation:accommodations(name, address))',
+        const payload = data as Record<string, unknown> | null
+        if (!payload?.found) {
+          // An expired code is a different problem from a wrong one: the
+          // student is real, their screen just needs a look.
+          throw new Error(
+            payload?.reason === 'expired'
+              ? 'This code has expired. Ask the student to open their QR screen for a fresh one.'
+              : 'No student matches this code. It may not be an Accommo student.',
           )
-          .eq('student_id', userId)
-          .order('start_date', { ascending: false })
+        }
 
-        const leaseRows = (leases ?? []) as Array<{
-          status: string
-          start_date: string | null
-          end_date: string | null
-          monthly_rent: number | null
-          room: { room_number: string | null; accommodation: { name: string | null; address: string | null } | null } | null
-        }>
-
-        const active = leaseRows.find((l) => l.status === 'active')
-        const currentBoarding = active
-          ? {
-              propertyName: active.room?.accommodation?.name ?? 'Your property',
-              unit: active.room?.room_number ?? '—',
-              monthlyRate: active.monthly_rent ?? 0,
-            }
-          : null
-
-        const tenancyHistory = leaseRows.map((l) => ({
-          propertyName: l.room?.accommodation?.name ?? 'Boarding House',
-          address: l.room?.accommodation?.address ?? '—',
-          period: `${l.start_date ? new Date(l.start_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : ''} - ${l.end_date ? new Date(l.end_date).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }) : 'Present'}`,
-          status: l.status === 'active' ? 'Current' : 'Past',
-          remarks: '',
-        }))
-
-        const student = {
-          studentId,
-          name: (userRow?.full_name as string) ?? 'Unknown student',
-          avatarUrl: userRow?.avatar_url ? resolveAsset(userRow.avatar_url as string) : null,
-          course: (profile.program as string) ?? '—',
-          yearLevel: profile.year_level ? `${profile.year_level}` : '—',
-          osasVerified: !!profile.osas_verified_at,
-          currentBoarding,
-          tenancyHistory,
+        const student: ScannedStudent = {
+          userId: String(payload.user_id ?? ''),
+          studentId: (payload.student_id as string) ?? null,
+          name: (payload.full_name as string) || 'Unknown student',
+          initials: (payload.initials as string) || '?',
+          avatarUrl: payload.avatar_url ? resolveAsset(String(payload.avatar_url)) : null,
+          program: (payload.program as string) ?? null,
+          college: (payload.college as string) ?? null,
+          yearLevel: (payload.year_level as number) ?? null,
+          osasVerified: Boolean(payload.osas_verified),
+          verifiedAt: (payload.verified_at as string) ?? null,
+          accountStatus: (payload.account_status as string) ?? null,
+          isMyTenant: Boolean(payload.is_my_tenant),
+          method: (payload.method as string) ?? 'qr',
+          scannedAt: new Date().toISOString(),
         }
 
         this.scannedStudent = student
-        this.lastScannedAt = new Date().toISOString()
-
-        if (!this.scanHistory.some((s: any) => s.studentId === studentId)) {
-          this.scanHistory.unshift(student)
-          if (this.scanHistory.length > 10) {
-            this.scanHistory.pop()
-          }
-        }
-
+        this.scanHistory = [student, ...this.scanHistory.filter((s) => s.userId !== student.userId)].slice(0, 10)
         return student
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to look up student.'
-        throw new Error(message)
       } finally {
         this.isScanning = false
       }
@@ -113,7 +83,6 @@ export const useQrStore = defineStore('qr', {
 
     clearScan() {
       this.scannedStudent = null
-      this.lastScannedAt = ''
     },
   },
 })

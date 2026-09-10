@@ -4,14 +4,19 @@
       <button type="button" class="bar-back" aria-label="Back to messages" @click="emit('close')">
         <IconifyIcon icon="lucide:arrow-left" width="20" />
       </button>
-      <span class="bar-avatar" :class="other.color ? [`bg-${other.color}`, 'text-white'] : []">
-        <img v-if="other.avatarUrl" :src="other.avatarUrl" alt="" class="bar-avatar-img" @error="other.avatarUrl = null" />
-        <template v-else>{{ other.initials }}</template>
-      </span>
-      <span class="bar-id">
-        <span class="bar-name">{{ other.name }}</span>
-        <span class="bar-role">{{ other.role }}</span>
-      </span>
+      <!-- The header opens the other person's profile: the same screen a scan
+           lands on, so "who am I talking to" has an answer in both roles. -->
+      <button type="button" class="bar-person" @click="openProfile">
+        <span class="bar-avatar" :class="other.color ? [`bg-${other.color}`, 'text-white'] : []">
+          <img v-if="other.avatarUrl" :src="other.avatarUrl" alt="" class="bar-avatar-img" @error="other.avatarUrl = null" />
+          <template v-else>{{ other.initials }}</template>
+        </span>
+        <span class="bar-id">
+          <span class="bar-name">{{ other.name }}</span>
+          <span class="bar-role">{{ other.role }}</span>
+        </span>
+        <IconifyIcon icon="lucide:chevron-right" width="16" class="bar-chevron" />
+      </button>
     </header>
 
     <div v-if="application" class="app-card">
@@ -141,6 +146,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -155,6 +161,13 @@ import { uploadToCloudinary } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
 
 const props = defineProps<{ conversationId: string; role: 'manager' | 'student'; roomId?: string | undefined }>()
+
+const router = useRouter()
+
+function openProfile() {
+  if (!otherId.value) return
+  void router.push(`/${props.role}/person/${otherId.value}`)
+}
 const emit = defineEmits<{ close: [] }>()
 
 interface Msg {
@@ -663,6 +676,21 @@ onUnmounted(() => {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+.bar-person {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bar-chevron { flex: 0 0 auto; color: var(--m-muted); }
 .bar-avatar {
   display: grid;
   width: 36px;

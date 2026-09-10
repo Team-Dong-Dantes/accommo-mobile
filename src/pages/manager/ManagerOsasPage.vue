@@ -682,6 +682,7 @@ onMounted(() => {
   void nextTick(measureStickyTop)
   window.addEventListener('resize', measureStickyTop)
 })
+
 onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
 </script>
 

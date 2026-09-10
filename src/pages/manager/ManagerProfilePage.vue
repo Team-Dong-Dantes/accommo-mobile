@@ -175,6 +175,11 @@
               <span>Notifications, security, appearance &amp; more</span>
               <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
             </button>
+            <button class="link-btn" @click="go('/manager/profile/policies')">
+              <IconifyIcon icon="lucide:scroll-text" width="16" />
+              <span>Policies &amp; guidelines</span>
+              <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+            </button>
           </ProfileBlock>
         </template>
 

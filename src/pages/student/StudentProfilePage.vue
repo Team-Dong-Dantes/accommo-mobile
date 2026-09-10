@@ -135,6 +135,10 @@
               <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
               <span>Notifications, security, appearance &amp; more</span>
             </button>
+            <button class="row-link" @click="go('/student/profile/policies')">
+              <IconifyIcon icon="lucide:scroll-text" width="16" />
+              <span>Policies &amp; guidelines</span>
+            </button>
           </ProfileBlock>
         </template>
 

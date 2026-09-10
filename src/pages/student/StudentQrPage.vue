@@ -29,8 +29,23 @@
             <img :src="qrDataUrl" alt="Your student QR code" class="qr-image" width="220" height="220" />
           </div>
           <p class="qr-id">ID: {{ studentId }}</p>
+          <p class="qr-expiry" :class="{ 'qr-expiry--soon': secondsLeft <= 300 }">
+            <IconifyIcon icon="lucide:timer" width="13" />
+            {{ secondsLeft > 0 ? `Changes in ${clock}` : 'Refreshing…' }}
+          </p>
+          <p class="qr-note">
+            This code changes every hour and stops working when it does, so an old screenshot
+            is useless to anyone else. Replace it now if you think it has been shared.
+          </p>
           <div class="qr-actions">
-            <q-btn flat dense no-caps color="primary" label="Download" class="qr-download" @click="downloadQR" />
+            <button type="button" class="qr-save" :disabled="saving" @click="saveQR">
+              <IconifyIcon :icon="canShare ? 'lucide:share' : 'lucide:download'" width="17" />
+              {{ saving ? 'Preparing…' : canShare ? 'Save or share' : 'Save image' }}
+            </button>
+            <button type="button" class="qr-replace" :disabled="rotating || cooldown > 0" @click="rotate">
+              <IconifyIcon icon="lucide:refresh-cw" width="14" />
+              {{ cooldown > 0 ? `Replace in ${cooldown}s` : rotating ? 'Replacing…' : 'Replace code' }}
+            </button>
           </div>
         </template>
         <template v-else-if="!osasVerified">
@@ -55,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import QRCode from 'qrcode'
@@ -70,18 +85,96 @@ const error = ref('')
 const studentId = ref('')
 const osasVerified = ref(false)
 const qrDataUrl = ref('')
+const qrToken = ref('')
+const expiresAt = ref<string | null>(null)
+const secondsLeft = ref(0)
+const rotating = ref(false)
+const saving = ref(false)
+const cooldown = ref(0)
+let cooldownTimer: ReturnType<typeof setInterval> | null = null
+
+// Sharing hands the image to the OS sheet — Photos, Files, Messages — which is
+// the only route that works inside the app's webview. A plain <a download> is
+// inert there, and silently did nothing on the very devices students use.
+const canShare = computed(
+  () => typeof navigator !== 'undefined' && typeof navigator.canShare === 'function',
+)
+
+// mm:ss for the countdown under the code.
+const clock = computed(() => {
+  const m = Math.floor(secondsLeft.value / 60)
+  const sec = secondsLeft.value % 60
+  return `${m}:${String(sec).padStart(2, '0')}`
+})
+
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+/**
+ * The code lives for an hour and then stops working, so the screen keeps its
+ * own clock: at zero it asks for a fresh one rather than showing a QR that a
+ * scanner will now refuse.
+ */
+function watchExpiry() {
+  if (tickTimer) clearInterval(tickTimer)
+  const tick = () => {
+    const end = expiresAt.value ? new Date(expiresAt.value).getTime() : 0
+    secondsLeft.value = Math.max(0, Math.round((end - Date.now()) / 1000))
+    if (secondsLeft.value === 0) {
+      if (tickTimer) clearInterval(tickTimer)
+      tickTimer = null
+      void refreshToken()
+    }
+  }
+  tick()
+  tickTimer = setInterval(tick, 1000)
+}
+
+async function refreshToken() {
+  const { data, error: tokenError } = await supabase.rpc('current_qr_token')
+  if (tokenError) throw tokenError
+  const row = Array.isArray(data) ? data[0] : data
+  qrToken.value = String(row?.token ?? '')
+  expiresAt.value = (row?.expires_at as string) ?? null
+  await generateQr()
+  watchExpiry()
+}
+
+function startCooldown(seconds: number) {
+  cooldown.value = seconds
+  if (cooldownTimer) clearInterval(cooldownTimer)
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1
+    if (cooldown.value <= 0 && cooldownTimer) {
+      clearInterval(cooldownTimer)
+      cooldownTimer = null
+    }
+  }, 1000)
+}
+
+onUnmounted(() => {
+  if (cooldownTimer) clearInterval(cooldownTimer)
+  if (tickTimer) clearInterval(tickTimer)
+})
+
+async function qrFile(): Promise<File | null> {
+  if (!qrDataUrl.value) return null
+  const blob = await (await fetch(qrDataUrl.value)).blob()
+  return new File([blob], `accommo-qr-${studentId.value || 'student'}.png`, { type: 'image/png' })
+}
 
 function go(path: string) {
   void router.push(path)
 }
 
 async function generateQr() {
-  if (!studentId.value) {
+  // The code carries the rotatable token, never the student number: a student
+  // number is public enough to guess, and a QR built from one proves nothing.
+  if (!qrToken.value) {
     qrDataUrl.value = ''
     return
   }
   try {
-    qrDataUrl.value = await QRCode.toDataURL(studentId.value, {
+    qrDataUrl.value = await QRCode.toDataURL(qrToken.value, {
       width: 220,
       margin: 1,
       color: { dark: '#111827', light: '#ffffff' },
@@ -91,15 +184,50 @@ async function generateQr() {
   }
 }
 
-function downloadQR() {
-  if (!qrDataUrl.value) return
-  const link = document.createElement('a')
-  link.href = qrDataUrl.value
-  link.download = `student-qr-${studentId.value}.png`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  notify.success('QR code downloaded.')
+async function saveQR() {
+  if (!qrDataUrl.value || saving.value) return
+  saving.value = true
+  try {
+    const file = await qrFile()
+    if (file && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'My student QR' })
+      return
+    }
+    // Desktop browser: a download link still works there.
+    const link = document.createElement('a')
+    link.href = qrDataUrl.value
+    link.download = `accommo-qr-${studentId.value || 'student'}.png`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    notify.success('QR code saved.')
+  } catch (e) {
+    // A cancelled share sheet is not a failure.
+    if (e instanceof DOMException && e.name === 'AbortError') return
+    notify.error('Could not save the image. Press and hold the code to save it instead.')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function rotate() {
+  rotating.value = true
+  try {
+    const { data, error: rotateError } = await supabase.rpc('rotate_qr_token')
+    if (rotateError) throw rotateError
+    qrToken.value = String(data ?? '')
+    await refreshToken()
+    startCooldown(60)
+    notify.success('New code generated. The old one no longer works.')
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Could not replace your code.'
+    // The server owns the cooldown; mirror whatever it says is left.
+    const left = Number(/in (\d+) second/.exec(message)?.[1] ?? 0)
+    if (left > 0) startCooldown(left)
+    notify.warning(message)
+  } finally {
+    rotating.value = false
+  }
 }
 
 async function load() {
@@ -124,7 +252,7 @@ async function load() {
     osasVerified.value = !!studentProfile?.osas_verified_at
     qrDataUrl.value = ''
     if (osasVerified.value && studentId.value) {
-      await generateQr()
+      await refreshToken()
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
@@ -137,6 +265,62 @@ onMounted(load)
 </script>
 
 <style scoped>
+.qr-expiry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 8px 0 0;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.qr-expiry--soon { color: var(--m-warning); }
+.qr-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 0 14px;
+}
+.qr-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.qr-save:disabled { opacity: 0.6; cursor: default; }
+.qr-replace {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px;
+  border: 0;
+  background: none;
+  color: var(--m-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.qr-replace:disabled { opacity: 0.55; cursor: default; }
+.qr-note {
+  margin: 6px 14px 0;
+  color: var(--m-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}
 .qr-page {
   background: var(--m-bg);
   padding-bottom: 24px;
@@ -261,20 +445,5 @@ onMounted(load)
   padding: 4px 8px;
   border-radius: 4px;
   display: inline-block;
-}
-.qr-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
-.qr-download {
-  font-weight: 600;
-  padding: 6px 18px;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-}
-.qr-download:hover {
-  background: var(--m-primary-dark);
 }
 </style>

@@ -13,6 +13,41 @@ const INSECURE =
 const NO_CAMERA_API = "This browser won't give the page camera access. Use Upload instead.";
 
 /**
+ * Last-resort capture that goes through the WebView instead of the native
+ * camera intent.
+ *
+ * `<input capture>` opens the camera app on Android and hands the image back
+ * through the page, so it needs no FileProvider — which is exactly what fails
+ * when the native project is missing its provider config and getPhoto() dies
+ * with "Unable to create photo on disk".
+ */
+function captureViaInput(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.setAttribute('capture', 'environment');
+    input.style.display = 'none';
+
+    let settled = false;
+    const done = (file: File | null) => {
+      if (settled) return;
+      settled = true;
+      input.remove();
+      resolve(file);
+    };
+
+    input.addEventListener('change', () => done(input.files?.[0] ?? null));
+    // A cancelled picker fires no event on Android; the window regaining focus
+    // is the only signal, and the delay lets a real 'change' win the race.
+    window.addEventListener('focus', () => setTimeout(() => done(null), 900), { once: true });
+
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+/**
  * One camera entry point for the whole app.
  *
  * Off-native, the Capacitor plugin falls back to a `<pwa-camera-modal>` that
@@ -49,6 +84,20 @@ export async function capturePhoto(): Promise<CaptureOutcome> {
     const message = e instanceof Error ? e.message : String(e);
     // Cancelling isn't a failure; anything else is worth surfacing.
     if (/cancel/i.test(message)) return { file: null, error: null };
+
+    // The native intent could not be given a file to write to — the app's
+    // FileProvider is misconfigured. The WebView can still reach the camera,
+    // so try that before telling the user the camera is broken.
+    if (/photo on disk|fileprovider|configured root/i.test(message)) {
+      const file = await captureViaInput();
+      if (file) return { file, error: null };
+      return {
+        file: null,
+        error:
+          'The camera could not save the photo. Use Upload instead — and the app build needs its FileProvider configured.',
+      };
+    }
+
     return { file: null, error: message || 'Could not open the camera.' };
   }
 }
