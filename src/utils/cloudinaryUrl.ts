@@ -16,10 +16,11 @@ const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefi
  */
 const GOOGLE_USERCONTENT_RE = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//i;
 
-function viaCloudinaryFetch(url: string): string {
+function viaCloudinaryFetch(url: string, size?: AssetSize): string {
   // No cloud configured — better a broken-but-honest URL than a malformed one.
   if (!CLOUD_NAME) return url;
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/fetch/f_auto,q_auto/${encodeURIComponent(url)}`;
+  const transform = `f_auto,q_auto${sizeParams(size)}`;
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/fetch/${transform}/${encodeURIComponent(url)}`;
 }
 
 /** True when the URL points at a Cloudinary image delivery. */
@@ -28,26 +29,74 @@ function isCloudinaryUrl(url: string | null | undefined): boolean {
 }
 
 /**
- * Normalize a Cloudinary image URL to the optimized delivery
- * (`/f_auto,q_auto/`) form. Idempotent — safe to call on any stored value.
- * PDFs and raw/video assets are returned unchanged.
+ * How big the image will actually be drawn, in CSS pixels. Cloudinary's
+ * `dpr_auto` handles retina from there, so pass the layout size, not the device
+ * size.
+ *
+ * Without this a manager's 3000x4000 phone photo is delivered whole into a
+ * 120px card — megabytes to paint a thumbnail, and far too large to survive in
+ * the HTTP cache, so it is re-fetched on every visit.
  */
-function optimizeCloudinaryUrl(url: string | null | undefined): string {
+export interface AssetSize {
+  /** Target width in CSS pixels. */
+  w?: number
+  /** Target height in CSS pixels. Only needed when cropping to a fixed box. */
+  h?: number
+  /** `fill` crops to the box (default); `fit` letterboxes inside it. */
+  fit?: 'fill' | 'fit'
+}
+
+/**
+ * The three sizes this app actually draws at. Using a shared constant rather
+ * than a per-screen number matters for caching as much as for bytes: the same
+ * avatar requested at the same width from the bottom nav, a chat header and a
+ * profile hero is ONE cached file, not three.
+ */
+/** Every avatar in the app: 36px in the nav, 84px on a profile hero. */
+export const AVATAR: AssetSize = { w: 96 }
+/** List and card thumbnails, roughly full phone width. */
+export const CARD: AssetSize = { w: 400 }
+/** Full-bleed hero and detail images. */
+export const COVER: AssetSize = { w: 800 }
+
+function sizeParams(size?: AssetSize): string {
+  if (!size?.w && !size?.h) return ''
+  const parts: string[] = []
+  if (size.w) parts.push(`w_${Math.round(size.w)}`)
+  if (size.h) parts.push(`h_${Math.round(size.h)}`)
+  parts.push(`c_${size.fit === 'fit' ? 'fit' : 'fill'}`, 'dpr_auto')
+  return `,${parts.join(',')}`
+}
+
+/**
+ * Normalize a Cloudinary image URL to the optimized delivery
+ * (`/f_auto,q_auto/`) form, optionally sized. Idempotent — safe to call on any
+ * stored value. PDFs and raw/video assets are returned unchanged.
+ */
+function optimizeCloudinaryUrl(url: string | null | undefined, size?: AssetSize): string {
   if (!url) return ''
-  // Already optimized (f_auto present) → leave alone.
-  if (url.includes('/f_auto,q_auto/')) return url
-  return url.replace(CLOUD_DELIVERY_RE, (m) => `${m}f_auto,q_auto/`)
+  const transform = `f_auto,q_auto${sizeParams(size)}`
+  // Already carries a transform: swap it rather than stacking a second one,
+  // since these URLs get re-resolved on every render.
+  if (url.includes('/f_auto,q_auto')) {
+    return url.replace(/\/f_auto,q_auto[^/]*\//, `/${transform}/`)
+  }
+  return url.replace(CLOUD_DELIVERY_RE, (m) => `${m}${transform}/`)
 }
 
 /**
  * Give any stored asset URL its best run-time form. Cloudinary images become
  * optimized; everything else (PDFs, legacy Supabase, absolute paths) is passed
  * through unchanged. This is the one call sites should use before <img src>.
+ *
+ * Pass `size` wherever the display size is known — a card thumbnail, an avatar,
+ * a chat photo. Omitting it keeps the original full-resolution behaviour, so
+ * existing call sites are unaffected and surfaces can be sized one at a time.
  */
-export function resolveAsset(url: string | null | undefined): string {
+export function resolveAsset(url: string | null | undefined, size?: AssetSize): string {
   if (!url) return ''
-  if (isCloudinaryUrl(url)) return optimizeCloudinaryUrl(url)
-  if (GOOGLE_USERCONTENT_RE.test(url)) return viaCloudinaryFetch(url)
+  if (isCloudinaryUrl(url)) return optimizeCloudinaryUrl(url, size)
+  if (GOOGLE_USERCONTENT_RE.test(url)) return viaCloudinaryFetch(url, size)
   return url
 }
 

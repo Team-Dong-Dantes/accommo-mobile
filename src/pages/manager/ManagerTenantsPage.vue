@@ -107,7 +107,7 @@
                             type="button"
                             class="lease-act lease-act--ghost"
                             :disabled="decidingId === l.id"
-                            @click="decideApplication(l, room.label, 'rejected')"
+                            @click="openDecline(l, room.label)"
                           >
                             Decline
                           </button>
@@ -268,6 +268,31 @@
       </div>
     </q-dialog>
 
+    <!-- A decline the student can act on: the reason reaches them in the
+         notification and stays on the lease. -->
+    <q-dialog v-model="declineOpen" position="bottom">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h2 class="sheet-title">Decline application</h2>
+        </div>
+        <div class="sheet-block">
+          <span class="sheet-label">The student sees this reason</span>
+          <textarea v-model="declineReason" class="decline-input" rows="3" placeholder="Why are you declining?" />
+        </div>
+        <div class="decline-actions">
+          <button type="button" class="lease-act lease-act--ghost" @click="declineOpen = false">Cancel</button>
+          <button
+            type="button"
+            class="lease-act"
+            :disabled="!declineReason.trim() || Boolean(decidingId)"
+            @click="confirmDecline"
+          >
+            {{ decidingId ? 'Declining…' : 'Decline' }}
+          </button>
+        </div>
+      </div>
+    </q-dialog>
+
     <q-dialog v-model="paymentOpen" position="bottom">
       <q-card class="pay-sheet">
         <h3 class="pay-title">Log a payment{{ paymentLease ? ` — ${paymentLease.studentName}` : '' }}</h3>
@@ -403,7 +428,7 @@ import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
 import { respondToApplication } from '@/utils/applications'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
 interface Lease {
@@ -636,7 +661,7 @@ async function load(silent = false) {
         studentId: l.student_id,
         studentName: student?.full_name || 'A student',
         avatarColor: student?.avatar_color ?? null,
-        avatarUrl: student?.avatar_url ? resolveAsset(student.avatar_url) : null,
+        avatarUrl: student?.avatar_url ? resolveAsset(student.avatar_url, AVATAR) : null,
         startDate: l.start_date,
         monthlyRent: Number(l.monthly_rent ?? 0),
       })
@@ -651,7 +676,7 @@ async function load(silent = false) {
         id: acc.id,
         name: acc.name?.trim() || 'Unnamed accommodation',
         status: acc.status,
-        coverUrl: cover?.url ? resolveAsset(cover.url) : '',
+        coverUrl: cover?.url ? resolveAsset(cover.url, CARD) : '',
         rooms: roomRows
           .filter((r) => r.accommodation_id === acc.id)
           .map((r) => ({
@@ -753,11 +778,30 @@ function occupancyTone(pct: number) {
 
 const decidingId = ref('')
 
-async function decideApplication(l: Lease, roomLabel: string, decision: 'active' | 'rejected') {
+const declineOpen = ref(false)
+const declineReason = ref('')
+const declineTarget = ref<{ lease: Lease; roomLabel: string } | null>(null)
+
+function openDecline(l: Lease, roomLabel: string) {
+  declineTarget.value = { lease: l, roomLabel }
+  declineReason.value = ''
+  declineOpen.value = true
+}
+
+async function confirmDecline() {
+  if (!declineTarget.value) return
+  const { lease, roomLabel } = declineTarget.value
+  await decideApplication(lease, roomLabel, 'rejected', declineReason.value.trim())
+  declineOpen.value = false
+  declineTarget.value = null
+  declineReason.value = ''
+}
+
+async function decideApplication(l: Lease, roomLabel: string, decision: 'active' | 'rejected', reason?: string) {
   if (decidingId.value) return
   decidingId.value = l.id
   try {
-    await respondToApplication(l.id, l.studentId, roomLabel, decision)
+    await respondToApplication(l.id, l.studentId, roomLabel, decision, reason)
     if (decision === 'rejected') {
       for (const acc of accommodations.value) {
         for (const room of acc.rooms) room.leases = room.leases.filter((r) => r.id !== l.id)
@@ -1067,6 +1111,22 @@ async function rejectPayment(paymentId: string) {
   color: var(--m-ink);
   font-size: 13px;
   font-weight: 600;
+}
+.decline-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+  color: var(--m-text);
+  font: inherit;
+  font-size: 14px;
+  resize: none;
+}
+.decline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .chips {
   display: flex;

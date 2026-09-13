@@ -333,7 +333,7 @@ import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_
 import { createNotification } from '@/boot/notify'
 import { useNotify } from '@/utils/notify'
 import { respondToApplication } from '@/utils/applications'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import StarRating from '@/components/shared/StarRating.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
@@ -421,7 +421,7 @@ async function load(silent = false) {
     lease.studentId = data.student_id
     lease.studentName = student?.full_name || 'A student'
     lease.studentInitials = student?.initials || initialsOf(lease.studentName)
-    lease.studentAvatarUrl = student?.avatar_url ? resolveAsset(student.avatar_url) : null
+    lease.studentAvatarUrl = student?.avatar_url ? resolveAsset(student.avatar_url, AVATAR) : null
     lease.email = student?.email || ''
     lease.phone = student?.phone || ''
     lease.roomLabel = room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Room')
@@ -432,7 +432,7 @@ async function load(silent = false) {
     const cover = [...(room?.accommodations?.accommodation_images ?? [])].sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
     )[0]
-    coverUrl.value = cover?.url ? resolveAsset(cover.url) : ''
+    coverUrl.value = cover?.url ? resolveAsset(cover.url, COVER) : ''
     lease.startDate = data.start_date
     lease.endDate = data.end_date
     lease.monthlyRent = Number(data.monthly_rent ?? 0)

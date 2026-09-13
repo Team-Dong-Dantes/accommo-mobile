@@ -96,7 +96,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -227,7 +227,7 @@ async function load(silent = false) {
         address: a.address || [a.barangay, a.city].filter(Boolean).join(', ') || 'Address not given',
         status: a.status,
         type: titleCase(a.accommodation_type),
-        image: images[0]?.url ? resolveAsset(images[0].url) : '',
+        image: images[0]?.url ? resolveAsset(images[0].url, CARD) : '',
         roomCount: a.total_rooms ?? acRooms.length,
         capacity: acRooms.reduce((n, r) => n + Number(r.capacity || 0), 0),
         filled: filledByAcc.get(a.id) || 0,

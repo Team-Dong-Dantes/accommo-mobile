@@ -299,7 +299,7 @@ import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { ago } from '@/utils/profile'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import { staticMapUrl } from '@/utils/geo'
 
@@ -517,7 +517,7 @@ async function load(silent = false) {
             .eq('accommodation_id', acc.id)
             .maybeSingle(),
         ])
-        photoUrl = imageRows?.[0]?.url ? resolveAsset(imageRows[0].url) : ''
+        photoUrl = imageRows?.[0]?.url ? resolveAsset(imageRows[0].url, CARD) : ''
 
         const chipCandidates: HouseRuleChip[] = policyRow
           ? [
@@ -580,7 +580,7 @@ async function load(silent = false) {
             id: managerId,
             name: mgr.full_name,
             initials: mgr.initials || initialsOf(mgr.full_name),
-            avatarUrl: mgr.avatar_url ? resolveAsset(mgr.avatar_url) : null,
+            avatarUrl: mgr.avatar_url ? resolveAsset(mgr.avatar_url, AVATAR) : null,
             replyMinutes: mgrProfile?.avg_response_minutes ?? null,
           }
         }
@@ -599,7 +599,7 @@ async function load(silent = false) {
         return {
           id: m.student_id,
           initials: person?.initials || initialsOf(person?.full_name || '?'),
-          avatarUrl: person?.avatar_url ? resolveAsset(person.avatar_url) : null,
+          avatarUrl: person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null,
         }
       })
     }

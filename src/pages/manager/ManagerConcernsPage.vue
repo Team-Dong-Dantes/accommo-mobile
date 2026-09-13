@@ -167,7 +167,7 @@ import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData, type LivePayload } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { initialsOf, CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
@@ -275,7 +275,7 @@ async function load() {
         where: room?.accommodations?.name || room?.label || 'Accommodation',
         studentName: lease.users?.full_name || 'A student',
         avatarColor: lease.users?.avatar_color ?? null,
-        avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url) : null,
+        avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url, AVATAR) : null,
       }
     })
 
@@ -324,7 +324,7 @@ async function onConcernInserted(payload: LivePayload) {
       where: room?.accommodations?.name || room?.label || 'Accommodation',
       studentName: lease.users?.full_name || 'A student',
       avatarColor: lease.users?.avatar_color ?? null,
-      avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url) : null,
+      avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url, AVATAR) : null,
     },
     ...rows.value,
   ]

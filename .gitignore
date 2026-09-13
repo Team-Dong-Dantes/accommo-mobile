@@ -36,8 +36,12 @@ yarn-error.log*
 # Hermes / dev plans
 .hermes/
 
-# Supabase local CLI state
-supabase/
+# Supabase local CLI state only — NOT the whole directory. Ignoring `supabase/`
+# outright also hid every migration, config.toml and the doc-access edge
+# function, so the entire schema history lived on one laptop and a fresh clone
+# got none of it. .temp holds the project ref and pooler URL; keep that out.
+supabase/.temp/
+supabase/.branches/
 
 # Local debugging / scratch output dumps
 discover_out.json

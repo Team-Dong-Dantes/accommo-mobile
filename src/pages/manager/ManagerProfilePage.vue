@@ -199,7 +199,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { initialsOf, normalizePhPhone } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 import ProfileField from '@/components/shared/ProfileField.vue'
 import ProfileHero from '@/components/shared/ProfileHero.vue'
@@ -352,7 +352,7 @@ async function load(silent = false) {
           ? metadata.picture
           : ''
     const storedAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url || ''
-    avatarUrl.value = resolveAsset(picture || storedAvatar) || null
+    avatarUrl.value = resolveAsset(picture || storedAvatar, AVATAR) || null
     responseRate.value = managerProfile?.response_rate ?? null
 
     // Never clobber an in-progress edit with a silent (realtime-triggered)

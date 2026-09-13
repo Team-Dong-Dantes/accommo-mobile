@@ -251,7 +251,7 @@ import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso } from '@/utils/format'
 import { ago } from '@/utils/profile'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
 interface AccommodationCard {
@@ -469,7 +469,7 @@ async function load(silent = false) {
     const photoByAcc = new Map<string, string>()
     for (const img of imageRows) {
       if (!photoByAcc.has(img.accommodation_id)) {
-        photoByAcc.set(img.accommodation_id, resolveAsset(img.url))
+        photoByAcc.set(img.accommodation_id, resolveAsset(img.url, CARD))
       }
     }
 

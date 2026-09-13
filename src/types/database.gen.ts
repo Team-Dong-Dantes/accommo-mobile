@@ -743,6 +743,9 @@ export type Database = {
       conversations: {
         Row: {
           id: string
+          inquiry_room_id: string | null
+          invited_at: string | null
+          invited_room_id: string | null
           last_message: string | null
           last_time: string | null
           unread_a: number
@@ -752,6 +755,9 @@ export type Database = {
         }
         Insert: {
           id?: string
+          inquiry_room_id?: string | null
+          invited_at?: string | null
+          invited_room_id?: string | null
           last_message?: string | null
           last_time?: string | null
           unread_a?: number
@@ -761,6 +767,9 @@ export type Database = {
         }
         Update: {
           id?: string
+          inquiry_room_id?: string | null
+          invited_at?: string | null
+          invited_room_id?: string | null
           last_message?: string | null
           last_time?: string | null
           unread_a?: number
@@ -769,6 +778,20 @@ export type Database = {
           user_b_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_inquiry_room_id_fkey"
+            columns: ["inquiry_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_invited_room_id_fkey"
+            columns: ["invited_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "conversations_user_a_id_fkey"
             columns: ["user_a_id"]
@@ -789,6 +812,7 @@ export type Database = {
         Row: {
           accommodation_manager_id: string
           advance_paid: number | null
+          decision_reason: string | null
           deposit_paid: number | null
           end_date: string
           ended_reason: string | null
@@ -803,6 +827,7 @@ export type Database = {
         Insert: {
           accommodation_manager_id: string
           advance_paid?: number | null
+          decision_reason?: string | null
           deposit_paid?: number | null
           end_date: string
           ended_reason?: string | null
@@ -817,6 +842,7 @@ export type Database = {
         Update: {
           accommodation_manager_id?: string
           advance_paid?: number | null
+          decision_reason?: string | null
           deposit_paid?: number | null
           end_date?: string
           ended_reason?: string | null
@@ -1687,6 +1713,10 @@ export type Database = {
           user_id: string
           user_status: string
         }[]
+      }
+      invite_application: {
+        Args: { p_conversation: string }
+        Returns: undefined
       }
       is_admin: { Args: { p_uid: string }; Returns: boolean }
       mark_conversation_read: {

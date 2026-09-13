@@ -15,45 +15,31 @@
           <span class="bar-name">{{ other.name }}</span>
           <span class="bar-role">{{ other.role }}</span>
         </span>
-        <IconifyIcon icon="lucide:chevron-right" width="16" class="bar-chevron" />
+        <IconifyIcon icon="lucide:info" width="17" class="bar-info" />
       </button>
     </header>
 
-    <div v-if="application" class="app-card">
-      <div class="app-card-body">
-        <IconifyIcon icon="lucide:file-check-2" width="16" />
-        <span class="app-card-text">Application for {{ application.roomLabel }}</span>
-      </div>
-      <div v-if="role === 'manager'" class="app-card-actions">
-        <button type="button" class="app-btn app-btn--ghost" :disabled="deciding" @click="decideApplication('rejected')">
-          Decline
-        </button>
-        <button type="button" class="app-btn" :disabled="deciding" @click="decideApplication('active')">
-          Accept
+    <!-- Full-screen photo viewer. Tapping the backdrop closes it, which is what
+         a thumb reaches for first on a phone. -->
+    <q-dialog :model-value="!!viewerUrl" maximized @update:model-value="viewerUrl = ''">
+      <div class="viewer" @click="viewerUrl = ''">
+        <img :src="viewerUrl" alt="Photo" class="viewer-img" />
+        <button type="button" class="viewer-close" aria-label="Close photo" @click.stop="viewerUrl = ''">
+          <IconifyIcon icon="lucide:x" width="20" />
         </button>
       </div>
-      <span v-else class="app-card-status">Awaiting response</span>
-    </div>
+    </q-dialog>
 
-    <div v-else-if="applyRoom" class="app-card">
-      <div class="app-card-body">
-        <IconifyIcon icon="lucide:file-check-2" width="16" />
-        <span class="app-card-text">
-          {{ applyRoom.label }} · {{ formatPeso(applyRoom.rent) }}/mo{{ applyRoom.rentBasis === 'person' && applyRoom.capacity > 1 ? ' per person' : '' }}
-        </span>
-      </div>
-      <label class="app-field">
-        <span class="app-field-label">Move-in date</span>
-        <input v-model="applyForm.startDate" type="date" class="app-date" :min="todayStr()" />
-      </label>
-      <button type="button" class="app-btn app-btn--submit" :disabled="applying" @click="submitApplication">
-        {{ applying ? 'Submitting…' : 'Submit application' }}
-      </button>
-    </div>
-
-    <div v-else-if="applyUnavailable" class="app-card">
-      <span class="app-card-text">This room is no longer available.</span>
-    </div>
+    <ApplicationCard
+      ref="applicationCard"
+      :conversation-id="props.conversationId"
+      :role="props.role"
+      :me="me"
+      :other-id="otherId"
+      :other-name="other.name"
+      :room-id="props.roomId"
+      @system="postSystemMessage"
+    />
 
     <div ref="scroller" class="feed">
       <div v-if="loading" class="feed-note">Loading…</div>
@@ -71,10 +57,21 @@
           :class="{ 'msg--mine': msg.mine, 'msg--pending': msg.pending }"
         >
           <span class="msg-bubble" :class="{ 'msg-bubble--media': msg.attachmentUrl }">
-            <img v-if="msg.attachmentUrl" :src="msg.attachmentUrl" alt="" class="msg-img" />
+            <button
+              v-if="msg.attachmentUrl"
+              type="button"
+              class="msg-img-btn"
+              aria-label="View photo"
+              @click="viewerUrl = msg.attachmentUrl ?? ''"
+            >
+              <img :src="msg.attachmentUrl" alt="Photo" class="msg-img" />
+            </button>
             <template v-if="msg.body">{{ msg.body }}</template>
           </span>
-          <span class="msg-meta">
+          <!-- Only on the last message of a same-sender, same-minute run — see
+               `showMeta` in the grouped computed. A still-sending bubble always
+               shows its own clock so the pending state stays visible. -->
+          <span v-if="msg.showMeta || msg.pending" class="msg-meta">
             {{ msg.time }}
             <IconifyIcon
               v-if="msg.mine"
@@ -141,6 +138,7 @@
         <IconifyIcon icon="lucide:send-horizontal" width="18" />
       </button>
     </form>
+
   </div>
 </template>
 
@@ -151,14 +149,14 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf, parseServerTime, formatDate, formatPeso, dayLabel, clockTime } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { initialsOf, parseServerTime, dayLabel, clockTime } from '@/utils/format'
+import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
-import { respondToApplication } from '@/utils/applications'
 import { uploadToCloudinary } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
+import ApplicationCard from '@/components/messages/ApplicationCard.vue'
 
 const props = defineProps<{ conversationId: string; role: 'manager' | 'student'; roomId?: string | undefined }>()
 
@@ -196,33 +194,38 @@ const otherId = ref('')
 const messages = ref<Msg[]>([])
 const other = reactive({ name: 'Conversation', initials: '?', role: '', color: '' as string | null, avatarUrl: '' as string | null })
 
-interface RoomBrief { id: string; label: string; rent: number; minStay: number; capacity: number; rentBasis: 'room' | 'person' }
-const application = ref<{ leaseId: string; roomLabel: string } | null>(null)
-const applyRoom = ref<RoomBrief | null>(null)
-const applyUnavailable = ref(false)
-const applyForm = reactive({ startDate: todayStr() })
-const applying = ref(false)
-const deciding = ref(false)
+// The tenancy handshake lives in its own component; the thread only tells it
+// when something may have changed, and posts the transcript lines it asks for.
+//
+// Every step of that handshake posts a system message, so an incoming message is
+// the cue to re-check the card. But ordinary chat posts messages too, and each
+// refresh is 3-4 queries — a ten-message exchange fired ~40 of them, nearly all
+// returning identical rows. A trailing debounce collapses a burst into one call;
+// the card itself already collapses genuinely concurrent ones onto one promise.
+const applicationCard = ref<{ refresh: () => Promise<void> } | null>(null)
+let refreshCardTimer: ReturnType<typeof setTimeout> | null = null
+
+function refreshCardSoon() {
+  if (refreshCardTimer) clearTimeout(refreshCardTimer)
+  refreshCardTimer = setTimeout(() => {
+    refreshCardTimer = null
+    void applicationCard.value?.refresh()
+  }, 1500)
+}
+
 const otherTyping = ref(false)
+/** Non-empty while the full-screen photo viewer is open; the URL is the state. */
+const viewerUrl = ref('')
 
 let channel: RealtimeChannel | null = null
 let typingSendAt = 0
 let typingClearTimer: ReturnType<typeof setTimeout> | null = null
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
-function addMonths(dateStr: string, months: number): string {
-  const d = new Date(dateStr)
-  d.setMonth(d.getMonth() + months)
-  return d.toISOString().slice(0, 10)
-}
-
-const applyEndDate = computed(() => addMonths(applyForm.startDate || todayStr(), applyRoom.value?.minStay || 12))
+type Row = Msg & { mine: boolean; read: boolean; delivered: boolean; time: string; showMeta: boolean }
 
 const grouped = computed(() => {
-  const out: { day: string; items: (Msg & { mine: boolean; read: boolean; delivered: boolean; time: string })[] }[] = []
+  const out: { day: string; items: Row[] }[] = []
   for (const m of messages.value) {
     const day = dayLabel(m.sentAt)
     let bucket = out[out.length - 1]
@@ -236,7 +239,22 @@ const grouped = computed(() => {
       read: m.status === 'read',
       delivered: m.status === 'delivered',
       time: clockTime(m.sentAt),
+      // Filled in below, once the following message is known.
+      showMeta: true,
     })
+  }
+
+  // Five messages fired off inside one minute used to stamp "11:14 pm" five
+  // times. The stamp now belongs to the LAST message of a run — same sender,
+  // same clock minute — so a burst reads as one block with a single time, and
+  // the tick still lands where the eye looks for it.
+  for (const bucket of out) {
+    for (let i = 0; i < bucket.items.length - 1; i++) {
+      const row = bucket.items[i]
+      const next = bucket.items[i + 1]
+      if (!row || !next) continue
+      row.showMeta = next.senderId !== row.senderId || next.time !== row.time
+    }
   }
   return out
 })
@@ -314,16 +332,17 @@ async function send() {
       .single()
     if (sendError) throw sendError
 
-    const at = messages.value.findIndex((m) => m.id === tempId)
-    const saved: Msg = {
-      id: data.id,
-      body: data.body,
-      senderId: data.sender_id,
-      sentAt: data.sent_at,
-      status: data.status,
-      attachmentUrl: data.attachment_url ?? undefined,
-    }
-    if (at !== -1) messages.value[at] = saved
+    upsertMessage(
+      {
+        id: data.id,
+        body: data.body,
+        senderId: data.sender_id,
+        sentAt: data.sent_at,
+        status: data.status,
+        attachmentUrl: data.attachment_url ?? undefined,
+      },
+      tempId,
+    )
     if (localPreview) URL.revokeObjectURL(localPreview)
 
     const recipientRolePath = props.role === 'student' ? '/manager' : '/student'
@@ -376,7 +395,7 @@ async function load() {
       other.initials = person?.initials || initialsOf(other.name)
       other.role = person?.role === 'accommodation_manager' ? 'Accommodation manager' : 'Student'
       other.color = person?.avatar_color ?? null
-      other.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null
+      other.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null
     }
 
     const { data: rows, error: rowsError } = await supabase
@@ -402,7 +421,7 @@ async function load() {
     store.clearUnread(props.conversationId)
 
     void toBottom()
-    void loadApplicationState()
+    void applicationCard.value?.refresh()
   } catch (e) {
     error.value = errorMessage(e, 'Could not open this conversation.')
   } finally {
@@ -410,69 +429,37 @@ async function load() {
   }
 }
 
+
+
+
+
+
 /**
- * A student holds at most one non-terminal lease at a time, and there is one
- * conversation per (student, manager) pair — so the pending application "for
- * this thread", if any, is just the student's pending lease with this manager.
+ * The one way a row enters the list. Three paths deliver the same message and
+ * any of them can arrive first: the insert's own response, the realtime INSERT
+ * (which regularly beats that response on a fast connection), and
+ * postSystemMessage. The old code deduped on id alone, which cannot match an
+ * optimistic row that has no real id yet — so a realtime row arriving mid-send
+ * was appended as a second bubble and stayed.
  */
-async function loadApplicationState() {
-  const studentId = props.role === 'student' ? me.value : otherId.value
-  const managerId = props.role === 'student' ? otherId.value : me.value
-  if (!studentId || !managerId) return
-
-  const { data: pending } = await supabase
-    .from('leases')
-    .select('id,rooms(label,room_number)')
-    .eq('student_id', studentId)
-    .eq('accommodation_manager_id', managerId)
-    .eq('status', 'pending')
-    .maybeSingle()
-
-  if (pending) {
-    const r = pending.rooms as unknown as { label: string | null; room_number: string | null } | null
-    application.value = {
-      leaseId: pending.id,
-      roomLabel: r?.label || (r?.room_number ? `Room ${r.room_number}` : 'this room'),
+function upsertMessage(msg: Msg, tempId?: string) {
+  if (tempId) {
+    const temp = messages.value.findIndex((m) => m.id === tempId)
+    if (temp !== -1) {
+      const dupe = messages.value.findIndex((m) => m.id === msg.id)
+      // Realtime already delivered it: drop the placeholder rather than keep both.
+      if (dupe !== -1 && dupe !== temp) {
+        messages.value.splice(temp, 1)
+        messages.value[dupe > temp ? dupe - 1 : dupe] = msg
+        return
+      }
+      messages.value[temp] = msg
+      return
     }
-    return
   }
-
-  application.value = null
-  if (props.roomId && props.role === 'student') await loadApplyRoom(props.roomId)
-}
-
-async function loadApplyRoom(roomId: string) {
-  const { data } = await supabase
-    .from('rooms')
-    .select(
-      'id,label,room_number,monthly_rent,capacity,rent_basis,status,accommodations(accommodation_manager_id,accommodation_policies(min_stay))',
-    )
-    .eq('id', roomId)
-    .maybeSingle()
-
-  const acc = data?.accommodations as unknown as {
-    accommodation_manager_id: string | null
-    accommodation_policies: unknown
-  } | null
-
-  if (!data || !acc || acc.accommodation_manager_id !== otherId.value || data.status !== 'available') {
-    applyRoom.value = null
-    applyUnavailable.value = Boolean(data)
-    return
-  }
-
-  const policyRows = acc.accommodation_policies as unknown
-  const policyRow = (Array.isArray(policyRows) ? policyRows[0] : policyRows) as { min_stay: number | null } | null
-
-  applyForm.startDate = todayStr()
-  applyRoom.value = {
-    id: data.id,
-    label: data.label || (data.room_number ? `Room ${data.room_number}` : 'Room'),
-    rent: Number(data.monthly_rent ?? 0),
-    minStay: policyRow?.min_stay ?? 12,
-    capacity: data.capacity ?? 1,
-    rentBasis: data.rent_basis === 'person' ? 'person' : 'room',
-  }
+  const at = messages.value.findIndex((m) => m.id === msg.id)
+  if (at !== -1) messages.value[at] = msg
+  else messages.value.push(msg)
 }
 
 async function postSystemMessage(body: string) {
@@ -482,7 +469,7 @@ async function postSystemMessage(body: string) {
     .select('id, body, sender_id, sent_at, status')
     .single()
   if (sendError) throw sendError
-  messages.value.push({
+  upsertMessage({
     id: data.id,
     body: data.body,
     senderId: data.sender_id,
@@ -492,80 +479,31 @@ async function postSystemMessage(body: string) {
   void toBottom()
 }
 
-async function submitApplication() {
-  if (applying.value || !applyRoom.value) return
-  applying.value = true
-  try {
-    const { data: studentProfile } = await supabase
-      .from('student_profiles')
-      .select('osas_verified_at')
-      .eq('user_id', me.value)
-      .maybeSingle()
-    if (!studentProfile?.osas_verified_at) {
-      notify.warning('Get OSAS-verified before applying for a room.')
-      return
-    }
 
-    const room = applyRoom.value
-    const { data: created, error: insertError } = await supabase
-      .from('leases')
-      .insert({
-        room_id: room.id,
-        student_id: me.value,
-        accommodation_manager_id: otherId.value,
-        start_date: applyForm.startDate,
-        end_date: applyEndDate.value,
-        // ponytail: "whole room" rent is split evenly assuming full occupancy;
-        // a partially-filled room still charges this rate per tenant rather
-        // than rebalancing existing co-tenants' leases as others join/leave.
-        monthly_rent: room.rentBasis === 'person' ? room.rent : room.rent / (room.capacity || 1),
-        status: 'pending',
-      })
-      .select('id')
-      .single()
-    if (insertError) throw insertError
 
-    void createNotification(
-      otherId.value,
-      'New application',
-      `Applied for ${room.label}`,
-      'lease',
-      `/manager/messages?to=${me.value}`,
-    )
-
-    await postSystemMessage(`Applied for ${room.label} — move-in ${formatDate(applyForm.startDate)}.`)
-    application.value = { leaseId: created.id, roomLabel: room.label }
-    applyRoom.value = null
-    notify.success('Application submitted.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not submit your application.'))
-  } finally {
-    applying.value = false
-  }
-}
-
-async function decideApplication(next: 'active' | 'rejected') {
-  if (deciding.value || !application.value) return
-  deciding.value = true
-  try {
-    const { leaseId, roomLabel } = application.value
-    await respondToApplication(leaseId, otherId.value, roomLabel, next)
-    await postSystemMessage(
-      next === 'active' ? `Accepted your application for ${roomLabel}.` : `Declined your application for ${roomLabel}.`,
-    )
-    application.value = null
-    notify.success(next === 'active' ? 'Application accepted.' : 'Application declined.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not update this application.'))
-  } finally {
-    deciding.value = false
-  }
-}
-
-function listen() {
+async function listen() {
   if (typeof supabase.channel !== 'function') return
+
+  // supabase-js hands back the EXISTING channel for a topic, and .on() throws
+  // once that channel has subscribed. Re-opening the same thread lands exactly
+  // there: MessagesPage is kept alive, so this component can remount before the
+  // previous instance's removeChannel() has finished. Drop any leftover on this
+  // topic and WAIT for it, rather than racing it.
+  //
+  // The topic cannot be made unique per mount — both participants have to share
+  // it for the typing broadcast to reach the other side.
+  const topic = `messages:${props.conversationId}`
+  if (typeof supabase.getChannels === 'function') {
+    await Promise.all(
+      supabase
+        .getChannels()
+        .filter((c) => c.topic === topic || c.topic === `realtime:${topic}`)
+        .map((c) => supabase.removeChannel(c)),
+    )
+  }
+
   channel = supabase
-    .channel(`messages:${props.conversationId}`)
+    .channel(topic)
     .on(
       'postgres_changes',
       {
@@ -584,8 +522,7 @@ function listen() {
             status: string
             attachment_url: string | null
           }
-          if (messages.value.some((m) => m.id === row.id)) return
-          messages.value.push({
+          upsertMessage({
             id: row.id,
             body: row.body,
             senderId: row.sender_id,
@@ -599,6 +536,12 @@ function listen() {
             void supabase.rpc('mark_conversation_read', {
               p_conversation: props.conversationId,
             })
+            // Every step of the tenancy handshake posts a system message, so an
+            // incoming one is the cue that the card above may have changed: the
+            // form was issued, an application arrived, or it was decided. Without
+            // this the other side reads "Sent you an application form" and then
+            // has to reopen the thread before the form actually appears.
+            refreshCardSoon()
           }
         } else if (payload.eventType === 'UPDATE') {
           const row = payload.new as { id: string; status: string }
@@ -631,7 +574,7 @@ function notifyTyping() {
 
 onMounted(async () => {
   await load()
-  listen()
+  await listen()
 })
 
 onUnmounted(() => {
@@ -640,6 +583,7 @@ onUnmounted(() => {
     channel = null
   }
   if (typingClearTimer) clearTimeout(typingClearTimer)
+  if (refreshCardTimer) clearTimeout(refreshCardTimer)
 })
 </script>
 
@@ -690,7 +634,13 @@ onUnmounted(() => {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.bar-chevron { flex: 0 0 auto; color: var(--m-muted); }
+/* Pushed to the far edge of the bar rather than trailing the name — the slack
+   in .bar-person collects before it. */
+.bar-info {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--m-muted);
+}
 .bar-avatar {
   display: grid;
   width: 36px;
@@ -727,82 +677,6 @@ onUnmounted(() => {
   font-size: 11.5px;
 }
 
-.app-card {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 10px var(--m-page-gutter);
-  border-bottom: 1px solid var(--m-border);
-  background: var(--m-primary-soft);
-}
-.app-card-body {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--m-primary-dark);
-}
-.app-card-text {
-  font-size: 12.5px;
-  font-weight: 700;
-}
-.app-card-status {
-  margin-left: auto;
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-.app-card-actions {
-  display: flex;
-  margin-left: auto;
-  gap: 8px;
-}
-.app-field {
-  display: flex;
-  flex: 1 1 100%;
-  align-items: center;
-  gap: 8px;
-}
-.app-field-label {
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-.app-date {
-  min-height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13px;
-}
-.app-btn {
-  min-height: 34px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.app-btn:disabled {
-  opacity: 0.6;
-}
-.app-btn--ghost {
-  background: var(--m-surface);
-  color: var(--m-text);
-  border: 1px solid var(--m-border);
-}
-.app-btn--submit {
-  flex: 1 1 100%;
-}
 
 .feed {
   display: flex;
@@ -872,15 +746,62 @@ onUnmounted(() => {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.msg-bubble--media {
-  padding: 4px;
+/* A photo is its own bubble — no frame, no padding, no fill behind it. The
+   `.msg--mine` selector has to be repeated here or its border-colour and
+   primary background win on specificity and put a coloured edge back. */
+.msg-bubble--media,
+.msg--mine .msg-bubble--media {
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow: hidden;
 }
+.msg-img-btn {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Keeps the bubble silhouette now that the wrapper no longer draws it. */
 .msg-img {
   display: block;
   max-width: 100%;
   max-height: 260px;
-  border-radius: 12px;
+  border-radius: 16px 16px 16px 4px;
   object-fit: cover;
+}
+.msg--mine .msg-img {
+  border-radius: 16px 16px 4px 16px;
+}
+.viewer {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.92);
+}
+.viewer-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.viewer-close {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .msg--mine .msg-bubble {
   border-color: transparent;

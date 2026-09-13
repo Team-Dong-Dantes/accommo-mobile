@@ -329,7 +329,7 @@ import { supabase } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, kmBetween, geolocationErrorMessage, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
 import { useNotify } from '@/utils/notify'
@@ -893,7 +893,7 @@ async function loadProperties(silent = false) {
       id: row.id,
       name,
       address,
-      image: images[0]?.url ? resolveAsset(images[0].url) : '',
+      image: images[0]?.url ? resolveAsset(images[0].url, CARD) : '',
       monogram,
       distance: campusDistanceLabel(row.lat, row.lng),
       vacancies: rows.filter((r) => r.status === 'available').length,
@@ -915,7 +915,7 @@ async function loadProperties(silent = false) {
         id: r.id,
         propertyId: row.id,
         label,
-        image: roomImages[0]?.url ? resolveAsset(roomImages[0].url) : '',
+        image: roomImages[0]?.url ? resolveAsset(roomImages[0].url, CARD) : '',
         monogram,
         propertyName: name,
         meta: r.capacity ? `${r.capacity} left` : '',
@@ -977,7 +977,7 @@ async function loadManagers() {
             .slice(0, 2)
             .map((w) => w[0]?.toUpperCase())
             .join(''),
-          avatarUrl: row.avatar_url ? resolveAsset(row.avatar_url) : null,
+          avatarUrl: row.avatar_url ? resolveAsset(row.avatar_url, AVATAR) : null,
           propertyCount: accredited.length,
           haystack: `${name} ${accredited.map((a) => a.name).join(' ')}`.toLowerCase(),
         }

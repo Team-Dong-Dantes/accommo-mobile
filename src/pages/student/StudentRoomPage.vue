@@ -191,17 +191,13 @@
     </div>
 
     <div v-if="!loading && !error && manager.id" class="cta">
-      <button type="button" class="cta-btn cta-btn--ghost" @click="router.push(`/student/messages?to=${manager.id}`)">
-        <IconifyIcon icon="lucide:message-circle" width="17" />
-        Message
-      </button>
-      <button v-if="room.free && !myLease.hasAny" type="button" class="cta-btn" @click="goApply">
-        <IconifyIcon icon="lucide:file-check-2" width="17" />
-        Apply for this room
-      </button>
-      <span v-else-if="myLease.onThisRoom" class="cta-note">Applied — awaiting response</span>
+      <span v-if="myLease.onThisRoom" class="cta-note">Applied — awaiting response</span>
       <span v-else-if="myLease.hasAny" class="cta-note">You already have a stay</span>
-      <span v-else class="cta-note">This room is taken</span>
+      <span v-else-if="!room.free" class="cta-note">This room is taken</span>
+      <button type="button" class="cta-btn cta-btn--ask" @click="goAsk">
+        <IconifyIcon icon="lucide:message-circle" width="17" />
+        Ask
+      </button>
     </div>
   </q-page>
 </template>
@@ -424,8 +420,17 @@ async function load() {
   }
 }
 
-function goApply() {
-  void router.push(`/student/messages?to=${manager.id}&room=${id.value}`)
+// Opens the thread. When the room is actually open to apply for, it travels as the
+// inquiry (`?room=`) — that is what the manager's "Send application form" button
+// reads. A taken room, or a student who already has a stay, just opens the chat:
+// stamping an inquiry there would only produce a form invite_application() refuses.
+function goAsk() {
+  const askable = room.free && !myLease.hasAny
+  void router.push(
+    askable
+      ? `/student/messages?to=${manager.id}&room=${id.value}`
+      : `/student/messages?to=${manager.id}`,
+  )
 }
 
 onMounted(load)
@@ -985,11 +990,11 @@ watch(id, load)
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
 }
-.cta-btn--ghost {
+/* Sits on the right whether or not a note shares the bar with it. */
+.cta-btn--ask {
   flex: 0 0 auto;
-  border: 1px solid var(--m-border);
-  background: var(--m-bg);
-  color: var(--m-text);
+  margin-left: auto;
+  padding: 0 24px;
 }
 .cta-note {
   flex: 1;
@@ -997,6 +1002,6 @@ watch(id, load)
   color: var(--m-muted);
   font-size: 12.5px;
   font-weight: 600;
-  text-align: center;
+  text-align: left;
 }
 </style>

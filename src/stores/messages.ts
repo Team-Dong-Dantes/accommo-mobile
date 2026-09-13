@@ -181,19 +181,35 @@ export const useMessagesStore = defineStore('messages', {
      * enquiry. Every existing row puts the student in user_a, so that
      * convention is kept for anything created here.
      */
+    /**
+     * Read-then-insert, which is a race: two entry points opening the same
+     * thread at once (a listing's "Ask" and the messages tab, or simply a double
+     * tap) both find nothing and both insert, leaving two conversations for one
+     * pair — each holding half the history. Three such pairs reached production.
+     *
+     * `conversations_unique_pair`, a unique index on the normalised pair, is what
+     * actually prevents it; the loser of the race lands here as a 23505 and is
+     * resolved by re-reading the row the winner just created.
+     */
     async findOrCreate(otherId: string, myRole: 'manager' | 'student'): Promise<string> {
       const me = this.userId;
-      const { data: found, error: findError } = await supabase
-        .from('conversations')
-        .select('id')
-        .or(
-          `and(user_a_id.eq.${me},user_b_id.eq.${otherId}),` +
-            `and(user_a_id.eq.${otherId},user_b_id.eq.${me})`,
-        )
-        .limit(1)
-        .maybeSingle();
-      if (findError) throw findError;
-      if (found) return found.id;
+
+      const existing = async () => {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('id')
+          .or(
+            `and(user_a_id.eq.${me},user_b_id.eq.${otherId}),` +
+              `and(user_a_id.eq.${otherId},user_b_id.eq.${me})`,
+          )
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        return data?.id ?? null;
+      };
+
+      const found = await existing();
+      if (found) return found;
 
       const [userA, userB] = myRole === 'student' ? [me, otherId] : [otherId, me];
       const { data: created, error: createError } = await supabase
@@ -201,7 +217,14 @@ export const useMessagesStore = defineStore('messages', {
         .insert({ user_a_id: userA, user_b_id: userB })
         .select('id')
         .single();
-      if (createError) throw createError;
+
+      if (createError) {
+        if ((createError as { code?: string }).code !== '23505') throw createError;
+        const raced = await existing();
+        if (!raced) throw createError;
+        await this.load(me);
+        return raced;
+      }
 
       await this.load(me);
       return created.id;
