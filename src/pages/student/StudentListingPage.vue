@@ -183,7 +183,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, FACILITY_META, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
 import MessageManagerCta from '@/components/student/MessageManagerCta.vue'
@@ -284,7 +284,7 @@ async function load() {
 
     images.value = [...((data.accommodation_images ?? []) as { url: string; sort_order: number | null }[])]
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .map((i) => resolveAsset(i.url))
+      .map((i) => resolveAsset(i.url, COVER))
       .filter(Boolean)
 
     const allFacilities = (data.accommodation_facilities ?? []) as {
@@ -334,7 +334,7 @@ async function load() {
           rent: Number(r.monthly_rent ?? 0),
           rentBasis: (r.rent_basis === 'person' && (r.capacity ?? 0) > 1 ? 'person' : 'room') as 'room' | 'person',
           free: r.status === 'available',
-          image: roomImages[0]?.url ? resolveAsset(roomImages[0].url) : '',
+          image: roomImages[0]?.url ? resolveAsset(roomImages[0].url, CARD) : '',
         }
       })
       .sort((a, b) => Number(b.free) - Number(a.free) || a.rent - b.rent)
@@ -380,7 +380,7 @@ async function load() {
       manager.id = data.accommodation_manager_id
       manager.name = person?.full_name || 'Accommodation manager'
       manager.initials = person?.initials || initialsOf(manager.name)
-      manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null
+      manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null
       manager.replyMinutes = profile?.avg_response_minutes ?? null
     }
   } catch (e) {

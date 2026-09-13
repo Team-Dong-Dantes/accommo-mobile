@@ -89,7 +89,7 @@ import { supabase, authUser } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useMessagesStore } from '@/stores/messages'
 import { initialsOf } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import BottomNav from '@/components/layout/BottomNav.vue'
 import TermsGate from '@/components/shared/TermsGate.vue'
@@ -199,6 +199,11 @@ const KEEP_ALIVE_PAGES = [
   'StudentDashboard', 'StudentDiscoverPage', 'StudentMessagesPage', 'StudentProfilePage',
   'ManagerAccommodationsPage', 'ManagerConcernsPage', 'ManagerOsasPage', 'TenantProfile',
   'StudentPropertiesPage', 'StudentOsasPage', 'StudentConcernsPage', 'StudentStayPage', 'StudentManagerPage',
+  // The two History screens are the heaviest reads in the app (payments +
+  // reviews + boarding history) and are revisited often. Kept alive so
+  // useLiveData's TTL can actually apply — without keep-alive they remount and
+  // refetch everything on every visit, which is what they used to do.
+  'StudentHistoryPage', 'ManagerHistoryPage',
 ]
 
 // Same tabs, with the live unread count from the messages store folded onto
@@ -356,7 +361,7 @@ onMounted(async () => {
         : typeof metadata?.picture === 'string'
           ? metadata.picture
           : ''
-    profileImageUrl.value = picture ? resolveAsset(picture) : null
+    profileImageUrl.value = picture ? resolveAsset(picture, AVATAR) : null
 
     const { data: userData } = await supabase
       .from('users')
@@ -372,7 +377,7 @@ onMounted(async () => {
     // picture — it can be stale or empty (avatar uploaded on another device,
     // or written straight to the database), which otherwise left the shell
     // showing initials despite a photo being on file.
-    if (!picture && row?.avatar_url) profileImageUrl.value = resolveAsset(row.avatar_url)
+    if (!picture && row?.avatar_url) profileImageUrl.value = resolveAsset(row.avatar_url, AVATAR)
 
     // Keeps users.avatar_url (the only copy anyone but this user can ever
     // read) in step with the auth session's own picture — a Google sign-in

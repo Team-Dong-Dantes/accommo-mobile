@@ -321,7 +321,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
+import { useLiveData } from '@/utils/useLiveData'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -662,10 +663,14 @@ watch(tab, () => {
 // Not kept alive and with no realtime watch behind it, so a pull is the only
 // way to see anything that changed since the screen was opened.
 function onPull(done: () => void) {
-  void load(true).finally(done)
+  void refresh().finally(done)
 }
 
-onMounted(load)
+// Kept alive across navigation (see MainLayout KEEP_ALIVE_PAGES), so returning
+// to this screen no longer refetches the whole history every time. No realtime
+// watch on purpose: this is a record of things that already happened, and the
+// two-minute TTL plus pull-to-refresh is all the freshness it needs.
+const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
 </script>
 
 <style scoped>

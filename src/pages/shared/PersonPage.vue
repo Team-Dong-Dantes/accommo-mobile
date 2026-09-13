@@ -1,9 +1,19 @@
 <template>
   <q-page class="person">
+    <!-- Mirrors PersonProfile's real shape — hero, overlapping card, tabs —
+         so the layout does not jump when the data lands. -->
     <div v-if="loading" class="stack">
       <q-skeleton type="rect" height="170px" square />
-      <q-skeleton type="circle" size="84px" class="q-mx-auto" style="margin-top: -42px" />
-      <q-skeleton type="text" width="140px" height="18px" class="q-mx-auto" />
+      <div class="sk-card">
+        <q-skeleton type="circle" size="84px" style="margin-top: -42px; margin-bottom: 4px;" />
+        <q-skeleton type="text" width="130px" height="17px" />
+        <q-skeleton type="text" width="72px" height="18px" />
+        <q-skeleton type="text" width="160px" height="12px" />
+      </div>
+      <div class="sk-tabs">
+        <q-skeleton type="rect" width="92px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="92px" height="38px" class="sk-tab" />
+      </div>
       <q-skeleton type="rect" height="120px" class="sk" />
     </div>
 
@@ -97,7 +107,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useQrStore } from '@/stores/qr'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { initialsOf, formatPeso } from '@/utils/format'
 import { period } from '@/utils/profile'
 import PersonProfile from '@/components/shared/PersonProfile.vue'
@@ -178,7 +188,7 @@ onMounted(async () => {
 
     person.name = user.full_name || 'Unknown'
     person.initials = user.initials || initialsOf(person.name)
-    person.avatarUrl = user.avatar_url ? resolveAsset(user.avatar_url) : null
+    person.avatarUrl = user.avatar_url ? resolveAsset(user.avatar_url, AVATAR) : null
     person.role = user.role ?? ''
 
     // Readable only when a lease already links us; the scan payload covers the
@@ -249,7 +259,20 @@ onMounted(async () => {
 <style scoped>
 .person { background: var(--m-bg); }
 .stack { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
-.sk { margin: 0 12px; border-radius: var(--m-radius); }
+.sk { margin: 0 var(--m-page-gutter); border-radius: var(--m-radius); }
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: -85px var(--m-page-gutter) 0;
+  padding: 0 var(--m-page-gutter) 14px;
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow);
+}
+.sk-tabs { display: flex; gap: 4px; margin: 0 var(--m-page-gutter); }
+.sk-tab { border-radius: 10px 10px 0 0; }
 .sec { display: flex; flex-direction: column; gap: 12px; }
 
 .verdict {

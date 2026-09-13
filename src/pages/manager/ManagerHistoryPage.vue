@@ -210,14 +210,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useLiveData } from '@/utils/useLiveData'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import StarRating from '@/components/shared/StarRating.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import { formatPeso, formatMonth, formatDate, initialsOf, PAYMENT_STATUS, statusText, statusColor } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 
 interface Review {
   id: string
@@ -377,7 +378,7 @@ async function load(silent = false) {
         leaseId: lease.id,
         studentName: lease.users?.full_name || 'A student',
         avatarColor: lease.users?.avatar_color ?? null,
-        avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url) : null,
+        avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url, AVATAR) : null,
         roomLabel: [room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Room'), accommodationName]
           .filter(Boolean)
           .join(' · '),
@@ -397,10 +398,14 @@ async function load(silent = false) {
 // Not kept alive and with no realtime watch behind it, so a pull is the only
 // way to see anything that changed since the screen was opened.
 function onPull(done: () => void) {
-  void load(true).finally(done)
+  void refresh().finally(done)
 }
 
-onMounted(load)
+// Kept alive across navigation (see MainLayout KEEP_ALIVE_PAGES), so returning
+// to this screen no longer refetches the whole history every time. No realtime
+// watch on purpose: this is a record of things that already happened, and the
+// two-minute TTL plus pull-to-refresh is all the freshness it needs.
+const { refresh } = useLiveData({ key: 'manager-history', load, ttl: 120_000 })
 </script>
 
 <style scoped>

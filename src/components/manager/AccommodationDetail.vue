@@ -525,8 +525,10 @@
                   v-model.number="roomForm.capacity"
                   type="number"
                   min="1"
+                  :max="CAPACITY_MAX"
                   class="field-input"
                   :disabled="roomForm.roomType in ROOM_TYPE_DEFAULT_CAPACITY"
+                  @blur="roomForm.capacity = clampNum(roomForm.capacity, 1, CAPACITY_MAX)"
                 />
               </label>
               <p v-if="roomForm.roomType in ROOM_TYPE_DEFAULT_CAPACITY" class="sec-hint">
@@ -559,7 +561,15 @@
                   <span class="field-label">Monthly rent</span>
                   <div class="field-prefixed">
                     <span class="field-prefix">₱</span>
-                    <input v-model.number="roomForm.monthlyRent" type="number" min="0" step="0.01" class="field-input field-input--prefixed" />
+                    <input
+                      v-model.number="roomForm.monthlyRent"
+                      type="number"
+                      min="0"
+                      :max="RENT_MAX"
+                      step="0.01"
+                      class="field-input field-input--prefixed"
+                      @blur="roomForm.monthlyRent = clampNum(roomForm.monthlyRent, 0, RENT_MAX)"
+                    />
                   </div>
                 </label>
               </div>
@@ -568,11 +578,25 @@
               <div class="field-row">
                 <label class="field">
                   <span class="field-label">Advance (months)</span>
-                  <input v-model.number="roomForm.advanceMonths" type="number" min="0" class="field-input" />
+                  <input
+                    v-model.number="roomForm.advanceMonths"
+                    type="number"
+                    min="0"
+                    :max="MONTHS_MAX"
+                    class="field-input"
+                    @blur="roomForm.advanceMonths = clampOptional(roomForm.advanceMonths, 0, MONTHS_MAX)"
+                  />
                 </label>
                 <label class="field">
                   <span class="field-label">Deposit (months)</span>
-                  <input v-model.number="roomForm.depositMonths" type="number" min="0" class="field-input" />
+                  <input
+                    v-model.number="roomForm.depositMonths"
+                    type="number"
+                    min="0"
+                    :max="MONTHS_MAX"
+                    class="field-input"
+                    @blur="roomForm.depositMonths = clampOptional(roomForm.depositMonths, 0, MONTHS_MAX)"
+                  />
                 </label>
               </div>
             </template>
@@ -958,7 +982,7 @@ import { formatPeso, to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument, secureDocUrl } from '@/utils/upload'
-import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
+import { resolveAsset, isPdf, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, roomTypeLabel } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -1091,7 +1115,7 @@ const deletingImage = ref('')
 const coverSheetOpen = ref(false)
 const facilities = ref<Facility[]>([])
 const docRows = ref<{ doc_type: string; file_url: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
-const coverUrl = computed(() => (images.value[0]?.url ? resolveAsset(images.value[0].url) : ''))
+const coverUrl = computed(() => (images.value[0]?.url ? resolveAsset(images.value[0].url, COVER) : ''))
 // Occupancy must come from actual leases, not rooms.status/current_pax —
 // this project's own data notes flag those columns as unreliable.
 const occupiedRoomIds = ref<string[]>([])
@@ -1465,7 +1489,7 @@ async function load() {
         rentBasis: r.rent_basis === 'person' ? 'person' : 'room',
         status: r.status,
         images: imgs,
-        photoUrl: imgs[0]?.url ? resolveAsset(imgs[0].url) : '',
+        photoUrl: imgs[0]?.url ? resolveAsset(imgs[0].url, CARD) : '',
       }
     })
 
@@ -1769,6 +1793,32 @@ const roomForm = reactive({
   rentBasis: 'room' as 'room' | 'person',
 })
 
+// Bounds for the room form. A boarding-house room is not ₱1,000,000/month and
+// does not sleep 400 people — an extra keystroke used to save either without a
+// word, and the absurd figure then showed up in discovery and on the student's
+// application summary.
+const RENT_MAX = 100000
+const CAPACITY_MAX = 20
+const MONTHS_MAX = 12
+
+/**
+ * `max` on <input type="number"> is only a spinner and validity hint — a typed
+ * or pasted value ignores it completely — so the ceiling has to be applied in
+ * script. Done on blur (so the correction is visible while editing) and again in
+ * the save payload, which is the path every write actually takes.
+ */
+function clampNum(value: number | null | undefined, min: number, max: number): number {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return min
+  return Math.min(Math.max(n, min), max)
+}
+
+/** Same, but keeps "not set" as null rather than collapsing it to the minimum. */
+function clampOptional(value: number | null | undefined, min: number, max: number): number | null {
+  if (value === null || value === undefined || value === ('' as unknown)) return null
+  return clampNum(value, min, max)
+}
+
 const rentBasisHint = computed(() => {
   const rent = roomForm.monthlyRent || 0
   const cap = roomForm.capacity || 1
@@ -1928,7 +1978,7 @@ async function addRoomPhotos(files: File[]) {
     const row = rooms.value.find((r) => r.id === editingRoomId.value)
     if (row) {
       row.images = [...roomImages.value]
-      row.photoUrl = roomImages.value[0]?.url ? resolveAsset(roomImages.value[0].url) : ''
+      row.photoUrl = roomImages.value[0]?.url ? resolveAsset(roomImages.value[0].url, CARD) : ''
     }
   } catch (e) {
     notify.error(errorMessage(e, "Could not upload one of this room's photos."))
@@ -1960,7 +2010,7 @@ async function deleteRoomImage(imageId: string) {
     const row = rooms.value.find((r) => r.id === editingRoomId.value)
     if (row) {
       row.images = [...roomImages.value]
-      row.photoUrl = roomImages.value[0]?.url ? resolveAsset(roomImages.value[0].url) : ''
+      row.photoUrl = roomImages.value[0]?.url ? resolveAsset(roomImages.value[0].url, CARD) : ''
     }
   } catch (e) {
     notify.error(errorMessage(e, 'Could not remove this photo.'))
@@ -1973,16 +2023,20 @@ async function confirmRoomBasics() {
   if (savingRoom.value) return
   savingRoom.value = true
   try {
+    // Clamped here as well as on blur: a paste, an autofill, or a value typed
+    // and submitted without the field ever losing focus all reach this line
+    // without having passed the blur handler.
+    const capacity = clampNum(roomForm.capacity, 1, CAPACITY_MAX)
     const payload = {
       label: null,
       room_type: roomForm.roomType,
       custom_room_type: roomForm.roomType === 'custom' ? roomForm.customRoomType.trim() || null : null,
       floor: roomForm.floor,
-      capacity: roomForm.capacity,
-      monthly_rent: roomForm.monthlyRent,
-      advance_months: roomForm.advanceMonths,
-      deposit_months: roomForm.depositMonths,
-      rent_basis: roomForm.capacity > 1 ? roomForm.rentBasis : ('room' as const),
+      capacity,
+      monthly_rent: clampNum(roomForm.monthlyRent, 0, RENT_MAX),
+      advance_months: clampOptional(roomForm.advanceMonths, 0, MONTHS_MAX),
+      deposit_months: clampOptional(roomForm.depositMonths, 0, MONTHS_MAX),
+      rent_basis: capacity > 1 ? roomForm.rentBasis : ('room' as const),
     }
 
     if (editingRoomId.value) {

@@ -69,7 +69,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, COVER } from '@/utils/cloudinaryUrl'
 import { ago } from '@/utils/profile'
 import { linkifyParts } from '@/utils/linkify'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -112,7 +112,7 @@ const houseImage = computed(() => {
   const url = row.value?.accommodation?.accommodation_images?.[0]?.url
   return url ? resolveAsset(url) : null
 })
-const poster = computed(() => (row.value?.image_url ? resolveAsset(row.value.image_url) : ''))
+const poster = computed(() => (row.value?.image_url ? resolveAsset(row.value.image_url, COVER) : ''))
 
 // Readers never reach a scheduled announcement — RLS hides it until its time —
 // so this only ever shows to the author, who should not be told it was posted.

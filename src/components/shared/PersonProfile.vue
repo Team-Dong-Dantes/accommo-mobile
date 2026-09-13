@@ -69,63 +69,100 @@ watch(() => avatarFailed.value, () => {})
 </script>
 
 <style scoped>
-.tabbed { display: flex; flex-direction: column; }
-
+/* Deliberately the same shape as components/manager/TenantProfile.vue: hero,
+   a floating profile card that overlaps it, then pill tabs fused into a
+   bordered panel. Both screens show "a person" and must not look like two
+   different products. Keep them in step. */
+.tabbed {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
 .hero {
   position: relative;
+  flex: 0 0 auto;
   height: 170px;
-  background: linear-gradient(135deg, var(--m-primary-soft), var(--m-info-soft));
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
 }
-.hero-img { width: 100%; height: 100%; object-fit: cover; }
+.hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .hero-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 40%, rgb(0 0 0 / 22%));
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0) 70%);
 }
 .hero-msg {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
+  top: 10px;
+  right: var(--m-page-gutter);
+  z-index: 2;
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-primary);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
+  background: rgba(23, 32, 42, 0.55);
+  color: #fff;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-
 .body-card {
   position: relative;
-  margin-top: -18px;
-  padding: 0 14px 10px;
-  border-radius: 18px 18px 0 0;
-  background: var(--m-bg);
+  margin: -85px var(--m-page-gutter) 0;
+  padding: 0 var(--m-page-gutter) 14px;
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow);
 }
-.head { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 8px;
+  text-align: center;
+}
 .head-avatar {
   display: grid;
-  overflow: hidden;
   width: 84px;
   height: 84px;
-  margin-top: -42px;
   place-items: center;
-  border: 3px solid var(--m-bg);
+  overflow: hidden;
+  margin-top: -42px;
+  margin-bottom: 4px;
+  border: 4px solid var(--m-surface);
   border-radius: 999px;
   background: var(--m-primary-soft);
-  color: var(--m-primary);
-  font-size: 26px;
+  color: var(--m-primary-dark);
+  font-family: var(--m-font-display);
+  font-size: 24px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+.head-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.head-name {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
   font-weight: 700;
 }
-.head-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.head-name { color: var(--m-ink); font-size: 17px; font-weight: 750; }
+/* No background here — the tone class below supplies it. */
 .head-chip {
+  margin-top: 4px;
   padding: 3px 10px;
   border-radius: 999px;
-  background: var(--m-bg);
   font-size: 11px;
   font-weight: 700;
 }
@@ -133,35 +170,50 @@ watch(() => avatarFailed.value, () => {})
 .head-chip--warn { background: var(--m-warning-soft); color: var(--m-warning); }
 .head-chip--bad { background: var(--m-danger-soft); color: var(--m-danger); }
 .head-chip--idle { background: var(--m-bg); color: var(--m-muted); }
-.head-sub { color: var(--m-muted); font-size: 12px; font-weight: 600; text-align: center; }
-
+.head-sub {
+  margin-top: 4px;
+  color: var(--m-muted);
+  font-size: 12.5px;
+}
 .tabs {
+  position: relative;
+  z-index: 2;
   display: flex;
-  gap: 6px;
-  padding: 8px 12px 0;
-  background: var(--m-bg);
+  gap: 4px;
+  /* -2px, not -1px: an exact 1px overlap can round the wrong way on real
+     (non-@1x) device pixel ratios and leave a hairline gap under the active
+     tab. Same value as TenantProfile and ManagerTenantsPage. */
+  margin: 14px var(--m-page-gutter) -2px;
 }
 .tab {
-  flex: 1 1 0;
-  padding: 9px 6px;
+  min-height: 38px;
+  padding: 0 14px;
   border: 1px solid var(--m-border);
-  border-bottom: 0;
-  border-radius: 12px 12px 0 0;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
   background: var(--m-bg);
   color: var(--m-muted);
+  cursor: pointer;
   font: inherit;
   font-size: 12.5px;
   font-weight: 700;
-  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .tab--on {
-  border-color: var(--m-border);
   background: var(--m-surface);
-  color: var(--m-ink);
+  color: var(--m-primary-dark);
 }
 .panel {
-  padding: 14px 12px 24px;
-  border-top: 1px solid var(--m-border);
+  display: flex;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  padding: 14px var(--m-page-gutter);
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
 }
 </style>
