@@ -3,20 +3,15 @@
     <div v-if="loading" class="stack">
       <q-skeleton type="rect" height="220px" square />
       <div class="tabs">
-        <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="80px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
+        <q-skeleton type="rect" width="80px" height="38px" class="m-sk-tab" />
       </div>
       <q-skeleton type="rect" height="90px" class="sk" />
     </div>
 
     <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load this accommodation</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
-      </q-card>
+      <ErrorCard title="Couldn't load this accommodation" :detail="error" :retry="load" />
     </div>
 
     <div v-else class="stack">
@@ -53,7 +48,7 @@
         </div>
 
         <div class="panel">
-        <q-tab-panels v-model="tab" animated swipeable class="panels">
+        <q-tab-panels v-model="tab" animated swipeable class="m-panels">
         <!-- OVERVIEW -->
         <q-tab-panel name="overview" class="sec">
           <div class="group">
@@ -96,6 +91,11 @@
             <button type="button" class="view-row view-row--tap" @click="openFieldDialog('accommodationType')">
               <span class="view-label">Type</span>
               <span class="view-value">{{ BUILDING_TYPE_LABEL[acc.accommodationType] || '—' }}</span>
+              <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
+            </button>
+            <button type="button" class="view-row view-row--tap" @click="openFieldDialog('genderPolicy')">
+              <span class="view-label">Accepts</span>
+              <span class="view-value">{{ GENDER_POLICY_LABEL[acc.genderPolicy] || '—' }}</span>
               <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
             </button>
             <button type="button" class="view-row view-row--tap" @click="openFieldDialog('barangay')">
@@ -359,8 +359,8 @@
 
         <div class="room-sheet-scroll">
           <select v-if="editingField && FIELD_META[editingField].type === 'select'" v-model="fieldDraft" class="field-input">
-            <option value="">Select type</option>
-            <option v-for="(label, key) in BUILDING_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
+            <option value="">Select {{ FIELD_META[editingField].label.toLowerCase() }}</option>
+            <option v-for="(label, key) in FIELD_META[editingField].options" :key="key" :value="key">{{ label }}</option>
           </select>
           <input
             v-else-if="editingField && FIELD_META[editingField].type === 'number'"
@@ -411,13 +411,13 @@
           <h3 class="room-sheet-title">Amenities</h3>
         </div>
         <div class="room-sheet-scroll">
-          <div class="chips">
+          <div class="m-chips">
             <button
               v-for="key in AMENITY_KEYS"
               :key="key"
               type="button"
-              class="chip"
-              :class="{ 'chip--on': rules.amenities.includes(key) }"
+              class="m-chip"
+              :class="{ 'm-chip--on': rules.amenities.includes(key) }"
               @click="toggle(rules.amenities, key)"
             >
               <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="14" />
@@ -538,19 +538,19 @@
               <div class="field-row">
                 <div v-if="roomForm.capacity > 1" class="field">
                   <span class="field-label">Rent is for</span>
-                  <div class="chips">
+                  <div class="m-chips">
                     <button
                       type="button"
-                      class="chip"
-                      :class="{ 'chip--on': roomForm.rentBasis === 'room' }"
+                      class="m-chip"
+                      :class="{ 'm-chip--on': roomForm.rentBasis === 'room' }"
                       @click="roomForm.rentBasis = 'room'"
                     >
                       Whole room
                     </button>
                     <button
                       type="button"
-                      class="chip"
-                      :class="{ 'chip--on': roomForm.rentBasis === 'person' }"
+                      class="m-chip"
+                      :class="{ 'm-chip--on': roomForm.rentBasis === 'person' }"
                       @click="roomForm.rentBasis = 'person'"
                     >
                       Per person
@@ -981,11 +981,13 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
+import { requirePin } from '@/utils/requirePin'
 import { uploadDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset, isPdf, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, roomTypeLabel } from '@/utils/listings'
+import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL, roomTypeLabel } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 import type { Database } from '@/types/database.gen'
 import { capturePhoto } from '@/utils/camera'
 
@@ -1089,6 +1091,7 @@ const fieldDraftNum = ref<number | null>(null)
 const acc = reactive({
   name: '',
   accommodationType: '',
+  genderPolicy: '',
   address: '',
   barangay: '',
   city: '',
@@ -1385,7 +1388,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'name,accommodation_type,address,barangay,city,total_floors,description,status,lat,lng,accommodation_amenities(amenity),accommodation_policies(min_stay,curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(id,url,sort_order))',
+        'name,accommodation_type,gender_policy,address,barangay,city,total_floors,description,status,lat,lng,accommodation_amenities(amenity),accommodation_policies(min_stay,curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(id,url,sort_order))',
       )
       .eq('id', id)
       .maybeSingle()
@@ -1397,6 +1400,7 @@ async function load() {
 
     acc.name = data.name || ''
     acc.accommodationType = data.accommodation_type || ''
+    acc.genderPolicy = data.gender_policy || ''
     acc.address = data.address || ''
     acc.barangay = data.barangay || ''
     acc.city = data.city || ''
@@ -1570,12 +1574,15 @@ async function saveToggle(key: 'cooking' | 'laundry' | 'pets') {
 }
 
 type FieldKey =
-  | 'name' | 'accommodationType' | 'barangay' | 'city' | 'totalFloors' | 'description'
+  | 'name' | 'accommodationType' | 'genderPolicy' | 'barangay' | 'city' | 'totalFloors' | 'description'
   | 'curfewTime' | 'quietHours' | 'visitorPolicy'
 
-const FIELD_META: Record<FieldKey, { label: string; type: 'text' | 'select' | 'number' | 'textarea' | 'time' | 'timerange'; table: 'accommodations' | 'accommodation_policies'; column: string }> = {
+// `options` is what a 'select' field offers; the sheet renders straight from it,
+// so a second select needs an entry here rather than another branch in the template.
+const FIELD_META: Record<FieldKey, { label: string; type: 'text' | 'select' | 'number' | 'textarea' | 'time' | 'timerange'; table: 'accommodations' | 'accommodation_policies'; column: string; options?: Record<string, string> }> = {
   name: { label: 'Name', type: 'text', table: 'accommodations', column: 'name' },
-  accommodationType: { label: 'Type', type: 'select', table: 'accommodations', column: 'accommodation_type' },
+  accommodationType: { label: 'Type', type: 'select', table: 'accommodations', column: 'accommodation_type', options: BUILDING_TYPE_LABEL },
+  genderPolicy: { label: 'Accepts', type: 'select', table: 'accommodations', column: 'gender_policy', options: GENDER_POLICY_LABEL },
   barangay: { label: 'Barangay', type: 'text', table: 'accommodations', column: 'barangay' },
   city: { label: 'City', type: 'text', table: 'accommodations', column: 'city' },
   totalFloors: { label: 'Floors', type: 'number', table: 'accommodations', column: 'total_floors' },
@@ -1638,6 +1645,7 @@ async function saveField() {
     switch (key) {
       case 'name': acc.name = String(value ?? ''); break
       case 'accommodationType': acc.accommodationType = String(value ?? ''); break
+      case 'genderPolicy': acc.genderPolicy = String(value ?? ''); break
       case 'barangay': acc.barangay = String(value ?? ''); break
       case 'city': acc.city = String(value ?? ''); break
       case 'description': acc.description = String(value ?? ''); break
@@ -1690,6 +1698,7 @@ const confirmDeleteAccommodationOpen = ref(false)
 const deletingAccommodation = ref(false)
 
 async function deleteAccommodation() {
+  if (!(await requirePin({ title: 'Delete this accommodation?' }))) return
   if (deletingAccommodation.value) return
   deletingAccommodation.value = true
   try {
@@ -1776,6 +1785,8 @@ const roomViewMode = ref<'view' | 'edit'>('view')
 const roomStep = ref(1)
 const savingRoom = ref(false)
 const editingRoomId = ref('')
+/** The rent an existing room had when its editor opened, to spot a re-price. */
+let rentBeforeEdit = 0
 const activeRoomNumber = ref('')
 const activeRoomStatus = ref<'available' | 'occupied' | 'maintenance'>('available')
 const togglingRoomStatus = ref(false)
@@ -1914,6 +1925,7 @@ function openRoomDialog(room: Room | null, floor?: number) {
     roomForm.floor = room.floor
     roomForm.capacity = room.capacity ?? 1
     roomForm.monthlyRent = room.monthlyRent
+    rentBeforeEdit = room.monthlyRent
     roomForm.advanceMonths = room.advanceMonths
     roomForm.depositMonths = room.depositMonths
     roomForm.rentBasis = room.rentBasis
@@ -2021,6 +2033,12 @@ async function deleteRoomImage(imageId: string) {
 
 async function confirmRoomBasics() {
   if (savingRoom.value) return
+  // Only an actual re-price of an existing room asks: adding rooms during
+  // setup is frequent and harmless, while quietly changing what a room costs
+  // flows into every future application quote and nobody is notified.
+  if (editingRoomId.value && roomForm.monthlyRent !== rentBeforeEdit) {
+    if (!(await requirePin({ title: 'Change this room’s rent?' }))) return
+  }
   savingRoom.value = true
   try {
     // Clamped here as well as on blur: a paste, an autofill, or a value typed
@@ -2126,6 +2144,7 @@ function isLeaseRestrictError(e: unknown): boolean {
 }
 
 async function deleteRoom() {
+  if (!(await requirePin({ title: 'Delete this room?' }))) return
   if (savingRoom.value || !editingRoomId.value) return
   savingRoom.value = true
   try {
@@ -2197,6 +2216,7 @@ async function promptDeleteFloor(floor: number) {
 }
 
 async function confirmDeleteFloor() {
+  if (!(await requirePin({ title: 'Delete this floor?' }))) return
   const floor = floorPendingDelete.value
   if (floor === null || deletingFloor.value !== null) return
   const roomIds = rooms.value.filter((r) => r.floor === floor).map((r) => r.id)
@@ -2247,6 +2267,7 @@ async function confirmDeleteFloor() {
 
 
 onMounted(load)
+
 </script>
 
 <style scoped>
@@ -2266,25 +2287,11 @@ onMounted(load)
 .sk {
   border-radius: var(--m-radius);
 }
-.sk-tab {
-  border-radius: 10px 10px 0 0;
-}
 .card {
   padding: 18px 14px;
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 /* Cover hero — capped to a fixed height (the "limit"), image always fills
@@ -2402,6 +2409,8 @@ onMounted(load)
 /* Unselected tabs read as frosted glass over the photo behind them; the
    active tab turns opaque to fuse seamlessly into the card below. */
 .tab {
+  /* so the active tab can lift above the ones beside it */
+  position: relative;
   min-height: 40px;
   padding: 0 16px;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -2420,6 +2429,15 @@ onMounted(load)
   -webkit-tap-highlight-color: transparent;
 }
 .tab--on {
+  /* The selected tab is the front card: it grows past the 4px gap on either
+     side, covering 3px of its neighbours, and casts a shadow over them. The
+     shadow is clipped at the tab's own bottom edge — spilling it onto the panel
+     below would draw a grey line exactly where the two are meant to be fused. */
+  z-index: 1;
+  margin: 0 -7px;
+  padding: 0 23px;
+  box-shadow: 0 -3px 10px rgba(15, 23, 42, 0.14);
+  clip-path: inset(-14px -14px 0 -14px);
   border-color: var(--m-border);
   background: var(--m-surface);
   backdrop-filter: none;
@@ -2442,9 +2460,6 @@ onMounted(load)
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
 }
-.panels { background: transparent; }
-.panels :deep(.q-tab-panel) { padding: 0; }
-
 .sec {
   display: flex;
   flex-direction: column;
@@ -2606,31 +2621,6 @@ onMounted(load)
   font-weight: 600;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  -webkit-tap-highlight-color: transparent;
-}
-.chip--on {
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
 
 .toggles {
   display: flex;

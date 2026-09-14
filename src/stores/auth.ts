@@ -625,7 +625,20 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async verifyEmailOtp(email: string, token: string) {
-      const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+      // GoTrue files the code in a different column depending on the account,
+      // and /verify only looks in the one matching `type`:
+      //   - e-mail NOT yet confirmed -> a signup code in `confirmation_token`,
+      //     which is type 'email'  (registration)
+      //   - e-mail already confirmed -> /otp sends a MAGIC LINK instead, landing
+      //     in `recovery_token`, which is type 'magiclink'  (PIN reset, and any
+      //     other re-confirmation of an established account)
+      // Asking for the wrong one answers 'token has expired or is invalid' on a
+      // code sent seconds earlier, so try the second shape before giving up.
+      const attempt = (type: 'email' | 'magiclink') =>
+        supabase.auth.verifyOtp({ email, token, type });
+
+      let { data, error } = await attempt('email');
+      if (error) ({ data, error } = await attempt('magiclink'));
       if (error) throw sanitizeError(error);
       return data;
     },

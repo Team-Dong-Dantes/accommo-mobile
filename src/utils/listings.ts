@@ -61,6 +61,20 @@ export function buildingTypeLabel(value: string | null | undefined): string {
   return BUILDING_TYPE_LABEL[value] ?? '';
 }
 
+// Who an accommodation accepts. Rows created before this field existed hold
+// null and render as nothing rather than a guess — see the gender_policy
+// migration for why there is no backfill.
+export const GENDER_POLICY_LABEL: Record<string, string> = {
+  male: 'Male only',
+  female: 'Female only',
+  co_ed: 'Co-ed',
+};
+
+export function genderPolicyLabel(value: string | null | undefined): string {
+  if (!value) return '';
+  return GENDER_POLICY_LABEL[value] ?? '';
+}
+
 /** Two letters for the monogram used when a listing has no photo. */
 export function listingMonogram(name: string): string {
   const words = (name || '').trim().split(/\s+/).filter(Boolean);

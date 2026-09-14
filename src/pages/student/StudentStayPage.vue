@@ -7,12 +7,7 @@
       </div>
 
       <div v-else-if="error" class="stack">
-        <q-card flat bordered class="card">
-          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-          <p class="err-title">Couldn't load your stay</p>
-          <p class="err-sub">{{ error }}</p>
-          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-        </q-card>
+        <ErrorCard title="Couldn't load your stay" :detail="error" :retry="load" />
       </div>
 
       <EmptyState
@@ -27,18 +22,18 @@
       </EmptyState>
 
       <div v-else class="stack">
-        <div class="tabbed">
+        <div class="m-tabbed">
           <div class="tabs">
-            <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'stay' }" @click="activeTab = 'stay'">
+            <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'stay' }" @click="activeTab = 'stay'">
               My Stay
             </button>
-            <button type="button" class="tab" :class="{ 'tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
+            <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
               Payments
             </button>
           </div>
 
           <div class="panel">
-            <q-tab-panels v-model="activeTab" animated swipeable class="panels">
+            <q-tab-panels v-model="activeTab" animated swipeable class="m-panels">
               <q-tab-panel name="stay" class="tab-panel">
                 <template v-if="lease">
                   <div class="head">
@@ -388,11 +383,18 @@ import {
   statusColor,
 } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
+import { requirePin } from '@/utils/requirePin'
 import { createNotification } from '@/boot/notify'
 import { uploadDocument } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { AMENITY_META, roomTypeLabel } from '@/utils/listings'
+import {
+  ADVANCE_TAG,
+  DEPOSIT_TAG,
+  nextRentMonth as computeNextRentMonth,
+} from '@/utils/payments'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 function yesNo(value: boolean | null | undefined): string {
   if (value === null || value === undefined) return ''
@@ -402,8 +404,9 @@ function yesNo(value: boolean | null | undefined): string {
 // Advance/deposit have no dedicated column on `payments` (only `month`,
 // which rent needs and these don't) — tagged via `description` instead of a
 // schema change, and excluded from the rent month-sequence by that tag.
-const ADVANCE_TAG = 'Advance payment'
-const DEPOSIT_TAG = 'Security deposit'
+// Rules live in utils/payments.ts so they can be tested without mounting this
+// 1600-line page. The tags are re-exported names, not new constants.
+
 
 interface Lease {
   id: string
@@ -484,28 +487,11 @@ const form = reactive({
 const canPayAdvance = computed(() => Boolean(lease.value && !lease.value.advancePaid))
 const canPayDeposit = computed(() => Boolean(lease.value && !lease.value.depositPaid))
 
-// The one rent month actually payable right now: the earliest month since
-// lease start with no 'paid' or 'pending_verification' row yet. Locking the
-// form to this (instead of a free month picker) is what makes "pay in
-// order, never skip ahead, never backdate" hold — there's no field left to
-// game.
-const nextRentMonth = computed(() => {
-  if (!lease.value) return ''
-  const covered = new Set(
-    payments.value
-      .filter((p) => p.description !== ADVANCE_TAG && p.description !== DEPOSIT_TAG)
-      .filter((p) => p.status === 'paid' || p.status === 'pending_verification')
-      .map((p) => p.month.slice(0, 7)),
-  )
-  const start = new Date(lease.value.startDate)
-  const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
-  for (let i = 0; i < 240; i++) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`
-    if (!covered.has(key)) return key
-    cursor.setMonth(cursor.getMonth() + 1)
-  }
-  return `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`
-})
+// See computeNextRentMonth() in utils/payments.ts for why this is a single
+// value rather than a month picker.
+const nextRentMonth = computed(() =>
+  lease.value ? computeNextRentMonth(lease.value.startDate, payments.value) : '',
+)
 
 const submitTitle = computed(() => {
   if (form.category === 'advance') return 'Pay your advance'
@@ -676,6 +662,7 @@ async function load(silent = false) {
 }
 
 async function requestLeave() {
+  if (!(await requirePin({ confirm: true, title: 'Request to leave?', message: 'Your manager will be asked to approve it.' }))) return
   if (leaving.value || !lease.value) return
   leaving.value = true
   try {
@@ -834,6 +821,7 @@ const { refresh } = useLiveData({
 function onPull(done: () => void) {
   void refresh().finally(done)
 }
+
 </script>
 
 <style scoped>
@@ -858,17 +846,6 @@ function onPull(done: () => void) {
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 .head {
@@ -936,7 +913,13 @@ function onPull(done: () => void) {
    full-bleed + bottom-flush technique as ManagerTenantsPage.vue): the whole
    flex chain (.sp -> .stack -> .tabbed -> .panel) has to carry flex:1;
    min-height:0 for this to work, not just the panel itself. */
-.tabbed {
+/* QPullToRefresh wraps the page body in two plain <div>s of its own, which
+   land between the q-page and .stack and break the flex chain the bottom-flush
+   panel needs — .stack's flex:1 measures against a block box that just hugs its
+   content, so the card stops wherever the content happens to end. Passing the
+   chain through them costs nothing: neither div clips or scrolls. */
+:deep(.q-pull-to-refresh),
+:deep(.q-pull-to-refresh__content) {
   display: flex;
   flex: 1;
   min-height: 0;
@@ -953,25 +936,6 @@ function onPull(done: () => void) {
   margin: 0 calc(var(--m-page-gutter) * -1) -2px;
   padding: 0 var(--m-page-gutter);
 }
-.tab {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--m-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.tab--on {
-  background: var(--m-surface);
-  color: var(--m-primary-dark);
-}
 .panel {
   position: relative;
   z-index: 1;
@@ -982,12 +946,6 @@ function onPull(done: () => void) {
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
-}
-.panels {
-  background: transparent;
-}
-.panels :deep(.q-tab-panel) {
-  padding: 0;
 }
 .tab-panel {
   display: flex;

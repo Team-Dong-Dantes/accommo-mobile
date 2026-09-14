@@ -64,13 +64,71 @@ function validateFile(file: File): string | null {
   return null;
 }
 
+/**
+ * Confirms the bytes match the type the file claims.
+ *
+ * `file.type` comes from the browser's guess at the extension, so a renamed
+ * `.exe` announces itself as `image/png` and sails through validateFile(). This
+ * is a UX guard, not a security boundary — the real boundary is the Cloudinary
+ * unsigned preset, which will accept whatever is POSTed to it by anyone who
+ * reads the preset name out of the bundle. What it does buy is that a student
+ * who picks the wrong file is told so here, rather than after the upload
+ * succeeds and the document viewer renders nothing.
+ */
+async function sniffMismatch(file: File): Promise<string | null> {
+  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const startsWith = (...bytes: number[]) => bytes.every((b, i) => head[i] === b);
+
+  const actual =
+    startsWith(0xff, 0xd8, 0xff) ? 'image/jpeg'
+    : startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) ? 'image/png'
+    // RIFF....WEBP
+    : startsWith(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45
+      && head[10] === 0x42 && head[11] === 0x50 ? 'image/webp'
+    : startsWith(0x25, 0x50, 0x44, 0x46) ? 'application/pdf'
+    : null;
+
+  if (actual === null) {
+    return 'That file is not a JPEG, PNG, WebP or PDF.';
+  }
+  if (actual !== file.type) {
+    return `That file is named like a ${file.type.split('/')[1]?.toUpperCase()} but its contents are ${actual.split('/')[1]?.toUpperCase()}. Re-save it and try again.`;
+  }
+  return null;
+}
+
+/**
+ * A filename no other upload will reuse.
+ *
+ * The `accommo` unsigned preset derives public_id from the uploaded filename,
+ * so the name decides the Cloudinary asset. capturePhoto() names every camera
+ * shot `photo.jpeg`, which meant each new photo OVERWROTE the last one and
+ * returned the identical URL — three chat messages sent across three days all
+ * stored `/v1789079624/photo.jpg`, and every one of them displayed whichever
+ * image had been uploaded last (or the browser's cached copy of it).
+ *
+ * Gallery uploads had the same hazard whenever two files shared a name.
+ * Renaming here fixes every caller at once and does not depend on how the
+ * preset happens to be configured.
+ */
+function uniqueUploadName(file: File): string {
+  const dot = file.name.lastIndexOf('.');
+  const ext = dot > 0 ? file.name.slice(dot) : '';
+  const stem = (dot > 0 ? file.name.slice(0, dot) : file.name).replace(/[^a-zA-Z0-9_-]/g, '') || 'upload';
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${stem}-${nonce}${ext}`;
+}
+
 async function performUpload(file: File): Promise<CloudinaryUploadResult> {
   const validationError = validateFile(file);
   if (validationError) throw new Error(validationError);
+  const sniffError = await sniffMismatch(file);
+  if (sniffError) throw new Error(sniffError);
   if (!isConfigured()) throw new Error(emptyMessage());
 
   const form = new FormData();
-  form.append('file', file);
+  // The third argument sets the filename Cloudinary sees — see uniqueUploadName.
+  form.append('file', file, uniqueUploadName(file));
   form.append('upload_preset', UPLOAD_PRESET!);
 
   // Images → image endpoint; PDFs/other files → the generic (resource-aware)
@@ -187,6 +245,8 @@ export type DocumentTable = 'verification_documents' | 'accommodation_documents'
 export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
   const validationError = validateFile(file);
   if (validationError) throw new Error(validationError);
+  const sniffError = await sniffMismatch(file);
+  if (sniffError) throw new Error(sniffError);
 
   const isPdf = file.type === 'application/pdf';
   const { data: params, error } = await supabase.functions.invoke('doc-access', {
@@ -195,7 +255,10 @@ export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
   if (error) throw error;
 
   const form = new FormData();
-  form.append('file', file);
+  // Unique for the same reason as the public path: two students photographing a
+  // school ID both hand over a file called `photo.jpeg`. The filename is not one
+  // of the signed parameters, so renaming cannot invalidate the signature.
+  form.append('file', file, uniqueUploadName(file));
   form.append('api_key', params.apiKey);
   form.append('timestamp', String(params.timestamp));
   form.append('folder', params.folder);

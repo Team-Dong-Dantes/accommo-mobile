@@ -2,8 +2,17 @@
 // Centralizes currency/date formatting and friendlier enum/status labels so
 // the UI never shows raw database enum values (e.g. "under_review") to users.
 
+/**
+ * Whole pesos, no centavos. Rents and deposits here are always round figures,
+ * so ".00" on every price was noise, and a split whole-room rate (rent divided
+ * by capacity) produced things like ₱2,666.67 that read as a billing error
+ * rather than a share.
+ *
+ * Display only — the lease still stores the exact monthly_rent, so a split rate
+ * shown as ₱2,667 may differ by a peso from twelve times the stored figure.
+ */
 export function formatPeso(amount: number): string {
-  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 export function initialsOf(name: string): string {

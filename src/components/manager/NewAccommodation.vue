@@ -18,6 +18,13 @@
             <option v-for="(label, key) in BUILDING_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
           </select>
         </label>
+        <label class="field">
+          <span class="field-label">Accepts <span class="req">*</span></span>
+          <select v-model="form.genderPolicy" class="field-input">
+            <option value="">Select who you accept</option>
+            <option v-for="(label, key) in GENDER_POLICY_LABEL" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </label>
         <!-- Location leads: picking on the map fills the two fields below it,
              so they're a check-and-correct rather than something to type out. -->
         <span class="field-label">Location <span class="req">*</span></span>
@@ -49,13 +56,13 @@
       <section v-else-if="step === 2" class="sec">
         <h2 class="sec-title">Amenities <span class="req">*</span></h2>
         <p class="sec-hint">Pick at least one — students filter by these.</p>
-        <div class="chips">
+        <div class="m-chips">
           <button
             v-for="key in AMENITY_KEYS"
             :key="key"
             type="button"
-            class="chip"
-            :class="{ 'chip--on': form.amenities.includes(key) }"
+            class="m-chip"
+            :class="{ 'm-chip--on': form.amenities.includes(key) }"
             @click="toggle(form.amenities, key)"
           >
             <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="14" />
@@ -162,7 +169,9 @@
           </span>
           <span class="rv-head">
             <strong class="rv-name">{{ form.name }}</strong>
-            <span class="rv-type">{{ BUILDING_TYPE_LABEL[form.accommodationType] }}</span>
+            <span class="rv-type">
+              {{ BUILDING_TYPE_LABEL[form.accommodationType] }} · {{ GENDER_POLICY_LABEL[form.genderPolicy] }}
+            </span>
             <span class="rv-where">
               <IconifyIcon icon="lucide:map-pin" width="11" />
               {{ locationSummary }}
@@ -285,7 +294,7 @@ import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument, uploadSecureDocument } from '@/utils/upload'
-import { AMENITY_META, AMENITY_KEYS, BUILDING_TYPE_LABEL } from '@/utils/listings'
+import { AMENITY_META, AMENITY_KEYS, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL } from '@/utils/listings'
 import { staticMapUrl } from '@/utils/geo'
 import { to12Hour } from '@/utils/format'
 import { capturePhoto } from '@/utils/camera'
@@ -333,6 +342,7 @@ const blockReason = computed(() => {
   if (step.value === 1) {
     if (!form.name.trim()) return 'Give your accommodation a name.'
     if (!form.accommodationType) return 'Choose what type of place this is.'
+    if (!form.genderPolicy) return 'Choose who this place accepts.'
     if (form.lat === null || form.lng === null) return 'Set the location on the map.'
     // Normally filled by the map pick, but a reverse-geocode can come back
     // empty, so they still have to be confirmed rather than silently blank.
@@ -356,6 +366,7 @@ const nextBlocked = computed(() => blockReason.value !== '')
 const form = reactive({
   name: '',
   accommodationType: '',
+  genderPolicy: '',
   barangay: '',
   city: '',
   description: '',
@@ -479,6 +490,7 @@ async function submit() {
         accommodation_manager_id: user.id,
         name: form.name.trim(),
         accommodation_type: form.accommodationType || null,
+        gender_policy: form.genderPolicy || null,
         // No address field any more — the student side already falls back to
         // "Barangay, City" when this is null.
         address: null,
@@ -656,31 +668,6 @@ async function submit() {
   -webkit-tap-highlight-color: transparent;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  -webkit-tap-highlight-color: transparent;
-}
-.chip--on {
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
 
 .toggles {
   display: flex;

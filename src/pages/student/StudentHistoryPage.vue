@@ -8,30 +8,25 @@
       </div>
 
       <div v-else-if="error" class="stack">
-        <q-card flat bordered class="card">
-          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-          <p class="err-title">Couldn't load your history</p>
-          <p class="err-sub">{{ error }}</p>
-          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-        </q-card>
+        <ErrorCard title="Couldn't load your history" :detail="error" :retry="load" />
       </div>
 
       <div v-else class="stack">
-        <div class="tabbed">
+        <div class="m-tabbed">
           <div class="tabs">
-            <button type="button" class="tab" :class="{ 'tab--on': tab === 'history' }" @click="tab = 'history'">
+            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'history' }" @click="tab = 'history'">
               Boarding history
             </button>
-            <button type="button" class="tab" :class="{ 'tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
+            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
               Reviews
             </button>
-            <button type="button" class="tab" :class="{ 'tab--on': tab === 'payments' }" @click="tab = 'payments'">
+            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'payments' }" @click="tab = 'payments'">
               Payments
             </button>
           </div>
 
           <div class="panel">
-            <q-tab-panels v-model="tab" animated swipeable class="panels">
+            <q-tab-panels v-model="tab" animated swipeable class="m-panels">
               <q-tab-panel name="history" class="tab-panel">
                 <div v-if="visibleHistory.length" class="group">
                   <div v-for="row in visibleHistory" :key="row.id" class="history-row">
@@ -106,89 +101,66 @@
          nav), so it just spans the full width instead of reserving FAB room.
          Outside the pull-to-refresh wrapper on purpose: it transforms its
          content while you pull, which would drag this fixed dock along. -->
-    <div v-if="!loading && !error" class="dock">
-      <button
-        type="button"
-        class="dock-btn"
-        :class="{ 'dock-btn--on': activeFilter !== 'all' }"
-        aria-label="Filters"
-        @click="filtersOpen = true"
-      >
-        <IconifyIcon icon="lucide:sliders-horizontal" width="17" />
-        <span v-if="activeFilter !== 'all'" class="dock-dot">1</span>
-      </button>
-      <div class="dock-field">
-        <IconifyIcon icon="lucide:search" width="16" class="dock-icon" />
-        <input
-          v-model="query"
-          class="dock-input"
-          type="search"
-          :placeholder="tab === 'payments' ? 'Search month or method' : tab === 'reviews' ? 'Search reviews' : 'Search boarding history'"
-          aria-label="Search"
-        />
-      </div>
-    </div>
+    <SearchDock
+      v-if="!loading && !error"
+      v-model="query"
+      :filter-count="activeFilter !== 'all' ? 1 : 0"
+      :placeholder="tab === 'payments' ? 'Search month or method' : tab === 'reviews' ? 'Search reviews' : 'Search boarding history'"
+      search-label="Search"
+      @open-filters="filtersOpen = true"
+    />
 
-    <q-dialog v-model="filtersOpen" position="bottom">
-      <div class="sheet">
-        <div class="sheet-head">
-          <h2 class="sheet-title">Filters</h2>
+    <BottomSheet
+      v-model="filtersOpen"
+      title="Filters"
+      @clear="tab === 'history' ? (historyFilter = 'all') : tab === 'reviews' ? (reviewDateFilter = 'all') : (filter = 'all')"
+    >
+      <div v-if="tab === 'history'" class="sheet-block">
+        <span class="sheet-label">Rated</span>
+        <div class="m-chips">
           <button
+            v-for="f in HISTORY_FILTERS"
+            :key="f.key"
             type="button"
-            class="sheet-clear"
-            @click="tab === 'history' ? (historyFilter = 'all') : tab === 'reviews' ? (reviewDateFilter = 'all') : (filter = 'all')"
+            class="m-chip"
+            :class="{ 'm-chip--on': historyFilter === f.key }"
+            @click="historyFilter = f.key"
           >
-            Reset
+            {{ f.label }}
           </button>
         </div>
-        <div v-if="tab === 'history'" class="sheet-block">
-          <span class="sheet-label">Rated</span>
-          <div class="chips">
-            <button
-              v-for="f in HISTORY_FILTERS"
-              :key="f.key"
-              type="button"
-              class="chip"
-              :class="{ 'chip--on': historyFilter === f.key }"
-              @click="historyFilter = f.key"
-            >
-              {{ f.label }}
-            </button>
-          </div>
-        </div>
-        <div v-else-if="tab === 'reviews'" class="sheet-block">
-          <span class="sheet-label">Date</span>
-          <div class="chips">
-            <button
-              v-for="f in REVIEW_DATE_FILTERS"
-              :key="f.key"
-              type="button"
-              class="chip"
-              :class="{ 'chip--on': reviewDateFilter === f.key }"
-              @click="reviewDateFilter = f.key"
-            >
-              {{ f.label }}
-            </button>
-          </div>
-        </div>
-        <div v-else class="sheet-block">
-          <span class="sheet-label">Status</span>
-          <div class="chips">
-            <button
-              v-for="f in PAYMENT_FILTERS"
-              :key="f.key"
-              type="button"
-              class="chip"
-              :class="{ 'chip--on': filter === f.key }"
-              @click="filter = f.key"
-            >
-              {{ f.label }}
-            </button>
-          </div>
-        </div>
-        <button type="button" class="sheet-done" @click="filtersOpen = false">Done</button>
       </div>
-    </q-dialog>
+      <div v-else-if="tab === 'reviews'" class="sheet-block">
+        <span class="sheet-label">Date</span>
+        <div class="m-chips">
+          <button
+            v-for="f in REVIEW_DATE_FILTERS"
+            :key="f.key"
+            type="button"
+            class="m-chip"
+            :class="{ 'm-chip--on': reviewDateFilter === f.key }"
+            @click="reviewDateFilter = f.key"
+          >
+            {{ f.label }}
+          </button>
+        </div>
+      </div>
+      <div v-else class="sheet-block">
+        <span class="sheet-label">Status</span>
+        <div class="m-chips">
+          <button
+            v-for="f in PAYMENT_FILTERS"
+            :key="f.key"
+            type="button"
+            class="m-chip"
+            :class="{ 'm-chip--on': filter === f.key }"
+            @click="filter = f.key"
+          >
+            {{ f.label }}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
 
     <!-- Boarding history detail -->
     <q-dialog v-model="historyDetailOpen" position="bottom">
@@ -330,6 +302,9 @@ import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
 import StarRating from '@/components/shared/StarRating.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
+import SearchDock from '@/components/shared/SearchDock.vue'
+import BottomSheet from '@/components/shared/BottomSheet.vue'
 import { period } from '@/utils/profile'
 import { formatPeso, formatMonth, formatDate, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
@@ -671,6 +646,7 @@ function onPull(done: () => void) {
 // watch on purpose: this is a record of things that already happened, and the
 // two-minute TTL plus pull-to-refresh is all the freshness it needs.
 const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
+
 </script>
 
 <style scoped>
@@ -696,22 +672,17 @@ const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
   background: var(--m-surface);
   text-align: center;
 }
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
-}
 
 /* Same rounded-top pill tabs fused into a bordered panel used by
    AccommodationDetail.vue / TenantProfile.vue / ManagerTenantsPage.vue —
    the default tabbed-section design for this app. */
-.tabbed {
+/* QPullToRefresh wraps the page body in two plain <div>s of its own, which
+   land between the q-page and .stack and break the flex chain the bottom-flush
+   panel needs — .stack's flex:1 measures against a block box that just hugs its
+   content, so the card stops wherever the content happens to end. Passing the
+   chain through them costs nothing: neither div clips or scrolls. */
+:deep(.q-pull-to-refresh),
+:deep(.q-pull-to-refresh__content) {
   display: flex;
   flex: 1;
   min-height: 0;
@@ -725,25 +696,6 @@ const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
   margin: 0 calc(var(--m-page-gutter) * -1) -2px;
   padding: 0 var(--m-page-gutter);
 }
-.tab {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--m-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.tab--on {
-  background: var(--m-surface);
-  color: var(--m-primary-dark);
-}
 .panel {
   position: relative;
   z-index: 1;
@@ -756,12 +708,6 @@ const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
-}
-.panels {
-  background: transparent;
-}
-.panels :deep(.q-tab-panel) {
-  padding: 0;
 }
 .tab-panel {
   display: flex;
@@ -1117,168 +1063,6 @@ const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
 
 /* Docked search — this page is a subpage (no bottom nav, no FAB), so it
    spans the full width instead of reserving room for a FAB that isn't here. */
-.dock {
-  position: fixed;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  left: var(--m-page-gutter);
-  right: var(--m-page-gutter);
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.dock-field {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
-  box-shadow: var(--m-shadow);
-}
-.dock-field:focus-within {
-  border-color: var(--m-primary);
-}
-.dock-icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  color: var(--m-muted);
-  pointer-events: none;
-}
-.dock-input {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13.5px;
-}
-.dock-input::placeholder {
-  color: var(--m-muted);
-  opacity: 0.85;
-}
-.dock-input:focus {
-  outline: none;
-}
-.dock-btn {
-  position: relative;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
-  box-shadow: var(--m-shadow);
-  color: var(--m-ink);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.dock-btn--on {
-  border-color: var(--m-primary);
-  color: var(--m-primary-dark);
-}
-.dock-dot {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  display: grid;
-  min-width: 17px;
-  height: 17px;
-  place-items: center;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-}
 
 /* Filter sheet */
-.sheet {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-  background: var(--m-surface);
-}
-.sheet-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sheet-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.sheet-clear {
-  border: 0;
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-}
-.sheet-block {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.sheet-label {
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 600;
-}
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.chip {
-  padding: 6px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  -webkit-tap-highlight-color: transparent;
-}
-.chip--on {
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.sheet-done {
-  min-height: 48px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
 </style>

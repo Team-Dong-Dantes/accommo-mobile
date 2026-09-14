@@ -1,133 +1,131 @@
 <template>
-  <q-page class="op" :style="{ '--sticky-top': stickyTop + 'px' }">
-    <div v-if="loading" class="stack">
-      <div class="tabs">
-        <q-skeleton type="rect" width="88px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="70px" height="38px" class="sk-tab" />
-      </div>
-      <div class="group">
-        <div v-for="n in 2" :key="n" class="doc-row">
-          <q-skeleton type="circle" size="30px" />
-          <span class="doc-body">
-            <q-skeleton type="text" width="55%" height="13px" />
-            <q-skeleton type="text" width="35%" height="11px" />
-          </span>
-          <q-skeleton type="text" width="46px" height="18px" />
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load OSAS</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
-      </q-card>
-    </div>
-
-    <div v-else class="stack">
-      <div class="tabbed">
+  <q-page class="op">
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
         <div class="tabs">
-          <button v-for="t in TABS" :key="t.key" type="button" class="tab" :class="{ 'tab--on': tab === t.key }" @click="tab = t.key">
-            {{ t.label }}
-          </button>
+          <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
+          <q-skeleton type="rect" width="70px" height="38px" class="m-sk-tab" />
         </div>
+        <div class="group">
+          <div v-for="n in 2" :key="n" class="doc-row">
+            <q-skeleton type="circle" size="30px" />
+            <span class="doc-body">
+              <q-skeleton type="text" width="55%" height="13px" />
+              <q-skeleton type="text" width="35%" height="11px" />
+            </span>
+            <q-skeleton type="text" width="46px" height="18px" />
+          </div>
+        </div>
+      </div>
 
-        <div class="panel">
-          <q-tab-panels v-model="tab" animated swipeable class="panels">
-            <!-- DOCUMENTS -->
-            <q-tab-panel name="docs" class="tab-panel">
-              <!-- 'reviewing' is a soft reject: OSAS wants a better document and
-                   the account can still be verified once it arrives. -->
-              <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
-                <IconifyIcon icon="lucide:triangle-alert" width="16" />
-                <div>
-                  <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : 'Verification rejected' }}</p>
-                  <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
+      <div v-else-if="error" class="stack">
+        <ErrorCard title="Couldn't load OSAS" :detail="error" :retry="load" />
+      </div>
+
+      <div v-else class="stack">
+        <div class="m-tabbed">
+          <div class="tabs">
+            <button v-for="t in TABS" :key="t.key" type="button" class="m-tab" :class="{ 'm-tab--on': tab === t.key }" @click="tab = t.key">
+              {{ t.label }}
+            </button>
+          </div>
+
+          <div class="panel">
+            <q-tab-panels v-model="tab" animated swipeable class="m-panels">
+              <!-- DOCUMENTS -->
+              <q-tab-panel name="docs" class="tab-panel">
+                <!-- 'reviewing' is a soft reject: OSAS wants a better document and
+                     the account can still be verified once it arrives. -->
+                <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
+                  <IconifyIcon icon="lucide:triangle-alert" width="16" />
+                  <div>
+                    <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : 'Verification rejected' }}</p>
+                    <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
+                  </div>
                 </div>
-              </div>
-              <p class="sec-hint">OSAS reviews these before your account is verified. Tap one to view or resubmit.</p>
-              <div class="group">
-                <div v-for="d in docs" :key="d.type" class="doc-item">
-                  <button
-                    type="button"
-                    class="doc-row"
-                    :aria-expanded="expandedDoc === d.type"
-                    @click="expandedDoc = expandedDoc === d.type ? '' : d.type"
-                  >
-                    <span class="doc-icon" :class="`doc-icon--${d.tone}`">
-                      <IconifyIcon :icon="d.icon" width="16" />
-                    </span>
-                    <span class="doc-body">
-                      <span class="doc-name">{{ DOC_LABEL[d.type] || d.type }}</span>
-                      <span class="doc-when">{{ d.when }}</span>
-                    </span>
-                    <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-                    <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedDoc === d.type }" />
-                  </button>
+                <p class="sec-hint">OSAS reviews these before your account is verified. Tap one to view or resubmit.</p>
+                <div class="group">
+                  <div v-for="d in docs" :key="d.type" class="doc-item">
+                    <button
+                      type="button"
+                      class="doc-row"
+                      :aria-expanded="expandedDoc === d.type"
+                      @click="expandedDoc = expandedDoc === d.type ? '' : d.type"
+                    >
+                      <span class="doc-icon" :class="`doc-icon--${d.tone}`">
+                        <IconifyIcon :icon="d.icon" width="16" />
+                      </span>
+                      <span class="doc-body">
+                        <span class="doc-name">{{ DOC_LABEL[d.type] || d.type }}</span>
+                        <span class="doc-when">{{ d.when }}</span>
+                      </span>
+                      <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
+                      <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedDoc === d.type }" />
+                    </button>
 
-                  <q-slide-transition>
-                    <div v-if="expandedDoc === d.type" class="doc-detail">
-                      <div class="doc-preview">
-                        <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
-                        <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
-                          <IconifyIcon icon="lucide:file-text" width="26" />
-                          <span>View file</span>
-                        </button>
-                        <div v-else class="doc-preview-empty">
-                          <IconifyIcon icon="lucide:image-off" width="20" />
-                          <span>Nothing uploaded yet</span>
+                    <q-slide-transition>
+                      <div v-if="expandedDoc === d.type" class="doc-detail">
+                        <div class="doc-preview">
+                          <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
+                          <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
+                            <IconifyIcon icon="lucide:file-text" width="26" />
+                            <span>View file</span>
+                          </button>
+                          <div v-else class="doc-preview-empty">
+                            <IconifyIcon icon="lucide:image-off" width="20" />
+                            <span>Nothing uploaded yet</span>
+                          </div>
+                        </div>
+                        <p v-if="d.verified" class="doc-locked">
+                          <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
+                        </p>
+                        <div class="doc-actions">
+                          <label v-if="!d.verified" class="doc-action doc-action--primary">
+                            <IconifyIcon icon="lucide:upload" width="14" />
+                            {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
+                            <input type="file" accept="image/*,application/pdf" class="doc-file-input" @change="onDocSelected($event, d.type)" />
+                          </label>
+                          <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
+                            <IconifyIcon icon="lucide:external-link" width="14" /> Open
+                          </button>
                         </div>
                       </div>
-                      <p v-if="d.verified" class="doc-locked">
-                        <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
-                      </p>
-                      <div class="doc-actions">
-                        <label v-if="!d.verified" class="doc-action doc-action--primary">
-                          <IconifyIcon icon="lucide:upload" width="14" />
-                          {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
-                          <input type="file" accept="image/*,application/pdf" class="doc-file-input" @change="onDocSelected($event, d.type)" />
-                        </label>
-                        <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
-                          <IconifyIcon icon="lucide:external-link" width="14" /> Open
-                        </button>
-                      </div>
-                    </div>
-                  </q-slide-transition>
+                    </q-slide-transition>
+                  </div>
                 </div>
-              </div>
-              <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
-            </q-tab-panel>
+                <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
+              </q-tab-panel>
 
-            <!-- TICKETS -->
-            <q-tab-panel name="tickets" class="tab-panel">
-              <div class="sec-head">
-                <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
-                <button type="button" class="sec-link" @click="openNewTicket">New ticket</button>
-              </div>
+              <!-- TICKETS -->
+              <q-tab-panel name="tickets" class="tab-panel">
+                <div class="sec-head">
+                  <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
+                  <button type="button" class="sec-link" @click="openNewTicket">New ticket</button>
+                </div>
 
-              <EmptyState
-                v-if="!tickets.length"
-                variant="compact"
-                icon="lucide:life-buoy"
-                title="No tickets yet"
-                message="Account, verification or technical issues you raise with OSAS will show up here."
-              />
-              <div v-else class="group">
-                <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
-                  <span class="ticket-body">
-                    <span class="ticket-subject">{{ t.subject }}</span>
-                    <span class="ticket-when">{{ since(t.reportedAt) }}</span>
-                  </span>
-                  <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
-                </button>
-              </div>
-            </q-tab-panel>
-          </q-tab-panels>
+                <EmptyState
+                  v-if="!tickets.length"
+                  variant="compact"
+                  icon="lucide:life-buoy"
+                  title="No tickets yet"
+                  message="Account, verification or technical issues you raise with OSAS will show up here."
+                />
+                <div v-else class="group">
+                  <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
+                    <span class="ticket-body">
+                      <span class="ticket-subject">{{ t.subject }}</span>
+                      <span class="ticket-when">{{ since(t.reportedAt) }}</span>
+                    </span>
+                    <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
+                  </button>
+                </div>
+              </q-tab-panel>
+            </q-tab-panels>
+          </div>
         </div>
       </div>
-    </div>
+
+    </q-pull-to-refresh>
 
     <TicketThread v-if="openTicket" :key="openTicket.id" :ticket="openTicket" @close="closeTicket" />
 
@@ -143,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -159,6 +157,7 @@ import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const TICKET_CATEGORIES = [
   { value: 'verification', label: 'Verification' },
@@ -425,20 +424,11 @@ async function submitTicket(draft: TicketDraft) {
   }
 }
 
-// The app header floats over the page at a JS-measured height (Quasar's
-// QHeader has no fixed size), so the sticky tab row needs its real bottom
-// edge, not a guessed px value, or it would stick underneath the header
-// once scrolled instead of just below it.
-const stickyTop = ref(64)
-function measureStickyTop() {
-  const header = document.querySelector('.app-header') as HTMLElement | null
-  if (header) stickyTop.value = Math.ceil(header.getBoundingClientRect().bottom)
-}
 
 // This screen is kept alive (see MainLayout's KEEP_ALIVE_PAGES), so without
 // this it would fetch once and never again — an OSAS verification decision or
 // ticket reply would not surface until the app restarted.
-useLiveData({
+const { refresh } = useLiveData({
   key: 'student-osas',
   load,
   watch: (uid) => [
@@ -447,12 +437,13 @@ useLiveData({
   ],
 })
 
-onMounted(() => {
-  void nextTick(measureStickyTop)
-  window.addEventListener('resize', measureStickyTop)
-})
 
-onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
+// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
+// loads silently (no skeleton behind the spinner) and resets the freshness
+// clock, so returning to the screen does not immediately fetch again.
+function onPull(done: () => void) {
+  void refresh().finally(done)
+}
 </script>
 
 <style scoped>
@@ -469,9 +460,6 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   gap: 12px;
   padding: 10px var(--m-page-gutter) 0;
 }
-.sk-tab {
-  border-radius: 10px 10px 0 0;
-}
 .sk {
   border-radius: var(--m-radius);
 }
@@ -481,54 +469,29 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   background: var(--m-surface);
   text-align: center;
 }
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
-}
 
 /* Same rounded-top pill tabs fused into a bordered panel used by
    AccommodationDetail.vue / TenantProfile.vue / ManagerTenantsPage.vue —
    the default tabbed-section design for this app. */
-.tabbed {
+/* QPullToRefresh wraps the page body in two plain <div>s of its own, which
+   land between the q-page and .stack and break the flex chain the bottom-flush
+   panel needs — .stack's flex:1 measures against a block box that just hugs its
+   content, so the card stops wherever the content happens to end. Passing the
+   chain through them costs nothing: neither div clips or scrolls. */
+:deep(.q-pull-to-refresh),
+:deep(.q-pull-to-refresh__content) {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
 }
 .tabs {
-  position: sticky;
-  top: var(--sticky-top, 64px);
+  position: relative;
   z-index: 2;
   display: flex;
   gap: 4px;
   margin: 0 calc(var(--m-page-gutter) * -1) -2px;
   padding: 0 var(--m-page-gutter);
-}
-.tab {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--m-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.tab--on {
-  background: var(--m-surface);
-  color: var(--m-primary-dark);
 }
 .panel {
   position: relative;
@@ -543,12 +506,6 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
      have nothing beside it to round away from. */
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
-}
-.panels {
-  background: transparent;
-}
-.panels :deep(.q-tab-panel) {
-  padding: 0;
 }
 .tab-panel {
   display: flex;

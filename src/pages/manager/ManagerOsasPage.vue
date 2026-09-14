@@ -1,92 +1,149 @@
 <template>
-  <q-page class="op" :style="{ '--sticky-top': stickyTop + 'px' }">
-    <div v-if="loading" class="stack">
-      <div class="tabs">
-        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="60px" height="38px" class="sk-tab" />
-      </div>
-      <div class="group">
-        <div v-for="n in 4" :key="n" class="doc-row">
-          <q-skeleton type="circle" size="30px" />
-          <span class="doc-body">
-            <q-skeleton type="text" width="55%" height="13px" />
-            <q-skeleton type="text" width="35%" height="11px" />
-          </span>
-          <q-skeleton type="text" width="46px" height="18px" />
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load OSAS</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
-      </q-card>
-    </div>
-
-    <div v-else class="stack">
-      <div class="tabbed">
+  <q-page class="op">
+    <q-pull-to-refresh @refresh="onPull">
+      <div v-if="loading" class="stack">
         <div class="tabs">
-          <button v-for="t in TABS" :key="t.key" type="button" class="tab" :class="{ 'tab--on': tab === t.key }" @click="tab = t.key">
-            {{ t.label }}
-          </button>
+          <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
+          <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
+          <q-skeleton type="rect" width="60px" height="38px" class="m-sk-tab" />
         </div>
+        <div class="group">
+          <div v-for="n in 4" :key="n" class="doc-row">
+            <q-skeleton type="circle" size="30px" />
+            <span class="doc-body">
+              <q-skeleton type="text" width="55%" height="13px" />
+              <q-skeleton type="text" width="35%" height="11px" />
+            </span>
+            <q-skeleton type="text" width="46px" height="18px" />
+          </div>
+        </div>
+      </div>
 
-        <div class="panel">
-          <q-tab-panels v-model="tab" animated swipeable class="panels">
-            <!-- PROPERTY DOCUMENTS -->
-            <q-tab-panel name="property" class="tab-panel">
-              <EmptyState
-                v-if="!accommodations.length"
-                variant="compact"
-                icon="lucide:building-2"
-                title="No accommodations yet"
-                message="Add an accommodation first — its permits and clearances will be tracked here."
-              >
-                <template #actions>
-                  <q-btn unelevated rounded no-caps color="primary" label="Add accommodation" @click="router.push('/manager/properties/new')" />
+      <div v-else-if="error" class="stack">
+        <ErrorCard title="Couldn't load OSAS" :detail="error" :retry="load" inset />
+      </div>
+
+      <div v-else class="stack">
+        <div class="m-tabbed">
+          <div class="tabs">
+            <button v-for="t in TABS" :key="t.key" type="button" class="m-tab" :class="{ 'm-tab--on': tab === t.key }" @click="tab = t.key">
+              {{ t.label }}
+            </button>
+          </div>
+
+          <div class="panel">
+            <q-tab-panels v-model="tab" animated swipeable class="m-panels">
+              <!-- PROPERTY DOCUMENTS -->
+              <q-tab-panel name="property" class="tab-panel">
+                <EmptyState
+                  v-if="!accommodations.length"
+                  variant="compact"
+                  icon="lucide:building-2"
+                  title="No accommodations yet"
+                  message="Add an accommodation first — its permits and clearances will be tracked here."
+                >
+                  <template #actions>
+                    <q-btn unelevated rounded no-caps color="primary" label="Add accommodation" @click="router.push('/manager/properties/new')" />
+                  </template>
+                </EmptyState>
+
+                <template v-else>
+                  <div v-if="accommodations.length > 1" class="m-chips">
+                    <button
+                      v-for="a in accommodations"
+                      :key="a.id"
+                      type="button"
+                      class="m-chip"
+                      :class="{ 'm-chip--on': selectedId === a.id }"
+                      @click="selectedId = a.id"
+                    >
+                      {{ a.name }}
+                    </button>
+                  </div>
+
+                  <p class="sec-hint">Accreditation depends on these staying current. Tap a document to view or upload.</p>
+                  <div class="group">
+                    <div v-for="d in docs" :key="d.type" class="doc-item">
+                      <button
+                        type="button"
+                        class="doc-row"
+                        :aria-expanded="expandedProperty === d.type"
+                        @click="toggleProperty(d.type)"
+                      >
+                        <span class="doc-icon" :class="`doc-icon--${d.tone}`">
+                          <IconifyIcon :icon="d.icon" width="16" />
+                        </span>
+                        <span class="doc-body">
+                          <span class="doc-name">{{ DOC_TYPE_LABEL[d.type] }}</span>
+                          <span class="doc-when">{{ d.when }}</span>
+                        </span>
+                        <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
+                        <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedProperty === d.type }" />
+                      </button>
+
+                      <q-slide-transition>
+                        <div v-if="expandedProperty === d.type" class="doc-detail">
+                          <div class="doc-preview">
+                            <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
+                            <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
+                              <IconifyIcon icon="lucide:file-text" width="26" />
+                              <span>View file</span>
+                            </button>
+                            <div v-else class="doc-preview-empty">
+                              <IconifyIcon icon="lucide:image-off" width="20" />
+                              <span>Nothing uploaded yet</span>
+                            </div>
+                          </div>
+                          <div class="doc-actions">
+                            <button type="button" class="doc-action doc-action--primary" @click="openUploadDialog(d.type)">
+                              <IconifyIcon icon="lucide:upload" width="14" />
+                              {{ d.fileUrl ? 'Replace' : 'Upload' }}
+                            </button>
+                            <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
+                              <IconifyIcon icon="lucide:external-link" width="14" /> Open
+                            </button>
+                          </div>
+                        </div>
+                      </q-slide-transition>
+                    </div>
+                  </div>
+                  <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
                 </template>
-              </EmptyState>
+              </q-tab-panel>
 
-              <template v-else>
-                <div v-if="accommodations.length > 1" class="chips">
-                  <button
-                    v-for="a in accommodations"
-                    :key="a.id"
-                    type="button"
-                    class="chip"
-                    :class="{ 'chip--on': selectedId === a.id }"
-                    @click="selectedId = a.id"
-                  >
-                    {{ a.name }}
-                  </button>
+              <!-- MY DOCUMENTS (manager identity, reviewed by OSAS at registration) -->
+              <q-tab-panel name="mine" class="tab-panel">
+                <!-- 'reviewing' is a soft reject: OSAS wants a better document and
+                     the account can still be verified once it arrives. -->
+                <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
+                  <IconifyIcon icon="lucide:triangle-alert" width="16" />
+                  <div>
+                    <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : 'Verification rejected' }}</p>
+                    <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
+                  </div>
                 </div>
-
-                <p class="sec-hint">Accreditation depends on these staying current. Tap a document to view or upload.</p>
+                <p class="sec-hint">Your own identity documents. Tap one to view or resubmit.</p>
                 <div class="group">
-                  <div v-for="d in docs" :key="d.type" class="doc-item">
+                  <div v-for="d in myDocs" :key="d.type" class="doc-item">
                     <button
                       type="button"
                       class="doc-row"
-                      :aria-expanded="expandedProperty === d.type"
-                      @click="toggleProperty(d.type)"
+                      :aria-expanded="expandedMine === d.type"
+                      @click="expandedMine = expandedMine === d.type ? '' : d.type"
                     >
                       <span class="doc-icon" :class="`doc-icon--${d.tone}`">
                         <IconifyIcon :icon="d.icon" width="16" />
                       </span>
                       <span class="doc-body">
-                        <span class="doc-name">{{ DOC_TYPE_LABEL[d.type] }}</span>
+                        <span class="doc-name">{{ DOC_LABEL[d.type] || d.type }}</span>
                         <span class="doc-when">{{ d.when }}</span>
                       </span>
                       <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-                      <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedProperty === d.type }" />
+                      <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedMine === d.type }" />
                     </button>
 
                     <q-slide-transition>
-                      <div v-if="expandedProperty === d.type" class="doc-detail">
+                      <div v-if="expandedMine === d.type" class="doc-detail">
                         <div class="doc-preview">
                           <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
                           <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
@@ -98,11 +155,15 @@
                             <span>Nothing uploaded yet</span>
                           </div>
                         </div>
+                        <p v-if="d.verified" class="doc-locked">
+                          <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
+                        </p>
                         <div class="doc-actions">
-                          <button type="button" class="doc-action doc-action--primary" @click="openUploadDialog(d.type)">
+                          <label v-if="!d.verified" class="doc-action doc-action--primary">
                             <IconifyIcon icon="lucide:upload" width="14" />
-                            {{ d.fileUrl ? 'Replace' : 'Upload' }}
-                          </button>
+                            {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
+                            <input type="file" accept="image/*,application/pdf" class="doc-file-input" @change="onMyDocSelected($event, d.type)" />
+                          </label>
                           <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
                             <IconifyIcon icon="lucide:external-link" width="14" /> Open
                           </button>
@@ -111,102 +172,39 @@
                     </q-slide-transition>
                   </div>
                 </div>
-                <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
-              </template>
-            </q-tab-panel>
+                <span v-if="uploadingMyDoc" class="sec-hint">Uploading…</span>
+              </q-tab-panel>
 
-            <!-- MY DOCUMENTS (manager identity, reviewed by OSAS at registration) -->
-            <q-tab-panel name="mine" class="tab-panel">
-              <!-- 'reviewing' is a soft reject: OSAS wants a better document and
-                   the account can still be verified once it arrives. -->
-              <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
-                <IconifyIcon icon="lucide:triangle-alert" width="16" />
-                <div>
-                  <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : 'Verification rejected' }}</p>
-                  <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
+              <!-- TICKETS -->
+              <q-tab-panel name="tickets" class="tab-panel">
+                <div class="sec-head">
+                  <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
+                  <button type="button" class="sec-link" @click="openNewTicket">New ticket</button>
                 </div>
-              </div>
-              <p class="sec-hint">Your own identity documents. Tap one to view or resubmit.</p>
-              <div class="group">
-                <div v-for="d in myDocs" :key="d.type" class="doc-item">
-                  <button
-                    type="button"
-                    class="doc-row"
-                    :aria-expanded="expandedMine === d.type"
-                    @click="expandedMine = expandedMine === d.type ? '' : d.type"
-                  >
-                    <span class="doc-icon" :class="`doc-icon--${d.tone}`">
-                      <IconifyIcon :icon="d.icon" width="16" />
+
+                <EmptyState
+                  v-if="!tickets.length"
+                  variant="compact"
+                  icon="lucide:life-buoy"
+                  title="No tickets yet"
+                  message="Accreditation or technical issues you raise with OSAS will show up here."
+                />
+                <div v-else class="group">
+                  <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
+                    <span class="ticket-body">
+                      <span class="ticket-subject">{{ t.subject }}</span>
+                      <span class="ticket-when">{{ since(t.reportedAt) }}</span>
                     </span>
-                    <span class="doc-body">
-                      <span class="doc-name">{{ DOC_LABEL[d.type] || d.type }}</span>
-                      <span class="doc-when">{{ d.when }}</span>
-                    </span>
-                    <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-                    <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedMine === d.type }" />
+                    <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
                   </button>
-
-                  <q-slide-transition>
-                    <div v-if="expandedMine === d.type" class="doc-detail">
-                      <div class="doc-preview">
-                        <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
-                        <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
-                          <IconifyIcon icon="lucide:file-text" width="26" />
-                          <span>View file</span>
-                        </button>
-                        <div v-else class="doc-preview-empty">
-                          <IconifyIcon icon="lucide:image-off" width="20" />
-                          <span>Nothing uploaded yet</span>
-                        </div>
-                      </div>
-                      <p v-if="d.verified" class="doc-locked">
-                        <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
-                      </p>
-                      <div class="doc-actions">
-                        <label v-if="!d.verified" class="doc-action doc-action--primary">
-                          <IconifyIcon icon="lucide:upload" width="14" />
-                          {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
-                          <input type="file" accept="image/*,application/pdf" class="doc-file-input" @change="onMyDocSelected($event, d.type)" />
-                        </label>
-                        <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
-                          <IconifyIcon icon="lucide:external-link" width="14" /> Open
-                        </button>
-                      </div>
-                    </div>
-                  </q-slide-transition>
                 </div>
-              </div>
-              <span v-if="uploadingMyDoc" class="sec-hint">Uploading…</span>
-            </q-tab-panel>
-
-            <!-- TICKETS -->
-            <q-tab-panel name="tickets" class="tab-panel">
-              <div class="sec-head">
-                <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
-                <button type="button" class="sec-link" @click="openNewTicket">New ticket</button>
-              </div>
-
-              <EmptyState
-                v-if="!tickets.length"
-                variant="compact"
-                icon="lucide:life-buoy"
-                title="No tickets yet"
-                message="Accreditation or technical issues you raise with OSAS will show up here."
-              />
-              <div v-else class="group">
-                <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
-                  <span class="ticket-body">
-                    <span class="ticket-subject">{{ t.subject }}</span>
-                    <span class="ticket-when">{{ since(t.reportedAt) }}</span>
-                  </span>
-                  <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
-                </button>
-              </div>
-            </q-tab-panel>
-          </q-tab-panels>
+              </q-tab-panel>
+            </q-tab-panels>
+          </div>
         </div>
       </div>
-    </div>
+
+    </q-pull-to-refresh>
 
     <!-- PERMIT UPLOAD FORM — a document already on file is never edited in
          place; replacing it always goes through this fresh form. -->
@@ -223,7 +221,7 @@
         </label>
         <label class="field">
           <span class="field-label">Expiration date</span>
-          <input v-model="uploadForm.expiresAt" type="date" class="field-input" />
+          <DateTimeField v-model="uploadForm.expiresAt" mode="date" placeholder="Pick an expiry date" />
         </label>
         <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="uploadingDoc" label="Upload" @click="submitDocUpload" />
       </q-card>
@@ -242,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -258,6 +256,8 @@ import { chatFullscreen } from '@/utils/chatFullscreen'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 // `compliance` is the stored DB value — legacy rows and the admin client both
 // read it, so only the label follows the app's "accreditation" wording.
@@ -651,22 +651,13 @@ async function submitTicket(draft: TicketDraft) {
   }
 }
 
-// The app header floats over the page at a JS-measured height (Quasar's
-// QHeader has no fixed size), so the sticky tab row needs its real bottom
-// edge, not a guessed px value, or it would stick underneath the header
-// once scrolled instead of just below it.
-const stickyTop = ref(64)
-function measureStickyTop() {
-  const header = document.querySelector('.app-header') as HTMLElement | null
-  if (header) stickyTop.value = Math.ceil(header.getBoundingClientRect().bottom)
-}
 
 // This screen is kept alive (see MainLayout's KEEP_ALIVE_PAGES), so without
 // this it would fetch once and never again — an OSAS decision or ticket reply
 // would not surface until the app restarted. The permit watch follows the
 // accommodation currently selected in the chip row, which is the only one
 // whose documents are on screen.
-useLiveData({
+const { refresh } = useLiveData({
   key: 'manager-osas',
   load,
   watch: (uid) => [
@@ -678,12 +669,13 @@ useLiveData({
   ],
 })
 
-onMounted(() => {
-  void nextTick(measureStickyTop)
-  window.addEventListener('resize', measureStickyTop)
-})
 
-onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
+// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
+// loads silently (no skeleton behind the spinner) and resets the freshness
+// clock, so returning to the screen does not immediately fetch again.
+function onPull(done: () => void) {
+  void refresh().finally(done)
+}
 </script>
 
 <style scoped>
@@ -700,9 +692,6 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   gap: 12px;
   padding: 10px var(--m-page-gutter) 0;
 }
-.sk-tab {
-  border-radius: 10px 10px 0 0;
-}
 .sk {
   border-radius: var(--m-radius);
   margin: 0 var(--m-page-gutter);
@@ -714,78 +703,30 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   background: var(--m-surface);
   text-align: center;
 }
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
-}
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-.chip {
-  padding: 6px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  -webkit-tap-highlight-color: transparent;
-}
-.chip--on {
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
 
 /* Same rounded-top pill tabs fused into a bordered panel used by
    AccommodationDetail.vue / TenantProfile.vue / ManagerTenantsPage.vue —
    the default tabbed-section design for this app. */
-.tabbed {
+/* QPullToRefresh wraps the page body in two plain <div>s of its own, which
+   land between the q-page and .stack and break the flex chain the bottom-flush
+   panel needs — .stack's flex:1 measures against a block box that just hugs its
+   content, so the card stops wherever the content happens to end. Passing the
+   chain through them costs nothing: neither div clips or scrolls. */
+:deep(.q-pull-to-refresh),
+:deep(.q-pull-to-refresh__content) {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
 }
 .tabs {
-  position: sticky;
-  top: var(--sticky-top, 64px);
+  position: relative;
   z-index: 2;
   display: flex;
   gap: 4px;
   margin: 0 calc(var(--m-page-gutter) * -1) -2px;
   padding: 0 var(--m-page-gutter);
-}
-.tab {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--m-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.tab--on {
-  background: var(--m-surface);
-  color: var(--m-primary-dark);
 }
 .panel {
   position: relative;
@@ -800,12 +741,6 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
      have nothing beside it to round away from. */
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
-}
-.panels {
-  background: transparent;
-}
-.panels :deep(.q-tab-panel) {
-  padding: 0;
 }
 .tab-panel {
   display: flex;
@@ -1127,16 +1062,6 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
-.field-input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 14px;
-}
 .file-picker {
   position: relative;
   display: flex;
@@ -1175,5 +1100,8 @@ onUnmounted(() => window.removeEventListener('resize', measureStickyTop))
 .new-submit {
   min-height: 48px;
   font-weight: 700;
+}
+.m-chips {
+  margin-bottom: 4px;
 }
 </style>

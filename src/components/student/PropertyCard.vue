@@ -6,7 +6,7 @@
         <IconifyIcon icon="lucide:image-off" width="24" />
         <span class="shot-empty-label">No photo</span>
       </span>
-      <span v-if="buildingType" class="car-type">{{ buildingType }}</span>
+      <span v-if="typeLine" class="car-type">{{ typeLine }}</span>
       <span class="car-flag" :class="vacancies ? 'car-flag--ok' : 'car-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
       </span>
@@ -24,7 +24,7 @@
         <IconifyIcon icon="lucide:image-off" width="22" />
         <span class="shot-empty-label">No photo</span>
       </span>
-      <span v-if="buildingType" class="tile-type">{{ buildingType }}</span>
+      <span v-if="typeLine" class="tile-type">{{ typeLine }}</span>
       <span class="tile-flag" :class="vacancies ? 'tile-flag--ok' : 'tile-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
       </span>
@@ -37,7 +37,9 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(
+import { computed } from 'vue'
+
+const props = withDefaults(
   defineProps<{
     id: string
     name: string
@@ -47,10 +49,16 @@ withDefaults(
     distance: string
     vacancies: number
     buildingType?: string
+    genderPolicy?: string
     variant?: 'carousel' | 'grid'
   }>(),
   { variant: 'grid' },
 )
+
+// Both values share the one pill rather than getting a second overlay — the
+// pill is absolutely positioned in the photo's top-left corner, so a sibling
+// would sit on top of it. Either half may be missing on older listings.
+const typeLine = computed(() => [props.buildingType, props.genderPolicy].filter(Boolean).join(' · '))
 
 const emit = defineEmits<{ open: [id: string] }>()
 </script>

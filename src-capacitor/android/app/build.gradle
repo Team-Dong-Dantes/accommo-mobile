@@ -16,8 +16,16 @@ android {
         applicationId "com.accommo.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI passes the workflow run number as both of these, so the release
+        // tag, the versionCode and the app_release row in Supabase are all the
+        // same integer and the in-app update check is a plain > comparison.
+        // Local builds fall back to 1, exactly as before.
+        // ponytail: github.run_number resets if the workflow is renamed or
+        // recreated, which would send versionCode backwards — Android refuses
+        // that install and the update check would stop firing. Set
+        // ACCOMMO_VERSION_CODE explicitly if that ever happens.
+        versionCode (System.getenv("ACCOMMO_VERSION_CODE") ?: "1").toInteger()
+        versionName System.getenv("ACCOMMO_VERSION_NAME") ?: "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

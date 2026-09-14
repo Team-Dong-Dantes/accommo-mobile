@@ -126,6 +126,104 @@ h4 {
   white-space: nowrap;
 }
 
+/* ---- Filter chips ----
+   The selectable pill used by every filter sheet, amenity picker and category
+   list. Thirteen components had declared their own copy, which had already
+   drifted apart (padding 6px vs 7px, gap 4/5/6px, surface vs bg background), so
+   the same control looked slightly different depending on which screen you
+   opened it from.
+
+   Global rather than a component because what repeats here is only the styling:
+   the markup around it genuinely differs per screen (single-select, multi-select
+   toggle, with and without icons), and a component covering all three would take
+   more configuration than it saves.
+
+   `m-` prefixed to match the `--m-*` tokens, and to stay clear of the unrelated
+   `.chip` the two dashboards use for their stat strip. */
+.m-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.m-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-chip--on {
+  border-color: var(--m-primary);
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+
+/* ---- Tabbed sections ----
+   The house tabbing design: rounded-top pill tabs fused into the bordered panel
+   underneath, so the selected tab and its content read as one card. Seven
+   screens had declared the identical rules — including the same four-line
+   comment below, copied verbatim each time.
+
+   Only the pills are shared. Each screen's `.tabs` margin and `.panel` box stay
+   scoped to that screen, because they genuinely differ and every one of them
+   carries a comment explaining why (clearing the fixed dock, squaring the bottom
+   corners where the panel runs to the page edge, sitting over a hero image).
+   Hoisting those would mean five override props to reproduce what one local
+   rule already says plainly. */
+.m-tabbed {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.m-tab {
+  /* so the active tab can lift above the ones beside it */
+  position: relative;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--m-border);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: var(--m-bg);
+  color: var(--m-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-tab--on {
+  /* The selected tab is the front card: it grows past the 4px gap on either
+     side, covering 3px of its neighbours, and casts a shadow over them. The
+     shadow is clipped at the tab's own bottom edge — spilling it onto the panel
+     below would draw a grey line exactly where the two are meant to be fused. */
+  z-index: 1;
+  margin: 0 -7px;
+  padding: 0 21px;
+  box-shadow: 0 -3px 10px rgba(15, 23, 42, 0.14);
+  clip-path: inset(-14px -14px 0 -14px);
+  background: var(--m-surface);
+  color: var(--m-primary-dark);
+}
+.m-sk-tab {
+  border-radius: 10px 10px 0 0;
+}
+.m-panels {
+  background: transparent;
+}
+.m-panels .q-tab-panel {
+  padding: 0;
+}
+
 /* ==========================================================================
    Native feel — kill "web-in-a-box" gestures (global, minimal downside)
    ========================================================================== */

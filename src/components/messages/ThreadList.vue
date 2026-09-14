@@ -14,11 +14,7 @@
     </div>
 
     <div v-else-if="store.error && !store.threads.length" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your messages</p>
-        <p class="err-sub">{{ store.error }}</p>
-      </q-card>
+      <ErrorCard title="Couldn't load your messages" :detail="store.error" />
     </div>
 
     <EmptyState
@@ -53,8 +49,8 @@
             <span class="thread-when">{{ since(thread.lastTime) }}</span>
           </span>
           <span class="thread-bottom">
-            <span class="thread-last" :class="{ 'thread-last--none': !thread.lastMessage }">
-              {{ thread.lastMessage || 'No messages yet' }}
+            <span class="thread-last" :class="{ 'thread-last--none': !preview(thread).real }">
+              {{ preview(thread).text }}
             </span>
             <span v-if="thread.unread" class="thread-badge">{{ thread.unread }}</span>
           </span>
@@ -66,10 +62,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Icon as IconifyIcon } from '@iconify/vue'
-import { useMessagesStore } from '@/stores/messages'
+import { useMessagesStore, type Thread } from '@/stores/messages'
 import { since } from '@/utils/notifications'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const props = withDefaults(
   defineProps<{ emptyMessage: string; query?: string; filter?: 'all' | 'unread' }>(),
@@ -78,6 +74,27 @@ const props = withDefaults(
 const emit = defineEmits<{ open: [string] }>()
 
 const store = useMessagesStore()
+
+/**
+ * What the inbox row says under the name.
+ *
+ * A photo carries no text, so conversations.last_message is empty for one — the
+ * row used to read "No messages yet" on a thread that plainly had messages. The
+ * wording has to be decided here rather than in the database, because "You sent
+ * a photo" versus "Maria sent a photo" depends on who is looking, and the
+ * column is shared by both participants.
+ *
+ * `send()` refuses a message with neither text nor a file, so an empty body with
+ * a sender behind it can only have been an attachment. No extra flag needed.
+ */
+function preview(thread: Thread): { text: string; real: boolean } {
+  if (thread.lastMessage) return { text: thread.lastMessage, real: true }
+  if (!thread.lastSenderId) return { text: 'No messages yet', real: false }
+  return {
+    text: thread.lastSenderId === store.userId ? 'You sent a photo' : `${thread.otherName} sent a photo`,
+    real: true,
+  }
+}
 
 const visibleThreads = computed(() => {
   const q = props.query.trim().toLowerCase()
@@ -109,17 +126,6 @@ const visibleThreads = computed(() => {
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 .thread {

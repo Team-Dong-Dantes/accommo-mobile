@@ -79,6 +79,32 @@
       :menu-id="`${role}-menu`"
       @navigate="navigateMenuAction"
     />
+
+    <!-- One PIN pad for the whole app. Renders nothing until something asks. -->
+    <PinGate @forgot="goToSecuritySettings" />
+
+    <!-- Same shape as the delete confirmations in AccommodationDetail: grip,
+         warning header, then Cancel beside the destructive action. -->
+    <q-dialog v-model="signOutConfirmOpen" position="bottom">
+      <q-card class="confirm-sheet">
+        <span class="confirm-grip" aria-hidden="true" />
+        <div class="confirm-header">
+          <span class="confirm-header-icon"><IconifyIcon icon="lucide:log-out" width="18" /></span>
+          <h3 class="confirm-title">Sign out?</h3>
+        </div>
+        <p class="confirm-hint">
+          You'll need your e-mail and password to get back in.
+        </p>
+        <div class="confirm-actions">
+          <button type="button" class="confirm-ghost" :disabled="signingOut" @click="signOutConfirmOpen = false">
+            Cancel
+          </button>
+          <button type="button" class="confirm-danger" :disabled="signingOut" @click="signOut">
+            {{ signingOut ? 'Signing out…' : 'Sign out' }}
+          </button>
+        </div>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
@@ -95,12 +121,41 @@ import BottomNav from '@/components/layout/BottomNav.vue'
 import TermsGate from '@/components/shared/TermsGate.vue'
 import BroadcastBanner from '@/components/shared/BroadcastBanner.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
-import type { SecondaryPage, ShellConfig } from '@/types/app-types'
+import PinGate from '@/components/shared/PinGate.vue'
+import { usePinStore, RESUME_LOCK_MS } from '@/stores/pin'
+import { lockApp, settlePin } from '@/utils/requirePin'
+import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
 
 const router = useRouter()
 const route = useRoute()
 const notifications = useNotificationsStore()
 const messagesStore = useMessagesStore()
+const pin = usePinStore()
+
+/**
+ * Lock the app when it comes back after sitting in the background. This is the
+ * half of the PIN feature that covers *reads* — private messages, tenant phone
+ * numbers, a student's uploaded school ID — none of which any per-action gate
+ * can protect, because none of them are actions.
+ *
+ * `visibilitychange` is the cross-platform signal and works in the browser
+ * during development; the Capacitor App plugin adds the native foreground
+ * event, which fires in cases the web event misses.
+ */
+function onHidden() {
+  pin.backgroundedAt = Date.now()
+}
+
+function onVisible() {
+  const away = pin.backgroundedAt ? Date.now() - pin.backgroundedAt : 0
+  pin.backgroundedAt = 0
+  if (away > RESUME_LOCK_MS) lockApp()
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'hidden') onHidden()
+  else onVisible()
+}
 
 // One shell, two configurations. The role is read from the path so the chrome
 // renders correctly on first paint, with no async role lookup flicker.
@@ -237,7 +292,7 @@ const displayQuickActions = computed(() =>
 // student shows their own.
 const accountActions = computed(() => {
   const profileRoute = config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home
-  const items = [
+  const items: QuickAction[] = [
     { icon: 'lucide:user', label: 'Profile', route: profileRoute, avatar: true },
     { icon: 'lucide:settings', label: 'Settings', route: `${profileRoute}/settings` },
   ]
@@ -246,6 +301,9 @@ const accountActions = computed(() => {
       ? { icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` }
       : { icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` },
   )
+  // Last in the account group, directly under My QR / Scanner. Not a route —
+  // navigateMenuAction intercepts this sentinel; see SIGN_OUT.
+  items.push({ icon: 'lucide:log-out', label: 'Sign out', route: SIGN_OUT, danger: true })
   return items
 })
 
@@ -303,8 +361,44 @@ function goBack() {
   void router.push(lastPath.value ?? subPage.value?.back ?? config.value.home)
 }
 
+/**
+ * Not a real path. The menu is route-driven, and Sign out is the one row that
+ * acts instead of navigating, so it travels as a sentinel the handler below
+ * intercepts — cheaper than giving QuickActions a second event for one row.
+ */
+const SIGN_OUT = '#sign-out'
+
+const signOutConfirmOpen = ref(false)
+const signingOut = ref(false)
+
+async function signOut() {
+  if (signingOut.value) return
+  signingOut.value = true
+  try {
+    // Stop the realtime subscriptions before dropping the session: this layout
+    // owns them (see onUnmounted), and leaving them open would carry one user's
+    // channels into the next sign-in on the same device.
+    notifications.stop()
+    messagesStore.stop()
+    // Drop the unlock and the has-PIN answer with the session, so the next
+    // account on this device is never treated as already unlocked.
+    pin.lock()
+    pin.hasPin = false
+    pin.ready = false
+    await supabase.auth.signOut()
+    signOutConfirmOpen.value = false
+    void router.push('/login')
+  } finally {
+    signingOut.value = false
+  }
+}
+
 function navigateMenuAction(path: string) {
   menuOpen.value = false
+  if (path === SIGN_OUT) {
+    signOutConfirmOpen.value = true
+    return
+  }
   void router.push(path)
 }
 
@@ -347,8 +441,12 @@ watch(
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, true)
   window.addEventListener('accommo:avatar-change', onAvatarChange)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
   onScroll()
+  // Answers "does this account have a PIN at all" once; until it does,
+  // requirePin() lets everything through, so nothing gates on a guess.
+  void pin.refresh()
   try {
     const { data } = await authUser()
     const user = data?.user
@@ -408,8 +506,15 @@ onUnmounted(() => {
   messagesStore.stop()
   window.removeEventListener('scroll', onScroll, true)
   window.removeEventListener('accommo:avatar-change', onAvatarChange)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
 })
+
+/** "Forgot PIN?" from the pad: drop the prompt and go where it can be reset. */
+function goToSecuritySettings() {
+  settlePin(false)
+  void router.push(`${config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home}/settings`)
+}
 
 // One existence-check query per dot, run once on shell mount. Deliberately
 // not realtime: these are low-frequency "does something need a look" flags,
@@ -605,5 +710,83 @@ function onScroll() {
   .page-slide-right-leave-active,
   .page-fade-enter-active,
   .page-fade-leave-active { transition: none; }
+}
+/* Sign-out confirmation. Mirrors the delete sheets in AccommodationDetail so
+   a destructive confirm looks the same everywhere in the app. */
+.confirm-sheet {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
+  background: var(--m-surface);
+}
+.confirm-grip {
+  width: 38px;
+  height: 4px;
+  align-self: center;
+  margin-bottom: 4px;
+  border-radius: 999px;
+  background: var(--m-border);
+}
+.confirm-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.confirm-header-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+}
+.confirm-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+.confirm-hint {
+  margin: 0;
+  color: var(--m-muted);
+  font-size: 12.5px;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.confirm-ghost,
+.confirm-danger {
+  min-height: 46px;
+  flex: 0 0 auto;
+  padding: 0 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.confirm-ghost {
+  border: 1px solid var(--m-border);
+  background: var(--m-bg);
+  color: var(--m-text);
+}
+.confirm-danger {
+  border: 0;
+  background: var(--m-danger);
+  color: #fff;
+}
+.confirm-ghost:disabled,
+.confirm-danger:disabled {
+  opacity: 0.6;
 }
 </style>

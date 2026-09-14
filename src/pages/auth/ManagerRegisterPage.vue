@@ -228,7 +228,6 @@ const agreedToTerms = ref(false);
 const termsRef = ref<InstanceType<typeof AuthTermsCheck> | null>(null);
 const registerFormRef = ref<QForm | null>(null);
 const isGoogleMode = ref(false);
-const needEmailOtp = ref(false);
 const emailCreated = ref(false);
 const emailVerified = ref(false);
 const creatingAccount = ref(false);

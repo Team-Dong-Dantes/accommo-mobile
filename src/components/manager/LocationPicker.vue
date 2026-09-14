@@ -236,7 +236,7 @@ async function runSearch(q: string) {
         lat: latVal,
       }]
     })
-  } catch (e) {
+  } catch {
     results.value = []
     notify.error('Could not search for that location.')
   } finally {
