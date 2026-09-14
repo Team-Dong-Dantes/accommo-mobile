@@ -51,14 +51,17 @@ import { supabase } from '@/utils/supabase'
 import { formatMonth } from '@/utils/format'
 import EmptyState from '@/components/shared/EmptyState.vue'
 
-// The OSAS policy documents, read-only, identical for every reader — so one
-// component serves the student page, the manager page, and the terms dialog on
-// the register screens (that last one runs signed-out, which is why `policies`
-// grants anon SELECT).
+// The OSAS policy documents — house rules, guidelines, regulations. Read-only
+// and identical for every reader, so one component serves the student and the
+// manager Policies screens.
+//
+// Deliberately NOT the Terms of Service or the Privacy Notice. Those are the
+// agreement between a user and Accommo rather than OSAS content, so they ship
+// in the bundle (src/constants/legal.ts) where an administrator cannot rewrite
+// them and they can never be missing when consent is asked for.
 //
 // No archived/effective filtering here on purpose: RLS already restricts
-// non-admins to live documents, so a forgotten client filter can't leak a
-// draft.
+// non-admins to live documents, so a forgotten client filter can't leak a draft.
 
 type Policy = {
   id: string
@@ -67,10 +70,6 @@ type Policy = {
   version: string | null
   effective_date: string
 }
-
-// The terms dialog needs to know when the documents have rendered so it can
-// decide whether there is anything to scroll through.
-const emit = defineEmits<{ (e: 'loaded', count: number): void }>()
 
 const policies = ref<Policy[]>([])
 const loading = ref(true)
@@ -86,7 +85,6 @@ async function load() {
   if (err) error.value = err.message
   else policies.value = data ?? []
   loading.value = false
-  emit('loaded', policies.value.length)
 }
 
 onMounted(load)

@@ -177,10 +177,10 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     ],
     secondaryPages: [
       { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: '/manager/profile/settings', title: 'Settings', back: '/manager/profile', backLabel: 'profile' },
+      { path: '/manager/settings', title: 'Settings', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
-      { path: '/manager/profile/policies', title: 'Policies & Guidelines', back: '/manager/profile', backLabel: 'profile' },
+      { path: '/manager/settings/policies', title: 'Policies & Guidelines', back: '/manager/settings', backLabel: 'settings' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/announcements', title: 'Announce', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/announcement\/[^/]+$/, title: 'Announcement', back: '/manager/notifications', backLabel: 'notifications' },
@@ -209,10 +209,10 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     ],
     secondaryPages: [
       { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
-      { path: '/student/profile/settings', title: 'Settings', back: '/student/profile', backLabel: 'profile' },
+      { path: '/student/settings', title: 'Settings', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/profile/qr', title: 'My QR', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/profile/history', title: 'History', back: '/student/profile', backLabel: 'profile' },
-      { path: '/student/profile/policies', title: 'Policies & Guidelines', back: '/student/profile', backLabel: 'profile' },
+      { path: '/student/settings/policies', title: 'Policies & Guidelines', back: '/student/settings', backLabel: 'settings' },
       { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
       { path: /^\/student\/announcement\/[^/]+$/, title: 'Announcement', back: '/student/notifications', backLabel: 'notifications' },
       { path: /^\/student\/person\/[^/]+$/, title: 'Profile', back: '/student/messages', backLabel: 'messages' },
@@ -294,7 +294,10 @@ const accountActions = computed(() => {
   const profileRoute = config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home
   const items: QuickAction[] = [
     { icon: 'lucide:user', label: 'Profile', route: profileRoute, avatar: true },
-    { icon: 'lucide:settings', label: 'Settings', route: `${profileRoute}/settings` },
+    // Settings is its own destination, not a child of Profile — hence the
+    // role path rather than profileRoute. Scanner/QR below genuinely are
+    // profile screens and keep hanging off it.
+    { icon: 'lucide:settings', label: 'Settings', route: `/${role.value}/settings` },
   ]
   items.push(
     role.value === 'manager'
@@ -510,10 +513,15 @@ onUnmounted(() => {
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
 })
 
-/** "Forgot PIN?" from the pad: drop the prompt and go where it can be reset. */
+/**
+ * "Forgot PIN?" from an ACTION prompt: the user is already inside and unlocked,
+ * so send them to Settings where the reset lives. The resume lock never reaches
+ * here — it cannot navigate out of the cover it is showing, so PinGate runs the
+ * reset in place instead.
+ */
 function goToSecuritySettings() {
   settlePin(false)
-  void router.push(`${config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home}/settings`)
+  void router.push(`/${role.value}/settings`)
 }
 
 // One existence-check query per dot, run once on shell mount. Deliberately

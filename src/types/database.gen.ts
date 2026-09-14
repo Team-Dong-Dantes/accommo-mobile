@@ -1540,6 +1540,7 @@ export type Database = {
           notification_prefs: Json
           onboarding_complete: boolean
           phone: string
+          privacy_accepted_at: string | null
           registered_at: string | null
           role: Database["public"]["Enums"]["user_role"]
           sex: string | null
@@ -1561,6 +1562,7 @@ export type Database = {
           notification_prefs?: Json
           onboarding_complete?: boolean
           phone: string
+          privacy_accepted_at?: string | null
           registered_at?: string | null
           role: Database["public"]["Enums"]["user_role"]
           sex?: string | null
@@ -1582,6 +1584,7 @@ export type Database = {
           notification_prefs?: Json
           onboarding_complete?: boolean
           phone?: string
+          privacy_accepted_at?: string | null
           registered_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           sex?: string | null

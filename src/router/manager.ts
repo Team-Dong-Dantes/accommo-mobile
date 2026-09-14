@@ -22,7 +22,7 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/manager/ManagerProfilePage.vue'),
   },
   {
-    path: '/manager/profile/settings',
+    path: '/manager/settings',
     component: () => import('@/pages/manager/ManagerSettingsPage.vue'),
   },
   {
@@ -34,7 +34,7 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/manager/ManagerHistoryPage.vue'),
   },
   {
-    path: '/manager/profile/policies',
+    path: '/manager/settings/policies',
     component: () => import('@/pages/manager/ManagerPoliciesPage.vue'),
   },
   {

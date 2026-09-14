@@ -47,10 +47,20 @@ store would. `src/components/shared/UpdateGate.vue` closes that gap: on launch
 and on resume it reads the single `public.app_release` row and compares
 `latest_version_code` against its own Android `versionCode`.
 
-One integer runs the whole thing — the CI workflow run number. It is the release
-tag (`v<run>`), the `versionCode` (passed to Gradle as `ACCOMMO_VERSION_CODE`),
-and the `latest_version_code` that the release job PATCHes into Supabase. Local
-builds fall back to `versionCode 1`, so nothing changes when you build by hand.
+The **versionCode** is one integer everywhere — the CI workflow run number. It is
+the release tag (`v<run>`), the `versionCode` passed to Gradle as
+`ACCOMMO_VERSION_CODE`, and the `latest_version_code` the release job PATCHes
+into Supabase, so the update check is a plain integer comparison.
+
+The **versionName** is `<major>.<minor>`.`<run>` — the first two parts come from
+`version` in this `package.json`, the last from the run number. **Bump
+`package.json` whenever you ship a change**: patch bump for a fix, minor for a
+feature. The run number is appended so no two builds can ever carry the same
+name even when the bump is forgotten, but the bump is what makes the version
+mean something to the person reading the update prompt.
+
+Local builds fall back to `versionCode 1` / `versionName 1.0`, so nothing
+changes when you build by hand.
 
 The announce step needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the
 repo's GitHub secrets. Without them it warns and skips, and installed apps are
