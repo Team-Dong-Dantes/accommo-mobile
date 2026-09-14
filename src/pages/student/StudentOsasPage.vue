@@ -154,6 +154,7 @@ import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
+import { openExternal } from '@/utils/openExternal'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
@@ -234,7 +235,7 @@ const docs = computed<DocRow[]>(() =>
 /** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
 
 function openFile(url: string) {
-  if (url) window.open(resolveAsset(url), '_blank', 'noopener')
+  if (url) openExternal(resolveAsset(url))
 }
 
 async function load() {
