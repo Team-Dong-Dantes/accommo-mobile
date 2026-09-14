@@ -90,6 +90,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { dayLabel, clockTime, statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
+import { openExternal } from '@/utils/openExternal'
 import { useNotify } from '@/utils/notify'
 
 /** The ticket fields both OSAS pages already hold for their list rows. */
@@ -165,7 +166,7 @@ function stamp(iso: string) {
 }
 
 function openFile(url: string) {
-  if (url) window.open(resolveAsset(url), '_blank', 'noopener')
+  if (url) openExternal(resolveAsset(url))
 }
 
 async function toBottom() {

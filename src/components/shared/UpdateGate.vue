@@ -34,6 +34,7 @@ import { ref, onMounted } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { supabase } from '@/utils/supabase'
+import { openExternal } from '@/utils/openExternal'
 
 // The APK is sideloaded from GitHub Releases, so nothing pushes updates to an
 // install the way a store would. On launch (and on resume, since a phone may
@@ -111,12 +112,10 @@ function dismiss() {
 }
 
 function openDownload() {
-  const url = release.value?.apk_url
-  if (!url) return
-  // ponytail: relies on Capacitor handing off-origin https links to the system
-  // browser, which then downloads the APK and lets Android's installer prompt.
-  // If that default ever changes, this needs @capacitor/browser.
-  window.open(url, '_blank')
+  // openExternal navigates rather than calling window.open, which Capacitor's
+  // WebView silently drops — see src/utils/openExternal.ts. The system browser
+  // downloads the APK and Android's installer takes it from there.
+  openExternal(release.value?.apk_url ?? '')
 }
 
 onMounted(() => {

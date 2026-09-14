@@ -6,39 +6,14 @@
           <q-skeleton type="text" width="60px" height="17px" />
           <q-skeleton type="text" width="100px" height="20px" />
         </div>
-        <div class="tiles">
-          <q-skeleton type="rect" height="84px" class="sk" />
-          <q-skeleton type="rect" height="84px" class="sk" />
-        </div>
-        <div class="chips">
-          <div class="chip">
-            <q-skeleton type="text" width="40px" height="15px" />
-            <q-skeleton type="text" width="50px" height="11px" />
-          </div>
-          <div class="chip-div" />
-          <div class="chip">
-            <q-skeleton type="text" width="18px" height="15px" />
-            <q-skeleton type="text" width="42px" height="11px" />
-          </div>
-          <div class="chip-div" />
-          <div class="chip">
-            <q-skeleton type="text" width="18px" height="15px" />
-            <q-skeleton type="text" width="55px" height="11px" />
-          </div>
-        </div>
+        <q-skeleton type="rect" height="150px" class="sk" />
+        <q-skeleton type="rect" height="60px" class="sk" />
         <section class="sec">
-          <q-skeleton type="text" width="120px" height="16px" />
-          <div class="lead">
-            <div class="lead-top">
-              <q-skeleton type="circle" size="25px" />
-              <q-skeleton type="text" width="90px" height="11px" />
-            </div>
-            <div class="lead-row">
-              <q-skeleton type="text" width="75%" height="15px" />
-            </div>
-          </div>
+          <q-skeleton type="text" width="60px" height="16px" />
+          <q-skeleton type="rect" height="42px" class="sk-sm" />
+          <q-skeleton type="rect" height="42px" class="sk-sm" />
         </section>
-        <q-skeleton type="rect" height="66px" class="sk" />
+        <q-skeleton type="rect" height="180px" class="sk" />
       </div>
 
       <div v-else-if="error" class="stack">
@@ -51,55 +26,27 @@
           <span class="greet-name">{{ firstName }}</span>
         </div>
 
-        <!-- Stat tiles -->
-        <template v-if="stay">
-          <div class="tiles">
-            <div class="tile tile--rent">
-              <span class="tile-cap">Rent</span>
-              <span class="tile-value">{{ formatPeso(stay.monthlyRent) }}<span class="tile-unit">/mo</span></span>
-            </div>
-            <div class="tile tile--lease" :class="{ 'tile--nudge': renewalSoon }">
-              <template v-if="stay.status === 'pending'">
-                <span class="tile-cap">Lease</span>
-                <span class="tile-value tile-value--sm">Awaiting approval</span>
-              </template>
-              <template v-else>
-                <div class="tile-left">
-                  <span class="tile-cap">{{ renewalSoon ? 'Ends soon' : 'Lease' }}</span>
-                  <span class="tile-value tile-value--sm">{{ daysLeft }}d left</span>
-                  <span v-if="renewalSoon" class="tile-note">Talk to your manager about renewing</span>
-                </div>
-                <svg viewBox="0 0 120 120" class="tile-ring" aria-hidden="true">
-                  <circle cx="60" cy="60" r="52" class="tile-ring-track" />
-                  <circle
-                    cx="60" cy="60" r="52" class="tile-ring-fill"
-                    :stroke-dasharray="`${(leaseProgressPct / 100) * 326.7} 326.7`"
-                    transform="rotate(-90 60 60)"
-                  />
-                </svg>
-              </template>
-            </div>
-          </div>
+        <DashPriority :task="priority" @go="go" />
 
-          <div class="chips">
-            <button type="button" class="chip chip--link" @click="go('/student/payments')">
-              <span class="chip-value">{{ nextPayment ? formatPeso(nextPayment.amount) : 'None' }}</span>
-              <span class="chip-label">{{ nextPayment ? (nextPayment.overdue ? 'Overdue' : 'Next due') : 'Dues on file' }}</span>
-            </button>
-            <div class="chip-div" />
-            <div class="chip">
-              <span class="chip-value">{{ attention.length || '✓' }}</span>
-              <span class="chip-label">{{ attention.length ? 'Alerts' : 'All clear' }}</span>
-            </div>
-            <div class="chip-div" />
-            <div class="chip">
-              <span class="chip-value">{{ roommates.length || '—' }}</span>
-              <span class="chip-label">{{ roommates.length ? 'Roommates' : 'Alone here' }}</span>
-            </div>
-          </div>
-        </template>
+        <button v-if="stay" type="button" class="money" @click="go('/student/payments')">
+          <span class="money-cell">
+            <span class="money-value">{{ formatPeso(stay.monthlyRent) }}<span class="money-unit">/mo</span></span>
+            <span class="money-cap">Rent</span>
+          </span>
+          <span class="money-div" />
+          <span class="money-cell">
+            <span class="money-value" :class="{ 'money-value--due': nextPayment?.overdue }">
+              {{ nextPayment ? formatPeso(nextPayment.amount) : 'None' }}
+            </span>
+            <span class="money-cap">{{ nextDueLabel }}</span>
+          </span>
+          <IconifyIcon icon="lucide:chevron-right" width="17" class="money-chev" />
+        </button>
 
-        <!-- No active stay -->
+        <DashTodoList :tasks="todo" :done-count="doneCount" @go="go" />
+
+        <DashStayCard v-if="stay" :stay="stay" :manager="manager" @go="go" @message="messageManager" />
+
         <div v-else class="stay stay--empty">
           <span class="stay-cap">No stay yet</span>
           <p class="stay-name">Find a place to stay</p>
@@ -109,180 +56,8 @@
             <IconifyIcon icon="lucide:arrow-right" width="15" />
           </button>
         </div>
-
-        <!-- Getting settled checklist -->
-        <section v-if="showChecklist" class="sec">
-          <div class="sec-head">
-            <h2 class="sec-title">Getting settled</h2>
-          </div>
-          <div class="steps">
-            <div v-for="row in checklist" :key="row.id" class="step">
-              <template v-if="row.kind === 'row'">
-                <span class="step-icon" :class="`step-icon--${row.state}`">
-                  <IconifyIcon :icon="row.icon" width="15" />
-                </span>
-                <span class="step-text">
-                  <span class="step-label">{{ row.label }}</span>
-                  <span v-if="row.hint" class="step-hint">{{ row.hint }}</span>
-                </span>
-                <button v-if="row.action" type="button" class="step-action" @click="go(row.route)">
-                  {{ row.action }}
-                </button>
-              </template>
-              <template v-else>
-                <div class="stepper">
-                  <span class="stepper-label">{{ row.label }}</span>
-                  <div class="stepper-track">
-                    <span
-                      v-for="(n, i) in ['Submitted', 'Under review', 'Decided']"
-                      :key="n"
-                      class="stepper-node"
-                      :class="{ 'stepper-node--active': i === 1, 'stepper-node--done': i < 1 }"
-                    >{{ n }}</span>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </section>
-
-        <!-- Room identity -->
-        <div v-if="stay" class="room-card">
-          <div class="room-photo" :class="{ 'room-photo--empty': !stay.photoUrl }">
-            <img v-if="stay.photoUrl" :src="stay.photoUrl" alt="" />
-            <span v-else class="shot-empty">
-              <IconifyIcon icon="lucide:image-off" width="24" />
-              <span class="shot-empty-label">No photo</span>
-            </span>
-            <span class="room-tag">{{ statusLabel(stay.status) }}</span>
-          </div>
-
-          <div class="room-body">
-            <p class="room-name">{{ stay.accommodationName }}</p>
-            <p class="room-room">{{ roomLabel }}</p>
-            <button v-if="mapUrl" type="button" class="room-map-link" @click="mapDialog = true">
-              <IconifyIcon icon="lucide:map-pin" width="13" />
-              View on map
-            </button>
-
-            <div v-if="houseRuleChips.length" class="rules">
-              <span v-for="r in houseRuleChips" :key="r.label" class="rule-chip">{{ r.label }}: {{ r.value }}</span>
-              <button type="button" class="rules-more" @click="go(`/student/listing/${stay.accommodationId}`)">
-                View all
-              </button>
-            </div>
-
-            <div v-if="manager" class="person">
-              <span class="person-avatar">
-                <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="person-avatar-img" @error="manager.avatarUrl = null" />
-                <template v-else>{{ manager.initials }}</template>
-              </span>
-              <span class="person-body">
-                <span class="person-name">{{ manager.name }}</span>
-                <span class="person-role">
-                  Your manager<template v-if="manager.replyMinutes"> · replies in ~{{ manager.replyMinutes }} min</template>
-                </span>
-              </span>
-              <span class="person-actions">
-                <button type="button" class="icon-btn" aria-label="Message manager" @click.stop="messageManager">
-                  <IconifyIcon icon="lucide:message-circle" width="17" />
-                </button>
-              </span>
-            </div>
-
-            <div v-if="roommates.length" class="mates">
-              <span class="mates-stack" aria-hidden="true">
-                <span v-for="m in roommates.slice(0, 4)" :key="m.id" class="mates-avatar">
-                  <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="mates-avatar-img" @error="m.avatarUrl = null" />
-                  <template v-else>{{ m.initials }}</template>
-                </span>
-                <span v-if="roommates.length > 4" class="mates-avatar mates-avatar--more">
-                  +{{ roommates.length - 4 }}
-                </span>
-              </span>
-              <span class="mates-text">
-                Sharing {{ stay?.roomNumber ? `Room ${stay.roomNumber}` : 'your room' }}
-                with {{ roommates.length }} {{ roommates.length === 1 ? 'other' : 'others' }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Needs attention -->
-        <section class="sec">
-          <div class="sec-head">
-            <h2 class="sec-title">Needs attention</h2>
-          </div>
-
-          <template v-if="attention.length">
-            <q-carousel
-              v-model="carouselSlide"
-              class="lead-carousel"
-              animated
-              transition-prev="slide-right"
-              transition-next="slide-left"
-              autoplay
-              :interval="3000"
-              infinite
-              swipeable
-            >
-              <q-carousel-slide
-                v-for="item in attention"
-                :key="item.id"
-                :name="item.id"
-                class="lead-slide"
-              >
-                <div class="lead" :class="`lead--${item.tone}`">
-                  <div class="lead-top">
-                    <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
-                    <span class="lead-kind">{{ item.kind }}</span>
-                    <span v-if="item.when" class="lead-when">{{ item.when }}</span>
-                  </div>
-                  <div class="lead-row">
-                    <div class="lead-body">
-                      <p class="lead-label">{{ item.label }}</p>
-                      <p class="lead-hint">{{ item.hint }}</p>
-                    </div>
-                    <button v-if="item.action" type="button" class="lead-action" @click="go(item.route)">
-                      {{ item.action }}
-                      <IconifyIcon icon="lucide:arrow-right" width="15" />
-                    </button>
-                  </div>
-                </div>
-              </q-carousel-slide>
-            </q-carousel>
-
-            <div v-if="attention.length > 1" class="dots">
-              <button
-                v-for="item in attention"
-                :key="item.id"
-                type="button"
-                class="dot"
-                :class="{ 'dot--active': item.id === carouselSlide }"
-                :aria-label="`Show ${item.kind}`"
-                @click="carouselSlide = item.id"
-              />
-            </div>
-          </template>
-
-          <div v-if="!attention.length" class="clear">
-            <span class="clear-icon"><IconifyIcon icon="lucide:check" width="17" /></span>
-            <span class="clear-text">
-              <span class="clear-label">Nothing needs you</span>
-              <span class="clear-hint">Concerns and manager replies land here</span>
-            </span>
-          </div>
-        </section>
       </div>
-
     </q-pull-to-refresh>
-    <q-dialog v-model="mapDialog" position="bottom" class="map-dialog">
-      <div class="map-card">
-        <span class="map-grip" aria-hidden="true" />
-        <img v-if="mapUrl" :src="mapUrl" alt="Map showing your accommodation" class="map-image" />
-        <q-btn flat dense no-caps color="grey-7" label="Close" class="map-close" @click="mapDialog = false" />
-      </div>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -292,78 +67,19 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
-import { formatPeso, initialsOf } from '@/utils/format'
+import { formatPeso, formatMonth, initialsOf } from '@/utils/format'
 import { ago } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
-import { staticMapUrl } from '@/utils/geo'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-
-interface Stay {
-  id: string
-  status: string
-  startDate: string
-  endDate: string
-  monthlyRent: number
-  accommodationId: string
-  accommodationName: string
-  roomNumber: string | null
-  roomLabel: string | null
-  lat: number | null
-  lng: number | null
-  photoUrl: string
-  advancePaid: boolean
-  depositPaid: boolean
-}
-
-interface AttentionItem {
-  id: string
-  icon: string
-  kind: string
-  label: string
-  hint: string
-  when: string
-  /** Empty when there is nothing for the student to do but wait. */
-  action: string
-  route: string
-  tone: 'danger' | 'warn' | 'info'
-  rank: number
-}
-
-type ChecklistRow =
-  | {
-      kind: 'row'
-      id: string
-      icon: string
-      label: string
-      hint: string
-      state: 'done' | 'pending' | 'action'
-      action: string
-      route: string
-    }
-  | { kind: 'stepper'; id: string; label: string }
-
-interface HouseRuleChip {
-  label: string
-  value: string
-}
+import DashPriority from '@/components/student/DashPriority.vue'
+import DashTodoList from '@/components/student/DashTodoList.vue'
+import DashStayCard from '@/components/student/DashStayCard.vue'
+import type { Manager, Stay, Task } from '@/components/student/dashboard'
 
 interface NextPayment {
   amount: number
+  month: string
   overdue: boolean
-}
-
-interface Manager {
-  id: string
-  name: string
-  initials: string
-  avatarUrl: string | null
-  replyMinutes: number | null
-}
-
-interface Roommate {
-  id: string
-  initials: string
-  avatarUrl: string | null
 }
 
 const router = useRouter()
@@ -372,65 +88,29 @@ const loading = ref(true)
 const error = ref('')
 const firstName = ref('there')
 const stay = ref<Stay | null>(null)
-const attention = ref<AttentionItem[]>([])
-const carouselSlide = ref('')
-const checklist = ref<ChecklistRow[]>([])
-const houseRuleChips = ref<HouseRuleChip[]>([])
+const tasks = ref<Task[]>([])
 const nextPayment = ref<NextPayment | null>(null)
 const manager = ref<Manager | null>(null)
-const roommates = ref<Roommate[]>([])
-const mapDialog = ref(false)
 
 const greeting = computed(() => {
   const h = new Date().getHours()
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 })
 
+// One ranked list feeds both slots: the most urgent open task becomes the
+// priority card, everything else below it is the to-do list. Finished tasks
+// are kept only so the list can say how many are behind you.
+const openTasks = computed(() => tasks.value.filter((t) => t.tone !== 'done'))
+const priority = computed(() => openTasks.value[0] ?? null)
+const todo = computed(() => openTasks.value.slice(1))
+const doneCount = computed(() => tasks.value.length - openTasks.value.length)
 
-const showChecklist = computed(() =>
-  checklist.value.some((row) => (row.kind === 'row' ? row.state !== 'done' : true)),
-)
-
-const daysLeft = computed(() => {
-  if (!stay.value) return null
-  const end = new Date(stay.value.endDate).getTime()
-  if (Number.isNaN(end)) return null
-  return Math.ceil((end - Date.now()) / 86400000)
+const nextDueLabel = computed(() => {
+  const p = nextPayment.value
+  if (!p) return 'Nothing due'
+  const month = formatMonth(p.month)
+  return p.overdue ? `Overdue · ${month}` : `Due · ${month}`
 })
-
-const leaseProgressPct = computed(() => {
-  if (!stay.value) return 0
-  const start = new Date(stay.value.startDate).getTime()
-  const end = new Date(stay.value.endDate).getTime()
-  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0
-  const pct = ((Date.now() - start) / (end - start)) * 100
-  return Math.min(100, Math.max(0, Math.round(pct)))
-})
-
-const renewalSoon = computed(
-  () => stay.value?.status === 'active' && daysLeft.value !== null && daysLeft.value >= 0 && daysLeft.value <= 30,
-)
-
-const mapUrl = computed(() => (stay.value ? staticMapUrl(stay.value.lat, stay.value.lng) : ''))
-
-const roomLabel = computed(() => {
-  if (!stay.value) return ''
-  const { roomNumber, roomLabel: label } = stay.value
-  if (roomNumber && label) return `Room ${roomNumber} · ${label}`
-  if (roomNumber) return `Room ${roomNumber}`
-  return label || 'Room'
-})
-
-const STATUS_LABEL: Record<string, string> = {
-  active: 'Active',
-  pending: 'Pending',
-  leave_requested: 'Leaving',
-  ended: 'Ended',
-  terminated: 'Ended',
-}
-function statusLabel(s: string) {
-  return STATUS_LABEL[s] ?? s
-}
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
@@ -496,36 +176,17 @@ async function load(silent = false) {
       } | null
       const acc = room?.accommodations ?? null
 
+      // Only the cover photo — house rules live on /student/stay, which shows
+      // all of them instead of an arbitrary first three.
       let photoUrl = ''
-      houseRuleChips.value = []
       if (acc?.id) {
-        const [{ data: imageRows }, { data: policyRow }] = await Promise.all([
-          supabase
-            .from('accommodation_images')
-            .select('url, sort_order')
-            .eq('accommodation_id', acc.id)
-            .order('sort_order', { ascending: true })
-            .limit(1),
-          supabase
-            .from('accommodation_policies')
-            .select('curfew_time, quiet_hours, visitor_policy, cooking, laundry, pets, smoking')
-            .eq('accommodation_id', acc.id)
-            .maybeSingle(),
-        ])
+        const { data: imageRows } = await supabase
+          .from('accommodation_images')
+          .select('url, sort_order')
+          .eq('accommodation_id', acc.id)
+          .order('sort_order', { ascending: true })
+          .limit(1)
         photoUrl = imageRows?.[0]?.url ? resolveAsset(imageRows[0].url, CARD) : ''
-
-        const chipCandidates: HouseRuleChip[] = policyRow
-          ? [
-              { label: 'Curfew', value: policyRow.curfew_time || '' },
-              { label: 'Quiet hours', value: policyRow.quiet_hours || '' },
-              { label: 'Visitors', value: policyRow.visitor_policy || '' },
-              { label: 'Cooking', value: policyRow.cooking == null ? '' : policyRow.cooking ? 'Allowed' : 'Not allowed' },
-              { label: 'Laundry', value: policyRow.laundry == null ? '' : policyRow.laundry ? 'Allowed' : 'Not allowed' },
-              { label: 'Pets', value: policyRow.pets == null ? '' : policyRow.pets ? 'Allowed' : 'Not allowed' },
-              { label: 'Smoking', value: policyRow.smoking == null ? '' : policyRow.smoking ? 'Allowed' : 'Not allowed' },
-            ]
-          : []
-        houseRuleChips.value = chipCandidates.filter((c) => c.value).slice(0, 3)
       }
 
       stay.value = {
@@ -546,7 +207,7 @@ async function load(silent = false) {
       }
     } else {
       stay.value = null
-      houseRuleChips.value = []
+      manager.value = null
     }
 
     if (leaseRow) {
@@ -580,26 +241,9 @@ async function load(silent = false) {
           }
         }
       }
-
-      // Everyone else currently housed in the same room.
-      const { data: mateRows } = await supabase
-        .from('leases')
-        .select('student_id, users!leases_student_id_fkey(full_name, initials, avatar_url)')
-        .eq('room_id', leaseRow.room_id)
-        .eq('status', 'active')
-        .neq('student_id', user.id)
-
-      roommates.value = (mateRows || []).map((m) => {
-        const person = m.users as unknown as { full_name: string; initials: string | null; avatar_url: string | null } | null
-        return {
-          id: m.student_id,
-          initials: person?.initials || initialsOf(person?.full_name || '?'),
-          avatarUrl: person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null,
-        }
-      })
     }
 
-    const checklistRows: ChecklistRow[] = []
+    const list: Task[] = []
 
     // Verification: whether they must act depends on what they have already
     // submitted, so the pending documents decide the wording and the action.
@@ -611,82 +255,113 @@ async function load(silent = false) {
         .eq('status', 'pending')
 
       if (verification === 'rejected' || verification === 'suspended') {
-        checklistRows.push({
-          kind: 'row',
+        list.push({
           id: 'verify',
           icon: 'lucide:file-x',
-          label: verification === 'rejected' ? 'Documents were rejected' : 'Account suspended',
+          kind: 'OSAS',
+          label: verification === 'rejected' ? 'Your documents were rejected' : 'Your account is suspended',
           hint: verification === 'rejected' ? 'Upload clearer copies to get verified' : 'Contact OSAS to sort this out',
-          state: 'action',
+          when: '',
           action: verification === 'rejected' ? 'Re-upload documents' : 'Open OSAS',
           route: '/student/support',
+          tone: 'danger',
+          rank: 1,
         })
       } else if (pendingDocs && pendingDocs > 0) {
-        checklistRows.push({
-          kind: 'row',
+        list.push({
           id: 'verify',
           icon: 'lucide:hourglass',
+          kind: 'OSAS',
           label: 'OSAS is reviewing your documents',
           hint: `${pendingDocs} ${pendingDocs === 1 ? 'document' : 'documents'} submitted`,
-          state: 'pending',
+          when: '',
           action: '',
           route: '',
+          tone: 'info',
+          rank: 9,
         })
       } else {
-        checklistRows.push({
-          kind: 'row',
+        list.push({
           id: 'verify',
           icon: 'lucide:id-card',
+          kind: 'OSAS',
           label: 'Finish your OSAS verification',
           hint: 'Managers can only accept verified students',
-          state: 'action',
+          when: '',
           action: 'Upload documents',
           route: '/student/support',
+          tone: 'warn',
+          rank: 2,
         })
       }
     } else {
-      checklistRows.push({
-        kind: 'row',
+      list.push({
         id: 'verify',
         icon: 'lucide:shield-check',
+        kind: 'OSAS',
         label: 'OSAS verified',
         hint: '',
-        state: 'done',
+        when: '',
         action: '',
         route: '',
+        tone: 'done',
+        rank: 99,
       })
     }
 
     if (leaseRow?.status === 'pending') {
-      checklistRows.push({ kind: 'stepper', id: 'application', label: 'Application status' })
+      list.push({
+        id: 'application',
+        icon: 'lucide:file-clock',
+        kind: 'Application',
+        label: 'Your manager is reviewing your application',
+        hint: 'You will be told as soon as they decide',
+        when: '',
+        action: '',
+        route: '',
+        tone: 'info',
+        rank: 8,
+      })
     }
 
     if (stay.value) {
-      checklistRows.push({
-        kind: 'row',
-        id: 'deposit',
-        icon: stay.value.depositPaid ? 'lucide:check-circle' : 'lucide:circle-dashed',
-        label: 'Security deposit',
-        hint: stay.value.depositPaid ? 'Paid' : 'Not yet recorded as paid',
-        state: stay.value.depositPaid ? 'done' : 'action',
-        action: stay.value.depositPaid ? '' : 'Pay now',
-        route: '/student/payments',
-      })
-      checklistRows.push({
-        kind: 'row',
-        id: 'advance',
-        icon: stay.value.advancePaid ? 'lucide:check-circle' : 'lucide:circle-dashed',
-        label: 'Advance payment',
-        hint: stay.value.advancePaid ? 'Paid' : 'Not yet recorded as paid',
-        state: stay.value.advancePaid ? 'done' : 'action',
-        action: stay.value.advancePaid ? '' : 'Pay now',
-        route: '/student/payments',
-      })
+      for (const p of [
+        { id: 'deposit', label: 'Security deposit', paid: stay.value.depositPaid },
+        { id: 'advance', label: 'Advance payment', paid: stay.value.advancePaid },
+      ]) {
+        list.push({
+          id: p.id,
+          icon: p.paid ? 'lucide:check-circle' : 'lucide:circle-dashed',
+          kind: 'Move-in',
+          label: p.label,
+          hint: p.paid ? 'Paid' : 'Not yet recorded as paid',
+          when: '',
+          action: p.paid ? '' : 'Pay now',
+          route: '/student/payments',
+          tone: p.paid ? 'done' : 'warn',
+          rank: p.paid ? 99 : 2,
+        })
+      }
+
+      // The countdown lives on the stay card; this row exists only once the
+      // renewal window opens and there is actually something to do about it.
+      const end = new Date(stay.value.endDate).getTime()
+      const daysLeft = Number.isNaN(end) ? null : Math.ceil((end - Date.now()) / 86400000)
+      if (stay.value.status === 'active' && daysLeft !== null && daysLeft >= 0 && daysLeft <= 30) {
+        list.push({
+          id: 'renewal',
+          icon: 'lucide:calendar-clock',
+          kind: 'Lease',
+          label: `Your lease ends in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}`,
+          hint: 'Talk to your manager if you want to renew',
+          when: '',
+          action: 'Message manager',
+          route: '/student/messages',
+          tone: 'warn',
+          rank: 5,
+        })
+      }
     }
-
-    checklist.value = checklistRows
-
-    const items: AttentionItem[] = []
 
     if (leaseRow) {
       // Concerns the student filed against this stay, and any reply.
@@ -700,7 +375,7 @@ async function load(silent = false) {
 
       for (const c of concernRows || []) {
         const answered = Boolean(c.manager_response)
-        items.push({
+        list.push({
           id: `concern-${c.id}`,
           icon: answered ? 'lucide:message-square-reply' : 'lucide:triangle-alert',
           kind: 'Your report',
@@ -712,12 +387,12 @@ async function load(silent = false) {
           action: answered ? 'Read reply' : '',
           route: '/student/concerns',
           tone: answered ? 'warn' : 'info',
-          rank: answered ? 0 : 3,
+          rank: answered ? 3 : 7,
         })
       }
 
-      // Unpaid rent, when payments are actually recorded — surfaced via the
-      // "Next payment" stat tile instead of duplicated into this list.
+      // A payment that is merely due is shown by the money row, which is
+      // tappable — only an overdue one is a task.
       const { data: dueRows } = await supabase
         .from('payments')
         .select('id, amount, month, status')
@@ -728,8 +403,23 @@ async function load(silent = false) {
 
       const due = dueRows?.[0]
       nextPayment.value = due
-        ? { amount: Number(due.amount || 0), overdue: due.status === 'overdue' }
+        ? { amount: Number(due.amount || 0), month: due.month, overdue: due.status === 'overdue' }
         : null
+
+      if (due && due.status === 'overdue') {
+        list.push({
+          id: `payment-${due.id}`,
+          icon: 'lucide:banknote',
+          kind: 'Rent',
+          label: `${formatPeso(Number(due.amount || 0))} is overdue`,
+          hint: `Rent for ${formatMonth(due.month)}`,
+          when: '',
+          action: 'Pay now',
+          route: '/student/payments',
+          tone: 'danger',
+          rank: 0,
+        })
+      }
     } else {
       nextPayment.value = null
     }
@@ -744,7 +434,7 @@ async function load(silent = false) {
       return n + Number(mine || 0)
     }, 0)
     if (unread > 0) {
-      items.push({
+      list.push({
         id: 'unread',
         icon: 'lucide:message-circle',
         kind: 'Messages',
@@ -754,14 +444,11 @@ async function load(silent = false) {
         action: 'Open messages',
         route: '/student/messages',
         tone: 'warn',
-        rank: 1,
+        rank: 4,
       })
     }
 
-    attention.value = items.sort((a, b) => a.rank - b.rank)
-    // A silent (realtime-triggered) refresh must not snap the carousel back
-    // to the first card out from under someone who's scrolled it.
-    if (!silent) carouselSlide.value = attention.value[0]?.id ?? ''
+    tasks.value = list.sort((a, b) => a.rank - b.rank)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -796,9 +483,8 @@ function onPull(done: () => void) {
   padding: 5px var(--m-page-gutter) 16px;
 }
 .sk { border-radius: var(--m-radius); }
-
-.card { border-radius: var(--m-radius); background: var(--m-surface); overflow: hidden; }
-.card--pad { padding: 18px 14px; }
+.sk-sm { border-radius: var(--m-radius-sm); }
+.sec { display: flex; flex-direction: column; gap: 5px; }
 
 .greet { display: flex; align-items: baseline; gap: 5px; padding: 0 2px; flex-wrap: wrap; }
 .greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }
@@ -810,90 +496,33 @@ function onPull(done: () => void) {
   letter-spacing: -0.02em;
 }
 
-/* Getting settled checklist */
-.steps { display: flex; flex-direction: column; gap: 3px; }
-.step {
+/* Money row — rent and what's next, in one place */
+.money {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 11px;
-  border-radius: var(--m-radius-sm);
+  gap: 4px;
+  padding: 9px 8px 9px 4px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
   background: var(--m-surface);
-}
-.step-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 999px; }
-.step-icon--done { background: var(--m-success-soft); color: var(--m-success); }
-.step-icon--pending { background: var(--m-info-soft); color: var(--m-info); }
-.step-icon--action { background: var(--m-warning-soft); color: var(--m-warning); }
-.step-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.step-label { color: var(--m-ink); font-size: 13px; font-weight: 600; }
-.step-hint { color: var(--m-muted); font-size: 11.5px; }
-.step-action {
-  flex: 0 0 auto;
-  min-height: 32px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  font-weight: 700;
+  text-align: center;
   -webkit-tap-highlight-color: transparent;
 }
-.stepper { display: flex; width: 100%; flex-direction: column; gap: 6px; }
-.stepper-label { color: var(--m-ink); font-size: 13px; font-weight: 600; }
-.stepper-track { display: flex; align-items: center; gap: 4px; }
-.stepper-node {
-  flex: 1 1 0;
-  padding: 5px 2px;
-  border-radius: 999px;
-  background: var(--m-border);
-  color: var(--m-muted);
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-}
-.stepper-node--done { background: var(--m-success-soft); color: var(--m-success); }
-.stepper-node--active { background: var(--m-info-soft); color: var(--m-info); }
-
-/* Stat tiles */
-.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.tile {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 84px;
-  padding: 11px 13px;
-  border-radius: var(--m-radius);
-  background: var(--m-primary);
-  color: #fff;
-}
-.tile--lease { flex-direction: row; align-items: center; justify-content: space-between; }
-.tile--nudge { background: var(--m-warning); }
-.tile-left { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
-.tile-cap { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.9; }
-.tile-value {
-  margin-top: 2px;
+.money-cell { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 0 6px; }
+.money-div { width: 1px; align-self: stretch; background: var(--m-border); }
+.money-value {
+  color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1;
 }
-.tile-value--sm { font-size: 16px; }
-.tile-unit { font-size: 11px; font-weight: 600; opacity: 0.78; }
-.tile-note { margin-top: 3px; font-size: 10.5px; line-height: 1.3; opacity: 0.92; text-wrap: pretty; }
-.tile-ring { display: block; width: 46px; height: 46px; flex: 0 0 46px; }
-.tile-ring-track { fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 12; }
-.tile-ring-fill { fill: none; stroke: #fff; stroke-width: 12; stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
-
-.chips { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
-.chip { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; align-items: center; gap: 1px; padding: 8px 6px; text-align: center; }
-.chip--link { border: 0; background: transparent; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.chip-div { width: 1px; background: var(--m-border); }
-.chip-value { color: var(--m-ink); font-family: var(--m-font-display); font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
-.chip-label { color: var(--m-muted); font-size: 10.5px; font-weight: 600; }
+.money-value--due { color: var(--m-danger); }
+.money-unit { font-size: 11px; font-weight: 600; color: var(--m-muted); }
+.money-cap { color: var(--m-muted); font-size: 10.5px; font-weight: 600; }
+.money-chev { flex: 0 0 auto; color: var(--m-muted); }
 
 /* Stay (empty state) */
 .stay { display: flex; flex-direction: column; padding: 12px 13px; border-radius: var(--m-radius); }
@@ -913,7 +542,7 @@ function onPull(done: () => void) {
   align-self: flex-start;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   margin-top: 11px;
   padding: 0 15px;
   border: 0;
@@ -925,251 +554,5 @@ function onPull(done: () => void) {
   font-size: 13.5px;
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
-}
-
-/* Room identity */
-.room-card { border-radius: var(--m-radius); background: var(--m-surface); border: 1px solid var(--m-border); overflow: hidden; }
-.room-photo { position: relative; display: grid; height: 96px; place-items: center; background: var(--m-primary-soft); color: var(--m-primary-dark); }
-.room-photo img { width: 100%; height: 100%; object-fit: cover; }
-.room-photo--empty { background: linear-gradient(135deg, var(--m-border), var(--m-surface) 85%); }
-.shot-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--m-muted); }
-.shot-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
-.room-tag {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 700;
-}
-.room-body { display: flex; flex-direction: column; gap: 6px; padding: 11px 13px 13px; }
-.room-name { margin: 0; color: var(--m-ink); font-family: var(--m-font-display); font-size: 16px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
-.room-room { margin: 0; color: var(--m-muted); font-size: 12.5px; }
-.room-map-link {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.rules { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 2px; }
-.rule-chip {
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-text);
-  font-size: 10.5px;
-  font-weight: 600;
-}
-.rules-more {
-  border: 0;
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 10.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* People */
-.person { display: flex; align-items: center; gap: 10px; margin-top: 4px; padding: 7px 0 0; border-top: 1px solid var(--m-border); }
-.person-avatar {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 800;
-}
-.person-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.person-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.person-name { color: var(--m-ink); font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.person-role { color: var(--m-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.person-rating { display: flex; align-items: center; gap: 3px; color: var(--m-warning); font-size: 11px; font-weight: 700; }
-.person-actions { display: flex; flex: 0 0 auto; gap: 6px; }
-.icon-btn {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  text-decoration: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.mates { display: flex; align-items: center; gap: 10px; padding: 4px 0 0; }
-.mates-stack { display: flex; flex: 0 0 auto; }
-.mates-avatar {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  overflow: hidden;
-  margin-left: -7px;
-  border: 2px solid var(--m-surface);
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-size: 9.5px;
-  font-weight: 800;
-}
-.mates-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.mates-avatar:first-child { margin-left: 0; }
-.mates-avatar--more { background: var(--m-border); color: var(--m-text); }
-.mates-text { color: var(--m-muted); font-size: 12px; font-weight: 600; }
-
-
-/* Sections */
-.sec { display: flex; flex-direction: column; gap: 5px; }
-.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.sec-title { margin: 0; color: var(--m-ink); font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
-
-/* Lead */
-.lead {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 11px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  border: 1px solid var(--m-border);
-}
-.lead--danger { border-color: color-mix(in srgb, var(--m-danger) 22%, var(--m-border)); }
-.lead--warn { border-color: color-mix(in srgb, var(--m-warning) 26%, var(--m-border)); }
-.lead--info { border-color: color-mix(in srgb, var(--m-info) 22%, var(--m-border)); }
-.lead-top { display: flex; align-items: center; gap: 7px; }
-.lead-icon { display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border-radius: 999px; }
-.lead--danger .lead-icon { background: var(--m-danger-soft); color: var(--m-danger); }
-.lead--warn .lead-icon { background: var(--m-warning-soft); color: var(--m-warning); }
-.lead--info .lead-icon { background: var(--m-info-soft); color: var(--m-info); }
-.lead-kind { flex: 1 1 auto; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-.lead--danger .lead-kind { color: var(--m-danger); }
-.lead--warn .lead-kind { color: var(--m-warning); }
-.lead--info .lead-kind { color: var(--m-info); }
-.lead-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
-.lead-label {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 15.5px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  text-wrap: pretty;
-}
-.lead-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.lead-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.lead-hint { margin: 0; color: var(--m-muted); font-size: 11.5px; line-height: 1.3; text-wrap: pretty; }
-.lead-action {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
-}
-.lead-action:active { transform: scale(0.97); }
-
-.lead-carousel {
-  height: 128px;
-  background: transparent;
-}
-.lead-carousel :deep(.q-carousel__slide) {
-  padding: 0;
-}
-.lead-slide {
-  display: flex;
-  align-items: stretch;
-  height: 100%;
-  padding: 0;
-}
-.lead-slide .lead { width: 100%; }
-
-.dots { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 8px; }
-.dot {
-  width: 5px;
-  height: 5px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-border);
-  cursor: pointer;
-  transition: width 0.15s ease, background 0.15s ease;
-}
-.dot--active { width: 14px; background: var(--m-primary); }
-
-/* Clear */
-.clear {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 11px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-}
-.clear-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 999px; background: var(--m-success-soft); color: var(--m-success); }
-.clear-text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.clear-label { color: var(--m-ink); font-size: 14px; font-weight: 700; }
-.clear-hint { color: var(--m-muted); font-size: 12px; }
-
-/* Map bottom sheet */
-.map-dialog :deep(.q-dialog__backdrop) { background: rgba(0, 0, 0, 0.5); }
-.map-card {
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 10px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
-  background: var(--m-surface);
-  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.14);
-  text-align: center;
-}
-.map-grip { display: block; width: 40px; height: 4px; margin: 0 auto 14px; border-radius: 999px; background: var(--m-border); }
-.map-image { width: 100%; border-radius: var(--m-radius); }
-.map-close { margin-top: 10px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .lead-action { transition: none; }
-  .tile-ring-fill { transition: none; }
 }
 </style>

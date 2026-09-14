@@ -250,6 +250,7 @@ import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
+import { openExternal } from '@/utils/openExternal'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { chatFullscreen } from '@/utils/chatFullscreen'
@@ -351,7 +352,7 @@ const tickets = ref<Ticket[]>([])
 /** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
 
 function openFile(url: string) {
-  if (url) window.open(resolveAsset(url), '_blank', 'noopener')
+  if (url) openExternal(resolveAsset(url))
 }
 
 // Property permits have no admin-reviewed status column yet (see the OSAS
