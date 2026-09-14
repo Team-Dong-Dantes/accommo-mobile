@@ -1,5 +1,5 @@
 <template>
-  <div class="tabbed">
+  <div class="m-tabbed">
     <div class="hero">
       <img v-if="coverUrl" :src="coverUrl" alt="" class="hero-img" />
       <div class="hero-scrim" />
@@ -73,12 +73,6 @@ watch(() => avatarFailed.value, () => {})
    a floating profile card that overlaps it, then pill tabs fused into a
    bordered panel. Both screens show "a person" and must not look like two
    different products. Keep them in step. */
-.tabbed {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-}
 .hero {
   position: relative;
   flex: 0 0 auto;

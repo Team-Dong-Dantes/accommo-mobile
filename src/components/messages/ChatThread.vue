@@ -149,11 +149,10 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf, parseServerTime, dayLabel, clockTime } from '@/utils/format'
+import { initialsOf, dayLabel, clockTime } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
-import { createNotification } from '@/boot/notify'
 import { uploadToCloudinary } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
 import ApplicationCard from '@/components/messages/ApplicationCard.vue'
@@ -345,14 +344,10 @@ async function send() {
     )
     if (localPreview) URL.revokeObjectURL(localPreview)
 
-    const recipientRolePath = props.role === 'student' ? '/manager' : '/student'
-    void createNotification(
-      otherId.value,
-      'New message',
-      body ? (body.length > 100 ? `${body.slice(0, 100)}…` : body) : '📷 Photo',
-      'message',
-      `${recipientRolePath}/messages?c=${props.conversationId}`,
-    )
+    // No notification row for a chat message. tg_message_after_insert already
+    // bumps conversations.unread_a/unread_b, which is what the Messages tab
+    // badge reads — a bell row on top of that is a second unread counter for
+    // the same event, on a screen you have to leave the chat to reach.
   } catch (e) {
     messages.value = messages.value.filter((m) => m.id !== tempId)
     if (localPreview) URL.revokeObjectURL(localPreview)

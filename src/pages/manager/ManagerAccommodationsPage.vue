@@ -7,12 +7,7 @@
       </div>
 
       <div v-else-if="error" class="stack">
-        <q-card flat bordered class="card">
-          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-          <p class="err-title">Couldn't load your accommodations</p>
-          <p class="err-sub">{{ error }}</p>
-          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-        </q-card>
+        <ErrorCard title="Couldn't load your accommodations" :detail="error" :retry="load" inset />
       </div>
 
       <EmptyState
@@ -98,6 +93,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending review',
@@ -280,17 +276,6 @@ function onPull(done: () => void) {
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 .acc-card {

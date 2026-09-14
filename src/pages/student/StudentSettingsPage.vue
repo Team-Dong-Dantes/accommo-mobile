@@ -10,12 +10,7 @@
     </div>
 
     <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card card--pad text-center">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load settings</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load" />
-      </q-card>
+      <ErrorCard title="Couldn't load settings" :detail="error" :retry="load" />
     </div>
 
     <div v-else class="stack">
@@ -27,9 +22,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import ProfileSettingsSection from '@/components/student/ProfileSettingsSection.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const router = useRouter()
 
@@ -99,16 +94,5 @@ onMounted(load)
 }
 .card--pad {
   padding: 18px 14px;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 </style>

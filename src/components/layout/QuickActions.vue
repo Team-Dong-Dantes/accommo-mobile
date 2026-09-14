@@ -8,6 +8,7 @@
         type="button"
         role="menuitem"
         class="menu-row"
+        :class="{ 'menu-row--danger': action.danger }"
         @click="navigate(action.route)"
       >
         <span class="menu-row-icon">
@@ -166,6 +167,15 @@ function navigate(route: string) {
   color: var(--m-ink);
   font-size: 13px;
   font-weight: 700;
+}
+/* Sign out is the one row here that does not go anywhere, so it is coloured
+   like the danger SettingsRow rather than like another destination. */
+.menu-row--danger .menu-row-label {
+  color: var(--m-danger);
+}
+.menu-row--danger .menu-row-icon {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
 }
 @keyframes menu-in {
   from {

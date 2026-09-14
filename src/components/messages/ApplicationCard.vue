@@ -23,7 +23,7 @@
     </div>
     <label class="app-field">
       <span class="app-field-label">Move-in date</span>
-      <input v-model="applyForm.startDate" type="date" class="app-date" :min="todayStr()" />
+      <DateTimeField v-model="applyForm.startDate" mode="date" :min="todayStr()" placeholder="Pick a move-in date" />
     </label>
     <button type="button" class="app-btn app-btn--submit" :disabled="applying" @click="reviewOpen = true">
       Review application
@@ -227,6 +227,7 @@ import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatDate, formatPeso } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
+import { requirePin } from '@/utils/requirePin'
 import { createNotification } from '@/boot/notify'
 import {
   respondToApplication,
@@ -235,6 +236,7 @@ import {
   issueApplicationForm,
   clearApplicationInvite,
 } from '@/utils/applications'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 
 const props = defineProps<{
   conversationId: string
@@ -634,6 +636,7 @@ async function submitApplication() {
 }
 
 async function decideApplication(next: 'active' | 'rejected') {
+  if (!(await requirePin({ confirm: next === 'active', title: next === 'active' ? 'Accept this application?' : 'Decline this application?', ...(next === 'active' ? { message: 'They become the tenant of this room.' } : {}) }))) return
   if (deciding.value || !application.value) return
   deciding.value = true
   try {
@@ -712,15 +715,6 @@ defineExpose({ refresh })
   color: var(--m-muted);
   font-size: 12.5px;
   font-weight: 600;
-}
-.app-date {
-  padding: 7px 10px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-text);
-  font: inherit;
-  font-size: 13px;
 }
 .app-btn {
   min-height: 34px;

@@ -106,6 +106,11 @@ export interface QuickAction {
   avatar?: boolean
   /** Plain red dot flagging something behind this action needs checking. */
   dot?: boolean
+  /**
+   * Destructive, so it reads red rather than like another destination — used by
+   * Sign out, which is the one menu row that does not navigate anywhere.
+   */
+  danger?: boolean
 }
 
 /** A page that replaces the wordmark header with a back button + title. */

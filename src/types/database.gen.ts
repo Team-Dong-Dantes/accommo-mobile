@@ -412,6 +412,7 @@ export type Database = {
         Row: {
           accommodation_manager_id: string
           accommodation_type: string | null
+          gender_policy: string | null
           accreditation_expires_at: string | null
           accreditation_status: string | null
           accredited_at: string | null
@@ -435,6 +436,7 @@ export type Database = {
         Insert: {
           accommodation_manager_id: string
           accommodation_type?: string | null
+          gender_policy?: string | null
           accreditation_expires_at?: string | null
           accreditation_status?: string | null
           accredited_at?: string | null
@@ -458,6 +460,7 @@ export type Database = {
         Update: {
           accommodation_manager_id?: string
           accommodation_type?: string | null
+          gender_policy?: string | null
           accreditation_expires_at?: string | null
           accreditation_status?: string | null
           accredited_at?: string | null
@@ -588,6 +591,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      app_release: {
+        Row: {
+          apk_url: string
+          id: number
+          latest_version_code: number
+          latest_version_name: string
+          min_supported_version_code: number
+          release_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          apk_url: string
+          id?: number
+          latest_version_code: number
+          latest_version_name: string
+          min_supported_version_code?: number
+          release_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          apk_url?: string
+          id?: number
+          latest_version_code?: number
+          latest_version_name?: string
+          min_supported_version_code?: number
+          release_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       audit_logs: {
         Row: {
@@ -747,6 +780,7 @@ export type Database = {
           invited_at: string | null
           invited_room_id: string | null
           last_message: string | null
+          last_sender_id: string | null
           last_time: string | null
           unread_a: number
           unread_b: number
@@ -759,6 +793,7 @@ export type Database = {
           invited_at?: string | null
           invited_room_id?: string | null
           last_message?: string | null
+          last_sender_id?: string | null
           last_time?: string | null
           unread_a?: number
           unread_b?: number
@@ -771,6 +806,7 @@ export type Database = {
           invited_at?: string | null
           invited_room_id?: string | null
           last_message?: string | null
+          last_sender_id?: string | null
           last_time?: string | null
           unread_a?: number
           unread_b?: number
@@ -790,6 +826,13 @@ export type Database = {
             columns: ["invited_room_id"]
             isOneToOne: false
             referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_last_sender_id_fkey"
+            columns: ["last_sender_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -1450,6 +1493,38 @@ export type Database = {
           },
         ]
       }
+      user_pins: {
+        Row: {
+          attempts: number
+          locked_until: string | null
+          pin_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          locked_until?: string | null
+          pin_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          locked_until?: string | null
+          pin_hash?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_pins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_color: string | null
@@ -1687,6 +1762,7 @@ export type Database = {
         Args: { p_student_id: string }
         Returns: boolean
       }
+      clear_pin: { Args: { p_current: string }; Returns: boolean }
       confirm_email_ownership: { Args: never; Returns: boolean }
       current_is_superadmin: { Args: never; Returns: boolean }
       current_qr_token: {
@@ -1714,6 +1790,7 @@ export type Database = {
           user_status: string
         }[]
       }
+      has_pin: { Args: never; Returns: boolean }
       invite_application: {
         Args: { p_conversation: string }
         Returns: undefined
@@ -1738,6 +1815,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      pin_attempt: { Args: { p_pin: string }; Returns: boolean }
       purge_unverified_accounts: {
         Args: { p_older_than?: string }
         Returns: number
@@ -1752,6 +1830,7 @@ export type Database = {
         Args: { p_ip_address?: string; p_user_agent?: string }
         Returns: undefined
       }
+      set_pin: { Args: { p_pin: string }; Returns: boolean }
       submit_student_review: {
         Args: {
           p_acc_comment: string
@@ -1765,6 +1844,7 @@ export type Database = {
         Returns: undefined
       }
       sweep_expired_permits: { Args: never; Returns: undefined }
+      verify_pin: { Args: { p_pin: string }; Returns: boolean }
       verify_student_qr: { Args: { p_code: string }; Returns: Json }
     }
     Enums: {

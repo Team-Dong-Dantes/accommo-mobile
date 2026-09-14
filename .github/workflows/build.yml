@@ -90,6 +90,12 @@ jobs:
             echo "keyPassword=$KEY_PASSWORD"
           } > src-capacitor/android/app/keystore.properties
       - name: Build Android release
+        env:
+          # The release tag, this versionCode and the app_release row in
+          # Supabase are all the same integer, so the in-app update check never
+          # has to parse a version string.
+          ACCOMMO_VERSION_CODE: ${{ github.run_number }}
+          ACCOMMO_VERSION_NAME: 1.0.${{ github.run_number }}
         run: |
           cd src-capacitor/android
           chmod +x gradlew
@@ -125,3 +131,30 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Publishing the release is only half of it — without this step nothing
+      # installed hears that a new build exists. Guarded in bash because the
+      # secrets context can't be used in a step `if:`, same as the keystore step
+      # above: a missing secret warns and moves on rather than failing a release
+      # that has already succeeded.
+      - name: Announce release to Supabase
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VERSION_CODE: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — installed apps will not be told about this release"
+            exit 0
+          fi
+          # min_supported_version_code is deliberately not touched here. Cutting
+          # old builds off is a manual decision, never a side effect of shipping.
+          curl -fsS -X PATCH "$SUPABASE_URL/rest/v1/app_release?id=eq.1" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"latest_version_code\":$VERSION_CODE,\"latest_version_name\":\"1.0.$VERSION_CODE\",\"apk_url\":\"https://github.com/$REPO/releases/latest/download/app-release.apk\",\"updated_at\":\"$(date -u +%FT%TZ)\"}"
+          echo "Announced version code $VERSION_CODE"

@@ -9,21 +9,7 @@
       </div>
 
       <div v-else-if="store.error && !store.items.length" class="stack">
-        <q-card flat bordered class="card card--pad text-center">
-          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-          <p class="err-title">Couldn't load notifications</p>
-          <p class="err-sub">{{ store.error }}</p>
-          <q-btn
-            unelevated
-            rounded
-            no-caps
-            dense
-            color="primary"
-            label="Try again"
-            class="q-mt-sm q-px-md"
-            @click="reload"
-          />
-        </q-card>
+        <ErrorCard title="Couldn't load notifications" :detail="store.error" :retry="reload" />
       </div>
 
       <EmptyState
@@ -85,7 +71,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase, authUser } from '@/utils/supabase'
+import { authUser } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
 import {
   notifLook,
@@ -96,6 +82,7 @@ import {
   type Role,
 } from '@/utils/notifications'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const props = defineProps<{ role: Role; emptyMessage: string }>()
 
@@ -180,17 +167,6 @@ onMounted(reload)
 }
 .card--pad {
   padding: 18px 14px;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 /* Unread summary + bulk action */

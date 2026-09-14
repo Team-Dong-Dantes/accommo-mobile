@@ -48,6 +48,8 @@ const LIMIT = 5
 
 const router = useRouter()
 const queue = ref<Broadcast[]>([])
+/** Resolved once from the cached session: refresh() runs on every realtime event. */
+const me = ref('')
 const current = computed(() => queue.value[0] ?? null)
 
 function readSeen(): string[] {
@@ -69,14 +71,21 @@ function writeSeen(ids: string[]) {
 let channel: RealtimeChannel | null = null
 
 async function refresh() {
-  // RLS already limits this to live, in-date announcements aimed at this
-  // reader — including the ones a manager sent to their own tenants — so there
-  // is nothing to filter here beyond what has already been dismissed.
-  const { data } = await supabase
+  // RLS limits this to live, in-date announcements aimed at this reader, so
+  // there is nothing to filter here beyond what has already been dismissed —
+  // except the reader's own notices. A manager can read the announcements they
+  // sent to their own house (they have to, to see their own list), and without
+  // this the banner announced a manager's notice back at them the moment they
+  // pressed Send. The database fan-out has always skipped the author; only this
+  // banner did not.
+  let query = supabase
     .from('announcements')
     .select('id, title, body, summary')
     .order('published_at', { ascending: false })
     .limit(LIMIT)
+  if (me.value) query = query.neq('author_id', me.value)
+
+  const { data } = await query
 
   const live = data ?? []
   const seen = new Set(readSeen())
@@ -86,6 +95,8 @@ async function refresh() {
 }
 
 onMounted(async () => {
+  const { data: session } = await supabase.auth.getSession()
+  me.value = session?.session?.user?.id ?? ''
   await refresh()
 
   // The demo/unconfigured client has no realtime; the banner still works, it

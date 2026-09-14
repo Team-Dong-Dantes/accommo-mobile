@@ -49,11 +49,17 @@
       </div>
       </template>
     </div>
+  <PinSetupDialog
+      v-model="pinOfferOpen"
+      mode="set"
+      :email="email"
+      cancel-label="Skip for now"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import { useRouter, useRoute } from 'vue-router';
 import type { QForm } from 'quasar';
@@ -162,6 +168,14 @@ async function handleOAuthReturn() {
     if (status === 'rejected' || status === 'reviewing') {
       notify.warning('OSAS needs changes to your application — update it below.');
       void router.push('/register/manager?resubmit=true');
+      return;
+    }
+    // A manager holds no session during registration (they are signed out
+    // until OSAS approves), so this is the first moment a PIN can be set.
+    // Offered once per account, skippable, and settable later in Settings.
+    if (!(await hasPinAlready()) && !alreadyOffered()) {
+      markOffered();
+      pinOfferOpen.value = true;
       return;
     }
     void router.push('/manager/dashboard');
@@ -294,6 +308,28 @@ async function handleForgotPassword() {
     forgotPasswordLoading.value = false;
   }
 }
+
+const pinOfferOpen = ref(false);
+
+async function hasPinAlready() {
+  const { data } = await supabase.rpc('has_pin');
+  return data === true;
+}
+
+/** Offered once per account, so declining is not re-asked at every sign-in. */
+function offerKey() {
+  return 'accommo:pin-offered';
+}
+function alreadyOffered() {
+  try { return localStorage.getItem(offerKey()) === email.value; } catch { return true; }
+}
+function markOffered() {
+  try { localStorage.setItem(offerKey(), email.value); } catch { /* private mode */ }
+}
+
+watch(pinOfferOpen, (open) => {
+  if (!open) void router.push('/manager/dashboard');
+});
 </script>
 
 <style scoped>

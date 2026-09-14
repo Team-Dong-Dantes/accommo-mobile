@@ -315,11 +315,17 @@
       </q-form>
 
     </div>
+  <PinSetupDialog
+      v-model="pinOfferOpen"
+      mode="set"
+      :email="form.email"
+      cancel-label="Skip for now"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted } from 'vue';
+import { reactive, ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import type { QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
@@ -349,7 +355,6 @@ const termsRef = ref<InstanceType<typeof AuthTermsCheck> | null>(null);
 const registerFormRef = ref<QForm | null>(null);
 const isGoogleMode = ref(false);
 const googleUserId = ref('');
-const needEmailOtp = ref(false);
 const emailCreated = ref(false);
 const emailVerified = ref(false);
 const creatingAccount = ref(false);
@@ -385,7 +390,7 @@ const filteredPrograms = computed(() => {
   return collegePrograms[form.college] || [];
 });
 
-function onCollegeChange(val: string | number | null | undefined) {
+function onCollegeChange(_val: string | number | null | undefined) {
   form.program = '';
 }
 
@@ -593,9 +598,19 @@ async function handleRegister(skipVerification: boolean = false) {
   }
 }
 
+// Offer a PIN before landing in the app. Skippable on purpose: forcing one here
+// would gate a brand-new account behind a secret chosen in a hurry, and it can
+// be set any time from Settings. Navigation happens when the sheet closes,
+// whichever way it closed.
+const pinOfferOpen = ref(false);
+
 function finishRegistration() {
-  void router.push('/student/home');
+  pinOfferOpen.value = true;
 }
+
+watch(pinOfferOpen, (open) => {
+  if (!open) void router.push('/student/home');
+});
 
 // Called by the Confirm-e-mail step when the code verifies.
 function onEmailVerified() {

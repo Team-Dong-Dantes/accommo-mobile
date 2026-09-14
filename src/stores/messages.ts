@@ -13,6 +13,8 @@ export interface Thread {
   otherColor: string | null;
   otherAvatarUrl: string | null;
   lastMessage: string;
+  /** Who sent it — null when the thread has no messages at all. */
+  lastSenderId: string | null;
   lastTime: string | null;
   unread: number;
 }
@@ -59,7 +61,7 @@ export const useMessagesStore = defineStore('messages', {
           // One string literal: postgrest-js parses the select at type level,
           // and a concatenated expression widens to `string` and stops typing.
           // eslint-disable-next-line max-len
-          .select('id,user_a_id,user_b_id,last_message,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color,avatar_url)')
+          .select('id,user_a_id,user_b_id,last_message,last_sender_id,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color,avatar_url)')
           .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`);
         if (error) throw error;
 
@@ -76,6 +78,7 @@ export const useMessagesStore = defineStore('messages', {
               otherColor: other?.avatar_color ?? null,
               otherAvatarUrl: other?.avatar_url ? resolveAsset(other.avatar_url) : null,
               lastMessage: row.last_message || '',
+              lastSenderId: row.last_sender_id ?? null,
               lastTime: row.last_time,
               unread: Number((mine ? row.unread_a : row.unread_b) || 0),
             };
@@ -109,6 +112,7 @@ export const useMessagesStore = defineStore('messages', {
           id: string;
           user_a_id: string;
           last_message: string | null;
+          last_sender_id: string | null;
           last_time: string | null;
           unread_a: number;
           unread_b: number;
@@ -119,6 +123,7 @@ export const useMessagesStore = defineStore('messages', {
           return;
         }
         thread.lastMessage = row.last_message || '';
+        thread.lastSenderId = row.last_sender_id ?? null;
         thread.lastTime = row.last_time;
         thread.unread = Number((row.user_a_id === userId ? row.unread_a : row.unread_b) || 0);
         this.threads.sort(newestFirst);

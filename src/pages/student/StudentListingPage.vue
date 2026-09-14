@@ -16,21 +16,7 @@
     </div>
 
     <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load this listing</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          dense
-          color="primary"
-          label="Try again"
-          class="q-mt-sm q-px-md"
-          @click="load"
-        />
-      </q-card>
+      <ErrorCard title="Couldn't load this listing" :detail="error" :retry="load" inset />
     </div>
 
     <div v-else class="page">
@@ -56,6 +42,7 @@
             <IconifyIcon icon="lucide:shield-check" width="11" />OSAS Accredited
           </span>
           <span v-if="buildingType" class="type-pill">{{ buildingType }}</span>
+          <span v-if="genderPolicy" class="type-pill">{{ genderPolicy }}</span>
           <span class="vacancy" :class="vacancies ? 'vacancy--ok' : 'vacancy--none'">
             {{ vacancies ? `${vacancies} room${vacancies === 1 ? '' : 's'} free` : 'Currently full' }}
           </span>
@@ -185,8 +172,9 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, FACILITY_META, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
+import { AMENITY_META, FACILITY_META, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
 import MessageManagerCta from '@/components/student/MessageManagerCta.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 interface RoomRow {
   id: string
@@ -210,6 +198,7 @@ const listing = reactive({
   address: '',
   description: '',
   type: '' as string | null,
+  genderPolicy: '' as string | null,
   lat: null as number | null,
   lng: null as number | null,
   totalFloors: null as number | null,
@@ -227,6 +216,7 @@ const manager = reactive({ id: '', name: '', initials: '?', avatarUrl: null as s
 const id = computed(() => String(route.params.id || ''))
 const monogram = computed(() => listingMonogram(listing.name))
 const buildingType = computed(() => buildingTypeLabel(listing.type))
+const genderPolicy = computed(() => genderPolicyLabel(listing.genderPolicy))
 const distance = computed(() => campusDistanceLabel(listing.lat, listing.lng))
 const mapUrl = computed(() => staticMapUrl(listing.lat, listing.lng))
 const vacancies = computed(() => rooms.value.filter((r) => r.free).length)
@@ -260,7 +250,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'id,name,address,city,barangay,description,accommodation_type,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,min_stay,contract_type)',
+        'id,name,address,city,barangay,description,accommodation_type,gender_policy,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,min_stay,contract_type)',
       )
       .eq('id', id.value)
       .eq('status', 'accredited')
@@ -276,6 +266,7 @@ async function load() {
       data.address || [data.barangay, data.city].filter(Boolean).join(', ') || 'Address not given'
     listing.description = data.description || ''
     listing.type = data.accommodation_type
+    listing.genderPolicy = data.gender_policy
     listing.lat = data.lat
     listing.lng = data.lng
     listing.totalFloors = data.total_floors
@@ -438,17 +429,6 @@ onMounted(load)
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 .page {

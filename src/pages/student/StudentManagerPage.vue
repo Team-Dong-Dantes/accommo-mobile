@@ -10,21 +10,7 @@
     </div>
 
     <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load this manager</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          dense
-          color="primary"
-          label="Try again"
-          class="q-mt-sm q-px-md"
-          @click="load()"
-        />
-      </q-card>
+      <ErrorCard title="Couldn't load this manager" :detail="error" :retry="load" />
     </div>
 
     <div v-else class="stack">
@@ -105,6 +91,7 @@ import { campusDistanceLabel } from '@/utils/geo'
 import { listingMonogram } from '@/utils/listings'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 interface Property {
   id: string
@@ -242,17 +229,6 @@ useLiveData({
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 .head {

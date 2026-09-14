@@ -28,12 +28,7 @@
 
     <!-- Error -->
     <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card card--pad text-center">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load your profile</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-      </q-card>
+      <ErrorCard title="Couldn't load your profile" :detail="error" :retry="load" />
     </div>
 
     <!-- Profile Content -->
@@ -174,6 +169,7 @@ import EmptyState from '@/components/shared/EmptyState.vue'
 import ProfileCard from '@/components/shared/ProfileCard.vue'
 import ProfileBlock from '@/components/shared/ProfileBlock.vue'
 import EditButton from '@/components/shared/EditButton.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
 import {
   collegeOptions,
@@ -532,17 +528,8 @@ useLiveData({
 .card--pad {
   padding: 18px 14px;
 }
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
-}
+
+
 .doc-row {
   display: flex;
   align-items: center;

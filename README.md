@@ -23,7 +23,7 @@ Getting this wrong is how the Android app once shipped three-week-old code while
 browser testing looked fine.
 
 ```bash
-npm run build          # web SPA  -> dist/spa          (the Vercel deploy)
+npm run build          # web SPA  -> dist/spa          (browser testing only, not a deploy)
 npm run build:android  # Android  -> src-capacitor/www (bundled into the APK)
 ```
 
@@ -39,6 +39,34 @@ npm run build:android -- --skip-pkg
 
 Never hand-edit `src-capacitor/www`; Quasar owns it. Everything else under
 `src-capacitor/` is an ordinary Capacitor project.
+
+### Releases and the in-app update check
+
+The app is sideloaded from GitHub Releases, so nothing pushes updates the way a
+store would. `src/components/shared/UpdateGate.vue` closes that gap: on launch
+and on resume it reads the single `public.app_release` row and compares
+`latest_version_code` against its own Android `versionCode`.
+
+One integer runs the whole thing — the CI workflow run number. It is the release
+tag (`v<run>`), the `versionCode` (passed to Gradle as `ACCOMMO_VERSION_CODE`),
+and the `latest_version_code` that the release job PATCHes into Supabase. Local
+builds fall back to `versionCode 1`, so nothing changes when you build by hand.
+
+The announce step needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the
+repo's GitHub secrets. Without them it warns and skips, and installed apps are
+simply never told the release happened.
+
+`min_supported_version_code` is the separate, **manual** lever: raise it and
+every build below it shows a blocking wall instead of a dismissible prompt. CI
+never touches it. Use it when a shared-backend migration breaks old clients:
+
+```sql
+update public.app_release set min_supported_version_code = <run number> where id = 1;
+```
+
+The check fails open by design — a network error or a missing row renders
+nothing, so a broken check can never lock users out. Android still requires the
+user to tap Install; no app can install an APK silently.
 
 ### Capacitor configuration
 

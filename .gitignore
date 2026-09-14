@@ -5,6 +5,7 @@ node_modules
 # .env files
 .env
 .env.local
+.env.server
 .env.*.local
 
 # but allow .env.example to be tracked

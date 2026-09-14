@@ -29,13 +29,13 @@
 
       <div class="row row--wrap">
         <span class="row-label">Category</span>
-        <span class="chips">
+        <span class="m-chips">
           <button
             v-for="c in categories"
             :key="c.value"
             type="button"
-            class="chip"
-            :class="{ 'chip--on': form.category === c.value }"
+            class="m-chip"
+            :class="{ 'm-chip--on': form.category === c.value }"
             @click="form.category = c.value"
           >
             {{ c.label }}
@@ -282,30 +282,6 @@ onUnmounted(() => { chatFullscreen.value = false })
 
 /* Chips instead of a native <select>: four options fit on one screen, and
    picking one is a single tap rather than a system picker. */
-.chips {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.chip {
-  padding: 6px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.chip--on {
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-weight: 700;
-}
 
 .body {
   flex: 1 1 auto;
@@ -323,5 +299,11 @@ onUnmounted(() => { chatFullscreen.value = false })
 }
 .body:focus {
   outline: none;
+}
+.m-chips {
+  flex: 1 1 auto;
+}
+.m-chip--on {
+  font-weight: 700;
 }
 </style>

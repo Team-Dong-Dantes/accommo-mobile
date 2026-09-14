@@ -11,8 +11,8 @@
         <q-skeleton type="text" width="160px" height="12px" />
       </div>
       <div class="sk-tabs">
-        <q-skeleton type="rect" width="92px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="92px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
+        <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
       </div>
       <q-skeleton type="rect" height="120px" class="sk" />
     </div>
@@ -272,7 +272,6 @@ onMounted(async () => {
   box-shadow: var(--m-shadow);
 }
 .sk-tabs { display: flex; gap: 4px; margin: 0 var(--m-page-gutter); }
-.sk-tab { border-radius: 10px 10px 0 0; }
 .sec { display: flex; flex-direction: column; gap: 12px; }
 
 .verdict {

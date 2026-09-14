@@ -34,12 +34,7 @@
       </div>
 
       <div v-else-if="error" class="stack">
-        <q-card flat bordered class="card card--pad text-center">
-          <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-          <p class="err-title">Couldn't load your dashboard</p>
-          <p class="err-sub">{{ error }}</p>
-          <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-        </q-card>
+        <ErrorCard title="Couldn't load your dashboard" :detail="error" :retry="load" />
       </div>
 
       <div v-else class="stack">
@@ -252,7 +247,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso } from '@/utils/format'
 import { ago } from '@/utils/profile'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
-import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 interface AccommodationCard {
   id: string
@@ -644,8 +639,6 @@ function onPull(done: () => void) {
 
 .card { border-radius: var(--m-radius); background: var(--m-surface); overflow: hidden; }
 .card--pad { padding: 18px 14px; }
-.err-title { margin: 8px 0 0; color: var(--m-ink); font-size: 14px; font-weight: 700; }
-.err-sub { margin: 2px 0 0; color: var(--m-muted); font-size: 12px; }
 
 .greet { display: flex; align-items: baseline; gap: 5px; padding: 0 2px; flex-wrap: wrap; }
 .greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }

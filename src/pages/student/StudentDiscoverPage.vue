@@ -24,21 +24,7 @@
     </div>
 
     <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load listings</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          dense
-          color="primary"
-          label="Try again"
-          class="q-mt-sm q-px-md"
-          @click="load()"
-        />
-      </q-card>
+      <ErrorCard title="Couldn't load listings" :detail="error" :retry="load" />
     </div>
 
     <template v-else>
@@ -87,6 +73,7 @@
             :distance="item.distance"
             :vacancies="item.vacancies"
             :building-type="item.buildingType"
+            :gender-policy="item.genderPolicy"
             @open="selectPinById"
           />
         </div>
@@ -154,6 +141,7 @@
             :distance="item.distance"
             :vacancies="item.vacancies"
             :building-type="item.buildingType"
+            :gender-policy="item.genderPolicy"
             @open="open"
           />
         </div>
@@ -230,92 +218,73 @@
     </template>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->
-    <div v-if="!loading && !error" class="dock">
-      <button
-        type="button"
-        class="dock-btn"
-        :class="{ 'dock-btn--on': activeFilterCount > 0 }"
-        aria-label="Filters"
-        @click="filtersOpen = true"
-      >
-        <IconifyIcon icon="lucide:sliders-horizontal" width="17" />
-        <span v-if="activeFilterCount" class="dock-dot">{{ activeFilterCount }}</span>
-      </button>
-      <div class="dock-field">
-        <IconifyIcon icon="lucide:search" width="16" class="dock-icon" />
-        <input
-          v-model="query"
-          class="dock-input"
-          type="search"
-          placeholder="Search accommodations, rooms, managers"
-          aria-label="Search accommodations, rooms, managers"
-        />
-      </div>
-    </div>
+    <SearchDock
+      v-if="!loading && !error"
+      v-model="query"
+      :filter-count="activeFilterCount"
+      placeholder="Search accommodations, rooms, managers"
+      search-label="Search accommodations, rooms, managers"
+      above-nav
+      @open-filters="filtersOpen = true"
+    />
 
     <!-- Filters — apply to the room grid, the page's main content -->
-    <q-dialog v-model="filtersOpen" position="bottom">
-      <div class="sheet">
-        <div class="sheet-head">
-          <h2 class="sheet-title">Filters</h2>
-          <button type="button" class="sheet-clear" @click="resetFilters">Reset</button>
-        </div>
+    <BottomSheet
+      v-model="filtersOpen"
+      title="Filters"
+      :done-label="`Show ${filteredRooms.length} ${filteredRooms.length === 1 ? 'room' : 'rooms'}`"
+      @clear="resetFilters"
+    >
+      <label class="sheet-row">
+        <span class="sheet-label">Only available rooms</span>
+        <q-toggle v-model="filters.vacantOnly" color="primary" dense />
+      </label>
 
-        <label class="sheet-row">
-          <span class="sheet-label">Only available rooms</span>
-          <q-toggle v-model="filters.vacantOnly" color="primary" dense />
-        </label>
-
-        <div class="sheet-block">
-          <span class="sheet-label">Monthly rent up to {{ formatPeso(filters.maxRent) }}</span>
-          <q-slider
-            v-model="filters.maxRent"
-            :min="rentBounds.min"
-            :max="rentBounds.max"
-            :step="500"
-            color="primary"
-            class="q-px-sm"
-          />
-        </div>
-
-        <div class="sheet-block">
-          <span class="sheet-label">Room type</span>
-          <div class="chips">
-            <button
-              v-for="type in roomTypeOptions"
-              :key="type"
-              type="button"
-              class="chip"
-              :class="{ 'chip--on': filters.roomTypes.includes(type) }"
-              @click="toggle(filters.roomTypes, type)"
-            >
-              {{ roomTypeLabel(type) }}
-            </button>
-          </div>
-        </div>
-
-        <div class="sheet-block">
-          <span class="sheet-label">Must have</span>
-          <div class="chips">
-            <button
-              v-for="key in AMENITY_KEYS"
-              :key="key"
-              type="button"
-              class="chip"
-              :class="{ 'chip--on': filters.amenities.includes(key) }"
-              @click="toggle(filters.amenities, key)"
-            >
-              <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="13" />
-              {{ AMENITY_META[key]?.label }}
-            </button>
-          </div>
-        </div>
-
-        <button type="button" class="sheet-done" @click="filtersOpen = false">
-          Show {{ filteredRooms.length }} {{ filteredRooms.length === 1 ? 'room' : 'rooms' }}
-        </button>
+      <div class="sheet-block">
+        <span class="sheet-label">Monthly rent up to {{ formatPeso(filters.maxRent) }}</span>
+        <q-slider
+          v-model="filters.maxRent"
+          :min="rentBounds.min"
+          :max="rentBounds.max"
+          :step="500"
+          color="primary"
+          class="q-px-sm"
+        />
       </div>
-    </q-dialog>
+
+      <div class="sheet-block">
+        <span class="sheet-label">Room type</span>
+        <div class="m-chips">
+          <button
+            v-for="type in roomTypeOptions"
+            :key="type"
+            type="button"
+            class="m-chip"
+            :class="{ 'm-chip--on': filters.roomTypes.includes(type) }"
+            @click="toggle(filters.roomTypes, type)"
+          >
+            {{ roomTypeLabel(type) }}
+          </button>
+        </div>
+      </div>
+
+      <div class="sheet-block">
+        <span class="sheet-label">Must have</span>
+        <div class="m-chips">
+          <button
+            v-for="key in AMENITY_KEYS"
+            :key="key"
+            type="button"
+            class="m-chip"
+            :class="{ 'm-chip--on': filters.amenities.includes(key) }"
+            @click="toggle(filters.amenities, key)"
+          >
+            <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="13" />
+            {{ AMENITY_META[key]?.label }}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
   </q-page>
 </template>
 
@@ -331,9 +300,12 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, kmBetween, geolocationErrorMessage, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, buildingTypeLabel, listingMonogram } from '@/utils/listings'
+import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
 import { useNotify } from '@/utils/notify'
 import PropertyCard from '@/components/student/PropertyCard.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
+import SearchDock from '@/components/shared/SearchDock.vue'
+import BottomSheet from '@/components/shared/BottomSheet.vue'
 
 interface Property {
   id: string
@@ -345,6 +317,7 @@ interface Property {
   vacancies: number
   minRent: number | null
   buildingType: string
+  genderPolicy: string
   lat: number | null
   lng: number | null
   haystack: string
@@ -857,7 +830,7 @@ async function loadProperties(silent = false) {
   const { data, error: loadError } = await supabase
     .from('accommodations')
     .select(
-      'id,name,address,city,barangay,lat,lng,accommodation_type,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
+      'id,name,address,city,barangay,lat,lng,accommodation_type,gender_policy,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
     )
     .eq('status', 'accredited')
   if (loadError) throw loadError
@@ -899,6 +872,7 @@ async function loadProperties(silent = false) {
       vacancies: rows.filter((r) => r.status === 'available').length,
       minRent,
       buildingType: buildingTypeLabel(row.accommodation_type),
+      genderPolicy: genderPolicyLabel(row.gender_policy),
       lat: typeof row.lat === 'number' ? row.lat : null,
       lng: typeof row.lng === 'number' ? row.lng : null,
       haystack: `${name} ${address}`.toLowerCase(),
@@ -1365,194 +1339,11 @@ onUnmounted(() => {
   background: var(--m-surface);
   text-align: center;
 }
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
-}
 
 /* Docked search — same baseline and height as the quick-actions FAB, ending
    where it begins, so the two read as one band. */
-.dock {
-  position: fixed;
-  bottom: 68px;
-  left: var(--m-page-gutter);
-  right: var(--m-page-gutter);
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.dock-field {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
-  box-shadow: var(--m-shadow);
-}
-.dock-field:focus-within {
-  border-color: var(--m-primary);
-}
-.dock-icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  color: var(--m-muted);
-  pointer-events: none;
-}
-.dock-input {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13.5px;
-}
-.dock-input:focus {
-  outline: none;
-}
-.dock-input::placeholder {
-  color: var(--m-muted);
-  opacity: 0.85;
-}
-.dock-btn {
-  position: relative;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--m-surface) 62%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
-  box-shadow: var(--m-shadow);
-  color: var(--m-ink);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.dock-btn--on {
-  border-color: var(--m-primary);
-  color: var(--m-primary-dark);
-}
-.dock-dot {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  display: grid;
-  min-width: 17px;
-  height: 17px;
-  place-items: center;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-}
 
 /* Filter sheet */
-.sheet {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
-  background: var(--m-surface);
-}
-.sheet-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sheet-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.sheet-clear {
-  border: 0;
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-}
-.sheet-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.sheet-block {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.sheet-label {
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 600;
-}
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 36px;
-  padding: 0 13px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  -webkit-tap-highlight-color: transparent;
-}
-.chip--on {
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.sheet-done {
-  min-height: 48px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
 
 /* Sections */
 .sec {
@@ -1777,5 +1568,9 @@ onUnmounted(() => {
   color: var(--m-muted);
   font-size: 12.5px;
   text-align: center;
+}
+.m-chip {
+  min-height: 36px;
+  padding: 0 13px;
 }
 </style>

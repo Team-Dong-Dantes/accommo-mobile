@@ -11,20 +11,15 @@
         </div>
       </div>
       <div class="tabs">
-        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
-        <q-skeleton type="rect" width="72px" height="38px" class="sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
+        <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
       </div>
       <q-skeleton type="rect" height="90px" class="sk" />
     </div>
 
     <div v-else-if="error" class="stack">
-      <q-card flat bordered class="card">
-        <IconifyIcon icon="lucide:cloud-off" width="24" class="text-grey-6" />
-        <p class="err-title">Couldn't load this tenant</p>
-        <p class="err-sub">{{ error }}</p>
-        <q-btn unelevated rounded no-caps dense color="primary" label="Try again" class="q-mt-sm q-px-md" @click="load()" />
-      </q-card>
+      <ErrorCard title="Couldn't load this tenant" :detail="error" :retry="load" />
     </div>
 
     <div v-else class="stack">
@@ -56,8 +51,8 @@
             v-for="t in TABS"
             :key="t.key"
             type="button"
-            class="tab"
-            :class="{ 'tab--on': tab === t.key }"
+            class="m-tab"
+            :class="{ 'm-tab--on': tab === t.key }"
             @click="tab = t.key"
           >
             {{ t.label }}
@@ -65,7 +60,7 @@
         </div>
 
         <div class="panel">
-          <q-tab-panels v-model="tab" animated swipeable class="panels">
+          <q-tab-panels v-model="tab" animated swipeable class="m-panels">
             <q-tab-panel name="overview" class="sec">
             <!-- Decisions -->
             <div v-if="lease.status === 'pending'" class="decide-box">
@@ -332,10 +327,12 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { createNotification } from '@/boot/notify'
 import { useNotify } from '@/utils/notify'
+import { requirePin } from '@/utils/requirePin'
 import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import StarRating from '@/components/shared/StarRating.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -511,6 +508,7 @@ async function decide(next: 'active' | 'rejected') {
 }
 
 async function approveLeave() {
+  if (!(await requirePin({ confirm: true, title: 'Approve this leave request?', message: 'Their stay ends today and the room is freed.' }))) return
   if (deciding.value) return
   deciding.value = true
   try {
@@ -563,6 +561,7 @@ async function approveLeave() {
 }
 
 async function declineLeave() {
+  if (!(await requirePin({ title: 'Refuse this leave request?' }))) return
   const reason = decisionReason.value.trim()
   if (deciding.value || !reason) return
   deciding.value = true
@@ -592,6 +591,7 @@ function openPaymentDetail(p: (typeof payments.value)[number]) {
 }
 
 async function verifyPayment(paymentId: string) {
+  if (!(await requirePin({ confirm: true, title: 'Verify this payment?' }))) return
   if (verifying.value) return
   verifying.value = paymentId
   try {
@@ -623,6 +623,7 @@ const rejectingId = ref('')
 const rejectReason = ref('')
 
 async function rejectPayment(paymentId: string) {
+  if (!(await requirePin({ title: 'Reject this payment?' }))) return
   const reason = rejectReason.value.trim()
   if (verifying.value || !reason) return
   verifying.value = paymentId
@@ -718,6 +719,7 @@ useLiveData({
         ]
       : [],
 })
+
 </script>
 
 <style scoped>
@@ -734,9 +736,6 @@ useLiveData({
   gap: 12px;
   padding: 8px var(--m-page-gutter) 0;
 }
-.sk-tab {
-  border-radius: 10px 10px 0 0;
-}
 .sk {
   border-radius: var(--m-radius);
 }
@@ -745,17 +744,6 @@ useLiveData({
   border-radius: var(--m-radius);
   background: var(--m-surface);
   text-align: center;
-}
-.err-title {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.err-sub {
-  margin: 2px 0 0;
-  color: var(--m-muted);
-  font-size: 12px;
 }
 
 .tabbed {
@@ -895,25 +883,6 @@ useLiveData({
      and leave a hairline gap under the active tab. */
   margin: 14px var(--m-page-gutter) -2px;
 }
-.tab {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--m-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.tab--on {
-  background: var(--m-surface);
-  color: var(--m-primary-dark);
-}
 /* Its own card, distinct from .body-card above — not a shared surface. The
    active tab's background matches this panel's, so the -1px overlap above
    fuses them with no visible seam, while unselected tabs still show the
@@ -931,9 +900,6 @@ useLiveData({
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
 }
-.panels { background: transparent; }
-.panels :deep(.q-tab-panel) { padding: 0; }
-
 /* Same treatment as accommodation detail's status-box — its own bordered
    card for anything decision-related, not a bare row of buttons. */
 .decide-box {
