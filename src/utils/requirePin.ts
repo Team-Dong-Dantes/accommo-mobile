@@ -87,6 +87,13 @@ export function lockApp() {
 
 /** Called by PinGate when the user succeeds or backs out. */
 export function settlePin(ok: boolean) {
+  // A lock prompt IS the cover over the app — there is nothing else hiding it.
+  // So it may only be cleared by success: a correct PIN, or a completed reset.
+  // The guard lives here rather than in each caller because every path routes
+  // through this one function, and a caller that forgot ("Forgot your PIN?"
+  // used to call settlePin(false) and navigate) silently unlocked the app.
+  if (!ok && prompt.value?.mode === 'lock') return
+
   prompt.value = null
   const resolve = settle
   settle = null

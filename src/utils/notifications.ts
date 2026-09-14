@@ -47,13 +47,13 @@ const ROUTES = new Set([
   // there. Missing from this set, a link silently degrades to the BY_TYPE
   // fallback below and drops the reader somewhere unrelated.
   '/manager/profile/history',
-  '/manager/profile/policies',
+  '/manager/settings/policies',
   '/student/home',
   '/student/discover',
   '/student/messages',
   '/student/profile',
   '/student/profile/history',
-  '/student/profile/policies',
+  '/student/settings/policies',
   '/student/notifications',
   '/student/support',
   '/student/concerns',
@@ -73,7 +73,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/manager/osas',
     concern: '/manager/support',
     review: '/manager/profile',
-    policy: '/manager/profile/policies',
+    policy: '/manager/settings/policies',
   },
   student: {
     verification: '/student/support',
@@ -85,7 +85,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/student/support',
     concern: '/student/concerns',
     review: '/student/profile',
-    policy: '/student/profile/policies',
+    policy: '/student/settings/policies',
   },
 };
 

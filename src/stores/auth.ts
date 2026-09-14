@@ -526,14 +526,15 @@ export const useAuthStore = defineStore('auth', {
      * came from the login screen or the register screen.
      */
     async markRegistered(userId: string) {
-      // Terms acceptance is stamped here rather than at each call site: this is
+      // Both consents are stamped here rather than at each call site: this is
       // the one function every registration path (student/manager, email/Google)
       // ends with, and the register screens block step 1 until the box is
-      // ticked, so reaching this point means consent was given.
+      // ticked — both of them, since RA 10173 makes consent to data processing
+      // its own decision — so reaching this point means both were given.
       const now = new Date().toISOString();
       const { error } = await supabase
         .from('users')
-        .update({ registered_at: now, terms_accepted_at: now })
+        .update({ registered_at: now, terms_accepted_at: now, privacy_accepted_at: now })
         .eq('id', userId);
       if (error) throw sanitizeError(error);
     },

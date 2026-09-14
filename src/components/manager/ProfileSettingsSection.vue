@@ -58,6 +58,7 @@
 
     <div class="settings-group">
       <p class="settings-group-label">About</p>
+      <SettingsRow icon="lucide:scroll-text" label="Policies &amp; guidelines" @click="go('/manager/settings/policies')" />
       <SettingsRow icon="lucide:info" label="App version">
         <template #trailing>
           <span class="settings-static">{{ appVersion }}</span>
@@ -84,7 +85,7 @@ import { requirePin } from '@/utils/requirePin'
 import PinSetupDialog from '@/components/shared/PinSetupDialog.vue'
 import { usePinStore } from '@/stores/pin'
 import { getStoredTheme, setStoredTheme } from '@/utils/theme'
-import { APP_VERSION } from '@/utils/config'
+import { APP_VERSION, getAppVersion } from '@/utils/config'
 import SettingsRow from '@/components/shared/SettingsRow.vue'
 import ChangePasswordDialog from '@/components/shared/ChangePasswordDialog.vue'
 import ChangeEmailDialog from '@/components/shared/ChangeEmailDialog.vue'
@@ -98,7 +99,7 @@ const props = defineProps<{
 const router = useRouter()
 const notify = useNotify()
 
-const appVersion = APP_VERSION
+const appVersion = ref(APP_VERSION)
 const passwordOpen = ref(false)
 const emailOpen = ref(false)
 const googleLinked = ref(false)
@@ -127,6 +128,8 @@ async function signOut() {
 }
 
 onMounted(async () => {
+  // The bundled constant is only a fallback; show what is actually installed.
+  appVersion.value = await getAppVersion()
   const { data } = await authUser()
   const identities = data.user?.identities ?? []
   googleLinked.value = identities.some((i) => i.provider === 'google')

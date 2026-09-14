@@ -38,11 +38,11 @@ const studentRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/student/StudentHistoryPage.vue'),
   },
   {
-    path: '/student/profile/settings',
+    path: '/student/settings',
     component: () => import('@/pages/student/StudentSettingsPage.vue'),
   },
   {
-    path: '/student/profile/policies',
+    path: '/student/settings/policies',
     component: () => import('@/pages/student/StudentPoliciesPage.vue'),
   },
   {

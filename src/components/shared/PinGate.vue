@@ -1,20 +1,28 @@
 <template>
   <!-- Mounted once in MainLayout. One component, three shapes: a floating card
        centred over a dimmed backdrop for an action, the same card asking in
-       words when the account has no PIN to ask for, and the same card again on
-       an opaque full-screen ground for the resume lock — the lock has no way
-       out, which is the point of it. -->
-  <div v-if="prompt" class="gate" :class="{ 'gate--lock': prompt.mode === 'lock' }">
-    <div v-if="prompt.mode !== 'lock'" class="gate-backdrop" @click="cancel" />
+       words when the account has no PIN to ask for, and — for the resume lock —
+       a full screen built to mirror the login page, because that is what it is:
+       a sign-back-in moment. The lock has no way out but the PIN or a completed
+       reset, which is the point of it. -->
+  <div v-if="prompt" class="gate" :class="{ 'gate--lock': isLock }">
+    <div v-if="!isLock" class="gate-backdrop" @click="cancel" />
 
-    <div class="gate-card" :class="{ 'gate-card--lock': prompt.mode === 'lock' }">
+    <!-- Same hero the auth screens use, so the lock reads as the login screen. -->
+    <div v-if="isLock" class="lock-hero" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
+      <div class="lock-hero-overlay">
+        <span class="lock-logo">accommo</span>
+      </div>
+    </div>
+
+    <div class="gate-card" :class="{ 'gate-card--lock': isLock }">
       <div class="gate-head">
-        <span class="gate-icon">
+        <span v-if="!isLock" class="gate-icon">
           <IconifyIcon :icon="prompt.mode === 'confirm' ? 'lucide:help-circle' : 'lucide:lock'" width="18" />
         </span>
         <h3 class="gate-title">{{ prompt.title }}</h3>
+        <p v-if="prompt.message" class="gate-message">{{ prompt.message }}</p>
       </div>
-      <p v-if="prompt.message" class="gate-message">{{ prompt.message }}</p>
 
       <!-- The boxes are decoration over ONE real input: a single field keeps the
            on-screen keyboard, paste and backspace behaving normally, which six
@@ -47,8 +55,16 @@
 
       <p v-if="error" class="gate-error">{{ error }}</p>
 
-      <div class="gate-actions">
-        <button v-if="prompt.mode !== 'lock'" type="button" class="gate-ghost" :disabled="busy" @click="cancel">
+      <!-- On the lock, the only way out is the reset — a text link in the same
+           place the login screen keeps "Forgot password?". -->
+      <div v-if="isLock" class="lock-actions">
+        <button type="button" class="lock-forgot" :disabled="busy" @click="onForgot">
+          Forgot your PIN?
+        </button>
+      </div>
+
+      <div v-else class="gate-actions">
+        <button type="button" class="gate-ghost" :disabled="busy" @click="cancel">
           Cancel
         </button>
         <button v-if="prompt.mode === 'confirm'" type="button" class="gate-primary" @click="settlePin(true)">
@@ -59,15 +75,30 @@
         </button>
       </div>
     </div>
+
+    <!-- Resetting from the lock happens in place. The PIN and the account
+         password are separate layers, so forgetting the PIN must not cost the
+         user their session: PinSetupDialog's 'forgot' mode proves ownership
+         through the mailbox instead, and never asks for the password. -->
+    <PinSetupDialog
+      v-model="resetOpen"
+      mode="forgot"
+      :email="email"
+      class="pin-reset-over-lock"
+      @done="onResetDone"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { usePinStore } from '@/stores/pin'
 import { prompt, settlePin } from '@/utils/requirePin'
 import { errorMessage } from '@/utils/errors'
+import { EXTERNAL_URLS } from '@/utils/config'
+import { authUser } from '@/utils/supabase'
+import PinSetupDialog from '@/components/shared/PinSetupDialog.vue'
 
 const LENGTH = 6
 
@@ -79,6 +110,10 @@ const error = ref('')
 const busy = ref(false)
 const shake = ref(false)
 const field = ref<HTMLInputElement | null>(null)
+const resetOpen = ref(false)
+const email = ref('')
+
+const isLock = computed(() => prompt.value?.mode === 'lock')
 
 watch(prompt, async (next) => {
   if (!next) return
@@ -119,8 +154,31 @@ async function submit() {
   }
 }
 
+/**
+ * From the lock there is nowhere to navigate to — Settings is behind the very
+ * cover being shown — so the reset opens here. From an action prompt the user is
+ * already inside and unlocked, so the shell routes them to Settings as before.
+ */
+async function onForgot() {
+  if (!isLock.value) {
+    emit('forgot')
+    return
+  }
+  const { data } = await authUser()
+  email.value = data?.user?.email ?? ''
+  resetOpen.value = true
+}
+
+function onResetDone() {
+  resetOpen.value = false
+  // They proved the mailbox is theirs and set a new PIN — a stronger claim than
+  // typing the old one — so the cover comes off. PinSetupDialog has already
+  // updated the store, so there is nothing to re-fetch.
+  settlePin(true)
+}
+
 function cancel() {
-  if (busy.value || prompt.value?.mode === 'lock') return
+  if (busy.value || isLock.value) return
   settlePin(false)
 }
 </script>
@@ -142,8 +200,12 @@ function cancel() {
   place-items: center;
   padding: var(--m-page-gutter);
 }
+/* The lock is a screen, not a card: hero photo on top, sheet below, exactly the
+   shape of the login page it stands in for. */
 .gate--lock {
-  align-items: center;
+  display: block;
+  padding: 0;
+  overflow-y: auto;
   background: var(--m-bg);
 }
 .gate-backdrop {
@@ -151,6 +213,29 @@ function cancel() {
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
 }
+
+.lock-hero {
+  position: relative;
+  height: 150px;
+  background-image: var(--hero-bg);
+  background-position: center;
+  background-size: cover;
+}
+.lock-hero-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.65));
+}
+.lock-logo {
+  color: #fff;
+  font-family: var(--m-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
 .gate-card {
   position: relative;
   display: flex;
@@ -166,18 +251,29 @@ function cancel() {
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
   text-align: center;
 }
-/* The resume lock owns the whole screen, so its card needs no shadow to lift
-   off a backdrop that is not there. */
+/* Same sheet the login page uses: full width, 28px top corners, left-aligned
+   copy, filling the screen below the hero. */
 .gate-card--lock {
+  max-width: none;
+  min-height: calc(100vh - 150px);
+  align-items: stretch;
+  gap: 0;
+  padding: 24px;
   border: 0;
-  background: transparent;
+  border-radius: 28px 28px 0 0;
   box-shadow: none;
+  text-align: left;
 }
+
 .gate-head {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+}
+.gate-card--lock .gate-head {
+  align-items: stretch;
+  gap: 0;
 }
 .gate-icon {
   display: grid;
@@ -196,11 +292,21 @@ function cancel() {
   font-size: 16px;
   font-weight: 700;
 }
+/* The login screen's welcome-title scale. */
+.gate-card--lock .gate-title {
+  font-size: 34px;
+  line-height: 1.1;
+}
 .gate-message {
   margin: 0;
   color: var(--m-muted);
   font-size: 12.5px;
 }
+.gate-card--lock .gate-message {
+  margin-top: 6px;
+  font-size: 14px;
+}
+
 /* Six boxes rather than bare dots: the familiar PIN-entry shape, so the number
    of digits expected is obvious before anything is typed. */
 .gate-cells {
@@ -210,6 +316,10 @@ function cancel() {
   justify-content: center;
   gap: 8px;
   padding: 14px 0 6px;
+}
+.gate-card--lock .gate-cells {
+  justify-content: flex-start;
+  padding-top: 28px;
 }
 .gate-cells--bad {
   animation: gate-shake 320ms ease-in-out;
@@ -226,6 +336,10 @@ function cancel() {
   border-radius: var(--m-radius-sm);
   background: var(--m-bg);
   transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+.gate-card--lock .gate-cell {
+  max-width: none;
+  height: 54px;
 }
 .gate-cell--filled {
   border-color: var(--m-primary);
@@ -259,6 +373,32 @@ function cancel() {
   font-size: 12.5px;
   text-align: center;
 }
+.gate-card--lock .gate-error {
+  margin-top: 10px;
+  text-align: left;
+}
+
+/* Where the login screen keeps "Forgot password?". */
+.lock-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.lock-forgot {
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: var(--m-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+.lock-forgot:disabled {
+  opacity: 0.6;
+}
+
 .gate-actions {
   display: flex;
   justify-content: center;
@@ -297,5 +437,15 @@ function cancel() {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-6px); }
   75% { transform: translateX(6px); }
+}
+</style>
+
+<style>
+/* QDialog portals to <body>, so this cannot be scoped. The gate sits at 8000;
+   without this the reset sheet would open UNDERNEATH the very lock it is meant
+   to clear — the same trap documented on `.gate` above. Still below Notify
+   (9500) so its error toasts land on top. */
+.pin-reset-over-lock {
+  z-index: 8500;
 }
 </style>
