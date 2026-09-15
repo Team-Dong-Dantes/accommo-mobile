@@ -285,7 +285,7 @@
         </label>
         <label class="pay-field">
           <span class="pay-label">Method</span>
-          <select v-model="paymentForm.method" class="pay-input">
+          <select v-model="paymentForm.method" class="pay-input app-select">
             <option value="cash">Cash</option>
             <option value="gcash">GCash</option>
             <option value="maya">Maya</option>
@@ -1402,7 +1402,7 @@ async function rejectPayment(paymentId: string) {
   padding: 0 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
+  background-color: var(--m-surface);
   color: var(--m-ink);
   font: inherit;
   font-size: 14px;

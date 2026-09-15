@@ -160,3 +160,36 @@ describe('/profile shortcut', () => {
     expect(resolveDestination(student({ path: '/profile', role: 'manager' })).to).toBe('/manager/profile')
   })
 })
+
+// The register flow's first screen sends its back arrow to /register/role, so a
+// misclicked role is recoverable. That target has to resolve for everyone who
+// can be standing on that screen — including the states whose guard rules would
+// otherwise divert them somewhere unhelpful.
+describe('escaping back to the role fork', () => {
+  const allowed = { to: true, signOut: false }
+
+  it('lets a signed-out visitor reach the fork', () => {
+    expect(
+      resolveDestination(student({ path: '/register/role', authenticated: false, role: null })),
+    ).toEqual(allowed)
+  })
+
+  it('lets a Google account that never finished registering reach the fork', () => {
+    expect(resolveDestination(student({ path: '/register/role', registered: false }))).toEqual(allowed)
+  })
+
+  // The case that ruled out sending them to '/': mid e-mail sign-up the account
+  // exists but the code has not been typed, and every non-register path turns
+  // into /login?verifyEmail=true.
+  it('lets an unverified mid-signup account reach the fork', () => {
+    expect(
+      resolveDestination(student({ path: '/register/role', registered: false, emailVerified: false })),
+    ).toEqual(allowed)
+  })
+
+  it('confirms / would NOT have worked for that same account', () => {
+    expect(
+      resolveDestination(student({ path: '/', registered: false, emailVerified: false })).to,
+    ).toBe('/login?verifyEmail=true')
+  })
+})

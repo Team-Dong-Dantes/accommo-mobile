@@ -1766,6 +1766,7 @@ export type Database = {
         Returns: boolean
       }
       clear_pin: { Args: { p_current: string }; Returns: boolean }
+      complete_registration: { Args: never; Returns: undefined }
       confirm_email_ownership: { Args: never; Returns: boolean }
       current_is_superadmin: { Args: never; Returns: boolean }
       current_qr_token: {

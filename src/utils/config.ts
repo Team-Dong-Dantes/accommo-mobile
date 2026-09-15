@@ -6,6 +6,26 @@ export const EXTERNAL_URLS = {
   ISU_BACKGROUND: 'https://isu.edu.ph/wp-content/uploads/2024/11/ISU-Aerial.jpg',
 } as const;
 
+/**
+ * The only e-mail domains Accommo accepts, for every way an account can be made.
+ *
+ * This list is the UI's copy: it fills the register screen's domain dropdown and
+ * explains a rejected Google account. The enforcing copy lives in
+ * `handle_auth_user_sync()` on `auth.users`
+ * (supabase/migrations/20260915000000_restrict_email_domains.sql), because a
+ * client-side list is a suggestion — a Google Workspace address on any domain
+ * could otherwise connect. Change both together.
+ */
+export const ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'isu.edu.ph'] as const;
+
+/** Reads as a sentence: "@gmail.com or @isu.edu.ph". */
+export const ALLOWED_EMAIL_DOMAINS_TEXT = ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ');
+
+export function isAllowedEmailDomain(email: string | null | undefined): boolean {
+  const domain = (email ?? '').split('@')[1]?.toLowerCase();
+  return !!domain && (ALLOWED_EMAIL_DOMAINS as readonly string[]).includes(domain);
+}
+
 // Browser fallback only. On a device the installed versionName is the truth —
 // CI stamps it with the release's run number (see .github/workflows/build.yml),
 // which a constant baked into the bundle cannot know. Kept as a constant rather

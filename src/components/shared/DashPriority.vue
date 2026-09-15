@@ -8,10 +8,8 @@
       <span v-if="task?.when" class="pri-when">{{ task.when }}</span>
     </div>
 
-    <p class="pri-label">{{ task ? task.label : 'Nothing needs you' }}</p>
-    <p class="pri-hint">
-      {{ task ? task.hint : 'Rent, manager replies and OSAS updates land here first' }}
-    </p>
+    <p class="pri-label">{{ task ? task.label : emptyLabel }}</p>
+    <p class="pri-hint">{{ task ? task.hint : emptyHint }}</p>
 
     <button
       v-if="task && task.action"
@@ -33,7 +31,15 @@
 import { Icon as IconifyIcon } from '@iconify/vue'
 import type { Task } from './dashboard'
 
-defineProps<{ task: Task | null }>()
+// The all-clear copy is per-screen: a student is told where rent and OSAS
+// updates will land, a manager where applications and concerns will.
+withDefaults(
+  defineProps<{ task: Task | null; emptyLabel?: string; emptyHint?: string }>(),
+  {
+    emptyLabel: 'Nothing needs you',
+    emptyHint: 'Rent, manager replies and OSAS updates land here first',
+  },
+)
 const emit = defineEmits<{ go: [route: string] }>()
 </script>
 

@@ -15,8 +15,51 @@ export function formatPeso(amount: number): string {
   return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+/**
+ * Capitalises the first letter of each part of a name, leaving the rest of each
+ * word exactly as typed.
+ *
+ * Fixing the input beats refusing it: someone typing "juan dela cruz" in a hurry
+ * gets "Juan Dela Cruz" rather than a red field telling them to try again.
+ *
+ * It fires after a space, an apostrophe or a hyphen as well as at the start, so
+ * "o'brien" and "mary-jane" come out right. Nothing is lower-cased, which is
+ * what keeps "McDonald" and "DeGuzman" intact — only a leading lowercase letter
+ * is ever touched.
+ */
+export function capitalizeName(value: string): string {
+  return (value ?? '').replace(
+    /(^|[\s'-])(\p{Ll})/gu,
+    (_match, separator: string, letter: string) => separator + letter.toUpperCase(),
+  );
+}
+
+/** Jr., Sr. and the generational numerals, in the forms people actually type. */
+const NAME_SUFFIXES = /^(jr|sr|i{1,3}|iv|v|vi{1,3}|ix|x)\.?$/i;
+
+/**
+ * First letter of the given name, first letter of the surname.
+ *
+ * The parts it must ignore are why this is not simply first word and last word.
+ * A middle initial ("D.") is not a name, and a generational suffix belongs to
+ * the surname rather than being one — so "Juan D. Dela Cruz Jr." is JD, not JJ,
+ * which is what taking the literal last word produced. That was already wrong
+ * for anyone who typed a suffix into their profile name; the register screen's
+ * extension field would have made it the normal case.
+ */
 export function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    // A lone letter, with or without a period, is a middle initial.
+    .filter((p) => !/^\p{L}\.?$/u.test(p));
+
+  // Suffixes only count as such at the end; someone surnamed "Ivy" keeps it.
+  while (parts.length > 1 && NAME_SUFFIXES.test(parts[parts.length - 1] ?? '')) {
+    parts.pop();
+  }
+
   if (parts.length === 0) return '?';
   if (parts.length === 1) return (parts[0] ?? '').slice(0, 2).toUpperCase();
   return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
@@ -40,6 +83,58 @@ export function normalizePhPhone(raw: string | number | null | undefined): strin
 // Returns just the 10-digit national number (no +63, no leading 0).
 export function phNationalDigits(raw: string | number | null | undefined): string {
   return normalizePhPhone(raw).replace(/^\+63/, '')
+}
+
+/**
+ * An ISU student ID: a two-digit entry year, a hyphen, then the student number.
+ *
+ * The number's length genuinely varies, so this accepts four to six digits.
+ * Everything that has ever been typed into the old free-text box and should not
+ * have been is refused by it — the table currently holds "Lol",
+ * "TEST-LICHTZY-0", "2024-00123", a bare twelve-digit number and an empty
+ * string, none of which are a student ID.
+ */
+export function isStudentId(raw: string | null | undefined): boolean {
+  return /^\d{2}-\d{4,6}$/.test((raw ?? '').trim())
+}
+
+/**
+ * Joins the two halves the register screen collects.
+ *
+ * Returns '' when either is missing, which matters: the caller stores
+ * `studentId || null`, and a second empty string would collide with the one
+ * already in the table under student_profiles_student_id_key. Skipping has to
+ * produce NULL, not ''.
+ */
+export function composeStudentId(year: string, number: string): string {
+  const y = (year ?? '').trim()
+  const n = (number ?? '').trim()
+  return y && n ? `${y}-${n}` : ''
+}
+
+/**
+ * Whether a value is a usable Philippine mobile number, in any of the shapes
+ * normalizePhPhone accepts.
+ *
+ * One function rather than a set of rules on the register screen, because that
+ * screen was the only place doing any checking: the profile editors handed
+ * whatever was typed straight to normalizePhPhone, which turns an empty field
+ * into the string "+63" and writes it to a NOT NULL column.
+ *
+ * The ten-identical-digits clause is aimed at real data — `ensureUserRow` fills
+ * the column with +639000000000 when the row has to exist before the phone
+ * screen is answered, and that placeholder should never come back through a form
+ * as though someone had entered it.
+ *
+ * Deliberately NOT a list of NTC-assigned 9XX prefixes: those change as new
+ * blocks are issued, and a stale list turns away a student holding a real SIM,
+ * which is a worse failure than accepting an unassigned prefix.
+ */
+export function isPhMobile(raw: string | number | null | undefined): boolean {
+  const digits = phNationalDigits(raw)
+  if (!/^9\d{9}$/.test(digits)) return false
+  if (/^(\d)\1{9}$/.test(digits)) return false
+  return digits !== '9000000000'
 }
 
 // Some tables (messages.sent_at, conversations.last_time, etc.) are

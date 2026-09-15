@@ -71,10 +71,11 @@ import { formatPeso, formatMonth, initialsOf } from '@/utils/format'
 import { ago } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-import DashPriority from '@/components/student/DashPriority.vue'
-import DashTodoList from '@/components/student/DashTodoList.vue'
+import DashPriority from '@/components/shared/DashPriority.vue'
+import DashTodoList from '@/components/shared/DashTodoList.vue'
 import DashStayCard from '@/components/student/DashStayCard.vue'
-import type { Manager, Stay, Task } from '@/components/student/dashboard'
+import type { Task } from '@/components/shared/dashboard'
+import type { Manager, Stay } from '@/components/student/dashboard'
 
 interface NextPayment {
   amount: number

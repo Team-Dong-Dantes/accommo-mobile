@@ -1,6 +1,7 @@
 import { defineBoot } from '#q-app'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
+import { Browser } from '@capacitor/browser'
 import { supabase } from '@/utils/supabase'
 
 // Handles the OAuth return via the app's custom scheme:
@@ -52,6 +53,17 @@ export default defineBoot(() => {
     const m = /^com\.accommo\.app:\/\/auth\/callback([#?].*)$/.exec(url)
     if (!m || !m[1]) return
     void (async () => {
+      // Dismiss the Custom Tab the sign-in was handed to. Android has already
+      // brought the app back to the front by this point, so the tab is sitting
+      // behind it — without this it is still there, showing a spent callback
+      // URL, the next time they swipe through their apps.
+      try {
+        await Browser.close()
+      } catch {
+        // Nothing was open: the e-mail path never opens one, and on the web
+        // there is no plugin behind this at all.
+      }
+
       const ok = await applyOAuthTokens(m[1]!)
       if (ok) window.location.reload()
     })()

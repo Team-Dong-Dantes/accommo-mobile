@@ -8,10 +8,16 @@
   <div v-if="prompt" class="gate" :class="{ 'gate--lock': isLock }">
     <div v-if="!isLock" class="gate-backdrop" @click="cancel" />
 
-    <!-- Same hero the auth screens use, so the lock reads as the login screen. -->
+    <!-- AuthLayout's hero, rebuilt here rather than reused: the lock is mounted
+         in MainLayout, which is the other layout entirely, so it cannot render
+         into AuthLayout. Every number below is copied from `.hero-section` /
+         `.hero-content` so the two screens line up pixel for pixel. -->
     <div v-if="isLock" class="lock-hero" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
       <div class="lock-hero-overlay">
-        <span class="lock-logo">accommo</span>
+        <div class="lock-hero-content">
+          <div class="lock-logo">accommo</div>
+          <div class="lock-tagline">Verified boarding houses · ISU Echague</div>
+        </div>
       </div>
     </div>
 
@@ -24,34 +30,20 @@
         <p v-if="prompt.message" class="gate-message">{{ prompt.message }}</p>
       </div>
 
-      <!-- The boxes are decoration over ONE real input: a single field keeps the
-           on-screen keyboard, paste and backspace behaving normally, which six
-           separate inputs famously do not. -->
-      <label v-if="prompt.mode !== 'confirm'" class="gate-cells" :class="{ 'gate-cells--bad': shake }">
-        <span
-          v-for="i in LENGTH"
-          :key="i"
-          class="gate-cell"
-          :class="{
-            'gate-cell--filled': code.length >= i,
-            'gate-cell--active': code.length === i - 1 && !busy,
-          }"
-        >
-          <span v-if="code.length >= i" class="gate-cell-dot" />
-        </span>
-        <input
-          ref="field"
-          v-model="code"
-          class="gate-input"
-          type="password"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          :maxlength="LENGTH"
-          :disabled="busy"
-          aria-label="PIN"
-          @input="onInput"
-        />
-      </label>
+      <!-- Shared with the register form's PIN screen, so the lock and the place
+           the PIN is chosen cannot drift into two different ideas of what
+           entering one looks like. PinCells owns the boxes, the hidden input and
+           the digits-only rule; what a full PIN means stays here. -->
+      <PinCells
+        v-if="prompt.mode !== 'confirm'"
+        ref="field"
+        v-model="code"
+        class="gate-cells"
+        :length="LENGTH"
+        :disabled="busy"
+        :invalid="shake"
+        :large="isLock"
+      />
 
       <p v-if="error" class="gate-error">{{ error }}</p>
 
@@ -99,6 +91,7 @@ import { errorMessage } from '@/utils/errors'
 import { EXTERNAL_URLS } from '@/utils/config'
 import { authUser } from '@/utils/supabase'
 import PinSetupDialog from '@/components/shared/PinSetupDialog.vue'
+import PinCells from '@/components/shared/PinCells.vue'
 
 const LENGTH = 6
 
@@ -109,7 +102,7 @@ const code = ref('')
 const error = ref('')
 const busy = ref(false)
 const shake = ref(false)
-const field = ref<HTMLInputElement | null>(null)
+const field = ref<InstanceType<typeof PinCells> | null>(null)
 const resetOpen = ref(false)
 const email = ref('')
 
@@ -123,12 +116,12 @@ watch(prompt, async (next) => {
   field.value?.focus()
 })
 
-function onInput() {
-  // Digits only, however the characters arrived (keyboard, paste, autofill).
-  code.value = code.value.replace(/\D/g, '').slice(0, LENGTH)
+// PinCells keeps the value to digits and to LENGTH, so all that is left here is
+// what a complete PIN *means*: clear the last error, and verify once it is full.
+watch(code, (value) => {
   error.value = ''
-  if (code.value.length === LENGTH) void submit()
-}
+  if (value.length === LENGTH) void submit()
+})
 
 async function submit() {
   if (busy.value) return
@@ -201,11 +194,16 @@ function cancel() {
   padding: var(--m-page-gutter);
 }
 /* The lock is a screen, not a card: hero photo on top, sheet below, exactly the
-   shape of the login page it stands in for. */
+   shape of the login page it stands in for. This element plays AuthLayout's
+   `.content-wrapper` — it scrolls while the hero behind it stays fixed — and
+   carries LoginPage's own 150px top inset. */
 .gate--lock {
   display: block;
-  padding: 0;
+  padding: 150px 0 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   background: var(--m-bg);
 }
 .gate-backdrop {
@@ -214,26 +212,62 @@ function cancel() {
   background: rgba(15, 23, 42, 0.45);
 }
 
+/* Copied from AuthLayout's `.hero-section` in its login state: the same crop of
+   the same photo under the same teal wash, so unlocking and signing in are the
+   same picture. Fixed, so the sheet scrolls over it exactly as login's does. */
 .lock-hero {
-  position: relative;
-  height: 150px;
+  position: fixed;
+  top: -80px;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 400px;
+  /* Brand ground under the photo: it is fetched from isu.edu.ph, and a lock
+     screen that cannot be dismissed is the worst place for a blank frame. */
+  background-color: var(--m-primary-dark);
   background-image: var(--hero-bg);
-  background-position: center;
+  background-position: 46% center;
   background-size: cover;
+  pointer-events: none;
 }
+/* Copied from AuthLayout's `.hero-overlay` in its login state. The two must
+   stay identical — that is the whole premise of this screen. */
 .lock-hero-overlay {
+  position: relative;
+  height: 100%;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 44, 37, 0.74) 0%,
+      rgba(0, 44, 37, 0.52) 34%,
+      rgba(0, 44, 37, 0.34) 62%,
+      rgba(0, 44, 37, 0.26) 100%
+    ),
+    linear-gradient(135deg, rgba(0, 150, 136, 0.52), rgba(0, 121, 107, 0.4));
+}
+.lock-hero-content {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.65));
+  top: 120px;
+  left: 0;
+  width: 100%;
+  padding: 0 24px;
+  color: #fff;
 }
 .lock-logo {
-  color: #fff;
-  font-family: var(--m-font-display);
-  font-size: 26px;
+  /* No display font here: AuthLayout's wordmark is a div, so it rides the
+     body face. Setting one made the lock's logo a different typeface. */
+  font-size: 38px;
   font-weight: 700;
-  letter-spacing: -0.5px;
+  line-height: 1;
+}
+.lock-tagline {
+  font-size: 14px;
+  opacity: 0.95;
+}
+
+@media (max-height: 600px) {
+  .lock-hero { height: 300px; }
+  .lock-hero-content { top: 60px; }
 }
 
 .gate-card {
@@ -251,11 +285,15 @@ function cancel() {
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
   text-align: center;
 }
-/* Same sheet the login page uses: full width, 28px top corners, left-aligned
-   copy, filling the screen below the hero. */
+/* LoginPage's `.login-container`, rule for rule: full width, 28px top corners,
+   24px padding, left-aligned copy, filling the screen below the hero. (dvh
+   rather than vh — the address bar makes vh overshoot on a phone, which is the
+   one place this screen ever appears.) */
 .gate-card--lock {
+  z-index: 10;
   max-width: none;
   min-height: calc(100vh - 150px);
+  min-height: calc(100dvh - 150px);
   align-items: stretch;
   gap: 0;
   padding: 24px;
@@ -295,7 +333,6 @@ function cancel() {
 /* The login screen's welcome-title scale. */
 .gate-card--lock .gate-title {
   font-size: 34px;
-  line-height: 1.1;
 }
 .gate-message {
   margin: 0;
@@ -307,66 +344,18 @@ function cancel() {
   font-size: 14px;
 }
 
-/* Six boxes rather than bare dots: the familiar PIN-entry shape, so the number
-   of digits expected is obvious before anything is typed. */
+/* Only the spacing around the shared PinCells row — the six boxes, the hidden
+   input and the shake all live in that component now. On the lock the row is
+   left-aligned and sits 24px below the subtitle, the same air login leaves above
+   its first field. */
 .gate-cells {
-  position: relative;
-  display: flex;
-  width: 100%;
-  justify-content: center;
-  gap: 8px;
   padding: 14px 0 6px;
 }
 .gate-card--lock .gate-cells {
   justify-content: flex-start;
-  padding-top: 28px;
+  padding-top: 24px;
 }
-.gate-cells--bad {
-  animation: gate-shake 320ms ease-in-out;
-}
-.gate-cell {
-  display: grid;
-  /* Shrinks rather than overflowing a 320px screen. */
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 44px;
-  height: 48px;
-  place-items: center;
-  border: 1.5px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-bg);
-  transition: border-color 120ms ease-out, background-color 120ms ease-out;
-}
-.gate-card--lock .gate-cell {
-  max-width: none;
-  height: 54px;
-}
-.gate-cell--filled {
-  border-color: var(--m-primary);
-  background: var(--m-surface);
-}
-/* The cell awaiting the next digit, so the caret is not missed. */
-.gate-cell--active {
-  border-color: var(--m-primary);
-  box-shadow: 0 0 0 3px var(--m-primary-soft);
-}
-.gate-cell-dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  background: var(--m-primary-dark);
-}
-/* The field itself is invisible but focusable, so the keyboard opens. */
-.gate-input {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: transparent;
-  color: transparent;
-  caret-color: transparent;
-  font-size: 16px; /* keeps iOS from zooming on focus */
-  outline: none;
-}
+
 .gate-error {
   margin: 0;
   color: var(--m-danger);
@@ -432,11 +421,6 @@ function cancel() {
 }
 .gate-ghost:disabled {
   opacity: 0.6;
-}
-@keyframes gate-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-6px); }
-  75% { transform: translateX(6px); }
 }
 </style>
 

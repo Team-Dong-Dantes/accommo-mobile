@@ -22,63 +22,8 @@
       </EmptyState>
 
       <div v-else class="stack">
-        <button v-for="a in rows" :key="a.id" type="button" class="acc-card" @click="router.push(`/manager/properties/${a.id}`)">
-          <span class="acc-photo" :class="{ 'acc-photo--empty': !a.image }">
-            <img v-if="a.image" :src="a.image" :alt="a.name" loading="lazy" />
-            <span v-else class="acc-photo-empty">
-              <IconifyIcon icon="lucide:image-off" width="24" />
-              <span class="acc-photo-empty-label">No photo</span>
-            </span>
-            <span class="acc-status" :class="`acc-status--${STATUS_TONE[a.status] || 'grey'}`">
-              <IconifyIcon :icon="STATUS_ICON[a.status] || 'lucide:circle'" width="10" />
-              {{ STATUS_LABEL[a.status] || a.status }}
-            </span>
-            <span class="acc-health-dot" :class="`acc-health-dot--${healthTone(a)}`" />
-          </span>
-
-          <span class="acc-body">
-            <span class="acc-head">
-              <span class="acc-name">{{ a.name }}</span>
-              <span v-if="a.type" class="acc-type">{{ a.type }}</span>
-            </span>
-            <span v-if="a.address" class="acc-addr">
-              <IconifyIcon icon="lucide:map-pin" width="12" />
-              {{ a.address }}
-            </span>
-
-            <span class="facts">
-              <span class="fact">
-                <span class="fact-value">{{ a.roomCount }}</span>
-                <span class="fact-label">{{ a.roomCount === 1 ? 'Room' : 'Rooms' }}</span>
-              </span>
-              <span class="fact-div" />
-              <span class="fact">
-                <span class="fact-value">{{ a.filled }}/{{ a.capacity }}</span>
-                <span class="fact-label">Beds filled</span>
-              </span>
-            </span>
-
-            <span class="acc-doc-summary">
-              <span v-if="a.expired > 0" class="doc-expired">
-                <IconifyIcon icon="lucide:file-warning" width="14" />
-                {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
-              </span>
-              <span v-else-if="a.expiringSoon > 0" class="doc-expiring">
-                <IconifyIcon icon="lucide:clock" width="14" />
-                {{ a.expiringSoon }} expiring soon
-              </span>
-              <span v-else class="doc-ok">
-                <IconifyIcon icon="lucide:check-circle" width="14" />
-                All permits up to date
-              </span>
-            </span>
-          </span>
-        </button>
-
-        <button type="button" class="acc-card acc-card--add" @click="router.push('/manager/properties/new')">
-          <span class="acc-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
-          <span class="acc-add-label">Add another</span>
-        </button>
+        <PropertyCard v-for="a in rows" :key="a.id" :property="a" @open="open" />
+        <PropertyCard @add="router.push('/manager/properties/new')" />
       </div>
     </q-pull-to-refresh>
   </q-page>
@@ -87,67 +32,28 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Pending review',
-  reviewing: 'Reviewing',
-  accredited: 'Accredited',
-  rejected: 'Rejected',
-  delisted: 'Delisted',
-}
-const STATUS_TONE: Record<string, string> = {
-  pending: 'amber',
-  reviewing: 'amber',
-  accredited: 'green',
-  rejected: 'red',
-  delisted: 'grey',
-}
-const STATUS_ICON: Record<string, string> = {
-  pending: 'lucide:hourglass',
-  reviewing: 'lucide:search',
-  accredited: 'lucide:badge-check',
-  rejected: 'lucide:x-circle',
-  delisted: 'lucide:archive',
-}
-
-interface Row {
-  id: string
-  name: string
-  address: string
-  status: string
-  type: string
-  image: string
-  roomCount: number
-  capacity: number
-  filled: number
-  expired: number
-  expiringSoon: number
-}
+import PropertyCard from '@/components/manager/PropertyCard.vue'
+import type { Property } from '@/components/manager/property'
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
   return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 }
 
-// Health tone for the photo dot: permit trouble first, then accreditation.
-function healthTone(a: Row): 'good' | 'warn' | 'danger' {
-  if (a.expired > 0) return 'danger'
-  if (a.expiringSoon > 0) return 'warn'
-  if (a.status !== 'accredited') return 'warn'
-  return 'good'
-}
-
 const router = useRouter()
 const loading = ref(true)
 const error = ref('')
-const rows = ref<Row[]>([])
+const rows = ref<Property[]>([])
+
+function open(id: string) {
+  void router.push(`/manager/properties/${id}`)
+}
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -215,11 +121,10 @@ async function load(silent = false) {
       const images = [...((a.accommodation_images ?? []) as { url: string; sort_order: number | null }[])].sort(
         (x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0),
       )
-      const name = a.name?.trim() || 'Unnamed accommodation'
       const acRooms = (a.rooms ?? []) as { id: string; capacity: number | null }[]
       return {
         id: a.id,
-        name,
+        name: a.name?.trim() || 'Unnamed accommodation',
         address: a.address || [a.barangay, a.city].filter(Boolean).join(', ') || 'Address not given',
         status: a.status,
         type: titleCase(a.accommodation_type),
@@ -269,203 +174,5 @@ function onPull(done: () => void) {
 .sk {
   border-radius: var(--m-radius);
   margin: 0 var(--m-page-gutter);
-}
-.card {
-  margin: 8px var(--m-page-gutter);
-  padding: 18px 14px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  text-align: center;
-}
-
-.acc-card {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  padding: 0 0 11px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  overflow: hidden;
-  position: relative;
-  transition: box-shadow 0.15s, transform 0.12s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-}
-.acc-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-}
-.acc-card:active {
-  transform: scale(0.985);
-}
-.acc-photo {
-  position: relative;
-  display: grid;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  place-items: center;
-  overflow: hidden;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.acc-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.acc-photo--empty {
-  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
-}
-.acc-photo-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--m-muted);
-}
-.acc-photo-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
-.acc-status {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 9px 3px 7px;
-  border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-}
-.acc-status--green {
-  background: var(--m-success);
-  color: #fff;
-}
-.acc-status--amber {
-  background: var(--m-warning);
-  color: #fff;
-}
-.acc-status--red {
-  background: var(--m-danger);
-  color: #fff;
-}
-.acc-status--grey {
-  background: rgba(23, 32, 42, 0.72);
-  color: #fff;
-}
-.acc-health-dot {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
-}
-.acc-health-dot--good { background: var(--m-success); }
-.acc-health-dot--warn { background: var(--m-warning); }
-.acc-health-dot--danger { background: var(--m-danger); }
-
-.acc-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px 0;
-}
-.acc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.acc-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.acc-type {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-.acc-addr {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-  color: var(--m-muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.facts {
-  display: flex;
-  align-items: stretch;
-  margin-top: 4px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-bg);
-}
-.fact { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; align-items: center; padding: 6px 4px; text-align: center; }
-.fact-div { width: 1px; background: var(--m-border); }
-.fact-value {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.fact-label { color: var(--m-muted); font-size: 10px; font-weight: 600; }
-
-.acc-doc-summary {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.doc-expired { color: var(--m-danger); }
-.doc-expiring { color: var(--m-warning); }
-.doc-ok { color: var(--m-success); }
-
-.acc-card--add {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 18px 12px;
-  border-style: dashed;
-  background: transparent;
-  box-shadow: none;
-}
-.acc-card--add:hover {
-  background: var(--m-surface);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-}
-.acc-add-icon {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.acc-add-label {
-  color: var(--m-muted);
-  font-size: 13px;
-  font-weight: 700;
 }
 </style>

@@ -320,3 +320,237 @@ select,
 .q-pull-to-refresh__puller .q-spinner {
   color: var(--m-primary) !important;
 }
+
+/* ===== Auth form surface =====
+   The sign-in and registration fields are one grouped list, not a stack of
+   separate boxes: `.auth-group` draws the single border and the hairlines
+   between rows, and `.auth-field` (AuthInput, AuthSelect) is a transparent row
+   inside it. Six 56px boxes with gaps between them read as six competing
+   rectangles; one container reads as one form.
+
+   Global rather than scoped for the same reason as the rules above — the row
+   being styled is `.q-field__control`, which Quasar renders inside its own tree
+   — and because these three components each used to carry their own copy of the
+   field CSS, which is how they drifted apart. Token-driven, so the dark palette
+   needs no second set. */
+.auth-group {
+  border: 1px solid var(--m-border);
+  border-radius: 14px;
+  background: var(--m-bg);
+  overflow: hidden;
+}
+.auth-group > * + * {
+  border-top: 1px solid var(--m-border);
+}
+
+.auth-field .q-field__control {
+  min-height: 64px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+
+/* Always-stacked label: it stays legible above the value instead of vanishing
+   into it once the field is filled. Font-size is left to Quasar, whose floating
+   label is driven by a transform scale — setting it here fights that. */
+.auth-field .q-field__label {
+  color: var(--m-muted);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* No border to colour, so focus tints the row instead. */
+.auth-field.q-field--focused .q-field__control {
+  background: color-mix(in srgb, var(--m-primary-soft) 60%, transparent);
+}
+.auth-field.q-field--focused .q-field__label {
+  color: var(--m-primary);
+}
+
+.auth-field.q-field--error .q-field__control {
+  background: color-mix(in srgb, var(--m-danger-soft) 55%, transparent);
+}
+.auth-field.q-field--error .q-field__label {
+  color: var(--m-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-field .q-field__control {
+    transition: none;
+  }
+}
+
+/* The dropdown the auth selects open — Sex and Ext. for both roles, College,
+   Program and Year Level for students.
+
+   It had no styling at all, so it rendered with Quasar's defaults: 4px corners,
+   Quasar's own greys, Roboto, inside a screen built from 14px radii, the `--m-*`
+   tokens and Hanken Grotesk. It was the one surface in the flow that looked like
+   it came from a different app, and on the dark palette it followed Quasar's
+   dark rather than `--m-surface`.
+
+   Global rather than scoped because the popup is teleported to the body, out of
+   AuthSelect's tree — the class is put on by `popup-content-class` there. */
+.auth-select-menu {
+  padding: 6px;
+  border: 1px solid var(--m-border);
+  border-radius: 14px;
+  background: var(--m-surface);
+  box-shadow: var(--m-shadow);
+}
+
+/* 48px so a thumb has something to aim at, and each row rounded inside the
+   menu's own radius rather than running square into its corners. */
+.auth-select-menu .q-item {
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  color: var(--m-ink);
+  font-size: 14px;
+}
+.auth-select-menu .q-item + .q-item {
+  margin-top: 2px;
+}
+/* Beats the global `.q-item__label { overflow: hidden; text-overflow: ellipsis }`
+   above, which otherwise clipped a 79-character college name in the open list
+   as well as in the field. */
+.auth-select-menu .q-item__label {
+  overflow: visible;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+/* Ten colleges on a short phone: scroll inside the menu rather than letting it
+   run off the screen. */
+.auth-select-menu {
+  max-height: 46vh;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Same fight, in the collapsed field. `.q-select .q-field__native` is set to
+   nowrap + ellipsis globally, which silently defeated the wrapping AuthSelect
+   renders for a long value with no acronym to fall back on. */
+.auth-field.q-select .q-field__native {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+/* The current choice, named by its own tint and the check AuthSelect renders. */
+.auth-select-menu .auth-select-option.is-selected {
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-weight: 700;
+}
+
+/* Every native <select> in the app — eleven of them across seven screens.
+
+   This adds only what a <select> needs and nothing a field already has. The box
+   stays whatever its own screen gives it: `field-input`, `pay-input` and
+   `submit-input` are three identical copies of the same 44px field, and
+   ProfileField's `pf-input` is a slightly smaller row for a denser context. An
+   earlier pass restated that geometry here at 48px, which made every select
+   disagree with the text input standing next to it. The inputs were never what
+   needed fixing.
+
+   What did: the browser's own arrow, which matches neither Lucide nor anything
+   else on screen — and which ProfileField had already removed without putting
+   anything in its place, leaving a dropdown with no affordance at all. So
+   `appearance: none` everywhere, and Lucide's chevron-down inlined as a
+   background image, a <select> having no slot to hang an icon in. Those screens
+   set `background-color` rather than the `background` shorthand now, so they
+   stop clearing it back out.
+
+   Only the closed control is ours. The open list stays the operating system's
+   picker, which is better than anything we would build for it on a phone —
+   familiar, accessible, and it handles a long list without us reimplementing
+   scrolling.
+
+   `currentColor` cannot be used inside a data: URI, so the arrow's stroke is
+   restated per palette below. */
+.app-select {
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.app-select:disabled {
+  opacity: 0.6;
+}
+
+/* An empty <input type="time"> is not blank. Blink draws its own mask inside the
+   box — "--:--" — so a curfew nobody has set yet reads as a field already
+   containing something, and the colon in it is the only one the app renders
+   inside any input.
+
+   Hidden rather than removed: the mask is the browser's, and it has to come back
+   the moment the field is focused or the person is typing into a box with no
+   visible cursor position. The label above the field carries the meaning while
+   it is empty, which is what an empty field should look like. */
+.app-time--empty:not(:focus)::-webkit-datetime-edit {
+  color: transparent;
+}
+
+:root.dark .app-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* The auth sheet, and the question that opens it.
+
+   Shared rather than scoped because the register flow and the role picker are
+   the same surface and kept drifting apart: the picker still carried a copy of
+   the sheet at the old `100vh - 160px` with a 34px body-font heading, months
+   after register had moved to a 112px strip and a display-font question. Two
+   copies of a design is how the app ended up with four identical field classes
+   and two icon families.
+
+   Paired with `.hero-section.register-mode` in AuthLayout: the 112px it leaves
+   is what the wordmark and its line need to stay readable underneath. */
+.auth-sheet {
+  height: calc(100vh - 112px);
+  height: calc(100dvh - 112px);
+  padding: 18px 24px 0;
+  border-radius: 0 0 28px 28px;
+  background: var(--m-surface);
+  overflow: hidden;
+}
+
+/* The screen's question *is* its title — one thing asked at a time, in the face
+   every other titled surface in the app uses. */
+.auth-question {
+  margin: 0 12px 14px;
+}
+.auth-question h1 {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+}
+.auth-question p {
+  margin: 6px 0 0;
+  color: var(--m-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* Auth text buttons — "Forgot password?", "Sign In", "Go Back", "Skip for now".
+   These carried Quasar's static `color="teal-9"` / `grey-6`, which do not move
+   with the theme: on the dark sheet teal-9 (#00695c) sits nearly as dark as the
+   surface behind it. Token-driven so both palettes stay legible, and one weight
+   so the row of them reads as one family. */
+.auth-link {
+  color: var(--m-primary) !important;
+  font-weight: 700;
+}
+.auth-link--quiet {
+  color: var(--m-muted) !important;
+}

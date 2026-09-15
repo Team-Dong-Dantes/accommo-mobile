@@ -7,7 +7,7 @@
     <template v-if="isEditing">
       <select
         v-if="type === 'select'"
-        class="pf-input"
+        class="pf-input app-select"
         :value="modelValue"
         :disabled="!options.length"
         @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
@@ -90,12 +90,12 @@ const isEditing = computed(() => props.editing && !props.readonly)
   padding: 0 11px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
-  background: var(--m-bg);
+  background-color: var(--m-bg);
   color: var(--m-ink);
   font: inherit;
   font-size: 13.5px;
   font-weight: 600;
 }
 .pf-input:focus { border-color: var(--m-primary); outline: none; }
-select.pf-input { appearance: none; padding-right: 30px; }
+/* appearance + chevron now come from .app-select in app.scss. */
 </style>

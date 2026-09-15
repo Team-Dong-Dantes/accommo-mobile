@@ -1,7 +1,7 @@
 <template>
   <section v-if="tasks.length || doneCount" class="sec">
     <div class="sec-head">
-      <h2 class="sec-title">To do</h2>
+      <h2 class="sec-title">{{ title }}</h2>
     </div>
 
     <div class="steps">
@@ -31,7 +31,9 @@
 import { Icon as IconifyIcon } from '@iconify/vue'
 import type { Task } from './dashboard'
 
-defineProps<{ tasks: Task[]; doneCount: number }>()
+withDefaults(defineProps<{ tasks: Task[]; doneCount: number; title?: string }>(), {
+  title: 'To do',
+})
 const emit = defineEmits<{ go: [route: string] }>()
 </script>
 

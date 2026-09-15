@@ -147,6 +147,38 @@ if (supabaseUrl && supabaseAnonKey) {
 export const supabase = _supabaseInstance;
 
 /**
+ * The failure text from an OAuth round trip that came back without a session, or
+ * null when the URL carries none.
+ *
+ * Supabase reports these in the fragment for the implicit flow and in the query
+ * string for PKCE, and which one you get depends on the flow and the platform —
+ * so read both rather than betting on one. Called by the two screens
+ * `loginWithGoogle()` can return to.
+ */
+export function readOAuthError(): string | null {
+  const sources = [
+    new URLSearchParams(window.location.hash.replace(/^#\/?/, '')),
+    new URLSearchParams(window.location.search),
+  ];
+  for (const params of sources) {
+    const failure = params.get('error_description') || params.get('error');
+    if (failure) return decodeURIComponent(failure).replace(/\+/g, ' ');
+  }
+  return null;
+}
+
+/**
+ * True when the failure is Postgres rejecting the signup rather than the user or
+ * the provider. Supabase's auth server flattens any trigger exception into this
+ * generic wording, so the domain rule enforced in `handle_auth_user_sync()` is
+ * indistinguishable here from any other database failure — the screens explain
+ * the rule themselves rather than pretending to know which it was.
+ */
+export function isSignupDatabaseError(text: string): boolean {
+  return /database error|saving new user|unexpected_failure/i.test(text);
+}
+
+/**
  * The signed-in user, read from the locally stored session rather than the
  * `/auth/v1/user` endpoint.
  *

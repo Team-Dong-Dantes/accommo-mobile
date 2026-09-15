@@ -1,6 +1,15 @@
 <template>
-  <q-input v-model="model" borderless hide-bottom-space color="teal-9" class="auth-input"
-    v-bind="$attrs">
+  <!-- The field surface lives in app.scss as `.auth-field`, shared with
+       AuthSelect and AuthDocumentCard.
+
+       `lazy-rules` sits before `v-bind="$attrs"` so a caller can still override
+       it. Without it Quasar validates on every keystroke: typing the first
+       letter of a password failed five rules in a row, and with
+       `hide-bottom-space` the message appeared and vanished under the field, so
+       the column twitched while you typed. Rules now run on blur and on
+       submit — which is when the user has finished saying what they meant. -->
+  <q-input v-model="model" borderless stack-label hide-bottom-space color="teal-9" class="auth-field"
+    lazy-rules v-bind="$attrs">
     <template v-for="(_, name) in $slots" #[name]="slotData">
       <slot :name="name" v-bind="slotData || {}" />
     </template>
@@ -10,23 +19,3 @@
 <script setup lang="ts">
 const model = defineModel<string | number | null>();
 </script>
-
-<style scoped>
-.auth-input {
-  border-radius: 16px;
-  padding-bottom: 4px;
-}
-
-.auth-input :deep(.q-field__control) {
-  min-height: 56px;
-  background: var(--m-bg);
-  border: 1px solid var(--m-border);
-  border-radius: 16px;
-  padding: 0 16px;
-}
-
-.auth-input :deep(svg.iconify) {
-  width: 20px !important;
-  height: 20px !important;
-}
-</style>
