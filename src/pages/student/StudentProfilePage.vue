@@ -156,7 +156,7 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
-import { initialsOf, normalizePhPhone } from '@/utils/format'
+import { initialsOf, isPhMobile, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 import ProfileField from '@/components/shared/ProfileField.vue'
@@ -288,6 +288,18 @@ async function save() {
   const name = draft.fullName.trim()
   if (!name) {
     notify.error('Your name cannot be empty.')
+    return
+  }
+  // Checked here as well as at registration: normalizePhPhone turns an empty
+  // field into the string "+63" and the column is NOT NULL, so without this the
+  // register screen's validation was undone by one visit to this page.
+  if (!isPhMobile(draft.phone)) {
+    notify.error('Enter a valid mobile number, e.g. 0912 345 6789.')
+    return
+  }
+  // The emergency contact is optional, so it is only judged once filled in.
+  if (draft.emergencyPhone.trim() && !isPhMobile(draft.emergencyPhone)) {
+    notify.error('That emergency contact number is not a valid mobile number.')
     return
   }
 

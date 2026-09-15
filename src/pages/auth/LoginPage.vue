@@ -15,37 +15,44 @@
       </template>
 
       <template v-else>
-      <AuthGoogleBtn @click="handleGoogleAuth" />
-      <AuthDivider />
-
       <q-form @submit.prevent="handleLogin" ref="loginFormRef">
-        <AuthInput v-model="email" label="Email address" :rules="[(val: string) => !!val || 'Email is required', (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) || 'Enter a valid email address']">
-          <template #prepend><IconifyIcon icon="material-icons:mail_outline" /></template>
-        </AuthInput>
+        <!-- One group, two rows. The decorative envelope/padlock icons are gone:
+             each repeated what its own label already said, and in a grouped list
+             they crowded the value. -->
+        <AuthFieldGroup>
+          <AuthInput v-model="email" label="Email address" :rules="[(val: string) => !!val || 'Email is required', (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) || 'Enter a valid email address']" />
 
-        <AuthInput v-model="password" :type="showPassword ? 'text' : 'password'" label="Password" class="q-mt-md"
-          :rules="[(val: string) => !!val || 'Password is required']">
-          <template #prepend><IconifyIcon icon="material-icons:lock_outline" /></template>
-          <template #append>
-            <IconifyIcon :icon="'material-icons:' + (showPassword ? 'visibility' : 'visibility_off')" class="cursor-pointer"
-              @click="showPassword = !showPassword" />
-          </template>
-        </AuthInput>
+          <AuthInput v-model="password" :type="showPassword ? 'text' : 'password'" label="Password"
+            :rules="[(val: string) => !!val || 'Password is required']">
+            <template #append>
+              <IconifyIcon :icon="showPassword ? 'lucide:eye-off' : 'lucide:eye'" class="cursor-pointer"
+                @click="showPassword = !showPassword" />
+            </template>
+          </AuthInput>
+        </AuthFieldGroup>
 
         <div class="text-right q-mt-sm">
-          <q-btn flat dense no-caps label="Forgot password?" class="forgot-link" @click="handleForgotPassword" />
+          <q-btn flat dense no-caps label="Forgot password?" class="auth-link" @click="handleForgotPassword" />
         </div>
 
         <AuthButton type="submit" :loading="loading" class="q-mt-md">
-          Sign In
-          <IconifyIcon icon="material-icons:arrow_forward" class="q-ml-sm" />
+          Sign in
+          <IconifyIcon icon="lucide:arrow-right" width="18" class="q-ml-sm" />
         </AuthButton>
       </q-form>
 
+      <!-- Google sits below the form: e-mail is the main path here, and leading
+           with Google pushed the fields most people came for down the screen. -->
+      <AuthDivider />
+      <AuthGoogleBtn @click="handleGoogleAuth" />
+
       <div class="signup-section">
         <span>New to Accommo?</span>
-        <q-btn flat dense no-caps color="teal-9" label="Create Account" to="/register/role"
-          class="text-weight-bold q-ml-sm" />
+        <!-- Back to the start screen, which is where the role fork lives now.
+             /register/role renders the same fork and still exists only because
+             the guard sends unregistered Google accounts there (guard.ts:70). -->
+        <q-btn flat dense no-caps label="Create account" to="/"
+          class="auth-link q-ml-sm" />
       </div>
       </template>
     </div>
@@ -64,14 +71,16 @@ import { Capacitor } from '@capacitor/core';
 import { useRouter, useRoute } from 'vue-router';
 import type { QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/utils/supabase';
+import { supabase, readOAuthError, isSignupDatabaseError } from '@/utils/supabase';
 import { useNotify } from '@/utils/notify';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
 import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
 import AuthDivider from '@/components/auth/AuthDivider.vue';
+import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue';
 import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
+import { ALLOWED_EMAIL_DOMAINS_TEXT } from '@/utils/config';
 
 const router = useRouter();
 const route = useRoute();
@@ -123,19 +132,21 @@ onMounted(() => {
  * no message, and a manager still awaiting OSAS got no explanation either.
  */
 async function handleOAuthReturn() {
-  // Supabase reports OAuth failures (a banned account among them) in the fragment.
-  const fragment = window.location.hash.replace(/^#\/?/, '');
-  if (fragment) {
-    const params = new URLSearchParams(fragment);
-    const failure = params.get('error_description') || params.get('error');
-    if (failure) {
-      const text = decodeURIComponent(failure).replace(/\+/g, ' ');
-      notify.error(/banned|blocked/i.test(text)
-        ? 'Your application is still being reviewed by OSAS. You can sign in once it is approved.'
-        : text);
-      history.replaceState(null, '', window.location.pathname);
-      return;
+  // Supabase reports OAuth failures (a banned account among them) in the URL.
+  const failure = readOAuthError();
+  if (failure) {
+    let message = failure;
+    if (/banned|blocked/i.test(failure)) {
+      message = 'Your application is still being reviewed by OSAS. You can sign in once it is approved.';
+    } else if (isSignupDatabaseError(failure)) {
+      // Almost always the domain rule on auth.users turning away a new Google
+      // account, but Supabase gives the same wording to any signup-time database
+      // failure — so name the rule without claiming to know that is what it was.
+      message = `We couldn't connect that Google account. Accommo only accepts ${ALLOWED_EMAIL_DOMAINS_TEXT} addresses — check which account you picked, then try again.`;
     }
+    notify.error(message);
+    history.replaceState(null, '', window.location.pathname);
+    return;
   }
 
   const { session, profile, registered, status } = await authStore.getSessionProfile();
@@ -152,7 +163,7 @@ async function handleOAuthReturn() {
     if (session.user.app_metadata?.provider === 'google') {
       await supabase.auth.signOut();
       authStore.clearCachedRole();
-      notify.info('That Google account isn\'t registered yet. Tap Create Account to sign up.');
+      notify.info('That Google account isn\'t registered yet. Tap Create account to sign up.');
     }
     return;
   }
@@ -349,12 +360,17 @@ watch(pinOfferOpen, (open) => {
   color: var(--m-ink);
   font-size: 34px;
   font-weight: 700;
+  /* Quasar gives h3 a ~50px line-height, which left the title floating well
+     above its own subtitle. */
+  line-height: 1.12;
+  letter-spacing: -0.02em;
 }
 
 .welcome-subtitle {
   color: var(--m-muted);
-  margin-top: 6px;
-  margin-bottom: 24px;
+  margin-top: 8px;
+  margin-bottom: 26px;
+  font-size: 14.5px;
 }
 
 .verify-note {
@@ -362,11 +378,6 @@ watch(pinOfferOpen, (open) => {
   font-size: 13px;
   line-height: 1.5;
   margin-bottom: 16px;
-}
-
-.forgot-link {
-  color: var(--m-primary);
-  font-weight: 600;
 }
 
 .signup-section {

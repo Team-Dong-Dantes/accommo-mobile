@@ -13,14 +13,14 @@
         </label>
         <label class="field">
           <span class="field-label">Type <span class="req">*</span></span>
-          <select v-model="form.accommodationType" class="field-input">
+          <select v-model="form.accommodationType" class="field-input app-select">
             <option value="">Select type</option>
             <option v-for="(label, key) in BUILDING_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
           </select>
         </label>
         <label class="field">
           <span class="field-label">Accepts <span class="req">*</span></span>
-          <select v-model="form.genderPolicy" class="field-input">
+          <select v-model="form.genderPolicy" class="field-input app-select">
             <option value="">Select who you accept</option>
             <option v-for="(label, key) in GENDER_POLICY_LABEL" :key="key" :value="key">{{ label }}</option>
           </select>
@@ -627,7 +627,7 @@ async function submit() {
   padding: 0 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
+  background-color: var(--m-surface);
   color: var(--m-ink);
   font: inherit;
   font-size: 14px;

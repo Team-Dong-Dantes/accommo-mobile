@@ -358,7 +358,7 @@
         </div>
 
         <div class="room-sheet-scroll">
-          <select v-if="editingField && FIELD_META[editingField].type === 'select'" v-model="fieldDraft" class="field-input">
+          <select v-if="editingField && FIELD_META[editingField].type === 'select'" v-model="fieldDraft" class="field-input app-select">
             <option value="">Select {{ FIELD_META[editingField].label.toLowerCase() }}</option>
             <option v-for="(label, key) in FIELD_META[editingField].options" :key="key" :value="key">{{ label }}</option>
           </select>
@@ -508,7 +508,7 @@
               <div class="field-row">
                 <label class="field">
                   <span class="field-label">Room type</span>
-                  <select v-model="roomForm.roomType" class="field-input" @change="onRoomTypeChange">
+                  <select v-model="roomForm.roomType" class="field-input app-select" @change="onRoomTypeChange">
                     <option v-for="(label, key) in ROOM_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
                     <option value="custom">Custom</option>
                   </select>
@@ -883,7 +883,7 @@
             <template v-else>
               <label class="field">
                 <span class="field-label">Type</span>
-                <select v-model="facilityForm.facilityType" class="field-input">
+                <select v-model="facilityForm.facilityType" class="field-input app-select">
                   <option v-for="(meta, key) in FACILITY_META" :key="key" :value="key">{{ meta.label }}</option>
                 </select>
               </label>
@@ -2535,7 +2535,7 @@ onMounted(load)
   padding: 0 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
+  background-color: var(--m-surface);
   color: var(--m-ink);
   font: inherit;
   font-size: 14px;

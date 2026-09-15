@@ -7,29 +7,12 @@
           <q-skeleton type="text" width="100px" height="20px" />
         </div>
         <q-skeleton type="rect" height="96px" class="sk" />
-        <div class="chips">
-          <div class="chip">
-            <q-skeleton type="text" width="56px" height="17px" />
-            <q-skeleton type="text" width="72px" height="12px" />
-          </div>
-          <div class="chip-div" />
-          <div class="chip">
-            <q-skeleton type="text" width="34px" height="17px" />
-            <q-skeleton type="text" width="60px" height="12px" />
-          </div>
-        </div>
+        <q-skeleton type="rect" height="46px" class="sk" />
+        <q-skeleton type="rect" height="150px" class="sk" />
         <section class="sec">
           <q-skeleton type="text" width="120px" height="16px" />
-          <div class="lead">
-            <div class="lead-top">
-              <q-skeleton type="circle" size="25px" />
-              <q-skeleton type="text" width="90px" height="11px" />
-            </div>
-            <q-skeleton type="text" width="75%" height="15px" />
-            <div class="lead-row">
-              <q-skeleton type="text" width="55%" height="12px" />
-            </div>
-          </div>
+          <q-skeleton type="rect" height="42px" class="sk-sm" />
+          <q-skeleton type="rect" height="42px" class="sk-sm" />
         </section>
       </div>
 
@@ -43,20 +26,16 @@
           <span class="greet-time">{{ greeting }},</span>
           <span class="greet-name">{{ firstName }}</span>
         </div>
-        <span v-if="reviewCount > 0" class="rating-badge">
-          <IconifyIcon icon="lucide:star" width="12" />
-          {{ ratingAvg?.toFixed(1) }} · {{ reviewCount }} {{ reviewCount === 1 ? 'review' : 'reviews' }}
-        </span>
 
-        <!-- Occupancy Card -->
-        <q-card flat class="occ" :class="{ 'occ--empty': !hasAccommodations }">
+        <!-- Occupancy -->
+        <q-card flat class="occ" :class="{ 'occ--empty': !hasProperties }">
           <div class="occ-left">
             <span class="occ-cap">Occupancy</span>
             <span class="occ-pct">
-              {{ hasAccommodations ? occupancyRate : 0 }}<span class="occ-sign">%</span>
+              {{ hasProperties ? occupancyRate : 0 }}<span class="occ-sign">%</span>
             </span>
             <span class="occ-sub">
-              {{ hasAccommodations ? `${tenants} of ${totalBeds} beds filled` : 'No beds listed yet' }}
+              {{ hasProperties ? `${tenants} of ${totalBeds} beds filled` : 'No beds listed yet' }}
             </span>
           </div>
           <div class="occ-right" aria-hidden="true">
@@ -71,7 +50,7 @@
           </div>
         </q-card>
 
-        <!-- Stat chips -->
+        <!-- The rest of the numbers, rating included -->
         <div class="chips">
           <div class="chip">
             <span class="chip-value">{{ formatPeso(expectedMonthly) }}</span>
@@ -82,155 +61,56 @@
             <span class="chip-value">{{ vacantBeds }}</span>
             <span class="chip-label">{{ vacantBeds === 1 ? 'Bed free' : 'Beds free' }}</span>
           </div>
-        </div>
-
-        <!-- Needs attention -->
-        <section class="sec">
-          <div class="sec-head">
-            <h2 class="sec-title">Needs attention</h2>
-          </div>
-
-          <template v-if="attention.length">
-            <q-carousel
-              v-model="carouselSlide"
-              class="lead-carousel"
-              animated
-              transition-prev="slide-right"
-              transition-next="slide-left"
-              autoplay
-              :interval="3000"
-              infinite
-              swipeable
-            >
-              <q-carousel-slide
-                v-for="item in attention"
-                :key="item.id"
-                :name="item.id"
-                class="lead-slide"
-              >
-                <div class="lead" :class="`lead--${item.tone}`">
-                  <div class="lead-top">
-                    <span class="lead-icon"><IconifyIcon :icon="item.icon" width="18" /></span>
-                    <span class="lead-kind">{{ item.kind }}</span>
-                    <span v-if="item.when" class="lead-when">{{ item.when }}</span>
-                  </div>
-                  <div class="lead-row">
-                    <div class="lead-body">
-                      <p class="lead-label">{{ item.label }}</p>
-                      <p class="lead-hint">{{ item.hint }}</p>
-                    </div>
-                    <button type="button" class="lead-action" @click="go(item.route)">
-                      {{ item.action }}
-                      <IconifyIcon icon="lucide:arrow-right" width="15" />
-                    </button>
-                  </div>
-                </div>
-              </q-carousel-slide>
-            </q-carousel>
-
-            <div v-if="attention.length > 1" class="dots">
-              <button
-                v-for="item in attention"
-                :key="item.id"
-                type="button"
-                class="dot"
-                :class="{ 'dot--active': item.id === carouselSlide }"
-                :aria-label="`Show ${item.kind}`"
-                @click="carouselSlide = item.id"
-              />
+          <template v-if="reviewCount > 0">
+            <div class="chip-div" />
+            <div class="chip">
+              <span class="chip-value chip-value--rating">
+                <IconifyIcon icon="lucide:star" width="14" />
+                {{ ratingAvg?.toFixed(1) }}
+              </span>
+              <span class="chip-label">
+                {{ reviewCount }} {{ reviewCount === 1 ? 'review' : 'reviews' }}
+              </span>
             </div>
           </template>
+        </div>
 
-          <div v-if="!attention.length" class="clear">
-            <IconifyIcon icon="lucide:smile" width="24" class="clear-icon" />
-            <span class="clear-text">
-              <span class="clear-label">Nothing needs you</span>
-              <span class="clear-hint">Concerns, applications and accreditation land here</span>
-            </span>
-          </div>
-        </section>
+        <!-- Needs attention: the most urgent item stays put, the rest list below it -->
+        <DashPriority
+          :task="priority"
+          empty-label="Nothing needs you"
+          empty-hint="Concerns, applications and accreditation land here"
+          @go="go"
+        />
+        <DashTodoList title="Needs attention" :tasks="todo" :done-count="0" @go="go" />
 
-        <!-- Property health -->
+        <!-- Properties -->
         <section class="sec">
           <div class="sec-head">
             <h2 class="sec-title">Your properties</h2>
-            <button
-              v-if="hasAccommodations"
-              type="button"
-              class="sec-link"
-              @click="go('/manager/properties')"
-            >
+            <button v-if="hasProperties" type="button" class="sec-link" @click="go('/manager/properties')">
               Manage
             </button>
           </div>
 
           <div class="plist">
+            <PropertyCard v-for="p in topProperties" :key="p.id" :property="p" @open="openProperty" />
+
             <button
-              v-for="a in accommodations"
-              :key="a.id"
+              v-if="properties.length > topProperties.length"
               type="button"
-              class="pcard"
-              @click="go(`/manager/properties/${a.id}`)"
+              class="more"
+              @click="go('/manager/properties')"
             >
-              <span class="pcard-photo" :class="{ 'pcard-photo--empty': !a.photoUrl }">
-                <img v-if="a.photoUrl" :src="a.photoUrl" alt="" />
-                <span v-else class="pcard-photo-empty">
-                  <IconifyIcon icon="lucide:image-off" width="24" />
-                  <span class="pcard-photo-empty-label">No photo</span>
-                </span>
-                <span class="pcard-status" :class="`pcard-status--${toneOf(a.status)}`">
-                  <IconifyIcon :icon="statusIcon(a.status)" width="10" />
-                  {{ statusLabel(a.status) }}
-                </span>
-                <span class="pcard-health-dot" :class="`pcard-health-dot--${healthTone(a)}`" />
-              </span>
-
-              <span class="pcard-body">
-                <span class="pcard-head">
-                  <span class="pcard-name">{{ a.name }}</span>
-                  <span v-if="a.type" class="pcard-type">{{ a.type }}</span>
-                </span>
-                <span v-if="a.address" class="pcard-address">
-                  <IconifyIcon icon="lucide:map-pin" width="12" />
-                  {{ a.address }}
-                </span>
-
-                <span class="facts">
-                  <span class="fact">
-                    <span class="fact-value">{{ a.roomCount ?? '—' }}</span>
-                    <span class="fact-label">{{ a.roomCount === 1 ? 'Room' : 'Rooms' }}</span>
-                  </span>
-                  <span class="fact-div" />
-                  <span class="fact">
-                    <span class="fact-value">{{ a.filled }}/{{ a.capacity }}</span>
-                    <span class="fact-label">Beds filled</span>
-                  </span>
-                </span>
-
-                <span class="pcard-doc-summary">
-                  <span v-if="a.expired > 0" class="doc-expired">
-                    <IconifyIcon icon="lucide:file-warning" width="14" />
-                    {{ a.expired }} expired {{ a.expired === 1 ? 'permit' : 'permits' }}
-                  </span>
-                  <span v-else-if="a.expiringSoon > 0" class="doc-expiring">
-                    <IconifyIcon icon="lucide:clock" width="14" />
-                    {{ a.expiringSoon }} expiring soon
-                  </span>
-                  <span v-else class="doc-ok">
-                    <IconifyIcon icon="lucide:check-circle" width="14" />
-                    All permits up to date
-                  </span>
-                </span>
-              </span>
+              View all ({{ properties.length }})
+              <IconifyIcon icon="lucide:arrow-right" width="15" />
             </button>
 
-            <!-- Add card -->
-            <button type="button" class="pcard pcard--add" @click="go('/manager/properties/new')">
-              <span class="pcard-add-icon"><IconifyIcon icon="lucide:plus" width="22" /></span>
-              <span class="pcard-add-label">
-                {{ hasAccommodations ? 'Add another' : 'Add your first accommodation' }}
-              </span>
-            </button>
+            <PropertyCard
+              v-if="!hasProperties"
+              add-label="Add your first accommodation"
+              @add="go('/manager/properties/new')"
+            />
           </div>
         </section>
       </div>
@@ -248,42 +128,19 @@ import { formatPeso } from '@/utils/format'
 import { ago } from '@/utils/profile'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-
-interface AccommodationCard {
-  id: string
-  name: string
-  status: string
-  type: string
-  address: string
-  roomCount: number | null
-  capacity: number
-  filled: number
-  photoUrl: string
-  expired: number // count of expired documents
-  expiringSoon: number // count of documents expiring within 30 days
-}
-
-interface AttentionItem {
-  id: string
-  icon: string
-  kind: string
-  label: string
-  hint: string
-  when: string
-  action: string
-  route: string
-  tone: 'danger' | 'warn'
-  rank: number
-}
+import DashPriority from '@/components/shared/DashPriority.vue'
+import DashTodoList from '@/components/shared/DashTodoList.vue'
+import PropertyCard from '@/components/manager/PropertyCard.vue'
+import { healthTone, type Property } from '@/components/manager/property'
+import type { Task } from '@/components/shared/dashboard'
 
 const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
 const firstName = ref('there')
-const accommodations = ref<AccommodationCard[]>([])
-const attention = ref<AttentionItem[]>([])
-const carouselSlide = ref('')
+const properties = ref<Property[]>([])
+const attention = ref<Task[]>([])
 const totalBeds = ref(0)
 const tenants = ref(0)
 const expectedMonthly = ref(0)
@@ -295,46 +152,26 @@ const greeting = computed(() => {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 })
 
-const hasAccommodations = computed(() => accommodations.value.length > 0)
+const hasProperties = computed(() => properties.value.length > 0)
 const occupancyRate = computed(() =>
   totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
 )
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
 
-// Health tone based on document status and accreditation
-function healthTone(a: AccommodationCard): 'good' | 'warn' | 'danger' {
-  if (a.expired > 0) return 'danger'
-  if (a.expiringSoon > 0) return 'warn'
-  if (a.status !== 'accredited') return 'warn'
-  return 'good'
-}
+// The top item is pinned; the next five list beneath it. Beyond that the
+// dashboard stops being a summary — one expired permit per property adds up
+// fast, and every one of those rows routes to /manager/osas anyway.
+const priority = computed(() => attention.value[0] ?? null)
+const todo = computed(() => attention.value.slice(1, 6))
 
-const STATUS_LABEL: Record<string, string> = {
-  accredited: 'Accredited',
-  pending: 'Pending',
-  reviewing: 'Reviewing',
-  rejected: 'Rejected',
-  delisted: 'Delisted',
-}
-function statusLabel(s: string) {
-  return STATUS_LABEL[s] ?? s
-}
-const STATUS_ICON: Record<string, string> = {
-  accredited: 'lucide:badge-check',
-  pending: 'lucide:hourglass',
-  reviewing: 'lucide:search',
-  rejected: 'lucide:x-circle',
-  delisted: 'lucide:archive',
-}
-function statusIcon(s: string) {
-  return STATUS_ICON[s] ?? 'lucide:circle'
-}
-function toneOf(s: string) {
-  if (s === 'accredited') return 'ok'
-  if (s === 'rejected') return 'danger'
-  if (s === 'delisted') return 'grey'
-  return 'warn'
-}
+// Two cards only, worst health first, since the full set lives on
+// /manager/properties.
+const HEALTH_RANK = { danger: 0, warn: 1, good: 2 } as const
+const topProperties = computed(() =>
+  [...properties.value]
+    .sort((a, b) => HEALTH_RANK[healthTone(a)] - HEALTH_RANK[healthTone(b)])
+    .slice(0, 2),
+)
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
@@ -343,6 +180,10 @@ function titleCase(raw: string | null | undefined) {
 
 function go(path: string) {
   void router.push(path)
+}
+
+function openProperty(id: string) {
+  go(`/manager/properties/${id}`)
 }
 
 async function load(silent = false) {
@@ -471,7 +312,7 @@ async function load(silent = false) {
     // Document tracking
     const expiredByAcc = new Map<string, number>()
     const expiringSoonByAcc = new Map<string, number>()
-    const items: AttentionItem[] = []
+    const items: Task[] = []
 
     {
       const now = Date.now()
@@ -513,8 +354,7 @@ async function load(silent = false) {
       }
     }
 
-    // Build accommodation cards
-    accommodations.value = accs.map((a) => ({
+    properties.value = accs.map((a) => ({
       id: a.id,
       name: a.name,
       status: a.status,
@@ -523,7 +363,7 @@ async function load(silent = false) {
       roomCount: a.total_rooms ?? roomCountByAcc.get(a.id) ?? null,
       capacity: capacityByAcc.get(a.id) || 0,
       filled: filledByAcc.get(a.id) || 0,
-      photoUrl: photoByAcc.get(a.id) || '',
+      image: photoByAcc.get(a.id) || '',
       expired: expiredByAcc.get(a.id) || 0,
       expiringSoon: expiringSoonByAcc.get(a.id) || 0,
     }))
@@ -593,9 +433,6 @@ async function load(silent = false) {
     }
 
     attention.value = items.sort((a, b) => a.rank - b.rank)
-    // A silent (realtime-triggered) refresh must not snap the carousel back
-    // to the first card out from under someone who's scrolled it.
-    if (!silent) carouselSlide.value = attention.value[0]?.id ?? ''
 
     // Self rating — hidden until at least one review exists.
     const reviews = reviewRows || []
@@ -636,9 +473,7 @@ function onPull(done: () => void) {
   padding: 5px var(--m-page-gutter) 16px;
 }
 .sk { border-radius: var(--m-radius); }
-
-.card { border-radius: var(--m-radius); background: var(--m-surface); overflow: hidden; }
-.card--pad { padding: 18px 14px; }
+.sk-sm { border-radius: var(--m-radius-sm); }
 
 .greet { display: flex; align-items: baseline; gap: 5px; padding: 0 2px; flex-wrap: wrap; }
 .greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }
@@ -648,19 +483,6 @@ function onPull(done: () => void) {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
-}
-.rating-badge {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 4px;
-  margin: 2px 2px 0;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-  font-size: 11.5px;
-  font-weight: 700;
 }
 
 .occ {
@@ -687,7 +509,6 @@ function onPull(done: () => void) {
 .ring-fill { fill: none; stroke: #fff; stroke-width: 11; stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
 .occ--empty .ring-fill { stroke: var(--m-border); }
 
-/* Stat chips */
 .chips { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
 .chip { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 8px 11px; }
 .chip-div { width: 1px; background: var(--m-border); }
@@ -701,17 +522,16 @@ function onPull(done: () => void) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.chip-value--rating { display: flex; align-items: center; gap: 4px; color: var(--m-warning); }
 .chip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 
-/* ===== SECTION HEADERS ===== */
+.sec { display: flex; flex-direction: column; gap: 5px; }
 .sec-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 2px;
-
-  padding-bottom: 4px;
+  padding: 0 2px 4px;
 }
 .sec-title {
   margin: 0;
@@ -722,332 +542,38 @@ function onPull(done: () => void) {
   text-transform: uppercase;
 }
 .sec-link {
+  padding: 4px 8px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
   color: var(--m-primary-dark);
   cursor: pointer;
   font: inherit;
   font-size: 12.5px;
   font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 999px;
   transition: background 0.15s;
 }
-.sec-link:hover {
-  background: var(--m-primary-soft);
-}
+.sec-link:hover { background: var(--m-primary-soft); }
 
-/* ===== NEEDS ATTENTION ===== */
-.sec { display: flex; flex-direction: column; gap: 5px; }
-.lead {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 11px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  border: 1px solid var(--m-border);
-}
-.lead--danger { border-color: color-mix(in srgb, var(--m-danger) 22%, var(--m-border)); }
-.lead--warn { border-color: color-mix(in srgb, var(--m-warning) 26%, var(--m-border)); }
-.lead-top { display: flex; align-items: center; gap: 7px; }
-.lead-icon { display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border-radius: 999px; }
-.lead--danger .lead-icon { background: var(--m-danger-soft); color: var(--m-danger); }
-.lead--warn .lead-icon { background: var(--m-warning-soft); color: var(--m-warning); }
-.lead-kind { flex: 1 1 auto; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-.lead--danger .lead-kind { color: var(--m-danger); }
-.lead--warn .lead-kind { color: var(--m-warning); }
-.lead-when { flex: 0 0 auto; color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
-.lead-label {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 15.5px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  text-wrap: pretty;
-}
-.lead-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.lead-body { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.lead-hint { margin: 0; color: var(--m-muted); font-size: 11.5px; line-height: 1.3; text-wrap: pretty; }
-.lead-action {
+.plist { display: flex; flex-direction: column; gap: 10px; }
+.more {
   display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
-}
-.lead-action:active { transform: scale(0.97); }
-
-.lead-carousel {
-  height: 128px;
-  background: transparent;
-}
-.lead-carousel :deep(.q-carousel__slide) {
-  padding: 0;
-}
-.lead-slide {
-  display: flex;
-  align-items: stretch;
-  height: 100%;
-  padding: 0;
-}
-.lead-slide .lead { width: 100%; }
-
-.dots { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 8px; }
-.dot {
-  width: 5px;
-  height: 5px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-border);
-  cursor: pointer;
-  transition: width 0.15s ease, background 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.dot--active { width: 14px; background: var(--m-primary); }
-
-.clear {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 11px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-}
-.clear-icon { color: var(--m-muted); opacity: 0.6; }
-.clear-text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.clear-label { color: var(--m-ink); font-size: 14px; font-weight: 700; }
-.clear-hint { color: var(--m-muted); font-size: 12px; }
-
-/* ===== PROPERTY CARDS ===== */
-.plist {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.pcard {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0 0 11px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  overflow: hidden;
-  transition: transform 0.12s ease, box-shadow 0.15s, border-color 0.15s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-  position: relative;
-}
-.pcard:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-}
-.pcard:active {
-  transform: scale(0.985);
-}
-
-.pcard-photo {
-  position: relative;
-  display: grid;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  place-items: center;
-  overflow: hidden;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.pcard-photo img { width: 100%; height: 100%; object-fit: cover; }
-.pcard-photo--empty { background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%); }
-.pcard-photo-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--m-muted);
-}
-.pcard-photo-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
-.pcard-status {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 9px 3px 7px;
-  border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-}
-.pcard-status--ok {
-  background: var(--m-success);
-  color: #fff;
-}
-.pcard-status--warn {
-  background: var(--m-warning);
-  color: #fff;
-}
-.pcard-status--danger {
-  background: var(--m-danger);
-  color: #fff;
-}
-.pcard-status--grey {
-  background: rgba(23, 32, 42, 0.78);
-  color: #fff;
-}
-.pcard-health-dot {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
-}
-.pcard-health-dot--good {
-  background: var(--m-success);
-}
-.pcard-health-dot--warn {
-  background: var(--m-warning);
-}
-.pcard-health-dot--danger {
-  background: var(--m-danger);
-}
-
-.pcard-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px 0;
-}
-.pcard-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.pcard-name {
-  min-width: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pcard-type {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-.pcard-address {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--m-muted);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.facts {
-  display: flex;
-  align-items: stretch;
-  margin-top: 4px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-bg);
-}
-.fact { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; align-items: center; gap: 0; padding: 6px 4px; text-align: center; }
-.fact-div { width: 1px; background: var(--m-border); }
-.fact-value {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.fact-label { color: var(--m-muted); font-size: 10px; font-weight: 600; }
-
-/* Document summary */
-.pcard-doc-summary {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.doc-expired {
-  color: var(--m-danger);
-}
-.doc-expiring {
-  color: var(--m-warning);
-}
-.doc-ok {
-  color: var(--m-success);
-}
-
-.pcard--add {
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  flex-direction: row;
-  padding: 20px 12px;
-  border-style: dashed;
-  background: transparent;
-  box-shadow: none;
-}
-.pcard--add:hover {
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
   background: var(--m-surface);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-}
-.pcard-add-icon {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
   color: var(--m-primary-dark);
-}
-.pcard-add-label {
-  color: var(--m-muted);
+  cursor: pointer;
+  font: inherit;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.3;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring-fill, .pcard, .lead-action {
-    transition: none !important;
-  }
+  .ring-fill, .sec-link { transition: none !important; }
 }
 </style>

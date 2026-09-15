@@ -271,7 +271,7 @@
         </label>
         <label class="submit-field">
           <span class="submit-label">Method</span>
-          <select v-model="form.method" class="submit-input">
+          <select v-model="form.method" class="submit-input app-select">
             <option value="gcash">GCash</option>
             <option value="maya">Maya</option>
             <option value="bank">Bank transfer</option>
@@ -1489,7 +1489,7 @@ function onPull(done: () => void) {
   padding: 0 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
+  background-color: var(--m-surface);
   color: var(--m-ink);
   font: inherit;
   font-size: 14px;

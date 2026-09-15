@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia';
 import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import { supabase } from '@/utils/supabase';
 import { uploadSecureDocument } from '@/utils/upload';
+import { initialsOf } from '@/utils/format';
 import type { RegisterForm } from '@/types/forms';
 
 // The database role enum uses 'accommodation_manager' where the app's UI and
@@ -72,17 +74,11 @@ export const useAuthStore = defineStore('auth', {
   }),
   actions: {
     formatProfileData(form: RegisterForm | ManagerRegisterForm, role: 'student' | 'manager') {
-      const nameParts = form.fullName.trim().split(' ').filter(Boolean);
-      let initials = 'UN';
-
-      if (nameParts.length > 1) {
-        const firstLetter = nameParts[0]?.[0] || '';
-        const lastLetter = nameParts[nameParts.length - 1]?.[0] || '';
-        initials = (firstLetter + lastLetter).toUpperCase();
-      } else if (nameParts.length === 1) {
-        const onlyName = nameParts[0] || '';
-        initials = onlyName.substring(0, 2).toUpperCase();
-      }
+      // Was a second hand-rolled copy of initialsOf(), which drifted from it:
+      // this one took the literal last word, so "Juan D. Dela Cruz Jr." became
+      // JJ — the J of Jr. — while the profile screen's edit of the same name
+      // produced JC. One helper, one answer, whichever path wrote the row.
+      const initials = initialsOf(form.fullName);
 
       const formattedSex = form.sex === 'Male' ? 'M' : form.sex === 'Female' ? 'F' : 'U';
 
@@ -213,7 +209,7 @@ export const useAuthStore = defineStore('auth', {
         })
         .eq('user_id', userId);
       if (profileError) throw sanitizeError(profileError);
-      await this.markRegistered(userId);
+      await this.markRegistered();
       this.cachedRole = 'student';
     },
 
@@ -262,7 +258,7 @@ export const useAuthStore = defineStore('auth', {
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
       ]);
-      await this.markRegistered(userId);
+      await this.markRegistered();
       this.cachedRole = 'student';
 
       return response.data;
@@ -322,7 +318,7 @@ export const useAuthStore = defineStore('auth', {
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
       ]);
-      await this.markRegistered(userId);
+      await this.markRegistered();
       this.cachedRole = 'student';
     },
 
@@ -343,7 +339,7 @@ export const useAuthStore = defineStore('auth', {
 
     async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
       await this.submitManagerVerificationDocuments(userId, form);
-      await this.markRegistered(userId);
+      await this.markRegistered();
       // A manager holds no session until OSAS approves. This sign-out used to be
       // theatre because login ignored status; login now enforces it, so the door
       // is really shut.
@@ -373,7 +369,7 @@ export const useAuthStore = defineStore('auth', {
       // uploads one-after-another on a mobile connection.
       await this.ensureUserRow(userId, form.email, profileData, 'pending');
       await this.submitManagerVerificationDocuments(userId, form);
-      await this.markRegistered(userId);
+      await this.markRegistered();
 
       await supabase.auth.signOut();
       this.cachedRole = null;
@@ -397,7 +393,7 @@ export const useAuthStore = defineStore('auth', {
       try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
 
       await this.submitManagerVerificationDocuments(userId, form);
-      await this.markRegistered(userId);
+      await this.markRegistered();
       await supabase.auth.signOut();
       this.cachedRole = null;
     },
@@ -525,17 +521,25 @@ export const useAuthStore = defineStore('auth', {
      * an OAuth sign-in, since signInWithOAuth provisions the user whether they
      * came from the login screen or the register screen.
      */
-    async markRegistered(userId: string) {
+    async markRegistered() {
       // Both consents are stamped here rather than at each call site: this is
       // the one function every registration path (student/manager, email/Google)
-      // ends with, and the register screens block step 1 until the box is
-      // ticked — both of them, since RA 10173 makes consent to data processing
-      // its own decision — so reaching this point means both were given.
-      const now = new Date().toISOString();
-      const { error } = await supabase
-        .from('users')
-        .update({ registered_at: now, terms_accepted_at: now, privacy_accepted_at: now })
-        .eq('id', userId);
+      // ends with. The register screen gates every action that creates something
+      // on the consent sheet — the Google button, account creation, and its own
+      // final submit — so reaching this point means both were given. Both, and
+      // separately, since RA 10173 makes consent to data processing its own
+      // decision from agreeing to the terms.
+      //
+      // An RPC rather than three column writes, because those columns were
+      // writable by the account holder: anyone could mark themselves registered
+      // having done none of it, and — worse — write or rewrite their own consent
+      // evidence. complete_registration() is SECURITY DEFINER, refuses to run
+      // without a confirmed e-mail, and stamps with coalesce() so the timestamps
+      // are append-only and cannot be back-dated afterwards.
+      //
+      // No userId argument: the function reads auth.uid(), so the client no
+      // longer gets to name the row it is completing.
+      const { error } = await supabase.rpc('complete_registration');
       if (error) throw sanitizeError(error);
     },
 
@@ -660,16 +664,31 @@ export const useAuthStore = defineStore('auth', {
         const path = redirectPath.replace(/^\/+/, '')
         redirectTo = `${base}/${path}`
       }
+      const native = Capacitor.isNativePlatform()
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
+          // On a device, do not let supabase-js navigate for us. Its default is
+          // `window.location.href = url`, which walks the Capacitor WebView off
+          // the app's own bundle and onto Google's page — the app becomes a web
+          // browser, and Google increasingly refuses OAuth in an embedded
+          // WebView outright (`disallowed_useragent`).
+          skipBrowserRedirect: native,
           queryParams: {
             prompt: 'select_account',
           },
         },
       });
       if (error) throw sanitizeError(error);
+
+      // Hand it to the system browser instead. The app stays loaded underneath;
+      // Google returns to com.accommo.app://auth/callback, Android routes that
+      // VIEW intent back into MainActivity, and boot/deeplink.ts takes it from
+      // there — closing this tab as it does.
+      if (native && data?.url) {
+        await Browser.open({ url: data.url, presentationStyle: 'popover' })
+      }
       return data;
     },
 

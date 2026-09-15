@@ -138,7 +138,7 @@
         <h3 class="new-title">Report a concern</h3>
         <label class="field">
           <span class="field-label">Category</span>
-          <select v-model="form.category" class="field-input">
+          <select v-model="form.category" class="field-input app-select">
             <option v-for="(label, key) in CONCERN_CATEGORY_LABEL" :key="key" :value="key">{{ label }}</option>
           </select>
         </label>
@@ -724,7 +724,7 @@ function onPull(done: () => void) {
   padding: 0 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
+  background-color: var(--m-surface);
   color: var(--m-ink);
   font: inherit;
   font-size: 14px;

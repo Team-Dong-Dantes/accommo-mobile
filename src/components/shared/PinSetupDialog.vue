@@ -211,7 +211,7 @@ async function submit() {
         error.value = 'That is not your current PIN.'
         return
       }
-      pin.hasPin = false
+      await pin.setHasPin(false)
       pin.lock()
       notify.success('PIN turned off.')
     } else {
@@ -219,7 +219,7 @@ async function submit() {
       // a round trip for the obvious mistakes.
       const { error: rpcError } = await supabase.rpc('set_pin', { p_pin: next.value })
       if (rpcError) throw new Error(rpcError.message)
-      pin.hasPin = true
+      await pin.setHasPin(true)
       notify.success(props.mode === 'set' ? 'PIN set.' : 'PIN reset.')
     }
     emit('done')

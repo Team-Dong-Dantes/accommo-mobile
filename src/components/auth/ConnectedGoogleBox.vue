@@ -1,7 +1,7 @@
 <template>
   <div class="connected-google-box q-mb-md q-pa-md">
     <div class="row items-center">
-      <IconifyIcon width="20" icon="material-icons:check_circle" color="teal-9" class="q-mr-sm" />
+      <IconifyIcon width="20" icon="lucide:circle-check" color="teal-9" class="q-mr-sm" />
       <div class="col">
         <div class="text-weight-bold connected-title">Google Connected</div>
         <div class="text-caption connected-email">{{ email }}</div>
