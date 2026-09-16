@@ -903,6 +903,46 @@ onMounted(async () => {
 });
 
 /**
+ * Decides what a just-signed-in Google account means on the register screen.
+ *
+ * The router guard already rules on all of this, but only when a navigation
+ * happens: the redirect flow earned that for free, because boot/deeplink.ts
+ * reloaded the app once the tokens were set. The native picker resolves in
+ * place and navigates nowhere, so the same three outcomes are decided here
+ * rather than leaving a live session nobody has ruled on — which is what let a
+ * finished account silently stay on this screen, and then walk straight into
+ * the app the next time it touched a public route.
+ */
+async function routeAfterGoogle() {
+  const { session, profile, registered, status } = await authStore.getSessionProfile();
+  if (!session) return;
+
+  const role = profile?.role;
+  // Same exemption as resolveDestination(): a manager OSAS sent back is
+  // registered but still has to reach this screen to correct the application.
+  const resubmitting = role === 'manager' && (status === 'rejected' || status === 'reviewing');
+
+  // A finished account cannot register again. Signing out first is what makes
+  // the next screen honest — left signed in, /login would bounce them into the
+  // app instead of showing the message.
+  if (registered && !resubmitting) {
+    await supabase.auth.signOut();
+    authStore.clearCachedRole();
+    void router.push('/login?accountExists=true');
+    return;
+  }
+
+  if (resubmitting && isManager.value) {
+    isResubmit.value = true;
+    fillFromGoogleSession(session.user);
+    decisionReason.value = await authStore.fetchDecisionReason(session.user.id);
+    return;
+  }
+
+  await adoptGoogleSession(session, !!profile, registered);
+}
+
+/**
  * Turns a Google session into this screen's "Google connected" mode.
  *
  * Two routes arrive here. A browser session comes back through the redirect and
@@ -1091,10 +1131,7 @@ async function handleGoogleAuth() {
     const data = await authStore.loginWithGoogle(registerPath.value);
     // A session in hand means the native picker resolved in place rather than
     // handing off to a redirect, so nothing is going to re-mount this screen.
-    if (data && 'session' in data && data.session) {
-      const { session, profile, registered } = await authStore.getSessionProfile();
-      await adoptGoogleSession(session, !!profile, registered);
-    }
+    if (data && 'session' in data && data.session) await routeAfterGoogle();
   } catch (error: unknown) {
     localStorage.removeItem(CONSENT_MARKER);
     const message = error instanceof Error ? error.message : 'An error occurred';
