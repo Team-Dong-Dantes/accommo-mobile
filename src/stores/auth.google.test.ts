@@ -40,6 +40,15 @@ describe('loginWithGoogle on a device', () => {
     expect(signInWithOAuth).not.toHaveBeenCalled()
   })
 
+  it('asks for no scopes, which would demand a patched MainActivity', async () => {
+    login.mockResolvedValue({ provider: 'google', result: { idToken: 'jwt' } })
+    signInWithIdToken.mockResolvedValue({ data: { session: { access_token: 'a' } }, error: null })
+
+    await useAuthStore().loginWithGoogle('/login')
+
+    expect(login.mock.calls[0]?.[0]?.options).not.toHaveProperty('scopes')
+  })
+
   it('treats a dismissed account sheet as no session, not an error', async () => {
     login.mockRejectedValue(new Error('activity is cancelled by the user.'))
     await expect(useAuthStore().loginWithGoogle('/login')).resolves.toBeNull()

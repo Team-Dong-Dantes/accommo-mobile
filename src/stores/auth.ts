@@ -690,10 +690,12 @@ export const useAuthStore = defineStore('auth', {
 
         let result;
         try {
-          ({ result } = await SocialLogin.login({
-            provider: 'google',
-            options: { scopes: ['email', 'profile'] },
-          }));
+          // No `scopes`: the plugin already requests openid + userinfo.email +
+          // userinfo.profile, which is everything the ID token needs to carry.
+          // Passing the array anyway makes it demand a patched MainActivity
+          // ("You CANNOT use scopes without modifying the main activity") for
+          // access-token authorization Accommo never asks for.
+          ({ result } = await SocialLogin.login({ provider: 'google', options: {} }));
         } catch (e: unknown) {
           // Dismissing the account sheet rejects, and Credential Manager words
           // it several ways. Backing out is not a failure, so say nothing and
