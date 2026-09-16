@@ -73,21 +73,30 @@ const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending review',
   reviewing: 'Reviewing',
   accredited: 'Accredited',
+  needs_revision: 'Needs revision',
   rejected: 'Rejected',
+  expired: 'Accreditation expired',
+  suspended: 'Suspended by OSAS',
   delisted: 'Delisted',
 }
 const STATUS_TONE: Record<string, string> = {
   pending: 'warn',
   reviewing: 'warn',
   accredited: 'ok',
+  needs_revision: 'warn',
   rejected: 'danger',
+  expired: 'danger',
+  suspended: 'danger',
   delisted: 'grey',
 }
 const STATUS_ICON: Record<string, string> = {
   pending: 'lucide:hourglass',
   reviewing: 'lucide:search',
   accredited: 'lucide:badge-check',
+  needs_revision: 'lucide:file-pen',
   rejected: 'lucide:x-circle',
+  expired: 'lucide:calendar-x',
+  suspended: 'lucide:ban',
   delisted: 'lucide:archive',
 }
 </script>

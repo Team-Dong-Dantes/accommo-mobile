@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { Capacitor } from '@capacitor/core';
-import { Browser } from '@capacitor/browser';
+import { SocialLogin } from '@capgo/capacitor-social-login';
 import { supabase } from '@/utils/supabase';
 import { uploadSecureDocument } from '@/utils/upload';
 import { initialsOf } from '@/utils/format';
@@ -63,6 +63,8 @@ export interface ManagerRegisterForm {
   password?: string;
   fullName: string;
   sex: string;
+  /** ISO yyyy-mm-dd. OSAS checks it against the birth date on the submitted ID. */
+  dateOfBirth: string;
   phone: string;
   governmentIdFile: File | null;
   businessPermitFile: File | null;
@@ -87,6 +89,9 @@ export const useAuthStore = defineStore('auth', {
         full_name: form.fullName,
         initials,
         sex: formattedSex,
+        // Read by handle_auth_user_sync into public.users.date_of_birth; an empty
+        // string would fail the cast, so it is normalised away here.
+        date_of_birth: form.dateOfBirth || null,
         role: toDbRole(role) as any,
         phone: form.phone,
       };
@@ -100,7 +105,13 @@ export const useAuthStore = defineStore('auth', {
     async ensureUserRow(
       userId: string,
       email: string,
-      profileData: { role: 'student' | 'manager'; full_name: string; initials: string; phone?: string },
+      profileData: {
+        role: 'student' | 'manager';
+        full_name: string;
+        initials: string;
+        phone?: string;
+        date_of_birth?: string | null;
+      },
       status?: 'pending',
     ) {
       const { error } = await supabase
@@ -113,6 +124,7 @@ export const useAuthStore = defineStore('auth', {
             role: toDbRole(profileData.role) as any,
             full_name: profileData.full_name,
             initials: profileData.initials,
+            ...(profileData.date_of_birth ? { date_of_birth: profileData.date_of_birth } : {}),
             ...(status ? { status } : {}),
           },
           { onConflict: 'id' },
@@ -653,42 +665,68 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async loginWithGoogle(redirectPath: string) {
-      // Only installed Capacitor apps can receive the custom scheme. Browser
-      // development sessions, including localhost, must return to their HTTP(S)
-      // origin because Chrome has no handler for com.accommo.app://.
-      let redirectTo: string
+      // On a device this never leaves the app. Android's Credential Manager
+      // draws the account chooser natively and hands back an ID token, which
+      // signInWithIdToken trades for a session in place — no browser tab, no
+      // custom-scheme round trip, no reload. It replaced a Custom Tab flow that
+      // was correct but still dumped the user into Chrome to finish signing in.
+      //
+      // Because nothing navigates, the caller is still mounted when this
+      // resolves: RegisterPage keeps the consent it already collected, and
+      // LoginPage can route off the returned session directly.
       if (Capacitor.isNativePlatform()) {
-        redirectTo = 'com.accommo.app://auth/callback'
-      } else {
-        const base = window.location.origin
-        const path = redirectPath.replace(/^\/+/, '')
-        redirectTo = `${base}/${path}`
+        const webClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
+        if (!webClientId) {
+          // Deliberately loud rather than quietly falling back to a browser
+          // flow: a silent fallback looks exactly like "the fix did not work",
+          // and costs a debugging round to tell the two apart.
+          throw new Error(
+            'Google sign-in is not configured for this build (VITE_GOOGLE_WEB_CLIENT_ID).',
+          );
+        }
+        // initialize() only stores config, so there is nothing to gain from
+        // doing it at boot for the many sessions that never touch Google.
+        await SocialLogin.initialize({ google: { webClientId } });
+
+        let result;
+        try {
+          ({ result } = await SocialLogin.login({
+            provider: 'google',
+            options: { scopes: ['email', 'profile'] },
+          }));
+        } catch (e: unknown) {
+          // Dismissing the account sheet rejects, and Credential Manager words
+          // it several ways. Backing out is not a failure, so say nothing and
+          // let the caller see "no session".
+          const message = e instanceof Error ? e.message : String(e);
+          if (/cancel/i.test(message)) return null;
+          throw e;
+        }
+
+        const idToken = 'idToken' in result ? result.idToken : null;
+        if (!idToken) throw new Error('Google did not return an identity token.');
+
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: idToken,
+        });
+        if (error) throw sanitizeError(error);
+        return data;
       }
-      const native = Capacitor.isNativePlatform()
+
+      // Browser development sessions have no native picker, so they keep the
+      // redirect flow and return to their own HTTP(S) origin.
+      const path = redirectPath.replace(/^\/+/, '');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo,
-          // On a device, do not let supabase-js navigate for us. Its default is
-          // `window.location.href = url`, which walks the Capacitor WebView off
-          // the app's own bundle and onto Google's page — the app becomes a web
-          // browser, and Google increasingly refuses OAuth in an embedded
-          // WebView outright (`disallowed_useragent`).
-          skipBrowserRedirect: native,
+          redirectTo: `${window.location.origin}/${path}`,
           queryParams: {
             prompt: 'select_account',
           },
         },
       });
       if (error) throw sanitizeError(error);
-
-      // Hand it to the system browser instead. The app stays loaded underneath;
-      // Google returns to com.accommo.app://auth/callback, Android routes that
-      // VIEW intent back into MainActivity, and boot/deeplink.ts takes it from
-      // there — closing this tab as it does.
-      if (native && data?.url) {
-        await Browser.open({ url: data.url, presentationStyle: 'popover' })
-      }
       return data;
     },
 

@@ -1001,14 +1001,20 @@ const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending review',
   reviewing: 'Reviewing',
   accredited: 'Accredited',
+  needs_revision: 'Needs revision',
   rejected: 'Rejected',
+  expired: 'Accreditation expired',
+  suspended: 'Suspended by OSAS',
   delisted: 'Delisted',
 }
 const STATUS_TONE: Record<string, string> = {
   pending: 'amber',
   reviewing: 'amber',
   accredited: 'green',
+  needs_revision: 'amber',
   rejected: 'red',
+  expired: 'red',
+  suspended: 'red',
   delisted: 'grey',
 }
 const ROOM_STATUS_TONE: Record<string, string> = {
@@ -2409,7 +2415,7 @@ onMounted(load)
 /* Unselected tabs read as frosted glass over the photo behind them; the
    active tab turns opaque to fuse seamlessly into the card below. */
 .tab {
-  /* so the active tab can lift above the ones beside it */
+  /* keeps the active tab above the ones beside it */
   position: relative;
   min-height: 40px;
   padding: 0 16px;
@@ -2429,15 +2435,9 @@ onMounted(load)
   -webkit-tap-highlight-color: transparent;
 }
 .tab--on {
-  /* The selected tab is the front card: it grows past the 4px gap on either
-     side, covering 3px of its neighbours, and casts a shadow over them. The
-     shadow is clipped at the tab's own bottom edge — spilling it onto the panel
-     below would draw a grey line exactly where the two are meant to be fused. */
+  /* The selected tab fuses flat into the panel below, matching the folder tabs
+     in accommo-web — it no longer grows over its neighbours or casts a shadow. */
   z-index: 1;
-  margin: 0 -7px;
-  padding: 0 23px;
-  box-shadow: 0 -3px 10px rgba(15, 23, 42, 0.14);
-  clip-path: inset(-14px -14px 0 -14px);
   border-color: var(--m-border);
   background: var(--m-surface);
   backdrop-filter: none;
