@@ -30,6 +30,7 @@ jobs:
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
           VITE_DEMO_MODE: ''
         run: npm run build
 
@@ -73,6 +74,7 @@ jobs:
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
           VITE_DEMO_MODE: ''
         run: npm run build
       # Cap sync must run inside src-capacitor, where the native android project
@@ -105,6 +107,23 @@ jobs:
             echo "keyAlias=$KEY_ALIAS"
             echo "keyPassword=$KEY_PASSWORD"
           } > src-capacitor/android/app/keystore.properties
+      # Google's Credential Manager only hands the app an ID token when the
+      # installed APK's signing fingerprint is registered on an Android OAuth
+      # client (package com.accommo.app). The release key lives only in
+      # KEYSTORE_BASE64, so the fingerprint has nowhere else to come from —
+      # print it. A signing certificate fingerprint is public by design; it is
+      # the value you paste into Google Cloud Console, not a secret.
+      - name: Print release signing SHA-1 (for Google OAuth)
+        shell: bash
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -e
+          f=src-capacitor/android/app/release.jks
+          if [ ! -f "$f" ]; then echo "Unsigned build — no fingerprint to register."; exit 0; fi
+          keytool -list -v -keystore "$f" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+            | grep -E 'SHA1:|SHA256:'
       # ACCOMMO_VERSION_CODE / ACCOMMO_VERSION_NAME come from the Resolve version
       # step above, via GITHUB_ENV.
       - name: Build Android release

@@ -4,7 +4,16 @@
 import { defineConfig } from '#q-app';
 import { config as loadDotenv } from 'dotenv';
 
-const env = { ...loadDotenv({ path: '.env', quiet: true }).parsed, ...loadDotenv({ path: '.env.local', quiet: true }).parsed };
+// process.env first, so it is the fallback rather than the winner: locally the
+// dotenv files are the source of truth, while CI has no .env at all (it is
+// gitignored) and passes the VITE_* secrets as real environment variables. Read
+// only from the dotenv files, every define below resolved to `undefined` in a
+// GitHub Actions build.
+const env = {
+  ...process.env,
+  ...loadDotenv({ path: '.env', quiet: true }).parsed,
+  ...loadDotenv({ path: '.env.local', quiet: true }).parsed,
+};
 
 export default defineConfig((/* ctx */) => {
   return {
