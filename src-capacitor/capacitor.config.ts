@@ -12,6 +12,14 @@ const config: CapacitorConfig = {
   appName: 'Accommo Mobile',
   webDir: 'www',
   backgroundColor: '#f6f7f8',
+  plugins: {
+    // @capgo/capacitor-social-login enables all four providers by default, which
+    // links the Facebook, Apple and Twitter SDKs into the APK for nothing.
+    // Accommo only ever signs in with Google; the rest compile away.
+    SocialLogin: {
+      providers: { google: true, facebook: false, apple: false, twitter: false },
+    },
+  },
 }
 
 export default config

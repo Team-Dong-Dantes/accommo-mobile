@@ -150,6 +150,17 @@
                 label="Sex"
                 :rules="[(val: string) => !!val || 'Please select your sex']"
               />
+
+              <!-- Native date input: on Android this is the platform picker, and
+                   OSAS checks what is typed here against the birth date printed
+                   on the school or government ID that gets uploaded later. -->
+              <AuthInput
+                v-model="form.dateOfBirth"
+                label="Date of Birth"
+                type="date"
+                :max="today"
+                :rules="dateOfBirthRules"
+              />
             </AuthFieldGroup>
 
             <AuthConsent v-model="agreedToTerms" />
@@ -636,6 +647,17 @@ const decisionReason = ref('');
 let createdUserId: string | null = null;
 
 const sexOptions = ['Male', 'Female'];
+
+/** Today, as yyyy-mm-dd, for the date input's own upper bound. */
+const today = new Date().toISOString().slice(0, 10);
+
+// The database carries the same bounds (users_date_of_birth_plausible); these
+// exist so the person is told before the request is made, not after it fails.
+const dateOfBirthRules = [
+  (val: string) => !!val || 'Please enter your date of birth',
+  (val: string) => val <= today || 'Date of birth cannot be in the future',
+  (val: string) => val > '1900-01-01' || 'Please enter a valid date of birth',
+];
 /** N/A leads and is the default: most people have no extension. */
 const NAME_EXT_NONE = 'N/A';
 const nameExtensions = [NAME_EXT_NONE, 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
@@ -753,6 +775,7 @@ const form = reactive({
   nameExtension: NAME_EXT_NONE,
   fullName: '',
   sex: '',
+  dateOfBirth: '',
   phoneDigits: '',
   phone: '',
   emailUser: '',
@@ -876,28 +899,44 @@ onMounted(async () => {
     return;
   }
 
+  await adoptGoogleSession(session, !!profile, registered);
+});
+
+/**
+ * Turns a Google session into this screen's "Google connected" mode.
+ *
+ * Two routes arrive here. A browser session comes back through the redirect and
+ * finds the session on mount; on a device the native picker resolves in place
+ * and handleGoogleAuth calls this directly, with nothing having navigated.
+ */
+async function adoptGoogleSession(
+  session: { user: { id: string; email?: string | undefined; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> } } | null,
+  hasProfile: boolean,
+  // Undefined when there is no session at all, which the guard below rejects.
+  registered: boolean | undefined,
+) {
   // Was "session && !profile" — a condition the auth trigger makes impossible,
   // since it always writes the users row. The real signal is an OAuth session
   // whose onboarding never completed.
-  const viaOAuth = (session?.user?.app_metadata as Record<string, unknown> | undefined)?.provider !== 'email';
-  if (session && profile && !registered && viaOAuth) {
-    // Accounts predating the domain rule can still sign in — the trigger guards
-    // INSERT only, so nobody already in the app is locked out of it — but they
-    // must not be able to finish a fresh registration on a domain Accommo no
-    // longer accepts.
-    if (!isAllowedEmailDomain(session.user.email)) {
-      await supabase.auth.signOut();
-      notify.error(GOOGLE_REJECTED);
-      return;
-    }
-    isGoogleMode.value = true;
-    fillFromGoogleSession(session.user);
-    // They consented on the way out — handleGoogleAuth cannot reach the redirect
-    // otherwise. Asking again here would be asking twice for the same thing. If
-    // the marker is gone, the guard in handleRegister still catches it.
-    if (localStorage.getItem(CONSENT_MARKER) === '1') agreedToTerms.value = true;
+  const viaOAuth = session?.user?.app_metadata?.provider !== 'email';
+  if (!(session && hasProfile && !registered && viaOAuth)) return;
+
+  // Accounts predating the domain rule can still sign in — the trigger guards
+  // INSERT only, so nobody already in the app is locked out of it — but they
+  // must not be able to finish a fresh registration on a domain Accommo no
+  // longer accepts.
+  if (!isAllowedEmailDomain(session.user.email)) {
+    await supabase.auth.signOut();
+    notify.error(GOOGLE_REJECTED);
+    return;
   }
-});
+  isGoogleMode.value = true;
+  fillFromGoogleSession(session.user);
+  // They consented on the way out — handleGoogleAuth cannot reach Google
+  // otherwise. Asking again here would be asking twice for the same thing. If
+  // the marker is gone, the guard in handleRegister still catches it.
+  if (localStorage.getItem(CONSENT_MARKER) === '1') agreedToTerms.value = true;
+}
 
 async function createAccountNow(): Promise<boolean> {
   if (emailCreated.value || creatingAccount.value) return emailCreated.value;
@@ -1046,12 +1085,22 @@ function finishWithoutPin() {
 async function handleGoogleAuth() {
   try {
     // Only meaningful when the boxes happened to be ticked first: local state
-    // does not survive the redirect, so this saves re-ticking on the way back.
+    // does not survive a redirect, so this saves re-ticking on the way back.
+    // The native picker never navigates, so there it is simply harmless.
     if (agreedToTerms.value) localStorage.setItem(CONSENT_MARKER, '1');
-    await authStore.loginWithGoogle(registerPath.value);
+    const data = await authStore.loginWithGoogle(registerPath.value);
+    // A session in hand means the native picker resolved in place rather than
+    // handing off to a redirect, so nothing is going to re-mount this screen.
+    if (data && 'session' in data && data.session) {
+      const { session, profile, registered } = await authStore.getSessionProfile();
+      await adoptGoogleSession(session, !!profile, registered);
+    }
   } catch (error: unknown) {
     localStorage.removeItem(CONSENT_MARKER);
-    notify.error(error instanceof Error ? error.message : 'An error occurred');
+    const message = error instanceof Error ? error.message : 'An error occurred';
+    // The domain rule on auth.users rejects the account at sign-in now that the
+    // native path gets the failure thrown rather than returned in a URL.
+    notify.error(isSignupDatabaseError(message) ? GOOGLE_REJECTED : message);
   }
 }
 

@@ -5,6 +5,8 @@ export interface RegisterForm {
   password?: string;
   fullName: string;
   sex: string;
+  /** ISO yyyy-mm-dd. OSAS checks it against the birth date on the submitted ID. */
+  dateOfBirth: string;
   phone: string;
   college: string;
   program: string;

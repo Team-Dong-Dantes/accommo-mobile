@@ -131,20 +131,30 @@ onMounted(() => {
  * that outcome, so a brand-new Google user just landed back on a login form with
  * no message, and a manager still awaiting OSAS got no explanation either.
  */
+/**
+ * Turns a raw Google failure into something worth showing.
+ *
+ * The browser's redirect flow reports these in the URL; the native picker
+ * throws them instead. Same failures either way, so the wording lives here.
+ */
+function googleFailureMessage(failure: string): string {
+  if (/banned|blocked/i.test(failure)) {
+    return 'Your application is still being reviewed by OSAS. You can sign in once it is approved.';
+  }
+  if (isSignupDatabaseError(failure)) {
+    // Almost always the domain rule on auth.users turning away a new Google
+    // account, but Supabase gives the same wording to any signup-time database
+    // failure — so name the rule without claiming to know that is what it was.
+    return `We couldn't connect that Google account. Accommo only accepts ${ALLOWED_EMAIL_DOMAINS_TEXT} addresses — check which account you picked, then try again.`;
+  }
+  return failure;
+}
+
 async function handleOAuthReturn() {
   // Supabase reports OAuth failures (a banned account among them) in the URL.
   const failure = readOAuthError();
   if (failure) {
-    let message = failure;
-    if (/banned|blocked/i.test(failure)) {
-      message = 'Your application is still being reviewed by OSAS. You can sign in once it is approved.';
-    } else if (isSignupDatabaseError(failure)) {
-      // Almost always the domain rule on auth.users turning away a new Google
-      // account, but Supabase gives the same wording to any signup-time database
-      // failure — so name the rule without claiming to know that is what it was.
-      message = `We couldn't connect that Google account. Accommo only accepts ${ALLOWED_EMAIL_DOMAINS_TEXT} addresses — check which account you picked, then try again.`;
-    }
-    notify.error(message);
+    notify.error(googleFailureMessage(failure));
     history.replaceState(null, '', window.location.pathname);
     return;
   }
@@ -229,9 +239,16 @@ async function cancelEmailVerify() {
 
 async function handleGoogleAuth() {
   try {
-    await authStore.loginWithGoogle('/login');
+    const data = await authStore.loginWithGoogle('/login');
+    // The native picker resolves in place — nothing navigates and nothing
+    // re-mounts this screen, so the routing onMounted would have done has to be
+    // run here instead. On the browser's redirect path this is unreachable:
+    // signInWithOAuth has already sent the tab to Google.
+    if (data && 'session' in data && data.session) await handleOAuthReturn();
   } catch (error: unknown) {
-    notify.error(error instanceof Error ? error.message : 'An error occurred');
+    // Failures used to arrive as URL params for handleOAuthReturn to shape; the
+    // native path throws them instead, so the same wording is applied here.
+    notify.error(googleFailureMessage(error instanceof Error ? error.message : 'An error occurred'));
   }
 }
 

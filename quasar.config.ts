@@ -68,6 +68,11 @@ export default defineConfig((/* ctx */) => {
         'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
         'import.meta.env.VITE_DEMO_MODE': JSON.stringify(env.VITE_DEMO_MODE),
         'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify(env.VITE_MAPBOX_TOKEN),
+        // Google's WEB OAuth client ID — the same one configured in Supabase's
+        // Google provider. Android's Credential Manager takes it as the server
+        // client ID, so the ID token it mints is addressed to a client Supabase
+        // already trusts and signInWithIdToken accepts it as-is.
+        'import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID': JSON.stringify(env.VITE_GOOGLE_WEB_CLIENT_ID),
         // Quasar only auto-exposes QCLI_-prefixed vars, so every VITE_ one
         // has to be inlined here or it reads as undefined in client code.
         'import.meta.env.VITE_CLOUDINARY_CLOUD_NAME': JSON.stringify(env.VITE_CLOUDINARY_CLOUD_NAME),

@@ -1530,6 +1530,7 @@ export type Database = {
           avatar_color: string | null
           avatar_url: string | null
           created_at: string | null
+          date_of_birth: string | null
           email: string
           email_verified_at: string | null
           full_name: string
@@ -1552,6 +1553,7 @@ export type Database = {
           avatar_color?: string | null
           avatar_url?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           email: string
           email_verified_at?: string | null
           full_name: string
@@ -1574,6 +1576,7 @@ export type Database = {
           avatar_color?: string | null
           avatar_url?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           email?: string
           email_verified_at?: string | null
           full_name?: string
