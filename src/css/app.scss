@@ -509,7 +509,7 @@ body {
 .auth-split .auth-sheet {
   width: 100%;
   max-width: none;
-  height: calc(100dvh - 40px);
+  height: calc(var(--auth-vh, 100dvh) - 40px);
   border-radius: var(--m-radius-lg);
   box-shadow: var(--m-shadow);
 }
@@ -519,7 +519,7 @@ body {
 .auth-split .auth-layout-bg .login-page .login-container {
   width: 100%;
   max-width: none;
-  min-height: calc(100dvh - 40px);
+  min-height: calc(var(--auth-vh, 100dvh) - 40px);
   border-radius: var(--m-radius-lg);
   box-shadow: var(--m-shadow);
 }
@@ -823,21 +823,30 @@ select,
 
    Paired with `.hero-section.register-mode` in AuthLayout: the 112px it leaves
    is what the wordmark and its line need to stay readable underneath. */
-/* A fixed height, and deliberately not one that knows about the keyboard.
+/* A height the keyboard cannot change.
 
-   On Android the keyboard overlays the WebView (windowSoftInputMode is
-   adjustNothing in the manifest), so dvh never shrinks and this box never
-   moves. That is the whole design: the sheet holds still and the keyboard comes
-   up over the foot of it, action bar included. Tap away from the field to get
-   the bar back.
+   Not dvh, which it can. windowSoftInputMode is irrelevant on targetSdk 36 —
+   Android 15 ignores the adjust* values — and @capacitor/android resizes the
+   WebView itself regardless: SystemBars.java pads the WebView's PARENT by the
+   IME height whenever the keyboard is visible. The viewport really does shrink,
+   so every dvh on screen recalculates and anything measured in them walks up
+   the page.
 
-   Two earlier attempts are worth not repeating. Subtracting the keyboard height
-   here lifted the bar ~190px on every focus. Hiding the bar instead removed the
-   movement but made the button vanish mid-form. Covered and still beats both. */
+   --auth-vh is AuthLayout's answer to that, already used by the hero for the
+   same reason: window.innerHeight sampled once and re-sampled only when the
+   WIDTH changes, so a rotation updates it and a keyboard never does. The sheet
+   keeps its full height, the keyboard comes up over the foot of it, and the
+   action bar is covered rather than moved. Tap away from the field to get it
+   back.
+
+   Two earlier attempts are worth not repeating, both of which treated the
+   symptom: subtracting the IME height here lifted the bar ~190px on every
+   focus, and hiding the bar removed the movement but made the button vanish
+   mid-form. */
 
 .auth-sheet {
   height: calc(100vh - 112px);
-  height: calc(100dvh - 112px);
+  height: calc(var(--auth-vh, 100dvh) - 112px);
   padding: 18px 24px 0;
   border-radius: 0 0 28px 28px;
   background: var(--m-surface);

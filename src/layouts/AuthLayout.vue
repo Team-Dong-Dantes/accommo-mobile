@@ -5,13 +5,18 @@
        the form into two halves, and the splash — which is a photograph with a
        sentence on it, not a form — keeps the picture full-bleed and only reins
        its text in to a readable measure. -->
-  <q-layout view="lHh Lpr lFf" class="window-height overflow-hidden" :class="authShell">
+  <q-layout
+    view="lHh Lpr lFf"
+    class="window-height overflow-hidden"
+    :class="authShell"
+    :style="{ '--auth-vh': authVh }"
+  >
     <q-page-container class="auth-layout-bg relative-position">
       <div class="hero-section shadow-5" :class="{
         'splash-mode': isSplash,
         'login-mode': isLogin,
         'register-mode': isRegister,
-      }" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})`, '--auth-vh': authVh }">
+      }" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
         <div class="hero-overlay">
           <div class="hero-content">
             <div class="logo-text">accommo</div>
