@@ -507,8 +507,15 @@ select,
    Paired with `.hero-section.register-mode` in AuthLayout: the 112px it leaves
    is what the wordmark and its line need to stay readable underneath. */
 .auth-sheet {
+  /* Minus --m-kb: on Android the keyboard overlays the WebView
+     (windowSoftInputMode=adjustNothing), so dvh never shrinks and the foot of
+     the sheet — its action bar — would sit underneath the keyboard. Shrinking
+     the frame keeps the button visible and shortens the inner scroller, so a
+     focused field can still be scrolled into view. In a browser --m-kb is 0 and
+     dvh does the shrinking itself. */
   height: calc(100vh - 112px);
-  height: calc(100dvh - 112px);
+  height: calc(100dvh - 112px - var(--m-kb, 0px));
+  transition: height 0.2s ease;
   padding: 18px 24px 0;
   border-radius: 0 0 28px 28px;
   background: var(--m-surface);

@@ -461,10 +461,9 @@
         </div>
 
         <!-- The action bar. Fixed at the foot of the sheet, so it holds still
-             while the fields above it scroll, and padded by --m-kb because the
-             Android keyboard overlays the WebView rather than resizing it
-             (src/boot/keyboard.ts). Back is not here — it is in the step
-             header. -->
+             while the fields above it scroll. The sheet shrinks by --m-kb when
+             the Android keyboard is up, so this bar stays above it. Back is
+             not here — it is in the step header. -->
         <div class="actions col-auto">
           <AuthButton
             v-if="!isLastStep"
@@ -1378,12 +1377,11 @@ function onEmailVerified() {
   overscroll-behavior-y: contain;
 }
 
-/* Sits at the foot of the frame. --m-kb is the Android keyboard's height, which
-   src/boot/keyboard.ts publishes because the keyboard overlays the WebView
-   instead of resizing it — without this the button would be underneath it. */
+/* Sits at the foot of the frame. Clearing the keyboard is .auth-sheet's job —
+   it shrinks by --m-kb — so this bar just needs its own padding. */
 .actions {
   margin: 0 -24px;
-  padding: 12px 24px calc(16px + var(--m-kb, 0px));
+  padding: 12px 24px 16px;
   border-top: 1px solid var(--m-border);
   background: var(--m-surface);
   transition: padding-bottom 0.2s ease;
