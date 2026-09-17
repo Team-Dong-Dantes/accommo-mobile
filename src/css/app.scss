@@ -504,8 +504,8 @@ body {
    with more whitespace round it.
 
    It keeps a definite height because that is what pins its action bar while the
-   fields scroll, and it keeps subtracting --m-kb so the keyboard still shortens
-   it rather than covering the button. */
+   fields scroll. It does not react to the keyboard: like the phone sheet, it
+   holds still and lets the keyboard come up over its foot. */
 .auth-split .auth-sheet {
   width: 100%;
   max-width: none;
@@ -826,27 +826,14 @@ select,
 /* A fixed height, and deliberately not one that knows about the keyboard.
 
    On Android the keyboard overlays the WebView (windowSoftInputMode is
-   adjustNothing), so dvh never shrinks and this box never moves. It used to
-   subtract --m-kb so the action bar at its foot would clear the keyboard, but
-   shrinking the sheet is what made the bar travel ~190px every time a field was
-   focused. The bar steps aside instead (see .kb-open just below), which leaves
-   nothing at the foot of the sheet that needs clearing — and the sheet, whose
-   rounded bottom edge would otherwise have surfaced above the keyboard, holds
-   perfectly still. */
+   adjustNothing in the manifest), so dvh never shrinks and this box never
+   moves. That is the whole design: the sheet holds still and the keyboard comes
+   up over the foot of it, action bar included. Tap away from the field to get
+   the bar back.
 
-/* While the keyboard is up there is no action bar.
-
-   Not moved, not covered, not shrunk — gone, and back the moment the keyboard
-   closes. It is the only arrangement with no motion AND no button stranded
-   under the keyboard, and it hands the fields the height the bar was using.
-   Pressing the button means dismissing the keyboard, which is the gesture
-   someone finishing a field is about to make anyway.
-
-   Driven by a class rather than by --m-kb because a custom property cannot be
-   tested in a selector; src/boot/keyboard.ts sets both from the same event. */
-.kb-open .auth-sheet .actions {
-  display: none;
-}
+   Two earlier attempts are worth not repeating. Subtracting the keyboard height
+   here lifted the bar ~190px on every focus. Hiding the bar instead removed the
+   movement but made the button vanish mid-form. Covered and still beats both. */
 
 .auth-sheet {
   height: calc(100vh - 112px);

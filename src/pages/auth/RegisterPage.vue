@@ -461,8 +461,8 @@
         </div>
 
         <!-- The action bar. Fixed at the foot of the sheet, so it holds still
-             while the fields above it scroll. The sheet shrinks by --m-kb when
-             the Android keyboard is up, so this bar stays above it. Back is
+             while the fields above it scroll. The keyboard simply comes up over
+             it — nothing moves to make room. Back is
              not here — it is in the step header. -->
         <div class="actions col-auto">
           <AuthButton
@@ -1372,17 +1372,13 @@ function onEmailVerified() {
 .steps {
   min-height: 0;
   margin: 0 -24px;
-  /* Padded by the keyboard height so the last fields can still be scrolled
-     clear of it. The sheet itself does not shrink any more, so without this the
-     foot of this scroller would sit behind the keyboard with no way to reach
-     it. */
-  padding: 0 24px calc(8px + var(--m-kb, 0px));
+  padding: 0 24px 8px;
   overflow-y: auto;
   overscroll-behavior-y: contain;
 }
 
-/* Sits at the foot of the frame. Clearing the keyboard is .auth-sheet's job —
-   it shrinks by --m-kb — so this bar just needs its own padding. */
+/* Sits at the foot of the frame, and stays there when the keyboard opens: it is
+   covered rather than moved, so this bar just needs its own padding. */
 .actions {
   margin: 0 -24px;
   padding: 12px 24px 16px;
