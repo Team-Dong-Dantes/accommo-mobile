@@ -9,11 +9,12 @@ import { Keyboard } from '@capacitor/keyboard'
 // Keyboard.setResizeMode() is NOT the lever: it is call.unimplemented() in the
 // Android plugin and silently rejects, so it was never doing anything here.
 //
-// The cost of overlaying is that nothing pinned to the bottom of the screen
-// knows the keyboard is there — the register sheet's action bar would sit under
-// it. So publish the height as `--m-kb` and let any bottom bar pad itself by
-// `var(--m-kb, 0px)`. In a browser (`quasar dev`) these listeners never fire and
-// the default of 0 is correct, because there the viewport really does shrink.
+// Nothing reads --m-kb or .kb-open at the moment. The register sheet used to
+// shrink by the height, and later hid its action bar on the class; both were
+// tried and both were worse than simply letting the keyboard cover the bar, so
+// the layout no longer reacts to the keyboard at all. This stays because it is
+// the hook any bottom bar would need if one ever does — the chat composer is the
+// likely candidate — and it costs two listeners. Delete it if that never comes.
 export default defineBoot(() => {
   if (!Capacitor.isNativePlatform()) return
 
