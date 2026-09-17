@@ -22,8 +22,10 @@
       </EmptyState>
 
       <div v-else class="stack">
-        <div class="m-tabbed">
-          <div class="tabs">
+        <div class="m-tabbed" :class="{ 'stay-both': isTablet }">
+          <!-- A phone shows one panel at a time and needs the strip to choose.
+               On a tablet both are up, so there is nothing left to pick. -->
+          <div v-if="!isTablet" class="tabs">
             <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'stay' }" @click="activeTab = 'stay'">
               My Stay
             </button>
@@ -33,8 +35,13 @@
           </div>
 
           <div class="panel">
-            <q-tab-panels v-model="activeTab" animated swipeable class="m-panels">
-              <q-tab-panel name="stay" class="tab-panel">
+            <!-- Not QTabPanels: it mounts only the active panel, which is exactly
+                 what has to stop happening here. v-show keeps both in the DOM and
+                 lets CSS decide, and v-touch-swipe puts back the one thing the
+                 component was giving us that the phone actually used. -->
+            <div v-touch-swipe.mouse.horizontal="onTabSwipe" class="m-panels">
+              <div v-show="isTablet || activeTab === 'stay'" class="tab-panel">
+                <h2 v-if="isTablet" class="split-head">My Stay</h2>
                 <template v-if="lease">
                   <div class="head">
                     <div class="head-top">
@@ -161,9 +168,10 @@
                     <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
                   </template>
                 </EmptyState>
-              </q-tab-panel>
+              </div>
 
-              <q-tab-panel name="payments" class="tab-panel">
+              <div v-show="isTablet || activeTab === 'payments'" class="tab-panel">
+                <h2 v-if="isTablet" class="split-head">Payments</h2>
                 <div v-if="lease" class="pay-head">
                   <span class="pay-head-label">Expected rent</span>
                   <span class="pay-head-rent">{{ formatPeso(lease.monthlyRent) }}<span class="pay-head-per">/mo</span></span>
@@ -224,8 +232,8 @@
                   </div>
                   <p v-else class="none">No payments {{ showAllPayments ? 'submitted yet' : 'for this room yet' }}.</p>
                 </section>
-              </q-tab-panel>
-            </q-tab-panels>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -366,6 +374,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { isTablet } from '@/utils/useTabletMode'
 import { useRouter, useRoute } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -468,6 +477,13 @@ const visibleHistoryPayments = computed(() => (showAllPayments.value || !lease.v
 // stored notification link_urls from before this merge) land straight on the
 // Payments tab instead of needing a separate page.
 const activeTab = ref<'stay' | 'payments'>(route.path === '/student/payments' ? 'payments' : 'stay')
+
+// Replaces QTabPanels' `swipeable`. Inert on a tablet, where both panels are
+// already on screen and activeTab is not driving anything.
+function onTabSwipe({ direction }: { direction: string }) {
+  if (isTablet.value) return
+  activeTab.value = direction === 'left' ? 'payments' : 'stay'
+}
 
 const leaveDialog = ref(false)
 const leaving = ref(false)
@@ -1561,5 +1577,29 @@ function onPull(done: () => void) {
 .submit-btn {
   min-height: 48px;
   font-weight: 700;
+}
+
+/* Both panels at once on a landscape tablet. The tab strip is gone, so the panel
+   squares off the top corners it was using to fuse into it, and each half names
+   itself where its tab used to. */
+.stay-both .panel {
+  border-radius: var(--m-radius);
+}
+.stay-both .m-panels {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+.stay-both .tab-panel + .tab-panel {
+  padding-left: 20px;
+  border-left: 1px solid var(--m-border);
+}
+.split-head {
+  margin: 0 0 2px;
+  color: var(--m-ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 </style>

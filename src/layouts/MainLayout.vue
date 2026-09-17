@@ -1,7 +1,11 @@
 <template>
-  <q-layout view="hHh Lpr fFf">
+  <!-- .shell-column in phone mode only: on a portrait tablet it keeps the app
+       in the column its screens were drawn for, and pulls every fixed overlay in
+       with it (see app.scss). In tablet mode the shell is the full screen,
+       because the panes are what fills it. -->
+  <q-layout view="hHh Lpr fFf" :class="isTablet ? 'shell-tablet' : 'shell-column'">
     <q-header
-      v-if="!chatFullscreen"
+      v-if="!immersive"
       class="app-header"
       :class="{ 'is-scrolled': scrolled || hasFloatingMap, 'app-header--subpage': isSubPage }"
     >
@@ -41,19 +45,56 @@
     </q-header>
 
     <q-page-container class="page-container">
-      <div class="page-stage">
-        <router-view v-slot="{ Component }">
-          <transition :name="pageTransition">
-            <keep-alive :include="KEEP_ALIVE_PAGES" :max="20">
-              <component :is="Component" :key="route.fullPath" />
-            </keep-alive>
-          </transition>
-        </router-view>
+      <!-- Tablet mode splits the stage in two: the list this screen belongs to
+           on the left, the screen itself on the right. useShellPanes works it
+           out from the same secondaryPages table the back button uses, so the
+           pairing cannot drift from it. In phone mode panes.mode is always
+           "single" and this renders exactly what it always did. -->
+      <div class="page-stage" :class="{ 'page-stage--split': panes.mode === 'split' }">
+        <!-- The list pane. Kept alive on its own so its scroll position and
+             loaded data survive picking one item after another — without it,
+             every tap would remount the list beside the detail. -->
+        <div v-if="panes.mode === 'split'" class="pane pane--list">
+          <keep-alive :max="4">
+            <component :is="panes.listComponent" :key="panes.listPath" />
+          </keep-alive>
+        </div>
+
+        <div :class="panes.mode === 'split' ? 'pane pane--detail' : null">
+          <!-- Nothing picked yet. Naming what the pane is waiting for beats a
+               blank half-screen, which reads as a failure to load. -->
+          <div v-if="panes.mode === 'split' && !panes.detailOpen" class="pane-empty">
+            <IconifyIcon icon="lucide:mouse-pointer-click" width="26" />
+            <p>{{ panes.hint }}</p>
+          </div>
+
+          <router-view v-else v-slot="{ Component }">
+            <transition :name="pageTransition">
+              <keep-alive :include="KEEP_ALIVE_PAGES" :max="20">
+                <component :is="Component" :key="route.fullPath" />
+              </keep-alive>
+            </transition>
+          </router-view>
+        </div>
       </div>
     </q-page-container>
 
+    <!-- One navigation, two presentations. The rail is always up in tablet
+         mode: a sub-page there fills the detail pane beside its list rather
+         than replacing the screen, so there is nothing for it to hide behind
+         the way a phone sub-page hides the footer. -->
+    <SideRail
+      v-if="isTablet"
+      :tabs="displayTabs"
+      :active="activeBottomTab"
+      :avatar-url="profileImageUrl"
+      :initials="userInitials"
+      :menu-open="menuOpen"
+      @select="goToTab"
+    />
+
     <q-footer
-      v-if="!isSubPage && !chatFullscreen"
+      v-else-if="!isSubPage && !immersive"
       bordered
       class="bottom-footer"
     >
@@ -70,7 +111,7 @@
     <TermsGate />
 
     <QuickActions
-      v-if="!chatFullscreen"
+      v-if="!immersive"
       v-model:open="menuOpen"
       :account-actions="accountActions"
       :actions="displayQuickActions"
@@ -117,7 +158,10 @@ import { useMessagesStore } from '@/stores/messages'
 import { initialsOf } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
+import { isTablet } from '@/utils/useTabletMode'
+import { useShellPanes } from '@/utils/useShellPanes'
 import BottomNav from '@/components/layout/BottomNav.vue'
+import SideRail from '@/components/layout/SideRail.vue'
 import TermsGate from '@/components/shared/TermsGate.vue'
 import BroadcastBanner from '@/components/shared/BroadcastBanner.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
@@ -345,6 +389,17 @@ const isSubPage = computed(() => Boolean(subPage.value))
 // transparent header over a map (rather than over the page's own solid
 // background) leaves its icons floating with no backing.
 const hasFloatingMap = computed(() => route.path === '/student/discover')
+
+// Which panes the stage shows. Single in phone mode, always — the composable
+// short-circuits on isTablet before it looks at anything else.
+const panes = useShellPanes(() => config.value, () => isTablet.value)
+
+// An open thread or ticket covers the screen on a phone, so the chrome steps
+// aside. In tablet mode it fills the detail pane instead, beside a list that is
+// still on screen — there is nothing to step aside for, and hiding the rail
+// would strand the one thing that navigates. Resolved here rather than in each
+// page so every screen that raises chatFullscreen gets it.
+const immersive = computed(() => chatFullscreen.value && !isTablet.value)
 
 function goToTab(tabName: string) {
   if (tabName === 'menu') {
@@ -693,6 +748,24 @@ function onScroll() {
   background: var(--m-bg);
 }
 .page-stage { position: relative; min-height: 100%; overflow-x: clip; }
+
+/* Two panes, one scroll each, half the stage apiece. An even split says the list
+   and what is open from it are two views of equal standing, rather than a phone
+   list with a detail parked next to it. */
+.page-stage--split {
+  display: grid;
+  height: 100%;
+  grid-template-columns: 1fr 1fr;
+}
+.pane {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  overflow-y: auto;
+}
+.pane--list {
+  border-right: 1px solid var(--m-border);
+}
 .page-slide-left-enter-active,
 .page-slide-right-leave-active {
   position: absolute;

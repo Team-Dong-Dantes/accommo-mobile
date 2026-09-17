@@ -1,17 +1,26 @@
 <template>
-  <q-page class="msgs">
+  <!-- page-split turns this from "a list with a thread over it" into "a list
+       beside a thread" on a landscape tablet. The thread is a sibling of the
+       refresher, not inside it: it is not pull-to-refreshable content, and as a
+       direct child of the page it can be the second column. -->
+  <q-page class="msgs" :class="{ 'page-split': isTablet }">
     <q-pull-to-refresh @refresh="onPull">
       <ThreadList :empty-message="emptyMessage" :query="query" :filter="filter" @open="openThread" />
-      <ChatThread
-        v-if="openId"
-        :key="openId"
-        :conversation-id="openId"
-        :role="role"
-        :room-id="roomId"
-        @close="closeThread"
-      />
-
     </q-pull-to-refresh>
+
+    <ChatThread
+      v-if="openId"
+      :key="openId"
+      :conversation-id="openId"
+      :role="role"
+      :room-id="roomId"
+      @close="closeThread"
+    />
+
+    <div v-else-if="isTablet" class="page-split-empty">
+      <IconifyIcon icon="lucide:messages-square" width="26" />
+      <p>Pick a conversation to read it</p>
+    </div>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->
     <SearchDock
@@ -55,6 +64,7 @@ import { authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useMessagesStore } from '@/stores/messages'
 import { chatFullscreen } from '@/utils/chatFullscreen'
+import { isTablet } from '@/utils/useTabletMode'
 import { useNotify } from '@/utils/notify'
 import ThreadList from '@/components/messages/ThreadList.vue'
 import ChatThread from '@/components/messages/ChatThread.vue'

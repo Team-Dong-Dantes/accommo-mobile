@@ -1,5 +1,7 @@
 <template>
-  <q-page class="cp">
+  <!-- Beside its list rather than over it on a landscape tablet; see
+       `.page-split` in app.scss. -->
+  <q-page class="cp" :class="{ 'page-split': isTablet }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="group">
@@ -90,7 +92,11 @@
       </div>
     </BottomSheet>
 
-    <q-dialog v-model="detailOpen" position="bottom">
+    <SplitDetail
+      v-model:open="detailOpen"
+      icon="lucide:message-square-warning"
+      hint="Pick a concern to read it and reply"
+    >
       <q-card v-if="selected" class="detail-sheet">
         <div class="detail-head">
           <span class="detail-avatar" :class="selected.avatarColor ? [`bg-${selected.avatarColor}`, 'text-white'] : []">
@@ -143,7 +149,7 @@
           This concern is closed.
         </p>
       </q-card>
-    </q-dialog>
+    </SplitDetail>
   </q-page>
 </template>
 
@@ -162,6 +168,8 @@ import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
+import SplitDetail from '@/components/shared/SplitDetail.vue'
+import { isTablet } from '@/utils/useTabletMode'
 
 const FILTERS = [
   { key: 'all', label: 'All' },

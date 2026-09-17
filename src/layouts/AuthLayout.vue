@@ -1,5 +1,11 @@
 <template>
-  <q-layout view="lHh Lpr lFf" class="window-height overflow-hidden">
+  <!-- Three shells, not two. On a phone, and on a tablet held in portrait, the
+       auth screens hold the column they were drawn for. In landscape they get
+       the room: the sign-in, role pick and register screens split the photo and
+       the form into two halves, and the splash — which is a photograph with a
+       sentence on it, not a form — keeps the picture full-bleed and only reins
+       its text in to a readable measure. -->
+  <q-layout view="lHh Lpr lFf" class="window-height overflow-hidden" :class="authShell">
     <q-page-container class="auth-layout-bg relative-position">
       <div class="hero-section shadow-5" :class="{
         'splash-mode': isSplash,
@@ -35,6 +41,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { EXTERNAL_URLS } from '@/utils/config';
+import { isTablet } from '@/utils/useTabletMode';
 
 const route = useRoute();
 
@@ -74,6 +81,16 @@ onMounted(() => {
 onUnmounted(() => window.removeEventListener('resize', onResize));
 
 const isSplash = computed(() => route.path === '/');
+
+/**
+ * Which of the three auth shells is on screen. One class rather than several
+ * booleans because they are mutually exclusive by definition, and the CSS that
+ * reads them (app.scss) is easier to follow keyed on one name each.
+ */
+const authShell = computed(() => {
+  if (!isTablet.value) return 'shell-column';
+  return isSplash.value ? 'auth-wide' : 'auth-split';
+});
 const isLogin = computed(() => route.path === '/login');
 
 // CHANGED: Now triggers for BOTH '/register' and '/register/manager'
@@ -86,12 +103,20 @@ const transitionName = ref('splash-to-login');
 watch(
   () => route.path,
   (to, from) => {
-    // Registration drops in from the top, one vertical idea shared with the
-    // hero settling into its band at the bottom. The role picked no longer
-    // chooses a horizontal direction: the sheet is rounded at its bottom edge
-    // because it hangs from the top, and sliding it sideways fought that shape
-    // — as well as the hero, which was moving down at the same time.
-    if (to.startsWith('/register')) {
+    // Sign in and create an account are alternatives to each other, not one
+    // inside the other, so moving between them travels sideways where the rest
+    // of auth travels vertically. Both destinations the "Create account" link
+    // can reach are covered: the start screen, which is where the role fork
+    // lives, and /register itself, where guard.ts sends an unregistered Google
+    // account.
+    if (from === '/login' && (to === '/' || to.startsWith('/register'))) {
+      transitionName.value = 'slide-right';
+    // Everything else into registration still drops in from the top, one
+    // vertical idea shared with the hero settling into its band at the bottom.
+    // The role picked no longer chooses a horizontal direction: the sheet is
+    // rounded at its bottom edge because it hangs from the top, and sliding it
+    // sideways fought that shape — and the hero, which moves down at the same time.
+    } else if (to.startsWith('/register')) {
       transitionName.value = 'slide-down';
     } else if (from === '/' && to === '/login') {
       // The hybrid transition: Login slides up, Splash fades out
@@ -297,7 +322,9 @@ watch(
 .slide-up-enter-active,
 .slide-up-leave-active,
 .slide-down-enter-active,
-.slide-down-leave-active {
+.slide-down-leave-active,
+.slide-right-enter-active,
+.slide-right-leave-active {
   transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1);
   position: absolute;
   top: 0;
@@ -320,5 +347,19 @@ watch(
 
 .slide-down-leave-to {
   transform: translateY(100dvh);
+}
+
+/* Named for the direction of travel, like the two above: both screens move to
+   the right together, so the one arriving starts off the left edge and the one
+   leaving exits stage right.
+
+   A percentage, not 100dvw: it is of the element itself, so each page travels
+   exactly its own width whatever the shell around it is doing. */
+.slide-right-enter-from {
+  transform: translateX(-100%);
+}
+
+.slide-right-leave-to {
+  transform: translateX(100%);
 }
 </style>

@@ -8,6 +8,9 @@
   --m-text: #374151;
   --m-muted: #6b7280;
   --m-bg: #f6f7f8;
+  /* The ground beside the shell column on a screen wider than the column.
+     A shade under --m-bg so the column reads as a surface sitting on it. */
+  --m-backdrop: #e4e7ea;
   --m-surface: #ffffff;
   --m-border: #e5e7eb;
   --m-success: #15803d;
@@ -46,6 +49,7 @@
   --m-text: #cbd5e1;
   --m-muted: #94a3b8;
   --m-bg: #101216;
+  --m-backdrop: #07080a;
   --m-surface: #1a1d23;
   --m-border: #2a2e37;
   --m-success: #4ade80;
@@ -239,6 +243,319 @@ h4 {
 html,
 body {
   overscroll-behavior: none;
+}
+
+/* =========================================================================
+   The shell column — phone mode on a screen wider than a phone.
+
+   This app is 36 screens of phone layout with no breakpoints in them. Given a
+   tablet held in portrait, the honest thing is not to stretch a 60-character
+   line to 160 but to keep the column the screens were drawn for and put the
+   backdrop either side. Landscape is the case that gets a real tablet layout
+   (see useTabletMode.ts); this is everything else.
+
+   `transform` is the load-bearing declaration, not a paint hint. A transformed
+   element becomes the containing block for `position: fixed` descendants, so
+   the twenty-odd fixed overlays in this app — the bottom nav, the chat thread,
+   the PIN gate, the search dock, the map float, the quick-actions layer — land
+   inside the column without one of them being edited. They all pin themselves
+   with `inset: 0` or `left/right: 0`, which now means the column's edges.
+
+   Quasar portals its dialogs and menus to <body>, outside this element, so they
+   stay measured against the viewport. That is what they should do: a dialog is
+   the system talking, not the app's column.
+
+   Below 520px the max-width never binds and the transform costs a layer, so on
+   a phone this whole block is inert. */
+.shell-column {
+  max-width: 520px;
+  margin-inline: auto;
+  transform: translateZ(0);
+}
+
+/* The ground either side of the column. Deliberately not --m-bg: the column is
+   already --m-bg, and matching it would erase the column's edge on the one
+   screen size where the edge is the point. */
+@media (min-width: 560px) {
+  body:has(.shell-column) {
+    background: var(--m-backdrop);
+  }
+}
+
+/* =========================================================================
+   Tablet mode — the shell in landscape on a 10" screen and up.
+
+   Every rule here hangs off `.shell-tablet`, which MainLayout puts on the
+   q-layout root from the `isTablet` ref. A class rather than a media query
+   repeated in a dozen scoped stylesheets: the breakpoint is stated once, in
+   useTabletMode.ts, and CSS and JS cannot drift into disagreeing about which
+   mode is on screen. It also means these rules do not exist at all on a phone —
+   there is no `.shell-tablet` element to match.
+
+   Global rather than scoped because what changes is the shell: the rail's width
+   has to be known by the header, the page stage and the fixed overlays that sit
+   inside them, and those live in five files. */
+:root {
+  /* The rail's width, and therefore the inset of everything beside it. */
+  --m-rail: 88px;
+}
+
+.shell-tablet .q-page-container,
+.shell-tablet .app-header {
+  padding-left: var(--m-rail);
+}
+
+/* The header keeps its inset card look, just starting after the rail. */
+.shell-tablet .app-header {
+  margin-left: 0;
+  padding-left: calc(var(--m-rail) + 12px);
+}
+
+/* No bottom nav to clear, so the fixed overlays that reserved room for one stop
+   reserving it, and the ones that pin to the viewport's left edge pin to the
+   rail's instead. They all use `left: 0`, so one rule moves the lot. */
+/* The rail carries the wordmark in tablet mode, so the header stops repeating
+   it — the two sit about a hand's width apart and read as a mistake. The row
+   itself stays, because the notifications bell lives in it. */
+.shell-tablet .app-header .app-title {
+  display: none;
+}
+
+.shell-tablet .bottom-footer {
+  display: none;
+}
+.shell-tablet .q-page-container > .page-stage {
+  padding-bottom: 0;
+}
+
+/* The panes scroll individually, so the stage has to be exactly as tall as the
+   screen below the header rather than as tall as its content. Quasar already
+   puts the header's height on the container as padding-top, so border-box plus
+   a viewport height lands the stage in precisely the space that is left — no
+   header measurement to keep in step. */
+.shell-tablet .q-page-container {
+  height: 100dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------
+   Pages that split themselves.
+
+   Messages and the two OSAS screens do not route their detail — the thread is a
+   sibling of the list inside one page component, toggled by a query parameter or
+   a local ref. The shell's companion pane cannot help them, so they carry
+   `.page-split` and become the two columns themselves.
+
+   The overlay child stops being an overlay: `.chat` (ChatThread) and `.mail`
+   (TicketThread) are `position: fixed; inset: 0` so they can cover a phone, and
+   here they are just the second column. Written as a child selector so it
+   outranks their own scoped rules without !important.
+
+   `.compose` is deliberately left fixed. TicketCompose is a form being filled
+   in, not a detail being read; it stays a modal over the whole page, and being
+   out of flow it is not a third column either. */
+.shell-tablet .page-split {
+  display: grid;
+  height: 100%;
+  /* Half and half. The list was a 380px column against everything else, which
+     is the phone list with the detail parked beside it; an even split reads as
+     two views of equal standing, which is what these screens are. */
+  grid-template-columns: 1fr 1fr;
+}
+.shell-tablet .page-split > .q-pull-to-refresh {
+  min-width: 0;
+  border-right: 1px solid var(--m-border);
+  overflow-y: auto;
+}
+.shell-tablet .page-split > .chat,
+.shell-tablet .page-split > .mail {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  min-width: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Column widths inside tablet mode.
+
+   Removing the phone's width is not the same as wanting all of it. A dashboard,
+   a settings list or a listing is still one column of cards; given 1200px it
+   should hold a comfortable measure and centre, not stretch a 60-character line
+   to 160. Only the panes themselves are allowed to be as wide as the screen. */
+.shell-tablet .page-stage:not(.page-stage--split) {
+  overflow-y: auto;
+}
+/* The measure is set on the box the page lives in, never on the page itself.
+   A page mid-transition is position: absolute with width: 100%, which ignores
+   `margin-inline: auto` — so constraining the page directly left it hard against
+   the left edge for the length of the animation and then centred once the
+   transition classes came off. Narrowing the container instead means there is
+   nothing left to centre and both states line up. */
+.shell-tablet .page-stage:not(.page-stage--split) > div {
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+.shell-tablet .pane--detail {
+  width: min(100%, 860px);
+  margin-inline: auto;
+}
+
+/* =========================================================================
+   Auth in tablet landscape.
+
+   The phone auth screens are a photograph with a sheet hanging into it — a
+   vertical idea, sized in dvh, that has nothing to do with a landscape tablet
+   beyond fitting on it. Here the photograph and the form stop sharing one axis
+   and take a half of the screen each.
+
+   Written here rather than in the four page files because the pieces being
+   repositioned live across all of them — the hero and the scroller in
+   AuthLayout, `.auth-sheet` already global, `.login-container` scoped to
+   LoginPage — and the positions only make sense read together. Selectors carry
+   the page class as well as the target so they outrank the scoped rules they
+   are overriding without reaching for !important — every selector here carries
+   .auth-layout-bg, the page container both halves live in, so it outranks the
+   scoped rule it replaces instead of merely tying with it and depending on the
+   order the stylesheets happen to be injected in.
+
+   `.auth-wide` is the splash, which stays a full-bleed photograph: it is a
+   picture with one sentence on it, not a form, and cutting it in half to leave
+   an empty panel beside it would be worse than leaving it whole. */
+
+/* ---- The photograph, now a panel ---- */
+.auth-split .auth-layout-bg .hero-section,
+.auth-split .auth-layout-bg .hero-section.splash-mode,
+.auth-split .auth-layout-bg .hero-section.login-mode,
+.auth-split .auth-layout-bg .hero-section.register-mode {
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  min-height: 100%;
+  max-height: none;
+  /* The 0.7s move between auth screens was the hero travelling up and down the
+     screen. It no longer travels, so the transition would only smear the scrim
+     on each navigation. */
+  transition: none;
+}
+
+/* The wordmark sits in the panel's bottom corner, where a title block belongs on
+   a half-screen photograph — not floating a fixed 90px from a top edge that is
+   now the top of the screen. */
+.auth-split .auth-layout-bg .hero-section .hero-content {
+  top: auto;
+  bottom: 56px;
+  padding: 0 48px;
+  text-align: left;
+  transition: none;
+}
+.auth-split .auth-layout-bg .hero-section .logo-text {
+  font-size: 54px;
+}
+.auth-split .auth-layout-bg .hero-section .hero-subtitle {
+  margin-top: 6px;
+  font-size: 16px;
+}
+
+/* ---- The form half ---- */
+/* Note what this rule does NOT do: it does not change the wrapper's box.
+   Every auth screen shares one .content-wrapper, and both the outgoing and the
+   incoming page live in it for the 0.7s a transition lasts. Making the wrapper
+   the right half here and the full width on the splash meant that the instant
+   the route changed — before anything had slid anywhere — the sign-in form was
+   re-laid-out into the middle of the screen and then slid away from there.
+   The half is drawn with padding on the page instead, below. */
+.auth-split .auth-layout-bg .content-wrapper {
+  display: grid;
+  /* stretch, not center: the form takes the whole half it has been given. A
+     centred card left the right side mostly empty, which is the thing splitting
+     the screen was meant to fix. */
+  place-items: stretch;
+  /* The form is sized to fit its half and scrolls internally where it needs to
+     (the register sheet has its own scroller), so the half itself never does. */
+  overflow: hidden;
+
+  /* No padding here, deliberately — the gutter is on the page below instead.
+     An absolutely positioned box resolves against its ancestor's PADDING box,
+     so a page in flow sat inside this padding while the same page mid-transition
+     (the slide rules give it position: absolute) ignored it. That was the
+     misalignment that snapped into place when the animation finished. With the
+     gutter on the page, both states describe the same rectangle. */
+  padding: 0;
+}
+
+/* The gutter AND the half, both owned by the page.
+
+   Padding belongs to the element itself rather than to its containing block, so
+   it is the one way of insetting content that a page honours identically in
+   flow and while the transition has it position: absolute. Everything that has
+   jumped mid-animation on these screens has been an inset expressed somewhere
+   the absolute state could not see. */
+.auth-split .auth-layout-bg .q-page {
+  box-sizing: border-box;
+  padding: 20px 20px 20px calc(50% + 20px);
+}
+
+/* The sheet stops being a sheet — nothing is hanging into anything — so it drops
+   the top-anchored geometry for a panel that fills the half it was given. No
+   max-width and no height cap: the point of the split is that the form gets the
+   room, and a 560px card floating in a 680px column is the phone layout again
+   with more whitespace round it.
+
+   It keeps a definite height because that is what pins its action bar while the
+   fields scroll, and it keeps subtracting --m-kb so the keyboard still shortens
+   it rather than covering the button. */
+.auth-split .auth-sheet {
+  width: 100%;
+  max-width: none;
+  height: calc(100dvh - 40px - var(--m-kb, 0px));
+  border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow);
+}
+
+/* Sign-in: its 150px of top padding was clearing a hero band that is not above
+   it any more; the rule above gives it the same even gutter as the rest. */
+.auth-split .auth-layout-bg .login-page .login-container {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - 40px - var(--m-kb, 0px));
+  border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow);
+}
+
+/* ---- Splash: full-bleed photograph, text reined in ---- */
+/* The measure, as padding on the page for the same reason as the split above:
+   it survives the page being position: absolute mid-transition, and it leaves
+   the wrapper the same box it is on every other auth screen. Only the inline
+   padding is named, so the page keeps its own top and bottom spacing. */
+.auth-wide .auth-layout-bg .q-page {
+  box-sizing: border-box;
+  padding-inline: max(20px, calc((100% - 620px) / 2));
+}
+.auth-wide .auth-layout-bg .pitch-line {
+  font-size: 44px;
+}
+
+/* Shared by both empty panes — the shell's and the self-splitting pages'. */
+.pane-empty,
+.page-split-empty {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--m-muted);
+  text-align: center;
+}
+.pane-empty p,
+.page-split-empty p {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 13.5px;
+  line-height: 1.5;
 }
 
 /* Selection policy: disable text-select on chrome/app chrome surfaces so a
@@ -511,11 +828,13 @@ select,
      (windowSoftInputMode=adjustNothing), so dvh never shrinks and the foot of
      the sheet — its action bar — would sit underneath the keyboard. Shrinking
      the frame keeps the button visible and shortens the inner scroller, so a
-     focused field can still be scrolled into view. In a browser --m-kb is 0 and
-     dvh does the shrinking itself. */
+     focused field can still be scrolled into view. The min() spends the 112px
+     hero strip first: a keyboard shorter than the strip costs the sheet nothing,
+     and a taller one moves the footer only by the difference, so the footer
+     travels as little as it can. In a browser --m-kb is 0 and dvh shrinks. */
   height: calc(100vh - 112px);
-  height: calc(100dvh - 112px - var(--m-kb, 0px));
-  transition: height 0.2s ease;
+  height: min(calc(100dvh - 112px), calc(100dvh - var(--m-kb, 0px)));
+  transition: height 0.22s cubic-bezier(0.2, 0, 0, 1);
   padding: 18px 24px 0;
   border-radius: 0 0 28px 28px;
   background: var(--m-surface);

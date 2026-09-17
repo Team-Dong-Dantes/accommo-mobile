@@ -1,5 +1,7 @@
 <template>
-  <q-page class="op">
+  <!-- Beside its list rather than over it on a landscape tablet; see
+       `.page-split` in app.scss. -->
+  <q-page class="op" :class="{ 'page-split': isTablet }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="tabs">
@@ -229,6 +231,11 @@
 
     <TicketThread v-if="openTicket" :key="openTicket.id" :ticket="openTicket" @close="closeTicket" />
 
+    <div v-else-if="isTablet" class="page-split-empty">
+      <IconifyIcon icon="lucide:ticket" width="26" />
+      <p>Pick a ticket to read the thread</p>
+    </div>
+
     <TicketCompose
       v-if="newTicketOpen"
       :categories="TICKET_CATEGORIES"
@@ -254,6 +261,7 @@ import { openExternal } from '@/utils/openExternal'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { chatFullscreen } from '@/utils/chatFullscreen'
+import { isTablet } from '@/utils/useTabletMode'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'

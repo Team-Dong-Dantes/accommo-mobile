@@ -1384,7 +1384,6 @@ function onEmailVerified() {
   padding: 12px 24px 16px;
   border-top: 1px solid var(--m-border);
   background: var(--m-surface);
-  transition: padding-bottom 0.2s ease;
 }
 .actions-secondary {
   width: 100%;

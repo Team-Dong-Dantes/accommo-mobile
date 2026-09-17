@@ -20,6 +20,19 @@ export default defineBoot(() => {
   const setKb = (px: number) =>
     document.documentElement.style.setProperty('--m-kb', `${px}px`)
 
-  void Keyboard.addListener('keyboardWillShow', (info) => setKb(info.keyboardHeight))
-  void Keyboard.addListener('keyboardWillHide', () => setKb(0))
+  // Moving from one field to the next makes Android close and reopen the IME,
+  // so the raw events arrive as hide-then-show a few milliseconds apart. Acting
+  // on that hide drops the footer to the floor and hauls it straight back up —
+  // the jump. Holding the hide briefly lets the following show cancel it, and a
+  // real dismissal being 120ms late is not something anyone can see.
+  let hideTimer: ReturnType<typeof setTimeout> | undefined
+
+  void Keyboard.addListener('keyboardWillShow', (info) => {
+    clearTimeout(hideTimer)
+    setKb(info.keyboardHeight)
+  })
+  void Keyboard.addListener('keyboardWillHide', () => {
+    clearTimeout(hideTimer)
+    hideTimer = setTimeout(() => setKb(0), 120)
+  })
 })
