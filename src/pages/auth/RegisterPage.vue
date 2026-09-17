@@ -1372,7 +1372,11 @@ function onEmailVerified() {
 .steps {
   min-height: 0;
   margin: 0 -24px;
-  padding: 0 24px 8px;
+  /* Padded by the keyboard height so the last fields can still be scrolled
+     clear of it. The sheet itself does not shrink any more, so without this the
+     foot of this scroller would sit behind the keyboard with no way to reach
+     it. */
+  padding: 0 24px calc(8px + var(--m-kb, 0px));
   overflow-y: auto;
   overscroll-behavior-y: contain;
 }
