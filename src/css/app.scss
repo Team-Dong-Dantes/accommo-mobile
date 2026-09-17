@@ -509,7 +509,7 @@ body {
 .auth-split .auth-sheet {
   width: 100%;
   max-width: none;
-  height: calc(100dvh - 40px - var(--m-kb, 0px));
+  height: calc(100dvh - 40px);
   border-radius: var(--m-radius-lg);
   box-shadow: var(--m-shadow);
 }
@@ -519,7 +519,7 @@ body {
 .auth-split .auth-layout-bg .login-page .login-container {
   width: 100%;
   max-width: none;
-  min-height: calc(100dvh - 40px - var(--m-kb, 0px));
+  min-height: calc(100dvh - 40px);
   border-radius: var(--m-radius-lg);
   box-shadow: var(--m-shadow);
 }
@@ -823,18 +823,34 @@ select,
 
    Paired with `.hero-section.register-mode` in AuthLayout: the 112px it leaves
    is what the wordmark and its line need to stay readable underneath. */
+/* A fixed height, and deliberately not one that knows about the keyboard.
+
+   On Android the keyboard overlays the WebView (windowSoftInputMode is
+   adjustNothing), so dvh never shrinks and this box never moves. It used to
+   subtract --m-kb so the action bar at its foot would clear the keyboard, but
+   shrinking the sheet is what made the bar travel ~190px every time a field was
+   focused. The bar steps aside instead (see .kb-open just below), which leaves
+   nothing at the foot of the sheet that needs clearing — and the sheet, whose
+   rounded bottom edge would otherwise have surfaced above the keyboard, holds
+   perfectly still. */
+
+/* While the keyboard is up there is no action bar.
+
+   Not moved, not covered, not shrunk — gone, and back the moment the keyboard
+   closes. It is the only arrangement with no motion AND no button stranded
+   under the keyboard, and it hands the fields the height the bar was using.
+   Pressing the button means dismissing the keyboard, which is the gesture
+   someone finishing a field is about to make anyway.
+
+   Driven by a class rather than by --m-kb because a custom property cannot be
+   tested in a selector; src/boot/keyboard.ts sets both from the same event. */
+.kb-open .auth-sheet .actions {
+  display: none;
+}
+
 .auth-sheet {
-  /* Minus --m-kb: on Android the keyboard overlays the WebView
-     (windowSoftInputMode=adjustNothing), so dvh never shrinks and the foot of
-     the sheet — its action bar — would sit underneath the keyboard. Shrinking
-     the frame keeps the button visible and shortens the inner scroller, so a
-     focused field can still be scrolled into view. The min() spends the 112px
-     hero strip first: a keyboard shorter than the strip costs the sheet nothing,
-     and a taller one moves the footer only by the difference, so the footer
-     travels as little as it can. In a browser --m-kb is 0 and dvh shrinks. */
   height: calc(100vh - 112px);
-  height: min(calc(100dvh - 112px), calc(100dvh - var(--m-kb, 0px)));
-  transition: height 0.22s cubic-bezier(0.2, 0, 0, 1);
+  height: calc(100dvh - 112px);
   padding: 18px 24px 0;
   border-radius: 0 0 28px 28px;
   background: var(--m-surface);

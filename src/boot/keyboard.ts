@@ -17,8 +17,13 @@ import { Keyboard } from '@capacitor/keyboard'
 export default defineBoot(() => {
   if (!Capacitor.isNativePlatform()) return
 
-  const setKb = (px: number) =>
+  // Two facts, one source. The height is what the scrollers pad themselves by;
+  // the class is what lets CSS ask the yes/no question, which a custom property
+  // alone cannot answer in a selector.
+  const setKb = (px: number) => {
     document.documentElement.style.setProperty('--m-kb', `${px}px`)
+    document.documentElement.classList.toggle('kb-open', px > 0)
+  }
 
   // Moving from one field to the next makes Android close and reopen the IME,
   // so the raw events arrive as hide-then-show a few milliseconds apart. Acting
