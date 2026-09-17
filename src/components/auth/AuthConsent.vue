@@ -35,9 +35,13 @@
                   {{ doc.title }}
                 </button>
               </span>
-              <span class="consent-status">
-                <IconifyIcon :icon="read[doc.id] ? 'lucide:check' : 'lucide:book-open'" width="12" />
-                {{ read[doc.id] ? 'Read in full' : 'Tap the title, read it, then accept' }}
+              <!-- Only once it has been read. The unread state used to spell out
+                   "Tap the title, read it, then accept" under every row, which is
+                   instructions for a link that is already underlined and already
+                   opens when the locked box is tapped. -->
+              <span v-if="read[doc.id]" class="consent-status">
+                <IconifyIcon icon="lucide:check" width="12" />
+                Read in full
               </span>
             </div>
           </div>

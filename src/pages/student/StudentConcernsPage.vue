@@ -1,5 +1,7 @@
 <template>
-  <q-page class="cp">
+  <!-- Beside its list rather than over it on a landscape tablet; see
+       `.page-split` in app.scss. -->
+  <q-page class="cp" :class="{ 'page-split': isTablet }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="group">
@@ -97,7 +99,11 @@
       </div>
     </BottomSheet>
 
-    <q-dialog v-model="detailOpen" position="bottom">
+    <SplitDetail
+      v-model:open="detailOpen"
+      icon="lucide:message-square-warning"
+      hint="Pick a concern to see its progress and your manager’s reply"
+    >
       <q-card v-if="selected" class="detail-sheet">
         <div class="detail-head">
           <h3 class="detail-title">{{ CONCERN_CATEGORY_LABEL[selected.category] || selected.category }}</h3>
@@ -131,7 +137,7 @@
 
         <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="detailOpen = false" />
       </q-card>
-    </q-dialog>
+    </SplitDetail>
 
     <q-dialog v-model="newOpen" position="bottom">
       <q-card class="new-sheet">
@@ -175,6 +181,8 @@ import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
+import SplitDetail from '@/components/shared/SplitDetail.vue'
+import { isTablet } from '@/utils/useTabletMode'
 
 const FILTERS = [
   { key: 'all', label: 'All' },
