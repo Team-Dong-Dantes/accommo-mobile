@@ -11,13 +11,18 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- windowSoftInputMode is adjustNothing, not adjustPan: the app owns its
+             keyboard handling. adjustPan slid the whole window up on every focus,
+             which is what made the register sheet and the hero jump. The layout
+             pads bottom bars by --m-kb (src/boot/keyboard.ts) instead and lets
+             the keyboard overlay the WebView. -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustPan"
+            android:windowSoftInputMode="adjustNothing"
             android:exported="true">
 
             <intent-filter>
