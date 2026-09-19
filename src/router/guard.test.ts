@@ -193,3 +193,32 @@ describe('escaping back to the role fork', () => {
     ).toBe('/login?verifyEmail=true')
   })
 })
+
+// The cold-launch bug: the users row could not be read (the first query on a
+// native launch loses the race against the restored JWT being attached, so RLS
+// answers with no row). That used to be indistinguishable from "no such
+// account", and the guard signed the session out and dumped the user on the
+// registration fork — where nothing re-checked, so they sat there.
+describe('unreadable users row', () => {
+  const unread = (over: Partial<GuardState> = {}): GuardState =>
+    student({ status: null, emailVerified: null, registered: null, lookupFailed: true, ...over })
+
+  it('never signs the session out over a failed read', () => {
+    for (const path of ['/', '/login', '/student/home', '/manager/dashboard']) {
+      expect(resolveDestination(unread({ path, role: null })).signOut).toBe(false)
+    }
+  })
+
+  it('still routes on the role the token itself carries', () => {
+    expect(resolveDestination(unread({ path: '/' })).to).toBe('/student/home')
+    expect(resolveDestination(unread({ path: '/', role: 'manager' })).to).toBe('/manager/dashboard')
+  })
+
+  it('stays put when even the token has no usable role', () => {
+    expect(resolveDestination(unread({ path: '/', role: null }))).toEqual({ to: true, signOut: false })
+  })
+
+  it('still evicts on a CONFIRMED bad account, lookup intact', () => {
+    expect(resolveDestination(student({ path: '/', role: null })).signOut).toBe(true)
+  })
+})

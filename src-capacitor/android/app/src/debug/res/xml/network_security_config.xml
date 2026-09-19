@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-variant override of main/res/xml/network_security_config.xml — Android
+  resource merging picks this one for debug builds only, so cleartext HTTP to
+  the live-reload dev server never reaches a release APK. Update the IP if
+  quasar.config.ts / capacitor.config.ts's dev-server host changes.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.8</domain>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">iconify.design</domain>
+        <domain includeSubdomains="true">simplesvg.com</domain>
+        <domain includeSubdomains="true">unisvg.com</domain>
+        <domain includeSubdomains="true">gstatic.com</domain>
+        <domain includeSubdomains="true">isu.edu.ph</domain>
+    </domain-config>
+</network-security-config>

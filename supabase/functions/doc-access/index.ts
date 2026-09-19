@@ -61,7 +61,18 @@ function parseRef(ref: string) {
   // cld:image:authenticated:png:accommo/docs/abc — public_id may contain ':'
   const parts = ref.slice(CLD_PREFIX.length).split(':')
   const [resourceType, type, format, ...rest] = parts
-  return { resourceType: resourceType || 'image', type: type || 'authenticated', format: format || '', publicId: rest.join(':') }
+  return {
+    // The ref is a value the client wrote into its own row, so none of it is
+    // trusted for anything but naming the asset. `resource_type` and `type` are
+    // pinned to the two shapes this function ever uploads rather than echoed
+    // back: whatever the row claims, it does not get to pick a delivery type.
+    // The public_id is pinned by trg_lock_document_ref in the database, which is
+    // the half that actually decides whose file this is.
+    resourceType: resourceType === 'raw' ? 'raw' : 'image',
+    type: 'authenticated',
+    format: format || '',
+    publicId: rest.join(':'),
+  }
 }
 
 async function privateDownloadUrl(ref: string) {

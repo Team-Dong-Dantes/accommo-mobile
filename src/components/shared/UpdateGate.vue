@@ -74,6 +74,14 @@ import { EXTERNAL_URLS } from '@/utils/config'
 // to ask and no APK to update to.
 const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true'
 
+// `quasar dev -m capacitor` (live-reload) and any locally-run `quasar build`
+// fall back to versionCode 1 (see README) — never a real CI run number — so
+// they always read as infinitely behind the real app_release row and get
+// walled off with no way out. import.meta.env.DEV is Vite's own flag, true
+// only for the dev server, never a real build: a local *build* still gets
+// gated, same as today, since it can genuinely ship stale code.
+const isDevBuild = import.meta.env.DEV
+
 type Release = {
   latest_version_code: number
   latest_version_name: string
@@ -86,7 +94,7 @@ const open = ref(false)
 const release = ref<Release | null>(null)
 
 async function check() {
-  if (!Capacitor.isNativePlatform() || isDemoMode) return
+  if (!Capacitor.isNativePlatform() || isDemoMode || isDevBuild) return
   if (open.value) return // already walled off; nothing to re-evaluate
 
   try {

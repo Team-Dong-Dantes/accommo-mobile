@@ -265,12 +265,15 @@ body {
    stay measured against the viewport. That is what they should do: a dialog is
    the system talking, not the app's column.
 
-   Below 520px the max-width never binds and the transform costs a layer, so on
-   a phone this whole block is inert. */
+   Below 560px the column IS the viewport, so the transform stays off there:
+   .shell-column is a normal in-flow block that grows to the page's full
+   height, not a viewport-height box, so making it the containing block for
+   `position: fixed` descendants would carry the header/footer along as the
+   document scrolls instead of pinning them — exactly the bug this guard
+   avoids. */
 .shell-column {
   max-width: 520px;
   margin-inline: auto;
-  transform: translateZ(0);
 }
 
 /* The ground either side of the column. Deliberately not --m-bg: the column is
@@ -279,6 +282,9 @@ body {
 @media (min-width: 560px) {
   body:has(.shell-column) {
     background: var(--m-backdrop);
+  }
+  .shell-column {
+    transform: translateZ(0);
   }
 }
 

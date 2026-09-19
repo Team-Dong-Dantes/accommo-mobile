@@ -27,6 +27,24 @@ export const prompt = ref<PinPrompt | null>(null)
 
 let settle: ((ok: boolean) => void) | null = null
 
+/**
+ * Hands the pending request its answer and clears the slot.
+ *
+ * There is one `settle` for the whole app, so anything that replaces
+ * `prompt.value` must answer whatever was already waiting on it — otherwise the
+ * resolver is simply dropped. That went wrong in both directions: two
+ * overlapping `requirePin()` calls left the first promise unresolved forever
+ * (its caller stuck behind a `busy` flag), and `lockApp()` swapped the prompt
+ * without touching `settle`, so entering the PIN at the resume lock resolved the
+ * *action* underneath it as `true` — backgrounding the app with "Delete this
+ * accommodation?" on screen deleted the accommodation on unlock.
+ */
+function release(ok: boolean) {
+  const resolve = settle
+  settle = null
+  resolve?.(ok)
+}
+
 export interface RequirePinOptions {
   /**
    * Ignore the grace window and always ask. For changing an e-mail or password:
@@ -47,8 +65,14 @@ export interface RequirePinOptions {
   message?: string
 }
 
-export function requirePin(options: RequirePinOptions = {}): Promise<boolean> {
+export async function requirePin(options: RequirePinOptions = {}): Promise<boolean> {
   const pin = usePinStore()
+
+  // `hasPin` defaults to false and is only filled in by an RPC, so until that
+  // answers every gate here waved everything through — a window wide enough to
+  // tap a gated action on the screen the app opens on. `ready` existed to say
+  // exactly this and nothing consulted it.
+  await pin.ensureReady()
 
   // No PIN on the account: nothing to ask for, so either confirm in words or
   // proceed silently, exactly as this action behaved before the PIN existed.
@@ -64,6 +88,9 @@ export function requirePin(options: RequirePinOptions = {}): Promise<boolean> {
 
 function ask(mode: 'action' | 'confirm', options: RequirePinOptions): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
+    // Superseding a prompt cancels the request it belonged to. Answering `false`
+    // is the only safe reading: the user never saw that question through.
+    release(false)
     settle = resolve
     prompt.value = {
       mode,
@@ -74,10 +101,16 @@ function ask(mode: 'action' | 'confirm', options: RequirePinOptions): Promise<bo
 }
 
 /** Covers the app after it has been in the background too long. Not cancellable. */
-export function lockApp() {
+export async function lockApp() {
   const pin = usePinStore()
+  // Same reason requirePin() awaits it: a cold launch reaches here before the
+  // has-PIN answer does, and an unanswered `hasPin` used to mean "no lock".
+  await pin.ensureReady()
   if (!pin.hasPin || prompt.value?.mode === 'lock') return
   pin.lock()
+  // Whatever was waiting on the PIN when the app went away does not get to
+  // resume on the back of the unlock — see release().
+  release(false)
   prompt.value = {
     mode: 'lock',
     title: 'Welcome back',
@@ -95,7 +128,5 @@ export function settlePin(ok: boolean) {
   if (!ok && prompt.value?.mode === 'lock') return
 
   prompt.value = null
-  const resolve = settle
-  settle = null
-  resolve?.(ok)
+  release(ok)
 }

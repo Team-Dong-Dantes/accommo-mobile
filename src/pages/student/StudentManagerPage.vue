@@ -204,6 +204,7 @@ useLiveData({
     id.value
       ? [{ table: 'accommodations', filter: `accommodation_manager_id=eq.${id.value}` }]
       : [],
+  cache: { get: () => properties.value, set: (d) => { properties.value = d as Property[]; loading.value = false } },
 })
 </script>
 

@@ -23,6 +23,7 @@
 import { onActivated, onDeactivated, onMounted, onUnmounted } from 'vue'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { supabase, authUser } from '@/utils/supabase'
+import { loadCached, saveCache } from '@/utils/persistCache'
 
 export type LivePayload = RealtimePostgresChangesPayload<Record<string, unknown>>
 
@@ -47,6 +48,18 @@ export interface LiveDataOptions {
   watch?: (uid: string) => LiveWatch[]
   /** How long a loaded screen stays trustworthy on return. Default 60s. */
   ttl?: number
+  /**
+   * Opt in to surviving an app kill: `get` is read into localStorage after
+   * every successful load, `set` is called with whatever was last saved
+   * (if anything) before the first fetch even starts, so the screen paints
+   * yesterday's data instead of a blank skeleton. Off by default — only
+   * screens with nothing PIN-gated behind them should turn this on; see
+   * persistCache.ts.
+   */
+  cache?: {
+    get: () => unknown
+    set: (data: unknown) => void
+  }
 }
 
 const DEFAULT_TTL = 60_000
@@ -70,9 +83,17 @@ export function useLiveData(options: LiveDataOptions) {
 
   const keyOf = () => (typeof options.key === 'function' ? options.key() : options.key)
 
+  // Synchronous, before the first paint: hydrate from whatever was saved on
+  // the previous launch so the screen never opens blank.
+  if (options.cache) {
+    const cached = loadCached(keyOf())
+    if (cached !== null) options.cache.set(cached)
+  }
+
   async function run(silent: boolean) {
     await options.load(silent)
     loadedAt.set(keyOf(), Date.now())
+    if (options.cache) saveCache(keyOf(), options.cache.get())
   }
 
   function isStale() {

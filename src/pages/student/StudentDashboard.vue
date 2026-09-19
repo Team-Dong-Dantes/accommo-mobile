@@ -461,10 +461,26 @@ async function load(silent = false) {
 // database pushes lease changes here instead of the page re-asking on every
 // return. utils/useLiveData.ts owns the whole policy — first load, the
 // subscription's lifetime, and how stale the data may be on return.
+// Only the low-stakes fields are cached to disk — stay/nextPayment carry
+// rent and payment amounts, same bar that keeps StudentStayPage out of this
+// entirely (see persistCache.ts). Those two stay RAM-only and just show
+// their loading state again on a fresh launch.
+type DashboardCache = { firstName: string; tasks: Task[]; manager: Manager | null }
+
 const { refresh } = useLiveData({
   key: 'student-dashboard',
   load,
   watch: (uid) => [{ table: 'leases', filter: `student_id=eq.${uid}` }],
+  cache: {
+    get: (): DashboardCache => ({ firstName: firstName.value, tasks: tasks.value, manager: manager.value }),
+    set: (d) => {
+      const c = d as DashboardCache
+      firstName.value = c.firstName
+      tasks.value = c.tasks
+      manager.value = c.manager
+      loading.value = false
+    },
+  },
 })
 
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it

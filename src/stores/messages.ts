@@ -30,6 +30,23 @@ interface Person {
 let channel: RealtimeChannel | null = null;
 let deliveryChannel: RealtimeChannel | null = null;
 
+/**
+ * A user id that is safe to paste into a PostgREST filter string.
+ *
+ * `.or()` takes a filter expression, not bound parameters, so an id carrying a
+ * comma or a bracket rewrites the expression around it rather than being
+ * compared to anything. `otherId` arrives from a route parameter, which the user
+ * picks. RLS still decides what any resulting query may see, so this was never a
+ * way to read someone else's mail — but a filter is no place for unchecked text,
+ * and every id in this file is a uuid with nothing to lose by saying so.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function requireUuid(value: string, what: string): string {
+  if (!UUID_RE.test(value)) throw new Error(`Invalid ${what}.`);
+  return value;
+}
+
 function toMs(lastTime: string | null): number {
   return lastTime ? parseServerTime(lastTime).getTime() : 0;
 }
@@ -56,6 +73,7 @@ export const useMessagesStore = defineStore('messages', {
       this.loading = true;
       this.error = '';
       try {
+        requireUuid(userId, 'account');
         const { data, error } = await supabase
           .from('conversations')
           // One string literal: postgrest-js parses the select at type level,
@@ -197,7 +215,8 @@ export const useMessagesStore = defineStore('messages', {
      * resolved by re-reading the row the winner just created.
      */
     async findOrCreate(otherId: string, myRole: 'manager' | 'student'): Promise<string> {
-      const me = this.userId;
+      const me = requireUuid(this.userId, 'account');
+      requireUuid(otherId, 'recipient');
 
       const existing = async () => {
         const { data, error } = await supabase

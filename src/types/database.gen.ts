@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       accommodation_amenities: {
@@ -412,7 +437,6 @@ export type Database = {
         Row: {
           accommodation_manager_id: string
           accommodation_type: string | null
-          gender_policy: string | null
           accreditation_expires_at: string | null
           accreditation_status: string | null
           accredited_at: string | null
@@ -422,11 +446,14 @@ export type Database = {
           capacity: number | null
           city: string | null
           description: string | null
+          gender_policy: string | null
           id: string
           lat: number | null
           lng: number | null
           name: string
           rating_avg: number | null
+          reviewing_at: string | null
+          reviewing_by: string | null
           reviews_count: number | null
           room_type: Database["public"]["Enums"]["room_type"] | null
           status: Database["public"]["Enums"]["accommodation_status"]
@@ -436,7 +463,6 @@ export type Database = {
         Insert: {
           accommodation_manager_id: string
           accommodation_type?: string | null
-          gender_policy?: string | null
           accreditation_expires_at?: string | null
           accreditation_status?: string | null
           accredited_at?: string | null
@@ -446,11 +472,14 @@ export type Database = {
           capacity?: number | null
           city?: string | null
           description?: string | null
+          gender_policy?: string | null
           id?: string
           lat?: number | null
           lng?: number | null
           name: string
           rating_avg?: number | null
+          reviewing_at?: string | null
+          reviewing_by?: string | null
           reviews_count?: number | null
           room_type?: Database["public"]["Enums"]["room_type"] | null
           status: Database["public"]["Enums"]["accommodation_status"]
@@ -460,7 +489,6 @@ export type Database = {
         Update: {
           accommodation_manager_id?: string
           accommodation_type?: string | null
-          gender_policy?: string | null
           accreditation_expires_at?: string | null
           accreditation_status?: string | null
           accredited_at?: string | null
@@ -470,11 +498,14 @@ export type Database = {
           capacity?: number | null
           city?: string | null
           description?: string | null
+          gender_policy?: string | null
           id?: string
           lat?: number | null
           lng?: number | null
           name?: string
           rating_avg?: number | null
+          reviewing_at?: string | null
+          reviewing_by?: string | null
           reviews_count?: number | null
           room_type?: Database["public"]["Enums"]["room_type"] | null
           status?: Database["public"]["Enums"]["accommodation_status"]
@@ -485,6 +516,13 @@ export type Database = {
           {
             foreignKeyName: "accommodations_accommodation_manager_id_fkey"
             columns: ["accommodation_manager_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accommodations_reviewing_by_fkey"
+            columns: ["reviewing_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1543,6 +1581,8 @@ export type Database = {
           phone: string
           privacy_accepted_at: string | null
           registered_at: string | null
+          reviewing_at: string | null
+          reviewing_by: string | null
           role: Database["public"]["Enums"]["user_role"]
           sex: string | null
           status: Database["public"]["Enums"]["user_status"]
@@ -1566,6 +1606,8 @@ export type Database = {
           phone: string
           privacy_accepted_at?: string | null
           registered_at?: string | null
+          reviewing_at?: string | null
+          reviewing_by?: string | null
           role: Database["public"]["Enums"]["user_role"]
           sex?: string | null
           status?: Database["public"]["Enums"]["user_status"]
@@ -1589,13 +1631,23 @@ export type Database = {
           phone?: string
           privacy_accepted_at?: string | null
           registered_at?: string | null
+          reviewing_at?: string | null
+          reviewing_by?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           sex?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           terms_accepted_at?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_reviewing_by_fkey"
+            columns: ["reviewing_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       verification_documents: {
         Row: {
@@ -1784,6 +1836,7 @@ export type Database = {
       get_verification_queue: {
         Args: never
         Returns: {
+          avatar_url: string
           created_at: string
           doc_id: string
           doc_status: string
@@ -1792,6 +1845,8 @@ export type Database = {
           file_url: string
           filename: string
           full_name: string
+          reviewing_at: string
+          reviewing_by: string
           role: string
           user_id: string
           user_status: string
@@ -1827,10 +1882,15 @@ export type Database = {
         Args: { p_older_than?: string }
         Returns: number
       }
+      reap_unverified_signups: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
       recompute_room_occupancy: {
         Args: { p_room_id: string }
         Returns: undefined
       }
+      record_consent: { Args: { p_documents: string[] }; Returns: undefined }
       resubmit_verification: { Args: never; Returns: undefined }
       rotate_qr_token: { Args: never; Returns: string }
       set_audit_context: {
@@ -1838,6 +1898,7 @@ export type Database = {
         Returns: undefined
       }
       set_pin: { Args: { p_pin: string }; Returns: boolean }
+      student_may_lease: { Args: { p_student: string }; Returns: boolean }
       submit_student_review: {
         Args: {
           p_acc_comment: string
@@ -1850,6 +1911,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      sweep_expired_accreditations: { Args: never; Returns: undefined }
       sweep_expired_permits: { Args: never; Returns: undefined }
       verify_pin: { Args: { p_pin: string }; Returns: boolean }
       verify_student_qr: { Args: { p_code: string }; Returns: Json }
@@ -1861,6 +1923,9 @@ export type Database = {
         | "accredited"
         | "rejected"
         | "delisted"
+        | "expired"
+        | "suspended"
+        | "needs_revision"
       amenity:
         | "wifi"
         | "water"
@@ -2023,6 +2088,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       accommodation_status: [
@@ -2031,6 +2099,9 @@ export const Constants = {
         "accredited",
         "rejected",
         "delisted",
+        "expired",
+        "suspended",
+        "needs_revision",
       ],
       amenity: [
         "wifi",
