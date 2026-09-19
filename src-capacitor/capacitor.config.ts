@@ -7,11 +7,19 @@
 // in Capacitor 6 and this project is on 8.
 import type { CapacitorConfig } from '@capacitor/cli'
 
+// `cap sync` runs as a child process of `quasar dev`, which forwards
+// QUASAR_DEV into its env (see @quasar/app-vite's CapacitorConfigFile) — so
+// this is true only for `npm run dev:android`, never for a real build.
+// ponytail: IP hardcoded to this machine's LAN adapter (see package.json's
+// `-H` flag on dev:android) — update both if the network changes.
+const isDev = process.env.QUASAR_DEV === 'true'
+
 const config: CapacitorConfig = {
   appId: 'com.accommo.app',
   appName: 'Accommo Mobile',
   webDir: 'www',
   backgroundColor: '#f6f7f8',
+  ...(isDev ? { server: { url: 'http://192.168.1.8:9000', cleartext: true } } : {}),
   plugins: {
     // @capgo/capacitor-social-login enables all four providers by default, which
     // links the Facebook, Apple and Twitter SDKs into the APK for nothing.

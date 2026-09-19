@@ -22,12 +22,24 @@ const NOT_CONFIGURED = 'Supabase not configured';
 // Fake session/user used in demo mode so protected screens render.
 const DEMO_SESSION = {
   access_token: 'demo-token',
-  user: { id: 'demo-user', email: 'demo@accommo.local', role: 'manager' },
+  // A real uuid, not the string 'demo-user': every id in this app is a uuid, and
+  // the code that builds PostgREST filters now says so out loud (see
+  // requireUuid in stores/messages.ts). Demo mode should exercise the same
+  // paths the app really takes rather than being the one caller that cannot.
+  user: { id: '00000000-0000-4000-8000-000000000001', email: 'demo@accommo.local', role: 'manager' },
 };
 
 let _supabaseInstance: SupabaseClient<Database>;
 
 if (supabaseUrl && supabaseAnonKey) {
+  // Left on the default (implicit) flow deliberately. Switching to PKCE looks
+  // like the right thing for a mobile app, but nothing here needs it: native
+  // sign-in goes through signInWithIdToken() and never rides a redirect at all,
+  // and the deep-link handler already refuses everything except a PKCE code (see
+  // src/boot/deeplink.ts), so the token-in-the-URL shape has no way in either
+  // way. What PKCE *would* change is how Supabase delivers e-mail one-time
+  // codes, which is the spine of registration and of the PIN reset — not worth
+  // altering on the strength of a change nothing is asking for.
   _supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey);
 } else {
   console.warn(
@@ -176,6 +188,77 @@ export function readOAuthError(): string | null {
  */
 export function isSignupDatabaseError(text: string): boolean {
   return /database error|saving new user|unexpected_failure/i.test(text);
+}
+
+/**
+ * The session supabase-js has persisted, read straight out of storage.
+ *
+ * `getSession()` returns null for two very different situations: signed out,
+ * and "the stored access token has expired and the refresh call just failed".
+ * The second is the normal state of a cold launch — the app has sat closed past
+ * the token's hour, and the refresh goes out before the device's network is
+ * back. Treating it as signed out drops a logged-in user on the public
+ * GetStarted fork, which never re-checks. Storage still holding a session is
+ * what tells the two apart.
+ *
+ * The stored blob is checked for internal consistency before it is believed:
+ * the access token must be a three-part JWT whose payload is JSON and whose
+ * `sub` is the same id the envelope claims. Without that, the whole "session"
+ * was a JSON object anyone could type into localStorage, and the router would
+ * read a `user_metadata.role` out of it and open the manager shell.
+ *
+ * ponytail: consistency only — the signature is not verified, because that needs
+ * a key the client does not have and must not ship. This raises the bar from
+ * "write a JSON blob" to "forge a matching JWT body", and it is deliberately not
+ * a security boundary: the boundary is RLS, which answers a forged token with
+ * nothing. Upgrade path, if it ever needs to be one, is asking the server.
+ */
+export interface StoredSession {
+  user: { id: string; user_metadata?: Record<string, unknown> };
+}
+
+function jwtSubject(token: unknown): string | null {
+  if (typeof token !== 'string') return null;
+  const body = token.split('.')[1];
+  if (!body || token.split('.').length !== 3) return null;
+  try {
+    const json = atob(body.replace(/-/g, '+').replace(/_/g, '/'));
+    const claims = JSON.parse(json) as { sub?: unknown };
+    return typeof claims.sub === 'string' ? claims.sub : null;
+  } catch {
+    return null;
+  }
+}
+
+export function storedSession(): StoredSession | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !/^sb-.+-auth-token$/.test(key)) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      // v2 stores the session flat; older shapes nest it under currentSession.
+      const candidate = (parsed?.access_token ? parsed : parsed?.currentSession) as
+        | { access_token?: unknown; user?: { id?: string; user_metadata?: Record<string, unknown> } }
+        | undefined;
+      const id = candidate?.user?.id;
+      if (typeof id !== 'string') continue;
+      if (jwtSubject(candidate?.access_token) !== id) continue;
+      return candidate as StoredSession;
+    }
+  } catch {
+    // Unparseable or unavailable storage: fall through to "no session".
+  }
+  return null;
+}
+
+/**
+ * The signed-in user's id without awaiting anything, for the handful of places
+ * that must decide before the first paint — see utils/persistCache.ts.
+ */
+export function storedUserId(): string | null {
+  return storedSession()?.user.id ?? null;
 }
 
 /**

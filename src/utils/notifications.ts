@@ -16,6 +16,11 @@ export interface NotifLook {
 }
 
 const LOOK: Record<string, NotifLook> = {
+  // What tg_notification_attribution() clamps a peer's notification down to when
+  // it claims a type only OSAS sends. Handled here rather than left to the
+  // fallback so a demoted row still looks like something and still goes
+  // somewhere when tapped.
+  message: { icon: 'lucide:message-square', tone: 'info' },
   verification: { icon: 'lucide:shield-check', tone: 'info' },
   accommodation: { icon: 'lucide:building-2', tone: 'info' },
   application: { icon: 'lucide:file-check', tone: 'good' },
@@ -64,6 +69,7 @@ const ROUTES = new Set([
 /** Where each type belongs when its own link_url is unusable here. */
 const BY_TYPE: Record<Role, Record<string, string>> = {
   manager: {
+    message: '/manager/messages',
     verification: '/manager/osas',
     accommodation: '/manager/properties',
     application: '/manager/tenants',
@@ -76,6 +82,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     policy: '/manager/settings/policies',
   },
   student: {
+    message: '/student/messages',
     verification: '/student/support',
     accommodation: '/student/discover',
     application: '/student/stay',

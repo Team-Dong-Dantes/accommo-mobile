@@ -450,10 +450,45 @@ async function load(silent = false) {
 // database pushes lease changes here instead of the page re-asking on every
 // return. utils/useLiveData.ts owns the whole policy — first load, the
 // subscription's lifetime, and how stale the data may be on return.
+type DashboardCache = {
+  firstName: string
+  properties: Property[]
+  attention: Task[]
+  totalBeds: number
+  tenants: number
+  expectedMonthly: number
+  ratingAvg: number | null
+  reviewCount: number
+}
+
 const { refresh } = useLiveData({
   key: 'manager-dashboard',
   load,
   watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
+  cache: {
+    get: (): DashboardCache => ({
+      firstName: firstName.value,
+      properties: properties.value,
+      attention: attention.value,
+      totalBeds: totalBeds.value,
+      tenants: tenants.value,
+      expectedMonthly: expectedMonthly.value,
+      ratingAvg: ratingAvg.value,
+      reviewCount: reviewCount.value,
+    }),
+    set: (d) => {
+      const c = d as DashboardCache
+      firstName.value = c.firstName
+      properties.value = c.properties
+      attention.value = c.attention
+      totalBeds.value = c.totalBeds
+      tenants.value = c.tenants
+      expectedMonthly.value = c.expectedMonthly
+      ratingAvg.value = c.ratingAvg
+      reviewCount.value = c.reviewCount
+      loading.value = false
+    },
+  },
 })
 
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it
@@ -555,8 +590,9 @@ function onPull(done: () => void) {
 }
 .sec-link:hover { background: var(--m-primary-soft); }
 
-.plist { display: flex; flex-direction: column; gap: 10px; }
+.plist { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .more {
+  grid-column: 1 / -1;
   display: inline-flex;
   align-items: center;
   justify-content: center;

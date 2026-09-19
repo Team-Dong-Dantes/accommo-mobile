@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "node node_modules/@quasar/app-vite/bin/quasar prepare --silent",
-    "build:android": "node node_modules/@quasar/app-vite/bin/quasar build -m capacitor -T android"
+    "build:android": "node node_modules/@quasar/app-vite/bin/quasar build -m capacitor -T android",
+    "dev:android": "node node_modules/@quasar/app-vite/bin/quasar dev -m capacitor -T android -H 192.168.1.8"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",

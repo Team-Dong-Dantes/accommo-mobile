@@ -13,6 +13,18 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // The resume lock covers the app's *reads* — private messages, tenant
+        // phone numbers, uploaded school IDs — but Android keeps a snapshot of
+        // the last frame for the app switcher, taken as the app goes away and
+        // shown from the switcher whether or not the PIN screen is up. Without
+        // FLAG_SECURE that thumbnail hands over exactly what the lock exists to
+        // hide, and it survives being locked. The same flag also blocks
+        // screenshots and screen recording of those screens.
+        getWindow().setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        );
+
         // Kill Android's elastic edge glow / over-scroll stretching so the app
         // feels native instead of like a browser page bouncing at the scroll ends.
         WebView webView = getBridge().getWebView();

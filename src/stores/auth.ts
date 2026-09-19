@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { SocialLogin } from '@capgo/capacitor-social-login';
 import { supabase } from '@/utils/supabase';
 import { uploadSecureDocument } from '@/utils/upload';
-import { initialsOf } from '@/utils/format';
+import { initialsOf, isPhMobile } from '@/utils/format';
 import type { RegisterForm } from '@/types/forms';
 
 // The database role enum uses 'accommodation_manager' where the app's UI and
@@ -610,6 +610,15 @@ export const useAuthStore = defineStore('auth', {
     // with the `phone_change` type confirms the number WITHOUT creating a new
     // session, so this is purely a verification step, not passwordless auth.
     async sendPhoneVerification(phone: string) {
+      // normalizePhPhone() only reshapes what it is given: it prefixes '+63' to
+      // whatever digits are left over, so anything at all reaches this call as a
+      // plausible-looking number. The register screen has a field rule and the
+      // profile screens check before saving, but this is the one place a number
+      // leaves for Supabase Auth, so the check belongs here too — every caller
+      // is covered by the one guard, and an SMS is sent on the strength of it.
+      if (!isPhMobile(phone)) {
+        throw new Error('That is not a usable Philippine mobile number.');
+      }
       const { error } = await supabase.auth.updateUser({ phone });
       if (error) throw sanitizeError(error);
     },

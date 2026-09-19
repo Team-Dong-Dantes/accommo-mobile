@@ -567,12 +567,14 @@ async function submitApplication() {
   if (applying.value || !applyRoom.value) return
   applying.value = true
   try {
-    const { data: studentProfile } = await supabase
-      .from('student_profiles')
-      .select('osas_verified_at')
-      .eq('user_id', props.me)
-      .maybeSingle()
-    if (!studentProfile?.osas_verified_at) {
+    // The same predicate the RLS policy evaluates, rather than a second reading
+    // of it. This used to check student_profiles.osas_verified_at by hand, which
+    // was one of two hand-written copies of the rule -- and the other copy, on
+    // the manager's insert policy, had drifted to checking nothing at all. A
+    // client that asks the database its own question cannot drift from it; all
+    // this buys is saying so in words before RLS says it in an error.
+    const { data: mayLease } = await supabase.rpc('student_may_lease', { p_student: props.me })
+    if (mayLease !== true) {
       notify.warning('Get OSAS-verified before applying for a room.')
       return
     }

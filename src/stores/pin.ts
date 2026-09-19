@@ -32,6 +32,9 @@ export const RESUME_LOCK_MS = 2 * 60_000
  */
 const CACHE_PREFIX = 'accommo.pin.has.'
 
+/** The refresh every waiting gate shares — see `ensureReady()`. */
+let inFlight: Promise<void> | null = null
+
 /**
  * What `hasPin` should be. Split out from the store so the branch that matters
  * is testable without standing up Supabase.
@@ -96,6 +99,23 @@ export const usePinStore = defineStore('pin', {
       // knew, or airplane mode would clear the gate a second time.
       if (!error) writeCache(key, this.hasPin)
       this.ready = true
+    },
+
+    /**
+     * Resolves once `hasPin` is a real answer rather than its `false` default.
+     *
+     * Every gate goes through here now. `refresh()` is fired un-awaited at
+     * layout mount, so without this the first seconds of a launch ran with
+     * `hasPin === false`, which makes `requirePin()` wave actions through and
+     * `lockApp()` return without covering anything. The in-flight promise is
+     * shared so a screenful of gated buttons costs one RPC, not one each.
+     */
+    async ensureReady() {
+      if (this.ready) return
+      inFlight ??= this.refresh().finally(() => {
+        inFlight = null
+      })
+      await inFlight
     },
 
     /**

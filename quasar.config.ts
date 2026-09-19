@@ -215,6 +215,15 @@ export default defineConfig((/* ctx */) => {
       hideSplashscreen: true
     },
 
+    // No Android Studio on this machine. `quasar dev -m capacitor` hard-exits
+    // the whole process (killing the Vite dev server too) if it can't find
+    // studio64.exe to open — explorer.exe satisfies the existence check and
+    // just pops a harmless folder window instead of crashing. The actual
+    // build+install to the device is done manually via gradlew, not the IDE.
+    bin: {
+      windowsAndroidStudio: 'C:\\Windows\\explorer.exe'
+    },
+
     // https://v2.quasar.dev/quasar-cli-vite/developing-electron-apps/configuring-electron
     electron: {
       // extendElectronMainConf (rolldownConf) {},

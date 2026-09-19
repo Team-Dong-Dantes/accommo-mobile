@@ -20,6 +20,13 @@ export interface GuardState {
   emailVerified: boolean | null
   /** `users.registered_at !== null`, or null when unread. */
   registered: boolean | null
+  /**
+   * The users row could not be read at all (offline, RLS answering an
+   * unattached JWT on a cold launch). `role` may still be filled in from the
+   * token's own claim, but nothing here was confirmed by the database — so no
+   * decision that ends the session may be taken on it.
+   */
+  lookupFailed?: boolean
 }
 
 export interface GuardDecision {
@@ -98,6 +105,10 @@ export function resolveDestination(s: GuardState): GuardDecision {
     if (s.role === 'manager') return go('/manager/dashboard')
     // Admin/OSAS lives in the web client; this app has no admin surface.
     if (s.role === 'admin') return go('/login?adminUsesWeb=true', true)
+    // We hold a session but never got an answer about it. Stay put rather than
+    // evicting someone over a failed read — the next navigation asks again,
+    // and by then the network is usually up.
+    if (s.lookupFailed) return ALLOW
     // Missing or unrecognised role: an invalid account state. Land somewhere
     // still public rather than returning '/' again, which would re-enter this
     // guard and loop forever.

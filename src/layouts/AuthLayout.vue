@@ -82,6 +82,18 @@ function onResize() {
 onMounted(() => {
   measure();
   window.addEventListener('resize', onResize);
+  // Tells MainLayout that whoever ends up inside the app authenticated during
+  // this process rather than arriving on a session restored from disk, so it
+  // does not meet the resume lock the moment it finishes signing in. See the
+  // launch lock in MainLayout for the other half; sessionStorage is the signal
+  // because the WebView clears it when the process dies and keeps it across
+  // navigations and reloads, which is exactly the distinction being drawn.
+  try {
+    sessionStorage.setItem('accommo.authed.here', '1');
+  } catch {
+    // Storage unavailable: the launch lock simply asks for the PIN, which is
+    // the safe side to fail on.
+  }
 });
 onUnmounted(() => window.removeEventListener('resize', onResize));
 

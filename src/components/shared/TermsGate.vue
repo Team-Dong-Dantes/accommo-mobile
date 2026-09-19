@@ -74,7 +74,6 @@ const notify = useNotify()
 
 const open = ref(false)
 const saving = ref(false)
-const userId = ref('')
 const hasRead = ref(false)
 const bodyEl = ref<HTMLElement | null>(null)
 const staleDocs = ref<LegalDocument[]>([])
@@ -100,7 +99,6 @@ onMounted(async () => {
   const { data } = await authUser()
   const uid = data?.user?.id
   if (!uid) return
-  userId.value = uid
 
   const { data: row } = await supabase
     .from('users')
@@ -123,13 +121,14 @@ onMounted(async () => {
 
 async function accept() {
   saving.value = true
-  // Only the stale columns are written — re-accepting the Privacy Notice must
+  // Only the stale documents are named — re-accepting the Privacy Notice must
   // not move the date on Terms the user accepted months ago.
-  const now = new Date().toISOString()
-  const patch: Partial<Record<LegalDocument['acceptedColumn'], string>> = {}
-  for (const doc of staleDocs.value) patch[doc.acceptedColumn] = now
-
-  const { error } = await supabase.from('users').update(patch).eq('id', userId.value)
+  //
+  // An RPC rather than a column write: the two consent columns are closed to
+  // the account holder (20260915000001), so writing them from here failed with
+  // "Consent timestamps are recorded by the server, not the client" and left
+  // the gate unpassable. record_consent() stamps them with the server's now().
+  const { error } = await supabase.rpc('record_consent', { p_documents: staleIds.value })
   saving.value = false
   if (error) {
     notify.error(error.message)

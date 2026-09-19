@@ -5,43 +5,33 @@ import { Browser } from '@capacitor/browser'
 import { supabase } from '@/utils/supabase'
 
 // Handles the OAuth return via the app's custom scheme:
-//   com.accommo.app://auth/callback#access_token=...&refresh_token=...&...
+//   com.accommo.app://auth/callback?code=...
 // Android routes this VIEW intent into MainActivity and the plugin fires
-// `appUrlOpen` with the raw URL. We hand the returned tokens to supabase
-// (setSession persists them), then reload so the router guard routes the user
-// to the right place by role.
+// `appUrlOpen` with the raw URL. We exchange the returned code for a session,
+// then reload so the router guard routes the user to the right place by role.
+//
+// ONLY a PKCE `code` is accepted. This used to also take `access_token` /
+// `refresh_token` straight out of the URL and hand them to setSession(), and
+// the intent filter that delivers them (see AndroidManifest.xml) is exported
+// with no host or path restriction — so any other app on the device, and any
+// web page the user tapped, could plant a session of its own choosing here.
+// The victim then carried on inside the attacker's account, filing their
+// government ID and their messages into it.
+//
+// A code cannot be planted the same way: exchangeCodeForSession() needs the
+// code_verifier this client generated and kept locally, so a code minted for
+// anyone else fails the exchange. Nothing legitimate is lost — native sign-in
+// goes through signInWithIdToken() and never reaches this file at all.
 async function applyOAuthTokens(fragmentOrQuery: string): Promise<boolean> {
   const raw = fragmentOrQuery.startsWith('#') || fragmentOrQuery.startsWith('?')
     ? fragmentOrQuery.slice(1)
     : fragmentOrQuery
   const params = new URLSearchParams(raw)
 
-  const accessToken = params.get('access_token')
-  const refreshToken = params.get('refresh_token')
-  const expiresIn = params.get('expires_in')
+  const code = params.get('code')
+  if (!code) return false
 
-  if (!accessToken) {
-    // Maybe a PKCE code was returned instead; exchange it for a session.
-    const code = params.get('code')
-    if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
-      return !error
-    }
-    return false
-  }
-
-  const session: {
-    access_token: string
-    refresh_token?: string
-    token_type: string
-    expires_at?: number
-  } = {
-    access_token: accessToken,
-    token_type: 'bearer',
-  }
-  if (refreshToken) session.refresh_token = refreshToken
-  if (expiresIn) session.expires_at = Math.floor(Date.now() / 1000) + Number(expiresIn)
-  const { error } = await supabase.auth.setSession(session as Parameters<typeof supabase.auth.setSession>[0])
+  const { error } = await supabase.auth.exchangeCodeForSession(code)
   return !error
 }
 

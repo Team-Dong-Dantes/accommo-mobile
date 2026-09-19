@@ -932,7 +932,13 @@ async function loadManagers() {
   try {
     const { data, error: loadError } = await supabase
       .from('users')
-      .select('id,full_name,avatar_url,accommodations(id,name,status)')
+      // The FK must be named: `accommodations` points at `users` twice (the
+      // manager who owns it, and the admin reviewing it), and PostgREST refuses
+      // an ambiguous embed outright — so this query threw on every load and the
+      // Managers tab was permanently empty.
+      .select(
+        'id,full_name,avatar_url,accommodations!accommodations_accommodation_manager_id_fkey(id,name,status)',
+      )
       .eq('role', 'accommodation_manager')
     if (loadError) throw loadError
 
@@ -981,10 +987,22 @@ async function load(silent = false) {
 // return. utils/useLiveData.ts owns the whole policy — first load, the
 // subscription's lifetime, and how stale the data may be on return. Public
 // data (accredited listings), so no per-user filter is needed.
+type DiscoverCache = { properties: Property[]; rooms: RoomTile[]; managers: ManagerRow[] }
+
 useLiveData({
   key: 'student-discover',
   load,
   watch: () => [{ table: 'accommodations' }],
+  cache: {
+    get: (): DiscoverCache => ({ properties: properties.value, rooms: rooms.value, managers: managers.value }),
+    set: (d) => {
+      const c = d as DiscoverCache
+      properties.value = c.properties
+      rooms.value = c.rooms
+      managers.value = c.managers
+      loading.value = false
+    },
+  },
 })
 
 // The map container sits in the `v-else` branch, so it does not exist in the

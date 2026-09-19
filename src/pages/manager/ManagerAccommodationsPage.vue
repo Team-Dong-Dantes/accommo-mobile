@@ -21,7 +21,7 @@
         </template>
       </EmptyState>
 
-      <div v-else class="stack">
+      <div v-else class="grid">
         <PropertyCard v-for="a in rows" :key="a.id" :property="a" @open="open" />
         <PropertyCard @add="router.push('/manager/properties/new')" />
       </div>
@@ -151,6 +151,7 @@ const { refresh } = useLiveData({
   key: 'manager-accommodations',
   load,
   watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
+  cache: { get: () => rows.value, set: (d) => { rows.value = d as Property[]; loading.value = false } },
 })
 
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it
@@ -168,6 +169,12 @@ function onPull(done: () => void) {
 .stack {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  padding: 10px var(--m-page-gutter) 24px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   padding: 10px var(--m-page-gutter) 24px;
 }

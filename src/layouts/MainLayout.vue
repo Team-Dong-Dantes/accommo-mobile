@@ -168,6 +168,7 @@ import QuickActions from '@/components/layout/QuickActions.vue'
 import PinGate from '@/components/shared/PinGate.vue'
 import { usePinStore, RESUME_LOCK_MS } from '@/stores/pin'
 import { lockApp, settlePin } from '@/utils/requirePin'
+import { clearAllCache } from '@/utils/persistCache'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
 
 const router = useRouter()
@@ -193,7 +194,29 @@ function onHidden() {
 function onVisible() {
   const away = pin.backgroundedAt ? Date.now() - pin.backgroundedAt : 0
   pin.backgroundedAt = 0
-  if (away > RESUME_LOCK_MS) lockApp()
+  if (away > RESUME_LOCK_MS) void lockApp()
+}
+
+/**
+ * The other half of the resume lock: the app being closed outright.
+ *
+ * `backgroundedAt` lives in memory, and `visibilitychange` does not fire on a
+ * first paint, so a cold launch measured no time away and never locked —
+ * swiping the app out of recents and reopening it walked straight into messages
+ * and tenant records with the PIN never asked for. That is the easiest phone-in-
+ * hand bypass there was, and it is the exact threat the PIN exists for.
+ *
+ * A launch is treated as "away long enough" unconditionally. The one case that
+ * must not lock is having just signed in, which AuthLayout marks as it goes.
+ */
+function lockIfColdLaunch() {
+  let authedHere = false
+  try {
+    authedHere = sessionStorage.getItem('accommo.authed.here') === '1'
+  } catch {
+    // Unreadable storage: fall through and ask for the PIN.
+  }
+  if (!authedHere) void lockApp()
 }
 
 function onVisibilityChange() {
@@ -443,6 +466,9 @@ async function signOut() {
     pin.lock()
     pin.hasPin = false
     pin.ready = false
+    // Same reasoning as the channels above: a cached dashboard/listing from
+    // this account must not flash on screen for the next one who signs in.
+    clearAllCache()
     await supabase.auth.signOut()
     signOutConfirmOpen.value = false
     void router.push('/login')
@@ -502,9 +528,11 @@ onMounted(async () => {
   document.addEventListener('visibilitychange', onVisibilityChange)
   document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
   onScroll()
-  // Answers "does this account have a PIN at all" once; until it does,
-  // requirePin() lets everything through, so nothing gates on a guess.
+  // Answers "does this account have a PIN at all" once. Gates no longer race
+  // it: requirePin() and lockApp() both await pin.ensureReady(), which joins
+  // this same call rather than issuing a second one.
   void pin.refresh()
+  lockIfColdLaunch()
   try {
     const { data } = await authUser()
     const user = data?.user
@@ -648,7 +676,50 @@ function onScroll() {
 
 <style scoped>
 .app-header {
-  margin: 6px 12px 0;
+  /* Top offset lives in padding, not margin: Quasar reserves page-container
+     space by measuring the header's offsetHeight, which counts padding but
+     not margin. A margin-top here would visually push the header down while
+     leaving the page's reserved space too short by that amount — the page
+     starts under the header instead of below it. */
+  margin: 0 12px 0;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 6px);
+  /* Quasar's fixed-top header carries no z-index of its own, so it only
+     outranks plain in-flow content. Any page element that is ALSO
+     positioned (position: relative/absolute, z-index: auto — common for
+     card overlays) ties with it in the same paint step and, being later in
+     the DOM, wins — it scrolls up and paints over the header. bottom-footer
+     already sets its own z-index below; the header needs the same. */
+  z-index: 50;
+  color: var(--m-ink);
+  /* Always transparent, full height including the safe-area padding above.
+     The visible "card" (background, border, blur, shadow) lives on
+     .header-row below instead of here — otherwise it paints across the
+     status-bar band too, since that band is this element's own padding-top
+     and background fills the whole border box, padding included. */
+  border: 0;
+  background: transparent;
+  box-shadow: none !important;
+}
+.app-header--subpage {
+  height: calc(56px + env(safe-area-inset-top, 0px));
+  margin: 0;
+  /* No floating-pill gap here — this bar runs edge to edge, so only the
+     status-bar inset belongs in its padding, not the base rule's extra 6px. */
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
+}
+.app-header--subpage .header-row {
+  height: 55px;
+  min-height: 55px;
+  align-items: center;
+  border-radius: 0;
+  border-width: 0 0 1px;
+}
+.header-row {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
   border: 1px solid transparent;
   /* Quasar's dark-mode chrome puts a translucent white border-color on
      q-header by default — override it explicitly or it shows through as an
@@ -656,38 +727,20 @@ function onScroll() {
   border-color: transparent !important;
   border-radius: var(--m-radius-lg);
   background: transparent;
-  color: var(--m-ink);
-  box-shadow: none !important;
   transition: background-color .25s ease, backdrop-filter .25s ease, -webkit-backdrop-filter .25s ease, border-color .25s ease, box-shadow .25s ease;
 }
 .app-header:not(.is-scrolled) :deep(.q-layout__shadow) {
   display: none;
 }
-.app-header.is-scrolled {
+.app-header.is-scrolled .header-row {
   border-color: var(--m-border) !important;
   background: color-mix(in srgb, var(--m-bg) 72%, transparent);
   box-shadow: 0 6px 18px rgba(15, 23, 42, .06) !important;
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   backdrop-filter: blur(14px) saturate(140%);
 }
-.app-header--subpage {
-  height: 56px;
-  margin: 0;
-  border-width: 0 0 1px;
-  border-radius: 0;
-  background: var(--m-surface);
-  box-sizing: border-box;
-}
 .app-header--subpage .header-row {
-  height: 55px;
-  min-height: 55px;
-  align-items: center;
-}
-.header-row {
-  display: flex;
-  min-height: 56px;
-  align-items: center;
-  justify-content: space-between;
+  background: var(--m-surface);
 }
 .app-title {
   font-size: 28px;

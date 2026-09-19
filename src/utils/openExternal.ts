@@ -18,6 +18,12 @@ import { Capacitor } from '@capacitor/core';
  */
 export function openExternal(url: string): void {
   if (!url) return;
+  // Every caller passes a URL that came out of the database — a Cloudinary
+  // document, a Mapbox tile, the APK on GitHub Releases. Assigning
+  // `location.href` honours whatever scheme it is given, and `intent:` or
+  // `javascript:` in one of those columns would be executed rather than opened.
+  // http(s) is the whole of what "open this outside the app" ever means here.
+  if (!/^https?:\/\//i.test(url)) return;
   if (Capacitor.isNativePlatform()) {
     window.location.href = url;
     return;

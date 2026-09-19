@@ -289,6 +289,7 @@ useLiveData({
   key: 'student-properties',
   load,
   watch: () => [{ table: 'accommodations' }],
+  cache: { get: () => listings.value, set: (d) => { listings.value = d as Listing[]; loading.value = false } },
 })
 </script>
 
