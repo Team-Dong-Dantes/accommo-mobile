@@ -67,7 +67,10 @@ export interface ManagerRegisterForm {
   dateOfBirth: string;
   phone: string;
   governmentIdFile: File | null;
+  /** ISO yyyy-mm-dd, read off the document by the person uploading it. */
+  governmentIdExpiresAt?: string;
   businessPermitFile: File | null;
+  businessPermitExpiresAt?: string;
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -149,7 +152,12 @@ export const useAuthStore = defineStore('auth', {
 
       if (!rows.length) return;
 
-      const { error } = await supabase.from('verification_documents').insert(rows);
+      // Upsert for the same reason as registerManager: (user_id, doc_type) is
+      // unique, and a resubmitted proof replaces its own row rather than
+      // stacking a second copy beside it.
+      const { error } = await supabase
+        .from('verification_documents')
+        .upsert(rows, { onConflict: 'user_id,doc_type' });
       if (error) throw sanitizeError(error);
 
       const { error: userError } = await supabase
@@ -430,22 +438,30 @@ export const useAuthStore = defineStore('auth', {
         uploadSecureDocument(form.businessPermitFile),
       ]);
 
-      const { error } = await supabase.from('verification_documents').insert([
-        {
-          user_id: userId,
-          doc_type: 'government_id',
-          file_url: governmentIdUrl,
-          filename: form.governmentIdFile.name,
-          status: 'pending',
-        },
-        {
-          user_id: userId,
-          doc_type: 'business_permit',
-          file_url: businessPermitUrl,
-          filename: form.businessPermitFile.name,
-          status: 'pending',
-        },
-      ]);
+      // Upsert, not insert: a retried registration used to write a second copy
+      // of both documents, leaving the manager's record listing each one twice.
+      // (user_id, doc_type) is unique, so a retry now overwrites its own row.
+      const { error } = await supabase.from('verification_documents').upsert(
+        [
+          {
+            user_id: userId,
+            doc_type: 'government_id',
+            file_url: governmentIdUrl,
+            filename: form.governmentIdFile.name,
+            status: 'pending' as const,
+            expires_at: form.governmentIdExpiresAt || null,
+          },
+          {
+            user_id: userId,
+            doc_type: 'business_permit',
+            file_url: businessPermitUrl,
+            filename: form.businessPermitFile.name,
+            status: 'pending' as const,
+            expires_at: form.businessPermitExpiresAt || null,
+          },
+        ],
+        { onConflict: 'user_id,doc_type' },
+      );
 
       if (error) throw sanitizeError(error);
     },

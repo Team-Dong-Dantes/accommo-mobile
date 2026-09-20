@@ -1652,6 +1652,7 @@ export type Database = {
       verification_documents: {
         Row: {
           doc_type: string | null
+          expires_at: string | null
           file_url: string | null
           filename: string | null
           id: string
@@ -1663,6 +1664,7 @@ export type Database = {
         }
         Insert: {
           doc_type?: string | null
+          expires_at?: string | null
           file_url?: string | null
           filename?: string | null
           id?: string
@@ -1674,6 +1676,7 @@ export type Database = {
         }
         Update: {
           doc_type?: string | null
+          expires_at?: string | null
           file_url?: string | null
           filename?: string | null
           id?: string

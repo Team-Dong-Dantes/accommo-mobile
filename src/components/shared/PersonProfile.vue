@@ -126,6 +126,10 @@ watch(() => avatarFailed.value, () => {})
 }
 .head-avatar {
   display: grid;
+  /* The hero sits in a column flex container, so height is the main axis and
+     flex-shrink defaults to 1 — a tight column squashed this 84px circle into
+     an oval. Every other avatar in the app already pins itself this way. */
+  flex: none;
   width: 84px;
   height: 84px;
   place-items: center;

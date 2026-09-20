@@ -448,6 +448,13 @@
               icon="lucide:id-card"
               :rules="[(val: File | null) => !!val || 'Government ID is required']"
             />
+            <!-- OSAS has to know when a document lapses, not only that it was
+                 approved once. Asked here because the uploader is the one
+                 holding the document. -->
+            <label class="doc-expiry">
+              <span class="doc-expiry-label">Expiry date on this ID</span>
+              <DateTimeField v-model="form.governmentIdExpiresAt" mode="date" placeholder="Pick the expiry date" />
+            </label>
 
             <AuthDocumentCard
               v-model="form.businessPermitFile"
@@ -457,6 +464,10 @@
               class="q-mt-sm"
               :rules="[(val: File | null) => !!val || 'Business Permit is required']"
             />
+            <label class="doc-expiry">
+              <span class="doc-expiry-label">Expiry date on this permit</span>
+              <DateTimeField v-model="form.businessPermitExpiresAt" mode="date" placeholder="Pick the expiry date" />
+            </label>
           </template>
         </div>
 
@@ -537,6 +548,7 @@ import { useNotify } from '@/utils/notify';
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthSelect from '@/components/auth/AuthSelect.vue';
 import AuthDocumentCard from '@/components/auth/AuthDocumentCard.vue';
+import DateTimeField from '@/components/shared/DateTimeField.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
 import AuthConsent from '@/components/auth/AuthConsent.vue';
 import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
@@ -793,7 +805,9 @@ const form = reactive({
   schoolIdFile: null as File | null,
   assessmentFile: null as File | null,
   governmentIdFile: null as File | null,
+  governmentIdExpiresAt: '',
   businessPermitFile: null as File | null,
+  businessPermitExpiresAt: '',
 });
 
 const filteredPrograms = computed(() => {
@@ -1028,6 +1042,14 @@ async function nextStep() {
   const success = await registerFormRef.value.validate();
   if (!success) {
     revealFirstError();
+    return;
+  }
+
+  // DateTimeField is a button, not a q-field, so the form's own validate() does
+  // not see the two expiry dates. Checked here rather than left optional: a
+  // document with no expiry is indistinguishable from one that never lapses.
+  if (current.value === 'documents' && (!form.governmentIdExpiresAt || !form.businessPermitExpiresAt)) {
+    notify.error('Add the expiry date printed on each document.');
     return;
   }
 
@@ -1441,6 +1463,19 @@ function onEmailVerified() {
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+
+/* Sits under the document card it belongs to, indented to the card's gutter. */
+.doc-expiry {
+  display: block;
+  margin: 8px 12px 0;
+}
+.doc-expiry-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .otp-verified {

@@ -44,6 +44,12 @@ export interface AssetSize {
   h?: number
   /** `fill` crops to the box (default); `fit` letterboxes inside it. */
   fit?: 'fill' | 'fit'
+  /**
+   * Which part of the image to keep when a `fill` crop has to discard some of
+   * it. Cloudinary defaults to the geometric centre, which is the wrong answer
+   * for a photo of a person — phone cameras put the face in the upper third.
+   */
+  gravity?: string
 }
 
 /**
@@ -52,8 +58,26 @@ export interface AssetSize {
  * avatar requested at the same width from the bottom nav, a chat header and a
  * profile hero is ONE cached file, not three.
  */
-/** Every avatar in the app: 36px in the nav, 84px on a profile hero. */
-export const AVATAR: AssetSize = { w: 96 }
+/**
+ * Every avatar in the app: 36px in the nav, 84px on a profile hero.
+ *
+ * Square, because every surface that draws it draws it in a circle. With a
+ * width and no height, `c_fill` has nothing to crop against and keeps the
+ * original aspect ratio — a portrait phone photo arrived 96x128 and each
+ * avatar box then cropped it to a circle in CSS, from the middle, cutting off
+ * the head the picture was taken of. Cropping here instead means one square
+ * image serves every surface identically.
+ *
+ * `faces:auto` keeps the faces in frame and falls back to Cloudinary's own
+ * subject detection when it cannot find one, so a photo of something other
+ * than a person still crops sensibly.
+ *
+ * 192 rather than 96: `dpr_auto` only upscales when the browser sends a DPR
+ * client hint, which it does not do unless the page opts in with Accept-CH.
+ * In the Capacitor WebView it silently resolves to 1x, so a 96px file was
+ * being painted into an 84px circle on a 3x screen and looked soft.
+ */
+export const AVATAR: AssetSize = { w: 192, h: 192, gravity: 'faces:auto' }
 /** List and card thumbnails, roughly full phone width. */
 export const CARD: AssetSize = { w: 400 }
 /** Full-bleed hero and detail images. */
@@ -64,7 +88,11 @@ function sizeParams(size?: AssetSize): string {
   const parts: string[] = []
   if (size.w) parts.push(`w_${Math.round(size.w)}`)
   if (size.h) parts.push(`h_${Math.round(size.h)}`)
-  parts.push(`c_${size.fit === 'fit' ? 'fit' : 'fill'}`, 'dpr_auto')
+  const fit = size.fit === 'fit' ? 'fit' : 'fill'
+  parts.push(`c_${fit}`)
+  // Gravity only means anything to a crop; `fit` discards nothing.
+  if (size.gravity && fit === 'fill') parts.push(`g_${size.gravity}`)
+  parts.push('dpr_auto')
   return `,${parts.join(',')}`
 }
 
