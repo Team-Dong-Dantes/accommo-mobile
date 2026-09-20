@@ -161,11 +161,10 @@
                           <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
                         </p>
                         <div class="doc-actions">
-                          <label v-if="!d.verified" class="doc-action doc-action--primary">
+                          <button v-if="!d.verified" type="button" class="doc-action doc-action--primary" @click="openUploadDialog(d.type, 'account')">
                             <IconifyIcon icon="lucide:upload" width="14" />
                             {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
-                            <input type="file" accept="image/*,application/pdf" class="doc-file-input" @change="onMyDocSelected($event, d.type)" />
-                          </label>
+                          </button>
                           <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
                             <IconifyIcon icon="lucide:external-link" width="14" /> Open
                           </button>
@@ -225,7 +224,7 @@
           <span class="field-label">Expiration date</span>
           <DateTimeField v-model="uploadForm.expiresAt" mode="date" placeholder="Pick an expiry date" />
         </label>
-        <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="uploadingDoc" label="Upload" @click="submitDocUpload" />
+        <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="uploadingDoc || uploadingMyDoc" label="Upload" @click="submitDocUpload" />
       </q-card>
     </q-dialog>
 
@@ -349,6 +348,14 @@ const uploadingDoc = ref(false)
 // dialog's own blank form, never an inline field on the (read-only) row.
 const uploadDialogOpen = ref(false)
 const uploadDocType = ref('')
+/**
+ * The upload sheet serves both document sets. A property permit goes to
+ * `accommodation_documents` against the selected accommodation; an account
+ * document goes to `verification_documents` against this manager. They differ
+ * in where the row lands, not in what is collected, so they share one form.
+ */
+type UploadTarget = 'property' | 'account'
+const uploadTarget = ref<UploadTarget>('property')
 const uploadForm = reactive({ file: null as File | null, expiresAt: '' })
 
 const myDocRows = ref<{ id: string; doc_type: string; file_url: string; filename: string | null; status: string; uploaded_at: string; verified_at: string | null }[]>([])
@@ -510,8 +517,9 @@ function toggleProperty(type: string) {
   expandedProperty.value = expandedProperty.value === type ? '' : type
 }
 
-function openUploadDialog(type: string) {
+function openUploadDialog(type: string, target: UploadTarget = 'property') {
   uploadDocType.value = type
+  uploadTarget.value = target
   uploadForm.file = null
   uploadForm.expiresAt = ''
   uploadDialogOpen.value = true
@@ -529,6 +537,10 @@ async function submitDocUpload() {
   }
   if (!uploadForm.expiresAt) {
     notify.error('Pick an expiration date.')
+    return
+  }
+  if (uploadTarget.value === 'account') {
+    await submitMyDocUpload()
     return
   }
   if (!selectedId.value) return
@@ -557,30 +569,38 @@ async function submitDocUpload() {
   }
 }
 
-async function onMyDocSelected(event: Event, docType: string) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
+/**
+ * An account document — government ID or business permit — now goes through the
+ * same sheet as a property permit, so it carries an expiry date. It used to be
+ * a bare file input that wrote the row immediately, which meant OSAS could see
+ * a manager's permit had been approved but not that it had since lapsed.
+ */
+async function submitMyDocUpload() {
+  const file = uploadForm.file
   if (!file || !myId.value) return
   uploadingMyDoc.value = true
   try {
+    const docType = uploadDocType.value
     const url = await uploadSecureDocument(file)
-    const existing = myDocRows.value.find((d) => d.doc_type === docType)
 
-    // Resubmission updates the same row back to pending rather than inserting
-    // a duplicate — verification_documents has no version column to
-    // disambiguate "latest" the way accommodation_documents does.
-    const { error: writeError } = existing
-      ? await supabase
-          .from('verification_documents')
-          .update({ file_url: url, filename: file.name, status: 'pending', uploaded_at: new Date().toISOString(), verified_at: null })
-          .eq('id', existing.id)
-      : await supabase.from('verification_documents').insert({
-          user_id: myId.value,
-          doc_type: docType,
-          file_url: url,
-          filename: file.name,
-          status: 'pending',
-        })
+    // Resubmission replaces the same row rather than adding a duplicate —
+    // verification_documents has no version column to disambiguate "latest"
+    // the way accommodation_documents does, and (user_id, doc_type) is unique.
+    // The find-then-update-or-insert this replaced only caught a duplicate the
+    // page had already loaded; the constraint catches every case.
+    const { error: writeError } = await supabase.from('verification_documents').upsert(
+      {
+        user_id: myId.value,
+        doc_type: docType,
+        file_url: url,
+        filename: file.name,
+        status: 'pending' as const,
+        expires_at: uploadForm.expiresAt,
+        uploaded_at: new Date().toISOString(),
+        verified_at: null,
+      },
+      { onConflict: 'user_id,doc_type' },
+    )
     if (writeError) throw writeError
 
     // A rejected account has to be put back in the queue, or the re-upload is
@@ -590,12 +610,12 @@ async function onMyDocSelected(event: Event, docType: string) {
     if (myStatus.value === 'rejected') myStatus.value = 'pending'
 
     await loadMyDocs(myId.value)
+    uploadDialogOpen.value = false
     notify.success('Uploaded.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload this document.'))
   } finally {
     uploadingMyDoc.value = false
-    input.value = ''
   }
 }
 
@@ -977,14 +997,6 @@ function onPull(done: () => void) {
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   overflow: hidden;
-}
-.doc-file-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
 }
 
 .ticket-row {

@@ -1,6 +1,6 @@
 <template>
   <div class="avatar-upload" :style="{ '--au-size': `${size}px`, '--au-bg': background }" @click="pick">
-    <img v-if="modelValue && !failed" :src="modelValue" alt="" class="avatar-upload-img" @error="failed = true" />
+    <img v-if="displayUrl && !failed" :src="displayUrl" alt="" class="avatar-upload-img" @error="failed = true" />
     <span v-else class="avatar-upload-initials">{{ initials || '?' }}</span>
     <span class="avatar-upload-overlay">
       <IconifyIcon icon="lucide:camera" :width="Math.round(size * 0.22)" />
@@ -10,9 +10,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { uploadAvatar } from '@/utils/upload'
+import { AVATAR, resolveAsset } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 
 const props = withDefaults(
@@ -30,6 +31,13 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>()
 
 const notify = useNotify()
 const inputEl = ref<HTMLInputElement | null>(null)
+
+// The stored value is the original upload — a multi-megapixel phone photo.
+// This component was the one avatar in the app painting it raw, so the profile
+// hero showed an uncropped picture squeezed into a circle while every other
+// surface showed the square-cropped version. Display only; what is emitted and
+// saved stays the original URL.
+const displayUrl = computed(() => resolveAsset(props.modelValue, AVATAR))
 
 // Fall back to the initials when the photo won't load, the way every other
 // avatar in the app already does. Without this the broken <img> rendered its
