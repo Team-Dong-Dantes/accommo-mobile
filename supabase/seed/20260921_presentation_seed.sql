@@ -15,7 +15,9 @@
 --      `role` to 'student'. Part 1 fixes the managers' role after inserting.
 --   2. Inserting accommodation_documents puts the accommodation back to
 --      'pending' (the resubmission path). Part 2 restores status afterwards.
---   3. tg_payment_guard blocks the FK's ON DELETE SET NULL for
+--   3. The message-insert trigger increments both unread counters, so Part 6b
+--      resets them after seeding the threads.
+--   4. tg_payment_guard blocks the FK's ON DELETE SET NULL for
 --      payments.verified_by, so Part 0 empties the data tables before deleting
 --      users rather than relying on the cascade.
 --
@@ -273,14 +275,14 @@ cross join lateral unnest(array['aircon','parking','kitchen','laundry','cctv']) 
 where (a.n + k) % 3 <> 0;
 
 insert into public.accommodation_policies (accommodation_id, advance_months, deposit_months, min_stay,
-  contract_type, quiet_hours, visitor_policy, curfew_time, cooking, laundry, pets, smoking)
+  contract_type, quiet_hours, visitor_policy, curfew_time, cooking, laundry, pets)
 select a.id, 1, 1, case when a.n % 3 = 0 then 5 else 4 end,
   case when a.n % 2 = 0 then 'Semestral' else 'Monthly' end,
   '9:00 PM - 5:00 AM',
   case when a.n % 3 = 0 then 'Visitors in common areas only, until 8:00 PM'
        else 'Visitors must be logged at the gate and leave by 9:00 PM' end,
   case when a.n % 4 = 0 then '11:00 PM' else '10:00 PM' end,
-  a.n % 5 <> 0, true, false, false
+  a.n % 5 <> 0, true, false
 from (select id, row_number() over (order by name) n from public.accommodations) a;
 
 with pics(k, url) as (values
@@ -661,6 +663,153 @@ from public.verification_requests vr;
 
 
 -- ===========================================================================
+-- PART 6b - CONCERNS, MESSAGING, OSAS POLICIES, FLOORS
+-- ===========================================================================
+-- Four features whose tables would otherwise be empty, which means four screens
+-- that demo blank: the manager's Concerns page, Messages on both sides, the
+-- OSAS policies list, and the floor tracking in the property editor.
+
+-- Concerns: student -> their own accommodation manager. Distinct from the OSAS
+-- support tickets in Part 6; those go to OSAS and are not visible to managers.
+with c(k, cat, descr, st, age, resp) as (values
+ (0,'maintenance','The ceiling fan in our room rattles loudly on the highest setting. It still works but it is hard to sleep.','resolved',47,'Tightened the mounting bracket last Saturday. Let me know if it starts again.'),
+ (1,'safety','The bulb on the back stairwell has been out for about a week. It is very dark coming home at night.','resolved',35,'Replaced with an LED and added a second fixture at the landing.'),
+ (2,'billing','I paid through GCash on the 5th but the app still shows my rent as unpaid.','resolved',28,'Verified and marked paid. The reference number matched, sorry for the delay.'),
+ (3,'maintenance','The shower drain on the second floor is draining very slowly.','in_progress',9,'Plumber is scheduled for Friday morning.'),
+ (4,'safety','The gate latch does not catch properly so the gate can be pushed open.','in_progress',6,'Ordered a replacement latch, arriving this week.'),
+ (5,'other','Can we get an extra drying line at the laundry area? It fills up fast on weekends.','acknowledged',4,null),
+ (6,'maintenance','There is a water stain spreading on the ceiling near the window.','open',2,null),
+ (7,'billing','Requesting a breakdown of the electricity share for last month.','open',1,null)
+)
+insert into public.concerns (id, lease_id, category, description, status, reported_at, acknowledged_at,
+                             in_progress_at, resolved_at, manager_response, photo_url, created_at, updated_at)
+select gen_random_uuid(), l.id, c.cat, c.descr, c.st,
+       (current_date - c.age)::timestamptz + interval '8 hours',
+       case when c.st <> 'open' then (current_date - c.age)::timestamptz + interval '20 hours' end,
+       case when c.st in ('in_progress','resolved') then (current_date - c.age + 1)::timestamptz + interval '9 hours' end,
+       case when c.st = 'resolved' then (current_date - c.age + 3)::timestamptz + interval '16 hours' end,
+       c.resp, null,
+       (current_date - c.age)::timestamptz + interval '8 hours',
+       (current_date - greatest(c.age - 3, 0))::timestamptz + interval '16 hours'
+from (select l.*, row_number() over (order by id) rn from public.leases l where l.status in ('active','leave_requested')) l
+join c on c.k = ((l.rn + 3) % 8)
+where l.rn <= 16;
+
+-- Messaging. conversations_unique_pair is a unique index on
+-- (LEAST(user_a_id,user_b_id), GREATEST(...)), so one row per pair.
+create temporary table _convo as
+select distinct on (l.student_id, l.accommodation_manager_id)
+       gen_random_uuid() as id, l.student_id, l.accommodation_manager_id, l.room_id,
+       (row_number() over (order by l.student_id, l.accommodation_manager_id))::int as rn
+from public.leases l
+where l.status in ('active','leave_requested')
+order by l.student_id, l.accommodation_manager_id, l.id;
+
+insert into public.conversations (id, user_a_id, user_b_id, inquiry_room_id, unread_a, unread_b)
+select id, student_id, accommodation_manager_id, room_id, 0, 0 from _convo where rn <= 14;
+
+with script(k, seq, who, body) as (values
+ (0,1,'s','Good evening po, is the solo room on the second floor still available for next semester?'),
+ (0,2,'m','Yes, it is. Viewing is possible this weekend if you want to see it first.'),
+ (0,3,'s','Sige po, Saturday morning if okay.'),
+ (0,4,'m','Saturday 9AM works. See you then.'),
+ (1,1,'s','Ma''am, the water pressure upstairs has been low since yesterday.'),
+ (1,2,'m','Noted. The tank float needs adjusting, I will have it checked today.'),
+ (1,3,'m','Fixed this afternoon. Let me know if it drops again.'),
+ (1,4,'s','Okay na po, thank you!'),
+ (2,1,'s','Sir, I sent my rent through GCash this morning. Reference is in the app.'),
+ (2,2,'m','Received and verified, thank you. Your receipt is posted.'),
+ (3,1,'s','Is it okay if my parents visit on Sunday afternoon?'),
+ (3,2,'m','Yes, just log them at the gate. They need to be out by 9PM.'),
+ (3,3,'s','Noted po, salamat.')
+)
+insert into public.messages (id, conversation_id, sender_id, body, status, sent_at)
+select gen_random_uuid(), c.id,
+       case when sc.who = 's' then c.student_id else c.accommodation_manager_id end,
+       sc.body, 'read'::msg_status,
+       (current_date - (c.rn * 2))::timestamp + interval '18 hours' + (sc.seq * interval '7 minutes')
+from _convo c
+join script sc on sc.k = (c.rn % 4)
+where c.rn <= 14;
+
+-- The thread list reads last_message/last_time, so they must agree with the
+-- newest message rather than whatever the insert trigger happened to leave.
+update public.conversations c set
+  last_message = m.body, last_time = m.sent_at, last_sender_id = m.sender_id
+from (select distinct on (conversation_id) conversation_id, body, sent_at, sender_id
+      from public.messages order by conversation_id, sent_at desc) m
+where m.conversation_id = c.id;
+
+-- GOTCHA 4: the message-insert trigger increments unread on both sides, which
+-- contradicts msg_status='read'. Reset, then leave three threads unread for the
+-- manager so the nav badge is not permanently zero.
+update public.conversations set unread_a = 0, unread_b = 0;
+update public.conversations set unread_b = 2
+where id in (select id from public.conversations order by last_time desc limit 3);
+
+-- OSAS policies. Not the same thing as accommodation_policies (a house's own
+-- rules), and not the Terms of Service or Privacy Notice, which ship with the
+-- app and are deliberately not OSAS-editable.
+insert into public.policies (id, title, body, effective_date, version, created_by, archived)
+values
+ (gen_random_uuid(),'Student Housing Accreditation Guidelines',
+  E'All boarding houses, dormitories and apartments offering accommodation to Isabela State University students must be accredited by the Office of Student Affairs and Services before they may be listed.\n\nAccreditation requires a current fire safety certificate, sanitary permit, business permit and building permit. Accreditation is valid for two years from the date of approval and lapses automatically when any required permit expires.\n\nOSAS conducts an annual inspection of every accredited accommodation together with the Bureau of Fire Protection. Accommodations found non-compliant are given thirty days to correct the finding before accreditation is suspended.',
+  date '2025-10-01','1.0','672e25f5-8798-4a47-9c94-dbb7774bccd8',false),
+ (gen_random_uuid(),'Student Conduct in Off-Campus Housing',
+  E'Students residing in accredited accommodations remain subject to the University Student Handbook.\n\nQuiet hours are observed from 9:00 PM to 5:00 AM. Visitors must be logged at the gate and must leave by the curfew set by the accommodation. Smoking and alcoholic beverages are prohibited in all accredited accommodations without exception.\n\nDamage to property is the responsibility of the student concerned. Repeated violations are reported to OSAS and may affect the student''s good moral standing.',
+  date '2025-10-01','1.1','672e25f5-8798-4a47-9c94-dbb7774bccd8',false),
+ (gen_random_uuid(),'Rent, Deposit and Refund Policy',
+  E'Accredited accommodations may collect at most one month advance rent and one month security deposit.\n\nThe security deposit is refundable within thirty days of the end of the contract, less documented deductions for unpaid utilities or damage beyond ordinary wear. An itemised statement must be given to the student.\n\nA student who must leave before the end of a contract for academic or medical reasons should file a leave request in the app. OSAS mediates where the accommodation manager and the student cannot agree.',
+  date '2026-01-15','1.0','672e25f5-8798-4a47-9c94-dbb7774bccd8',false),
+ (gen_random_uuid(),'Raising a Concern or Complaint',
+  E'Concerns about the condition of an accommodation should first be raised with the accommodation manager through the app, which records the report and the response.\n\nIf the concern is not addressed within seven days, or if it involves safety, harassment or a threat to welfare, the student should raise a support ticket with OSAS. Support tickets are read by OSAS staff only and are not visible to the accommodation manager.\n\nAnonymous reports are accepted during the semestral welfare check.',
+  date '2026-06-01','1.0','672e25f5-8798-4a47-9c94-dbb7774bccd8',false),
+ (gen_random_uuid(),'Interim Occupancy Guidelines (superseded)',
+  E'This interim guidance issued at the start of AY 2025-2026 has been superseded by the Student Housing Accreditation Guidelines.',
+  date '2025-09-01','0.9','672e25f5-8798-4a47-9c94-dbb7774bccd8',true);
+
+-- Floors the property editor tracks, so a floor with no rooms on it still shows.
+insert into public.accommodation_floors (accommodation_id, floor_number)
+select a.id, f.fl
+from public.accommodations a
+cross join lateral generate_series(1, greatest(coalesce(a.total_floors,1),1)) f(fl)
+on conflict (accommodation_id, floor_number) do nothing;
+
+
+-- ===========================================================================
+-- PART 7 - MAKE THE IMAGE URLS CSP-SAFE
+-- ===========================================================================
+-- The stock photos above are written as readable Unsplash URLs, but the app's
+-- Content-Security-Policy (index.html, img-src) allows res.cloudinary.com and
+-- NOT images.unsplash.com, so the mobile client blocks every one of them:
+--
+--   Loading the image '...' violates the following Content Security Policy
+--   directive: "img-src 'self' data: blob: ..."
+--
+-- The policy is deliberate, so the images move rather than the policy. This
+-- rewrites them through Cloudinary's fetch delivery, which is already
+-- allow-listed and adds f_auto,q_auto. It is the same mechanism
+-- viaCloudinaryFetch() in src/utils/cloudinaryUrl.ts uses to make Google
+-- avatars loadable.
+--
+-- Change the cloud name if the project's CLOUDINARY_CLOUD_NAME ever differs
+-- from VITE_CLOUDINARY_CLOUD_NAME in accommo-mobile/.env.
+create or replace function pg_temp.via_fetch(u text) returns text language sql immutable as $$
+  select case
+    when u like 'https://images.unsplash.com/%'
+      then 'https://res.cloudinary.com/n5mhxcnb/image/fetch/f_auto,q_auto/' ||
+           replace(replace(replace(u, ':', '%3A'), '/', '%2F'), '?', '%3F')
+    else u end
+$$;
+
+update public.accommodation_images          set url = pg_temp.via_fetch(url)           where url like 'https://images.unsplash.com/%';
+update public.room_images                   set url = pg_temp.via_fetch(url)           where url like 'https://images.unsplash.com/%';
+update public.accommodation_facility_images set url = pg_temp.via_fetch(url)           where url like 'https://images.unsplash.com/%';
+update public.accommodation_documents       set file_url = pg_temp.via_fetch(file_url) where file_url like 'https://images.unsplash.com/%';
+update public.verification_documents        set file_url = pg_temp.via_fetch(file_url) where file_url like 'https://images.unsplash.com/%';
+
+
+-- ===========================================================================
 -- VERIFY - every line should read 0 except the counts
 -- ===========================================================================
 select 'orphan profiles'      as check, count(*)::text as result from public.users u left join auth.users a on a.id=u.id where a.id is null
@@ -673,7 +822,16 @@ union all select 'leases without payments', count(*)::text from public.leases l 
 union all select 'duplicate user documents', count(*)::text from (select user_id, doc_type from public.verification_documents group by 1,2 having count(*)>1) d
 union all select 'facility scope violations', count(*)::text from public.accommodation_facilities where (access_scope='shared') <> (room_id is null)
 union all select 'unpaid rows carrying a receipt', count(*)::text from public.payments where status in ('due','overdue') and (paid_at is not null or verified_by is not null)
+union all select 'image urls the CSP would block', (
+    (select count(*) from public.accommodation_images          where url      like 'https://images.unsplash.com/%') +
+    (select count(*) from public.room_images                   where url      like 'https://images.unsplash.com/%') +
+    (select count(*) from public.accommodation_facility_images where url      like 'https://images.unsplash.com/%') +
+    (select count(*) from public.accommodation_documents       where file_url like 'https://images.unsplash.com/%') +
+    (select count(*) from public.verification_documents        where file_url like 'https://images.unsplash.com/%'))::text
 union all select 'COUNT users', count(*)::text from public.users
 union all select 'COUNT accommodations', count(*)::text from public.accommodations
 union all select 'COUNT leases', count(*)::text from public.leases
-union all select 'COUNT payments', count(*)::text from public.payments;
+union all select 'COUNT payments', count(*)::text from public.payments
+union all select 'COUNT concerns', count(*)::text from public.concerns
+union all select 'COUNT conversations', count(*)::text from public.conversations
+union all select 'COUNT osas policies', count(*)::text from public.policies;

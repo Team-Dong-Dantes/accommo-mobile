@@ -310,7 +310,6 @@ const RULE_TOGGLES = [
   { key: 'cooking' as const, label: 'Cooking allowed' },
   { key: 'laundry' as const, label: 'Laundry allowed' },
   { key: 'pets' as const, label: 'Pets allowed' },
-  { key: 'smoking' as const, label: 'Smoking allowed' },
 ]
 
 const DOC_TYPES = [
@@ -384,7 +383,6 @@ const form = reactive({
   cooking: true,
   laundry: true,
   pets: false,
-  smoking: false,
 })
 
 const quietHoursLabel = computed(() =>
@@ -521,7 +519,6 @@ async function submit() {
       cooking: form.cooking,
       laundry: form.laundry,
       pets: form.pets,
-      smoking: form.smoking,
     })
     if (policyError) throw policyError
 
