@@ -760,69 +760,35 @@
       </q-card>
     </q-dialog>
 
-    <!-- CONFIRM DELETE ACCOMMODATION -->
-    <q-dialog v-model="confirmDeleteAccommodationOpen" position="bottom">
-      <q-card class="room-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:triangle-alert" width="18" /></span>
-          <h3 class="room-sheet-title">Delete this accommodation?</h3>
-        </div>
-        <p class="sec-hint">
-          This permanently deletes it, along with its rooms, facilities, photos, and documents. This can't be undone.
-        </p>
-        <div class="room-sheet-actions">
-          <button type="button" class="ghost-btn" :disabled="deletingAccommodation" @click="confirmDeleteAccommodationOpen = false">
-            Cancel
-          </button>
-          <button type="button" class="room-del" :disabled="deletingAccommodation" @click="deleteAccommodation">
-            {{ deletingAccommodation ? 'Deleting…' : 'Delete accommodation' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
+    <!-- Three near-identical destructive confirms, one component. Deleting a
+         floor takes its rooms with it, so the wording matters and should not
+         be maintained in triplicate. -->
+    <ConfirmDeleteSheet
+      v-model="confirmDeleteAccommodationOpen"
+      title="Delete this accommodation?"
+      body="This permanently deletes it, along with its rooms, facilities, photos, and documents. This can't be undone."
+      confirm-label="Delete accommodation"
+      :busy="deletingAccommodation"
+      @confirm="deleteAccommodation"
+    />
 
-    <!-- CONFIRM DELETE FLOOR -->
-    <q-dialog v-model="confirmDeleteFloorOpen" position="bottom">
-      <q-card class="room-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:triangle-alert" width="18" /></span>
-          <h3 class="room-sheet-title">Delete Floor {{ floorPendingDelete }}?</h3>
-        </div>
-        <p class="sec-hint">
-          This permanently deletes every room on this floor, along with their photos and private facilities. This
-          can't be undone.
-        </p>
-        <div class="room-sheet-actions">
-          <button type="button" class="ghost-btn" :disabled="deletingFloor !== null" @click="confirmDeleteFloorOpen = false">
-            Cancel
-          </button>
-          <button type="button" class="room-del" :disabled="deletingFloor !== null" @click="confirmDeleteFloor">
-            {{ deletingFloor !== null ? 'Deleting…' : 'Delete floor' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
+    <ConfirmDeleteSheet
+      v-model="confirmDeleteFloorOpen"
+      :title="`Delete Floor ${floorPendingDelete}?`"
+      body="This permanently deletes every room on this floor, along with their photos and private facilities. This can't be undone."
+      confirm-label="Delete floor"
+      :busy="deletingFloor !== null"
+      @confirm="confirmDeleteFloor"
+    />
 
-    <!-- CONFIRM DELETE ROOM -->
-    <q-dialog v-model="confirmDeleteRoomOpen" position="bottom">
-      <q-card class="room-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:triangle-alert" width="18" /></span>
-          <h3 class="room-sheet-title">Delete Room {{ activeRoomNumber }}?</h3>
-        </div>
-        <p class="sec-hint">This permanently deletes this room, along with its photos and private facilities. This can't be undone.</p>
-        <div class="room-sheet-actions">
-          <button type="button" class="ghost-btn" :disabled="savingRoom" @click="confirmDeleteRoomOpen = false">Cancel</button>
-          <button type="button" class="room-del" :disabled="savingRoom" @click="deleteRoom">
-            {{ savingRoom ? 'Deleting…' : 'Delete room' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
-
+    <ConfirmDeleteSheet
+      v-model="confirmDeleteRoomOpen"
+      :title="`Delete Room ${activeRoomNumber}?`"
+      body="This permanently deletes this room, along with its photos and private facilities. This can't be undone."
+      confirm-label="Delete room"
+      :busy="savingRoom"
+      @confirm="deleteRoom"
+    />
     <!-- ADD ROOM OR FACILITY -->
     <q-dialog v-model="addChoiceOpen" position="bottom">
       <q-card class="room-sheet">
@@ -991,6 +957,7 @@ import ErrorCard from '@/components/shared/ErrorCard.vue'
 import type { Database } from '@/types/database.gen'
 import { capturePhoto } from '@/utils/camera'
 import { POLICY_RULES } from '@/api/selects'
+import ConfirmDeleteSheet from '@/components/shared/ConfirmDeleteSheet.vue'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
