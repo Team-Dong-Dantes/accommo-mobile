@@ -958,6 +958,11 @@ import type { Database } from '@/types/database.gen'
 import { capturePhoto } from '@/utils/camera'
 import { POLICY_RULES } from '@/api/selects'
 import ConfirmDeleteSheet from '@/components/shared/ConfirmDeleteSheet.vue'
+import {
+  CAPACITY_MAX, MONTHS_MAX, RENT_MAX,
+  clampNum, clampOptional, partitionFacilities,
+  nextFloorNumber as nextFloorNumberOf, nextRoomNumber as nextRoomNumberOf,
+} from '@/utils/roomInventory'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
@@ -1124,8 +1129,8 @@ async function onLocationConfirmed(payload: { lat: number; lng: number; barangay
   }
 }
 
-const sharedFacilities = computed(() => facilities.value.filter((f) => !f.roomId))
-const currentRoomFacilities = computed(() => facilities.value.filter((f) => f.roomId === editingRoomId.value))
+const sharedFacilities = computed(() => partitionFacilities(facilities.value, editingRoomId.value).shared)
+const currentRoomFacilities = computed(() => partitionFacilities(facilities.value, editingRoomId.value).privateToRoom)
 
 // Adding a facility follows the same shape as adding a room: a paged sheet
 // (Basics → Photos) that creates the row after step 1, then a Photos step
@@ -1782,9 +1787,6 @@ const roomForm = reactive({
 // does not sleep 400 people — an extra keystroke used to save either without a
 // word, and the absurd figure then showed up in discovery and on the student's
 // application summary.
-const RENT_MAX = 100000
-const CAPACITY_MAX = 20
-const MONTHS_MAX = 12
 
 /**
  * `max` on <input type="number"> is only a spinner and validity hint — a typed
@@ -1792,17 +1794,7 @@ const MONTHS_MAX = 12
  * script. Done on blur (so the correction is visible while editing) and again in
  * the save payload, which is the path every write actually takes.
  */
-function clampNum(value: number | null | undefined, min: number, max: number): number {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return min
-  return Math.min(Math.max(n, min), max)
-}
 
-/** Same, but keeps "not set" as null rather than collapsing it to the minimum. */
-function clampOptional(value: number | null | undefined, min: number, max: number): number | null {
-  if (value === null || value === undefined || value === ('' as unknown)) return null
-  return clampNum(value, min, max)
-}
 
 const rentBasisHint = computed(() => {
   const rent = roomForm.monthlyRent || 0
@@ -1865,16 +1857,10 @@ const floorCount = computed(() => roomsByFloor.value.filter((g) => g.floor !== n
 // Room "names" are just their number — assigned once at creation from the
 // floor + how many rooms already sit on it, never hand-typed or renamed.
 function nextRoomNumber(floor: number | null): string {
-  const f = floor ?? 0
-  const onFloor = rooms.value.filter((r) => r.floor === floor).length
-  return `${f}${String(onFloor + 1).padStart(2, '0')}`
+  return nextRoomNumberOf(rooms.value, floor)
 }
 function nextFloorNumber(): number {
-  const floors = [
-    ...rooms.value.map((r) => r.floor).filter((f): f is number => f !== null),
-    ...trackedFloors.value,
-  ]
-  return floors.length ? Math.max(...floors) + 1 : 1
+  return nextFloorNumberOf(rooms.value, trackedFloors.value)
 }
 const previewRoomNumber = computed(() => nextRoomNumber(roomForm.floor))
 
