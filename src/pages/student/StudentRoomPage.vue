@@ -199,6 +199,7 @@ import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
 import { AMENITY_META, FACILITY_META, roomTypeLabel, listingMonogram } from '@/utils/listings'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import { POLICY_TERMS, ROOM_DETAIL } from '@/api/selects'
 
 const route = useRoute()
 const router = useRouter()
@@ -263,7 +264,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('rooms')
       .select(
-        'id,label,room_number,room_type,custom_room_type,capacity,floor,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,accommodation_manager_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(advance_months,deposit_months,min_stay,contract_type))',
+        `${ROOM_DETAIL},room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,accommodation_manager_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(${POLICY_TERMS}))`,
       )
       .eq('id', id.value)
       .maybeSingle()

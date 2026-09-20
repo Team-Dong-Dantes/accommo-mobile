@@ -338,7 +338,6 @@ export type Database = {
           min_stay: number | null
           pets: boolean | null
           quiet_hours: string | null
-          smoking: boolean | null
           visitor_policy: string | null
         }
         Insert: {
@@ -353,7 +352,6 @@ export type Database = {
           min_stay?: number | null
           pets?: boolean | null
           quiet_hours?: string | null
-          smoking?: boolean | null
           visitor_policy?: string | null
         }
         Update: {
@@ -368,7 +366,6 @@ export type Database = {
           min_stay?: number | null
           pets?: boolean | null
           quiet_hours?: string | null
-          smoking?: boolean | null
           visitor_policy?: string | null
         }
         Relationships: [

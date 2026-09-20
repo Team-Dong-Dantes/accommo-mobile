@@ -404,6 +404,7 @@ import {
 } from '@/utils/payments'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import { POLICY_FULL } from '@/api/selects'
 
 function yesNo(value: boolean | null | undefined): string {
   if (value === null || value === undefined) return ''
@@ -548,7 +549,7 @@ async function load(silent = false) {
       supabase
         .from('leases')
         .select(
-          'id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, accommodation_manager_id, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,min_stay,contract_type)))',
+          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, accommodation_manager_id, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
         )
         .eq('student_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested'])
@@ -624,7 +625,6 @@ async function load(silent = false) {
             { label: 'Cooking', value: yesNo(policy.cooking as boolean | null) },
             { label: 'Laundry', value: yesNo(policy.laundry as boolean | null) },
             { label: 'Pets', value: yesNo(policy.pets as boolean | null) },
-            { label: 'Smoking', value: yesNo(policy.smoking as boolean | null) },
             { label: 'Minimum stay', value: policy.min_stay ? `${policy.min_stay} month(s)` : '' },
             { label: 'Contract type', value: String(policy.contract_type ?? '') },
           ] as { label: string; value: string }[]

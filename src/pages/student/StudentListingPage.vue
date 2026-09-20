@@ -175,6 +175,7 @@ import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, FACILITY_META, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
 import MessageManagerCta from '@/components/student/MessageManagerCta.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import { POLICY_FULL, ROOM_CARD } from '@/api/selects'
 
 interface RoomRow {
   id: string
@@ -250,7 +251,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'id,name,address,city,barangay,description,accommodation_type,gender_policy,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,smoking,min_stay,contract_type)',
+        `id,name,address,city,barangay,description,accommodation_type,gender_policy,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(${ROOM_CARD},room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(${POLICY_FULL})`,
       )
       .eq('id', id.value)
       .eq('status', 'accredited')
@@ -348,7 +349,6 @@ async function load() {
         { label: 'Cooking', value: yesNo(policy.cooking as boolean | null) },
         { label: 'Laundry', value: yesNo(policy.laundry as boolean | null) },
         { label: 'Pets', value: yesNo(policy.pets as boolean | null) },
-        { label: 'Smoking', value: yesNo(policy.smoking as boolean | null) },
         { label: 'Minimum stay', value: policy.min_stay ? `${policy.min_stay} month(s)` : '' },
         { label: 'Contract type', value: String(policy.contract_type ?? '') },
       ]
