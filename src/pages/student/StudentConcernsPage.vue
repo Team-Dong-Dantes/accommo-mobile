@@ -183,6 +183,7 @@ import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import SplitDetail from '@/components/shared/SplitDetail.vue'
 import { isTablet } from '@/utils/useTabletMode'
+import { fetchCurrentLease } from '@/api/leases';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -275,14 +276,7 @@ async function load() {
       return
     }
 
-    const { data: leaseRow } = await supabase
-      .from('leases')
-      .select('id, accommodation_manager_id')
-      .eq('student_id', user.id)
-      .in('status', ['active', 'leave_requested'])
-      .order('start_date', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const leaseRow = await fetchCurrentLease(user.id)
     activeLease.value = leaseRow ? { id: leaseRow.id, managerId: leaseRow.accommodation_manager_id } : null
 
     const { data, error: loadError } = await supabase

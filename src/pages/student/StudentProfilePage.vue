@@ -167,6 +167,7 @@ import ProfileBlock from '@/components/shared/ProfileBlock.vue'
 import EditButton from '@/components/shared/EditButton.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
+import { fetchCurrentLease } from '@/api/leases';
 import {
   collegeOptions,
   collegePrograms,
@@ -432,14 +433,9 @@ async function load(silent = false) {
       })
     }
 
-    const { data: leaseRow } = await supabase
-      .from('leases')
-      .select('id, status, accommodation_manager_id, rooms(room_number, accommodations(name))')
-      .eq('student_id', user.id)
-      .in('status', ['active', 'pending', 'leave_requested'])
-      .order('start_date', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    // includePending: this screen shows the student where they stand, so an
+    // undecided application counts as their current placement.
+    const leaseRow = await fetchCurrentLease(user.id, true)
 
     if (leaseRow) {
       const room = leaseRow.rooms as unknown as {
