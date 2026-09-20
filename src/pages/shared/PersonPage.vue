@@ -112,6 +112,7 @@ import { initialsOf, formatPeso } from '@/utils/format'
 import { period } from '@/utils/profile'
 import PersonProfile from '@/components/shared/PersonProfile.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import { fetchSharedLeaseHistory } from '@/api/leases';
 
 // One profile screen for "the other person", reached from a conversation or
 // straight off a QR scan. Academic details come from student_profiles when the
@@ -216,13 +217,7 @@ onMounted(async () => {
     // Leases between the two of us, whichever way round we are.
     const studentSide = person.role === 'student' ? targetId.value : me
     const managerSide = person.role === 'student' ? me : targetId.value
-    const { data: leases } = await supabase
-      .from('leases')
-      .select('id, status, start_date, end_date, monthly_rent, rooms(room_number, label, accommodations(name))')
-      .eq('student_id', studentSide)
-      .eq('accommodation_manager_id', managerSide)
-      .order('start_date', { ascending: false })
-
+    const leases = await fetchSharedLeaseHistory(studentSide, managerSide)
     const rows = (leases ?? []) as unknown as {
       id: string
       status: string

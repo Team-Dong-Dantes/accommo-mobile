@@ -170,6 +170,7 @@ import { usePinStore, RESUME_LOCK_MS } from '@/stores/pin'
 import { lockApp, settlePin } from '@/utils/requirePin'
 import { clearAllCache } from '@/utils/persistCache'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
+import { countLeasesAwaitingManager } from '@/api/leases';
 
 const router = useRouter()
 const route = useRoute()
@@ -626,11 +627,7 @@ async function loadNeedsCheckDots(userId: string) {
   const isManager = role.value === 'manager'
   const [tenants, docs, concerns, listings] = await Promise.all([
     isManager
-      ? supabase
-          .from('leases')
-          .select('id', { count: 'exact', head: true })
-          .eq('accommodation_manager_id', userId)
-          .in('status', ['pending', 'leave_requested'])
+      ? countLeasesAwaitingManager(userId).then((count) => ({ count }))
       : Promise.resolve({ count: 0 }),
     supabase
       .from('verification_documents')
