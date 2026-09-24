@@ -1,6 +1,6 @@
 <template>
   <div class="p-hero">
-    <button type="button" class="p-hero-action" :style="{ color: accent }" :aria-label="actionLabel" :title="actionLabel" @click="emit('action')">
+    <button v-if="actionIcon" type="button" class="p-hero-action" :style="{ color: accent }" :aria-label="actionLabel" :title="actionLabel" @click="emit('action')">
       <IconifyIcon :icon="actionIcon" width="18" />
     </button>
 
@@ -42,10 +42,13 @@ const props = withDefaults(
     subtitle: string
     statusTone: string
     statusLabel: string
-    actionIcon: string
-    actionLabel: string
+    /** Omit to show no corner action. */
+    actionIcon?: string
+    actionLabel?: string
   }>(),
   {
+    actionIcon: '',
+    actionLabel: '',
     initials: '?',
     avatarSize: 56,
     avatarBackground: 'var(--m-primary)',

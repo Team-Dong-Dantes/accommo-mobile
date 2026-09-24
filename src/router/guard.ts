@@ -84,7 +84,7 @@ export function resolveDestination(s: GuardState): GuardDecision {
     // brand-new Google signup was evicted with "account already exists" and
     // could never complete its profile.
     //
-    // A manager OSAS has sent back is registered but must still reach this
+    // A landlord/landlady OSAS has sent back is registered but must still reach this
     // screen to correct the application, or the eviction below would sign them
     // out before the resubmission redirect could run.
     const resubmitting =
@@ -119,7 +119,7 @@ export function resolveDestination(s: GuardState): GuardDecision {
   // instead of saying the admin console is elsewhere.
   if (s.role === 'admin') return go('/login?adminUsesWeb=true', true)
 
-  // A manager holds no session at all until OSAS approves — not a reduced
+  // A landlord/landlady holds no session at all until OSAS approves — not a reduced
   // surface, no session. Enforced here as well as in login() so a session that
   // predates the decision is dropped on the next navigation.
   //

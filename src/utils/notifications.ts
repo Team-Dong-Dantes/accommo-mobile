@@ -111,7 +111,7 @@ export function resolveNotifLink(
   if (type === 'announcement' && refId) return `/${role}/announcement/${refId}`;
   if (linkUrl) {
     const base = linkUrl.split('?')[0] ?? '';
-    // Own-role routes only: a student must never be sent into manager screens.
+    // Own-role routes only: a student must never be sent into landlord/landlady screens.
     if (ROUTES.has(base) && base.startsWith(`/${role}/`)) return linkUrl;
   }
   return BY_TYPE[role][type || ''] ?? null;

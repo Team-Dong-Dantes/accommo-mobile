@@ -50,13 +50,13 @@ Accepting electronically is binding. Under the Electronic Commerce Act of 2000 (
 
 2. Who may use Accommo
 
-You may register as a student if you are currently enrolled at the university, or as an accommodation manager if you own or manage boarding accommodation offered to its students. You must give accurate information when you register and keep it up to date. One person may hold one account.
+You may register as a student if you are currently enrolled at the university, or as a landlord/landlady if you own or manage boarding accommodation offered to its students. You must give accurate information when you register and keep it up to date. One person may hold one account.
 
 3. What Accommo does, and what it does not do
 
-Accommo lists accommodations, lets students apply to them, and gives students and managers a place to message each other and keep a record of their arrangement.
+Accommo lists accommodations, lets students apply to them, and gives students and landlords/landladies a place to message each other and keep a record of their arrangement.
 
-Accommo is not a party to your lease. An agreement to rent is made between the student and the accommodation manager, and is governed by the lease provisions of the Civil Code of the Philippines (Republic Act No. 386, Articles 1642 to 1688) and, where the unit and the rent fall within its coverage, by the Rent Control Act of 2009 (Republic Act No. 9653) as extended. Nothing in these terms removes a right either party has under those laws.
+Accommo is not a party to your lease. An agreement to rent is made between the student and the landlord/landlady, and is governed by the lease provisions of the Civil Code of the Philippines (Republic Act No. 386, Articles 1642 to 1688) and, where the unit and the rent fall within its coverage, by the Rent Control Act of 2009 (Republic Act No. 9653) as extended. Nothing in these terms removes a right either party has under those laws.
 
 The university and OSAS do not own, operate, inspect for habitability, insure, or guarantee any accommodation listed here, and are not responsible for the conduct of any student or manager. Listing an accommodation is not an endorsement of it.
 
@@ -66,19 +66,19 @@ You are responsible for what happens under your account. Keep your password and 
 
 5. Verification
 
-Students and managers may be asked to submit documents to OSAS so their identity, enrolment, or ownership of an accommodation can be verified. Submitting a document that is forged, altered, or belongs to someone else is grounds for immediate removal and may be referred for disciplinary or legal action.
+Students and landlords/landladies may be asked to submit documents to OSAS so their identity, enrolment, or ownership of an accommodation can be verified. Submitting a document that is forged, altered, or belongs to someone else is grounds for immediate removal and may be referred for disciplinary or legal action.
 
 6. Listings and fair dealing
 
-An accommodation manager must describe a property accurately — its rooms, rent, deposits, facilities and house rules. Misleading descriptions of what is being offered may engage the Consumer Act of the Philippines (Republic Act No. 7394) as well as these terms.
+A landlord/landlady must describe a property accurately — its rooms, rent, deposits, facilities and house rules. Misleading descriptions of what is being offered may engage the Consumer Act of the Philippines (Republic Act No. 7394) as well as these terms.
 
 7. Payments
 
-Payments recorded in Accommo are a record of an arrangement between a student and a manager. Accommo does not collect, hold, process, or transfer money. A payment marked paid in the app reflects what the manager confirmed; it is not a receipt issued by the university. Disputes about money are between the student and the manager, though OSAS may be asked to mediate.
+Payments recorded in Accommo are a record of an arrangement between a student and a manager. Accommo does not collect, hold, process, or transfer money. A payment marked paid in the app reflects what the landlord/landlady confirmed; it is not a receipt issued by the university. Disputes about money are between the student and the landlord/landlady, though OSAS may be asked to mediate.
 
-8. Reviews and conduct
+8. Ratings and conduct
 
-Reviews must describe your own genuine experience. Do not post anything false, abusive, discriminatory, threatening, or that reveals another person's private information. Do not use Accommo to harass anyone, to advertise unrelated goods or services, or to collect other users' data.
+Ratings and their comments must describe your own genuine experience. Do not post anything false, abusive, discriminatory, threatening, or that reveals another person's private information. Do not use Accommo to harass anyone, to advertise unrelated goods or services, or to collect other users' data.
 
 Harassment through this app is not only a breach of these terms. Gender-based online sexual harassment is punishable under the Safe Spaces Act (Republic Act No. 11313); sexual harassment in an education or training institution is covered by Republic Act No. 7877; and taking, copying or sharing a photo or video of a person in a private setting without their consent is an offence under the Anti-Photo and Video Voyeurism Act of 2009 (Republic Act No. 9995), which applies to images sent through the messaging in this app.
 
@@ -126,11 +126,11 @@ Account details: your name, email address, mobile number, sex, and profile photo
 
 Student details: your college, programme, and year level.
 
-Verification documents: identification, proof of enrolment, and — for accommodation managers — documents showing ownership or authority over a property. These are reviewed by OSAS staff.
+Verification documents: identification, proof of enrolment, and — for landlords/landladies — documents showing ownership or authority over a property. These are reviewed by OSAS staff.
 
 Accommodation and tenancy records: listings, applications, leases, room assignments, move-in and move-out records, and your stay history.
 
-Payment records: amounts, dates, methods, and whether a manager confirmed a payment. We do not collect card or bank account numbers.
+Payment records: amounts, dates, methods, and whether a landlord/landlady confirmed a payment. We do not collect card or bank account numbers.
 
 Messages: conversations between you and other users, including photos you send.
 
@@ -140,15 +140,15 @@ Technical information: sign-in times and basic device information needed to keep
 
 3. Why we use it, and on what basis
 
-To create and verify your account. To show you accommodations and let you apply. To let managers assess applications and manage their tenants. To keep a record of leases and payments. To let you message the people you are dealing with. To handle concerns and support tickets. To keep the platform safe, investigate reports of misuse, and meet the university's own obligations.
+To create and verify your account. To show you accommodations and let you apply. To let landlords/landladies assess applications and manage their tenants. To keep a record of leases and payments. To let you message the people you are dealing with. To handle concerns and support tickets. To keep the platform safe, investigate reports of misuse, and meet the university's own obligations.
 
 Under Section 12 of Republic Act No. 10173 we rely on your consent, on the necessity of processing to carry out the arrangement you enter into, and on the legitimate interests of the university in running a safe housing service for its students. Sensitive personal information, which includes your sex and any government identification you submit, is processed on the basis of your consent under Section 13.
 
 4. Who can see your information
 
-Accommodation managers see the profile and application details of students who apply to them, and the records of their own tenants.
+Landlords/Landladies see the profile and application details of students who apply to them, and the records of their own tenants.
 
-Students see a manager's listing and public profile details.
+Students see a landlord/landlady's listing and public profile details.
 
 OSAS and university administrators see what they need in order to verify accounts, review documents, respond to concerns, and audit activity on the platform.
 
@@ -180,7 +180,7 @@ Photos you send through the app are personal information and may also be protect
 
 9. Children
 
-Accommo is for university students and accommodation managers. It is not intended for children under 18. A student under 18 should have a parent or guardian review these documents, whose consent is required for processing under Republic Act No. 10173.
+Accommo is for university students and landlords/landladies. It is not intended for children under 18. A student under 18 should have a parent or guardian review these documents, whose consent is required for processing under Republic Act No. 10173.
 
 10. Changes to this notice
 

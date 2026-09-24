@@ -1,8 +1,11 @@
 <template>
   <q-page class="disc">
+    <!-- Floating on a phone; pinned at the top of its half on desktop. -->
     <SearchDock
       v-if="!loading && !error"
       v-model="query"
+      :inline="isDesktop"
+      :class="{ 'desk-search': isDesktop }"
       :filter-count="activeFilterCount"
       placeholder="Search places"
       search-label="Search accommodations"
@@ -102,15 +105,15 @@
         <span class="sheet-label">Must have</span>
         <div class="m-chips">
           <button
-            v-for="key in AMENITY_KEYS"
-            :key="key"
+            v-for="f in SEARCH_FEATURES"
+            :key="f.key"
             type="button"
             class="m-chip"
-            :class="{ 'm-chip--on': filters.amenities.includes(key) }"
-            @click="toggle(filters.amenities, key)"
+            :class="{ 'm-chip--on': filters.amenities.includes(f.key) }"
+            @click="toggle(filters.amenities, f.key)"
           >
-            <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="13" />
-            {{ AMENITY_META[key]?.label }}
+            <IconifyIcon :icon="f.icon" width="13" />
+            {{ f.label }}
           </button>
         </div>
       </div>
@@ -123,12 +126,13 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
+import { isDesktop } from '@/utils/useTabletMode'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
-import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, listingMonogram } from '@/utils/listings'
+import { SEARCH_FEATURES, roomTypeLabel, listingMonogram } from '@/utils/listings'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -226,9 +230,9 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'id,name,address,city,barangay,lat,lng,accommodation_type,rooms(status,monthly_rent,room_type),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
+        'id,name,address,city,barangay,lat,lng,accommodation_type,rooms(status,monthly_rent,room_type),accommodation_amenities(amenity),accommodation_facilities(facility_type),accommodation_images(url,sort_order)',
       )
-      .eq('status', 'accredited')
+      .eq('status', 'accredited').eq('hidden_from_listings', false)
     if (loadError) throw loadError
 
     let ceiling = 0
@@ -241,9 +245,11 @@ async function load(silent = false) {
 
         const images = [...((row.accommodation_images ?? []) as { url: string; sort_order: number | null }[])]
           .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
-        const amenities = ((row.accommodation_amenities ?? []) as { amenity: string }[]).map(
-          (a) => a.amenity,
-        )
+        // Amenities plus facility types, so one filter covers both (see SEARCH_FEATURES).
+        const amenities = [
+          ...((row.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity),
+          ...((row.accommodation_facilities ?? []) as { facility_type: string }[]).map((f) => f.facility_type),
+        ]
         const address = row.address || [row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
         const name = row.name?.trim() || 'Unnamed accommodation'
 

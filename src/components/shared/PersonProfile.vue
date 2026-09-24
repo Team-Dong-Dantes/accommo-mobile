@@ -1,5 +1,10 @@
 <template>
-  <div class="m-tabbed">
+  <!-- Desktop (`split`): the two halves of a card — the person and the default
+       slot on the left, the `right` slot on the right. Otherwise both slots go
+       in the one tabbed panel and the caller shows whichever tab is picked.
+       .col-left is display: contents off the desktop, so nothing moves there. -->
+  <div :class="split ? 'desk-card' : 'm-tabbed'">
+    <div :class="split ? 'desk-col' : 'col-left'">
     <div class="hero">
       <img v-if="coverUrl" :src="coverUrl" alt="" class="hero-img" />
       <div class="hero-scrim" />
@@ -20,7 +25,7 @@
       </div>
     </div>
 
-    <div class="tabs">
+    <div v-if="!split" class="tabs">
       <button
         v-for="t in tabs"
         :key="t.key"
@@ -35,6 +40,12 @@
 
     <div class="panel">
       <slot />
+      <slot v-if="!split" name="right" />
+    </div>
+    </div>
+
+    <div v-if="split" class="desk-col">
+      <slot name="right" />
     </div>
   </div>
 </template>
@@ -60,6 +71,8 @@ defineProps<{
   subtitle?: string
   /** Show the message button on the cover. */
   messageTo?: boolean
+  /** Desktop: lay the two slots out as the halves of a card instead of tabs. */
+  split?: boolean
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [string]; message: [] }>()
@@ -213,5 +226,24 @@ watch(() => avatarFailed.value, () => {})
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
+}
+/* ---- Desktop: halves of a card (.desk-card / .desk-col, app.scss) ---- */
+.col-left {
+  display: contents;
+}
+.desk-card .hero {
+  margin: -14px -18px 0;
+}
+.desk-card .desk-col:first-child {
+  gap: 0;
+}
+/* The overview is content in its half, not a second card. */
+.desk-card .panel {
+  flex: none;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 </style>

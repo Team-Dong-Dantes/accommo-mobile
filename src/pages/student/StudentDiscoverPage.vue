@@ -1,5 +1,16 @@
 <template>
   <q-page class="disc">
+    <!-- Desktop: search pinned at the top of the list half, not floating. -->
+    <SearchDock
+      v-if="isDesktop && !loading && !error"
+      v-model="query"
+      inline
+      class="desk-search"
+      :filter-count="activeFilterCount"
+      placeholder="Search accommodations, rooms, landlords/landladies"
+      search-label="Search accommodations, rooms, landlords/landladies"
+      @open-filters="filtersOpen = true"
+    />
     <div v-if="loading" class="stack">
       <section class="sec">
         <q-skeleton type="text" width="90px" height="16px" />
@@ -149,7 +160,7 @@
 
       <!-- Managers only surface once a search narrows to them -->
       <section v-if="query.trim() && filteredManagers.length" class="sec">
-        <h2 class="sec-title">Managers</h2>
+        <h2 class="sec-title">Landlords/Landladies</h2>
         <div class="mgrs">
           <button
             v-for="m in filteredManagers"
@@ -219,11 +230,11 @@
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->
     <SearchDock
-      v-if="!loading && !error"
+      v-if="!loading && !error && !isDesktop"
       v-model="query"
       :filter-count="activeFilterCount"
-      placeholder="Search accommodations, rooms, managers"
-      search-label="Search accommodations, rooms, managers"
+      placeholder="Search accommodations, rooms, landlords/landladies"
+      search-label="Search accommodations, rooms, landlords/landladies"
       above-nav
       @open-filters="filtersOpen = true"
     />
@@ -272,15 +283,15 @@
         <span class="sheet-label">Must have</span>
         <div class="m-chips">
           <button
-            v-for="key in AMENITY_KEYS"
-            :key="key"
+            v-for="f in SEARCH_FEATURES"
+            :key="f.key"
             type="button"
             class="m-chip"
-            :class="{ 'm-chip--on': filters.amenities.includes(key) }"
-            @click="toggle(filters.amenities, key)"
+            :class="{ 'm-chip--on': filters.amenities.includes(f.key) }"
+            @click="toggle(filters.amenities, f.key)"
           >
-            <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="13" />
-            {{ AMENITY_META[key]?.label }}
+            <IconifyIcon :icon="f.icon" width="13" />
+            {{ f.label }}
           </button>
         </div>
       </div>
@@ -295,12 +306,13 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/utils/supabase'
+import { isDesktop } from '@/utils/useTabletMode'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, kmBetween, geolocationErrorMessage, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, AMENITY_KEYS, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
+import { SEARCH_FEATURES, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
 import { useNotify } from '@/utils/notify'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -402,13 +414,17 @@ const mapFillHeight = computed(() => (mapExpanded.value ? '100dvh' : `${MAP_PREV
 // it. Expanded, `.map-region--full` lifts it out of flow entirely — see there
 // for why. The negative margin has to go with it, or the fixed box would sit
 // that far above the viewport.
+// On desktop the page is the list half of a card, below the header rather than
+// behind it, so the map starts at the card's top edge like everything else.
+const mapUnderHeaderPx = computed(() => (isDesktop.value ? 0 : headerReservedPx.value))
+
 const mapRegionStyle = computed(() => ({
   height: mapFillHeight.value,
-  marginTop: mapExpanded.value ? '0px' : `-${headerReservedPx.value}px`,
+  marginTop: mapExpanded.value ? '0px' : `-${mapUnderHeaderPx.value}px`,
   // The map runs up behind the floating header, so mapbox's own controls
   // land underneath it and can't be tapped at all. Push them clear by the
   // same amount the header reserves.
-  '--map-ctrl-top': `${headerReservedPx.value + 8}px`,
+  '--map-ctrl-top': `${mapUnderHeaderPx.value + 8}px`,
 }))
 
 interface SelectedPinRoom {
@@ -830,9 +846,9 @@ async function loadProperties(silent = false) {
   const { data, error: loadError } = await supabase
     .from('accommodations')
     .select(
-      'id,name,address,city,barangay,lat,lng,accommodation_type,gender_policy,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order)',
+      'id,name,address,city,barangay,lat,lng,accommodation_type,gender_policy,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_facilities(facility_type),accommodation_images(url,sort_order)',
     )
-    .eq('status', 'accredited')
+    .eq('status', 'accredited').eq('hidden_from_listings', false)
   if (loadError) throw loadError
 
   const propertyList: Property[] = []
@@ -857,7 +873,11 @@ async function loadProperties(silent = false) {
 
     const images = [...((row.accommodation_images ?? []) as { url: string; sort_order: number | null }[])]
       .sort((x, y) => (x.sort_order ?? 0) - (y.sort_order ?? 0))
-    const amenities = ((row.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity)
+    // Amenities plus facility types, so one filter covers both (see SEARCH_FEATURES).
+    const amenities = [
+      ...((row.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity),
+      ...((row.accommodation_facilities ?? []) as { facility_type: string }[]).map((f) => f.facility_type),
+    ]
     const address = row.address || [row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
     const name = row.name?.trim() || 'Unnamed accommodation'
     const monogram = listingMonogram(name)
@@ -933,13 +953,13 @@ async function loadManagers() {
     const { data, error: loadError } = await supabase
       .from('users')
       // The FK must be named: `accommodations` points at `users` twice (the
-      // manager who owns it, and the admin reviewing it), and PostgREST refuses
+      // landlord/landlady who owns it, and the admin reviewing it), and PostgREST refuses
       // an ambiguous embed outright — so this query threw on every load and the
-      // Managers tab was permanently empty.
+      // Landlords/Landladies tab was permanently empty.
       .select(
-        'id,full_name,avatar_url,accommodations!accommodations_accommodation_manager_id_fkey(id,name,status)',
+        'id,full_name,avatar_url,accommodations!accommodations_landlord_id_fkey(id,name,status)',
       )
-      .eq('role', 'accommodation_manager')
+      .eq('role', 'landlord')
     if (loadError) throw loadError
 
     managers.value = (data ?? [])
@@ -947,7 +967,7 @@ async function loadManagers() {
         const accredited = ((row.accommodations ?? []) as { id: string; name: string; status: string }[]).filter(
           (a) => a.status === 'accredited',
         )
-        const name = row.full_name?.trim() || 'Accommodation manager'
+        const name = row.full_name?.trim() || 'Landlord/Landlady'
         return {
           id: row.id,
           name,
@@ -962,7 +982,7 @@ async function loadManagers() {
           haystack: `${name} ${accredited.map((a) => a.name).join(' ')}`.toLowerCase(),
         }
       })
-      // Managers actively hosting listings surface first.
+      // Landlords and landladies actively hosting listings surface first.
       .sort((a, b) => b.propertyCount - a.propertyCount || a.name.localeCompare(b.name))
   } catch {
     managers.value = []
@@ -1407,7 +1427,7 @@ onUnmounted(() => {
   scroll-snap-align: start;
 }
 
-/* Managers */
+/* Landlords and landladies */
 .mgrs {
   display: flex;
   flex-direction: column;

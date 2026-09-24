@@ -60,7 +60,7 @@ import { capturePhoto } from '@/utils/camera'
 import { useNotify } from '@/utils/notify'
 
 // One card per document, used by the student's proof-of-enrolment screen and by
-// the manager's verification documents — the same control, so it stays one
+// the landlord/landlady's verification documents — the same control, so it stays one
 // component rather than drifting into two.
 //
 // It replaced a pair of dashed boxes that were identical apart from a small icon

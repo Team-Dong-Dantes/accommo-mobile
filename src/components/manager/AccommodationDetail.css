@@ -952,3 +952,49 @@
   font-size: 12px;
   font-weight: 600;
 }
+
+/* ---- Desktop: two halves of a card ----
+   The card itself is .desk-card / .desk-col (app.scss). Off the desktop these
+   wrappers are transparent, so the phone layout is the tabbed one it was. */
+.col-left,
+.sec-body {
+  display: contents;
+}
+/* The photo runs to the half's edges; the card's rounding clips its corner. */
+.desk-card .hero {
+  margin: -14px -18px 0;
+}
+.desk-card .desk-col:first-child {
+  gap: 0;
+}
+/* Overview and settings are content in the half, not a second card. */
+.desk-card .panel {
+  flex: none;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* Every panel renders on desktop, so overview and settings stack. */
+.desk-card .m-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.desk-card .col-right {
+  gap: 22px;
+}
+.col-right .sec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Rooms' emptied tab shell, left behind once its content moved right. */
+.sec--moved {
+  display: none;
+}
+.hero-back {
+  right: auto;
+  left: var(--m-page-gutter);
+}

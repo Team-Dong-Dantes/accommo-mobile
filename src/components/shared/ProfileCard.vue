@@ -2,12 +2,12 @@
   <section class="profile-card">
     <slot name="always" />
 
-    <button type="button" class="card-toggle" @click="expanded = !expanded">
+    <button v-if="!open" type="button" class="card-toggle" @click="expanded = !expanded">
       <span>{{ expanded ? 'Show less' : 'Show all details' }}</span>
       <IconifyIcon icon="lucide:chevron-down" width="16" class="card-toggle-icon" :class="{ 'card-toggle-icon--open': expanded }" />
     </button>
 
-    <template v-if="expanded">
+    <template v-if="open || expanded">
       <slot name="more" />
     </template>
 
@@ -20,6 +20,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
+
+// `open`: every block shown and no toggle — desktop, where the details have a
+// half of the screen to themselves and hiding them saves nothing.
+defineProps<{ open?: boolean }>()
 
 const expanded = ref(false)
 </script>

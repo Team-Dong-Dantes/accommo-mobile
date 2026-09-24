@@ -1,5 +1,5 @@
 <template>
-  <q-page class="sp">
+  <q-page class="sp" :class="{ 'page-wide': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <q-skeleton type="rect" height="120px" class="sk" />
@@ -14,7 +14,7 @@
         v-else-if="!lease && !payments.length"
         icon="lucide:home"
         title="No active stay"
-        message="Once a manager accepts your application, your tenancy details, rent and manager contact will show up here."
+        message="Once a landlord/landlady accepts your application, your tenancy details, rent and landlord/landlady contact will show up here."
       >
         <template #actions>
           <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
@@ -34,13 +34,13 @@
             </button>
           </div>
 
-          <div class="panel">
+          <div :class="isDesktop ? 'desk-card' : 'panel'">
             <!-- Not QTabPanels: it mounts only the active panel, which is exactly
                  what has to stop happening here. v-show keeps both in the DOM and
                  lets CSS decide, and v-touch-swipe puts back the one thing the
                  component was giving us that the phone actually used. -->
-            <div v-touch-swipe.mouse.horizontal="onTabSwipe" class="m-panels">
-              <div v-show="isTablet || activeTab === 'stay'" class="tab-panel">
+            <div v-touch-swipe.mouse.horizontal="onTabSwipe" :class="isDesktop ? 'desk-contents' : 'm-panels'">
+              <div v-show="isTablet || activeTab === 'stay'" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isTablet" class="split-head">My Stay</h2>
                 <template v-if="lease">
                   <div class="head">
@@ -64,7 +64,7 @@
                       </span>
                       <span class="mgr-body">
                         <span class="mgr-name">{{ lease.managerName }}</span>
-                        <span class="mgr-sub">{{ lease.replyMinutes ? `Replies in ~${lease.replyMinutes} min` : 'Accommodation manager' }}</span>
+                        <span class="mgr-sub">{{ lease.replyMinutes ? `Replies in ~${lease.replyMinutes} min` : 'Landlord/Landlady' }}</span>
                       </span>
                       <button type="button" class="mgr-msg" @click="router.push(`/student/messages?to=${lease.managerId}`)">
                         <IconifyIcon icon="lucide:message-circle" width="15" />
@@ -162,7 +162,7 @@
                   variant="compact"
                   icon="lucide:home"
                   title="No active stay"
-                  message="Once a manager accepts your application, your tenancy details, rent and manager contact will show up here."
+                  message="Once a landlord/landlady accepts your application, your tenancy details, rent and landlord/landlady contact will show up here."
                 >
                   <template #actions>
                     <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
@@ -170,7 +170,7 @@
                 </EmptyState>
               </div>
 
-              <div v-show="isTablet || activeTab === 'payments'" class="tab-panel">
+              <div v-show="isTablet || activeTab === 'payments'" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isTablet" class="split-head">Payments</h2>
                 <div v-if="lease" class="pay-head">
                   <span class="pay-head-label">Expected rent</span>
@@ -244,7 +244,7 @@
         <span class="sheet-grip" aria-hidden="true" />
         <h3 class="leave-title">Request to leave?</h3>
         <p class="leave-body">
-          Your manager will be notified and needs to approve this before your stay ends. You'll stay on your
+          Your landlord/landlady will be notified and needs to approve this before your stay ends. You'll stay on your
           current lease until then.
         </p>
         <div class="leave-actions">
@@ -374,7 +374,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { isTablet } from '@/utils/useTabletMode'
+import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { useRouter, useRoute } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -517,7 +517,7 @@ const submitTitle = computed(() => {
 })
 
 // Cash has nothing to reference or photograph — every other method leaves a
-// trail, and the manager needs it to actually verify against.
+// trail, and the landlord/landlady needs it to actually verify against.
 const isCash = computed(() => form.method === 'cash')
 
 const paymentDetailOpen = ref(false)
@@ -549,7 +549,7 @@ async function load(silent = false) {
       supabase
         .from('leases')
         .select(
-          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, accommodation_manager_id, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
+          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, landlord_id, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
         )
         .eq('student_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested'])
@@ -632,11 +632,11 @@ async function load(silent = false) {
       : []
 
     const [{ data: manager }, { data: profile }, roommateResult] = await Promise.all([
-      supabase.from('users').select('full_name, initials, avatar_url').eq('id', leaseRow.accommodation_manager_id).maybeSingle(),
+      supabase.from('users').select('full_name, initials, avatar_url').eq('id', leaseRow.landlord_id).maybeSingle(),
       supabase
-        .from('accommodation_manager_profiles')
+        .from('landlord_profiles')
         .select('avg_response_minutes')
-        .eq('user_id', leaseRow.accommodation_manager_id)
+        .eq('user_id', leaseRow.landlord_id)
         .maybeSingle(),
       leaseRow.room_id
         ? supabase
@@ -650,8 +650,8 @@ async function load(silent = false) {
 
     lease.value = {
       id: leaseRow.id,
-      managerId: leaseRow.accommodation_manager_id,
-      managerName: manager?.full_name || 'Accommodation manager',
+      managerId: leaseRow.landlord_id,
+      managerName: manager?.full_name || 'Landlord/Landlady',
       managerInitials: manager?.initials || initialsOf(manager?.full_name || '?'),
       managerAvatarUrl: manager?.avatar_url ? resolveAsset(manager.avatar_url) : null,
       replyMinutes: profile?.avg_response_minutes ?? null,
@@ -678,7 +678,7 @@ async function load(silent = false) {
 }
 
 async function requestLeave() {
-  if (!(await requirePin({ confirm: true, title: 'Request to leave?', message: 'Your manager will be asked to approve it.' }))) return
+  if (!(await requirePin({ confirm: true, title: 'Request to leave?', message: 'Your landlord/landlady will be asked to approve it.' }))) return
   if (leaving.value || !lease.value) return
   leaving.value = true
   try {

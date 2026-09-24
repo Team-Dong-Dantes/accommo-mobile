@@ -305,10 +305,26 @@ body {
   /* The rail's width, and therefore the inset of everything beside it. */
   --m-rail: 88px;
 }
+/* Desktop narrows it to the admin console's collapsed width (DesktopRail.vue).
+   The rail opens over the page on hover; the inset stays at this width. */
+@media (min-width: 1200px) {
+  :root {
+    --m-rail: 68px;
+  }
+}
 
-.shell-tablet .q-page-container,
-.shell-tablet .app-header {
-  padding-left: var(--m-rail);
+/* The page starts where the rail ends: a margin, not padding, and a transform.
+   Screens pin things to the window with `position: fixed; left: 0` — the
+   Discover map, the Room and Landlord/Landlady call-to-action bars, the profile
+   edit bar — and on a phone the window's left edge is the page's. Here it is
+   under the rail. The transform makes this container the box those elements pin
+   to instead (the same trick .shell-column uses), and the margin puts that box's
+   left edge at the rail, so every one of them lands beside it with no per-page
+   rule. The container itself never scrolls (the stage inside it does), so what
+   is pinned stays pinned. */
+.shell-tablet .q-page-container {
+  margin-left: var(--m-rail);
+  transform: translateZ(0);
 }
 
 /* The header keeps its inset card look, just starting after the rail. */
@@ -316,10 +332,18 @@ body {
   margin-left: 0;
   padding-left: calc(var(--m-rail) + 12px);
 }
+/* The announcement banner hangs off the header with `left: 12px`, measured from
+   the header's own edge — which is the window's, under the rail. */
+.shell-tablet .app-header .broadcast {
+  left: calc(var(--m-rail) + 12px);
+}
+/* With the wordmark hidden (below) the bell is the row's only child, and
+   space-between parks a lone child at the start. Push it to the far right. */
+.shell-tablet .app-header .header-notif-button {
+  margin-left: auto;
+}
 
-/* No bottom nav to clear, so the fixed overlays that reserved room for one stop
-   reserving it, and the ones that pin to the viewport's left edge pin to the
-   rail's instead. They all use `left: 0`, so one rule moves the lot. */
+
 /* The rail carries the wordmark in tablet mode, so the header stops repeating
    it — the two sit about a hand's width apart and read as a mistake. The row
    itself stays, because the notifications bell lives in it. */
@@ -405,6 +429,290 @@ body {
 .shell-tablet .pane--detail {
   width: min(100%, 860px);
   margin-inline: auto;
+}
+/* A page laid out in two columns of its own (it marks itself .page-wide) needs
+   two measures, not one. Set on the container for the same reason as above. */
+.shell-tablet .page-stage:not(.page-stage--split) > div:has(> .page-wide) {
+  width: min(100%, 1280px);
+}
+/* Such a page also scrolls its columns separately rather than as a whole, so
+   it is held to exactly the stage's height instead of growing with content. */
+.shell-tablet .page-stage:has(> div > .page-wide),
+.shell-tablet .page-stage > div:has(> .page-wide),
+.shell-tablet .page-wide {
+  height: 100%;
+}
+/* Positioned so a page leaving mid-swap (MainLayout's page-swap) overlays its
+   successor within this same centred box, not the whole stage. */
+.shell-tablet .page-stage > div:has(> .page-wide) {
+  position: relative;
+}
+/* QPage writes its own min-height inline (viewport minus header), which can
+   overshoot the stage by a rounding and bring back the outer scrollbar. */
+.shell-tablet .page-wide {
+  min-height: 0 !important;
+}
+
+/* Desktop — the web build in a browser window. It already passes the tablet
+   query, so it is the tablet shell with one change: past 1200px an even split
+   stops meaning "two views of equal standing" and starts meaning a 960px list
+   of cards drawn for a 400px phone. The list goes back to a column; the detail
+   takes the rest. Tablets (900–1199px) keep half and half. */
+@media (min-width: 1200px) {
+  .shell-tablet .page-stage--split,
+  .shell-tablet .page-split {
+    grid-template-columns: minmax(360px, 420px) 1fr;
+  }
+
+  /* No visible scrollbars anywhere on the desktop stage: every region still
+     scrolls by wheel and trackpad, it just draws no gutter. */
+  .shell-tablet .page-stage,
+  .shell-tablet .pane {
+    scrollbar-width: none;
+  }
+  .shell-tablet .page-stage::-webkit-scrollbar,
+  .shell-tablet .pane::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ---- Shell panes as one card ----
+     A list pane and the detail routed beside it (Discover → a listing,
+     Notifications → an announcement, My Properties → an accommodation) are the
+     two halves of one bordered card, the same card the pages below draw. */
+  .shell-tablet .page-stage--split {
+    width: min(100%, 1280px);
+    margin-inline: auto;
+    padding: 8px var(--m-page-gutter) 14px;
+  }
+  .shell-tablet .page-stage--split > .pane {
+    border: 1px solid var(--m-border);
+    background: var(--m-surface);
+  }
+  .shell-tablet .page-stage--split > .pane--list {
+    border-radius: var(--m-radius) 0 0 var(--m-radius);
+  }
+  .shell-tablet .page-stage--split > .pane--detail {
+    width: auto;
+    margin: 0;
+    overflow-x: hidden;
+    border-left: 0;
+    border-radius: 0 var(--m-radius) var(--m-radius) 0;
+  }
+  /* Pages paint the app ground behind themselves; inside the card the card's
+     surface is the ground. */
+  .shell-tablet .page-stage--split > .pane > .q-page {
+    background: transparent;
+  }
+}
+
+/* =========================================================================
+   The desktop card.
+
+   Shared by every page that lays itself out in two halves on desktop. Pages
+   add these classes only when `isDesktop` (useTabletMode.ts) is true, so
+   nothing here can reach a phone or tablet. Scoped page rules on the same
+   element would outrank these, so a page swaps its own layout class for the
+   desk one rather than carrying both (e.g. `split ? 'desk-card' : 'panel'`). */
+
+/* The card: two halves, one border, a rule between them. Fills what is left of
+   a .page-wide page's height; the halves scroll, the card does not. */
+.shell-tablet .desk-card {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+/* A wrapper (QTabPanels' stand-in) that should not be a box of its own, so its
+   panels are the card's grid items. */
+.shell-tablet .desk-contents {
+  display: contents;
+}
+
+/* A wrapper that is a half (.desk-col) on desktop and nothing at all
+   elsewhere, so the page lays out exactly as it did without it. */
+.desk-pass {
+  display: contents;
+}
+/* A card that is the whole content of a half is the half: no second border. */
+.shell-tablet .desk-col > :is(.profile-card, .p-hero) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* A tab's content moved (by Teleport) into another half on desktop — e.g.
+   ratings below payments. On a phone the wrapper is transparent, so the tab
+   lays out exactly as it did without it. */
+.desk-moved {
+  display: contents;
+}
+.shell-tablet .desk-col .desk-moved {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 10px;
+}
+/* The emptied tab shell left behind once its content has moved. */
+.shell-tablet .desk-hidden {
+  display: none;
+}
+/* A half's own title, where a tab label used to name it. */
+.shell-tablet .desk-col-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* A half. Scrolls on its own, with no scrollbar drawn. */
+.shell-tablet .desk-col {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.shell-tablet .desk-col::-webkit-scrollbar {
+  display: none;
+}
+/* A fixed-height flex column squashes its children before it lets itself
+   overflow, and cards that clip (overflow: hidden) then lose their contents
+   instead of giving the column something to scroll. */
+.shell-tablet .desk-col > * {
+  flex-shrink: 0;
+}
+.shell-tablet .desk-col + .desk-col {
+  border-left: 1px solid var(--m-border);
+}
+
+/* Search pinned to the top of a half while its list scrolls, on a solid band
+   so rows never show through round the rounded field. Pulled out over the
+   half's padding to sit flush with the card's edge. */
+.shell-tablet .desk-search {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: -14px -18px 0;
+  padding: 14px 18px 10px;
+  background: var(--m-surface);
+}
+/* In a shell pane (Discover's list, Properties) there is no column padding to
+   pull out over. */
+.shell-tablet .pane .desk-search {
+  margin: 0;
+  padding: 12px 14px 10px;
+}
+/* Above a card rather than inside one: the page's own ground behind it. */
+.shell-tablet .desk-search--above {
+  position: static;
+  margin: 0 0 10px;
+  padding: 0;
+  background: transparent;
+}
+
+/* A half's own header, holding its way back (e.g. a profile opened inside the
+   Messages card). */
+.shell-tablet .desk-panel-bar {
+  display: flex;
+  height: 56px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--m-border);
+}
+.shell-tablet .desk-panel-back {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-ink);
+  cursor: pointer;
+}
+.shell-tablet .desk-panel-back:hover {
+  background: var(--m-bg);
+}
+.shell-tablet .desk-panel-title {
+  color: var(--m-ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ---- Pages that split themselves (.page-split): the card on their columns --
+   Messages, OSAS and Concerns are already a two-column grid on a tablet: the
+   list (inside its pull-to-refresh) and the open item. On desktop those two
+   columns become the card's halves. */
+.shell-tablet .desk-split {
+  padding: 8px var(--m-page-gutter) 14px;
+}
+.shell-tablet .desk-split > .q-pull-to-refresh {
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius) 0 0 var(--m-radius);
+  background: var(--m-surface);
+  scrollbar-width: none;
+}
+.shell-tablet .desk-split > .q-pull-to-refresh::-webkit-scrollbar {
+  display: none;
+}
+/* Lists paint the app ground behind their rows — right when the list is the
+   page, a grey (or, in dark mode, black) band inside the card. */
+.shell-tablet .desk-split > .q-pull-to-refresh .q-pull-to-refresh__content > :not(.desk-search) {
+  background: transparent;
+}
+.shell-tablet .desk-split > :is(.chat, .mail, .split-pane, .page-split-empty, .desk-pane) {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-left: 0;
+  border-radius: 0 var(--m-radius) var(--m-radius) 0;
+  background: var(--m-surface);
+}
+.shell-tablet .desk-split .desk-search {
+  margin: 0;
+  padding: 12px 14px 10px;
+}
+/* A second thing shown in the open item's half (a profile from a chat). */
+.shell-tablet .desk-pane {
+  display: flex;
+  flex-direction: column;
+}
+.shell-tablet .desk-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.shell-tablet .desk-pane-body::-webkit-scrollbar {
+  display: none;
+}
+.shell-tablet .desk-pane-body .q-page {
+  min-height: 0 !important;
+}
+
+/* Bottom action bars (a listing's "Message", a room's apply bar, a profile's
+   Save) are pinned to the window on a phone. In a pane or a half that pins them
+   across the whole stage; here they sit at the foot of their own column. */
+.shell-tablet .pane--detail .cta,
+.shell-tablet .desk-col .edit-bar {
+  position: sticky;
+  right: auto;
+  bottom: 0;
+  left: auto;
 }
 
 /* =========================================================================

@@ -1,7 +1,7 @@
 <template>
   <!-- Beside its list rather than over it on a landscape tablet; see
        `.page-split` in app.scss. -->
-  <q-page class="op" :class="{ 'page-split': isTablet }">
+  <q-page class="op" :class="{ 'page-split': isTablet, 'page-wide desk-split': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="tabs">
@@ -157,7 +157,7 @@ import { errorMessage } from '@/utils/errors'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { chatFullscreen } from '@/utils/chatFullscreen'
-import { isTablet } from '@/utils/useTabletMode'
+import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
@@ -176,7 +176,7 @@ const TICKET_CATEGORIES = [
 ]
 
 const TABS = [
-  { key: 'docs', label: 'Documents' },
+  { key: 'docs', label: 'Requirements' },
   { key: 'tickets', label: 'Tickets' },
 ] as const
 

@@ -14,7 +14,7 @@
         <div>
           <p class="reject-title">What OSAS asked for</p>
           <p class="reject-text">
-            {{ decisionReason || 'OSAS needs clearer copies of your documents — re-upload them below.' }}
+            {{ decisionReason || 'OSAS needs clearer copies of your requirements — re-upload them below.' }}
           </p>
         </div>
       </div>
@@ -299,7 +299,7 @@
               <div>
                 <strong>E-mail confirmed</strong>
                 <span class="text-grey-7">
-                  {{ isManager ? ' Continue to upload your documents.' : ' You’re verified. Continue to your academic details.' }}
+                  {{ isManager ? ' Continue to upload your requirements.' : ' You’re verified. Continue to your academic details.' }}
                 </span>
               </div>
             </div>
@@ -595,7 +595,7 @@ const STEP_TITLE: Record<StepKey, string> = {
   studentId: 'Student ID',
   proof: 'Enrolment',
   pin: 'App PIN',
-  documents: 'Documents',
+  documents: 'Requirements',
 };
 
 /**
@@ -605,7 +605,7 @@ const STEP_TITLE: Record<StepKey, string> = {
  */
 const STEP_QUESTION: Record<StepKey, { title: string; note?: string }> = {
   name: { title: "What's your name?", note: 'As it appears on your school records.' },
-  phone: { title: "What's your mobile number?", note: 'Managers reach you here about your application.' },
+  phone: { title: "What's your mobile number?", note: 'Landlords/Landladies reach you here about your application.' },
   email: { title: 'What e-mail should we use?', note: 'We send a code here to confirm it is yours.' },
   password: { title: 'Choose a password' },
   verify: { title: 'Confirm your e-mail' },
@@ -616,7 +616,7 @@ const STEP_QUESTION: Record<StepKey, { title: string; note?: string }> = {
   },
   // Not "Can you prove your enrolment?", which read as a challenge — the app
   // asking a student to justify themselves before it will let them in. This is
-  // the same task the manager screen calls "Verify your property", and the two
+  // the same task the landlord/landlady screen calls "Verify your property", and the two
   // should sound like the same app doing the same thing.
   proof: {
     title: 'Verify your enrolment',
@@ -651,7 +651,7 @@ const showConfirmPassword = ref(false);
 const pinCellsRef = ref<InstanceType<typeof PinCells> | null>(null);
 const pinFieldRef = ref<QField | null>(null);
 const loading = ref(false);
-// OSAS sent a manager's application back: sign-in is allowed again so it can be
+// OSAS sent a landlord/landlady's application back: sign-in is allowed again so it can be
 // corrected, and only the documents step is relevant.
 const isResubmit = ref(false);
 const decisionReason = ref('');
@@ -754,7 +754,7 @@ const isLastStep = computed(() => stepIndex.value === steps.value.length - 1);
 /** The resubmit screen keeps its own wording: it is a correction, not a sign-up. */
 const question = computed(() => {
   if (isResubmit.value) {
-    return { title: 'Update your application', note: 'Replace the documents OSAS asked about.' };
+    return { title: 'Update your application', note: 'Replace the requirements OSAS asked about.' };
   }
   return STEP_QUESTION[current.value];
 });
@@ -897,7 +897,7 @@ onMounted(async () => {
 
   const { session, profile, registered, status } = await authStore.getSessionProfile();
 
-  // Resubmission: an existing manager OSAS has asked to change something. Their
+  // Resubmission: an existing landlord/landlady OSAS has asked to change something. Their
   // account and documents already exist, so only the documents step applies.
   if (
     isManager.value &&
@@ -931,7 +931,7 @@ async function routeAfterGoogle() {
   if (!session) return;
 
   const role = profile?.role;
-  // Same exemption as resolveDestination(): a manager OSAS sent back is
+  // Same exemption as resolveDestination(): a landlord/landlady OSAS sent back is
   // registered but still has to reach this screen to correct the application.
   const resubmitting = role === 'manager' && (status === 'rejected' || status === 'reviewing');
 
@@ -1242,10 +1242,10 @@ async function handleRegister(skipVerification = false) {
         await authStore.registerManager(form); // safety fallback (no early account)
       }
 
-      // Both paths end the same way: signed out, waiting on OSAS. A manager
+      // Both paths end the same way: signed out, waiting on OSAS. A landlord/landlady
       // holds no session until the application is approved, and login()
       // enforces that, so there is nowhere in the app to send them yet.
-      notify.success('Application submitted. OSAS will review your documents — you can sign in once it is approved.');
+      notify.success('Application submitted. OSAS will review your requirements — you can sign in once it is approved.');
       void router.push('/login');
       return;
     }
@@ -1384,7 +1384,7 @@ function onEmailVerified() {
 }
 
 /* The question is the screen's title, so it gets the app's title face — the one
-   every other titled surface uses (BottomSheet, QRScanner, the manager cards,
+   every other titled surface uses (BottomSheet, QRScanner, the landlord/landlady cards,
    EmailVerifyInline) and the two auth screens never did. Tight leading because
    these run to two lines on a phone and a question has to read as one line of
    speech, not two stacked sentences. */

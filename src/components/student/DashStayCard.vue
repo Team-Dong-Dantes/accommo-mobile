@@ -35,11 +35,11 @@
         <span class="person-body">
           <span class="person-name">{{ manager.name }}</span>
           <span class="person-role">
-            Your manager<template v-if="manager.replyMinutes"> · replies in ~{{ manager.replyMinutes }} min</template>
+            Your landlord/landlady<template v-if="manager.replyMinutes"> · replies in ~{{ manager.replyMinutes }} min</template>
           </span>
         </span>
         <span class="person-actions">
-          <button type="button" class="icon-btn" aria-label="Message manager" @click.stop="emit('message')">
+          <button type="button" class="icon-btn" aria-label="Message landlord/landlady" @click.stop="emit('message')">
             <IconifyIcon icon="lucide:message-circle" width="17" />
           </button>
         </span>

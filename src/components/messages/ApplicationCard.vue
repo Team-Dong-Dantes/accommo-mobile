@@ -62,7 +62,7 @@
     </div>
   </div>
 
-  <!-- No application in flight and no form issued yet. The form is the manager's
+  <!-- No application in flight and no form issued yet. The form is the landlord/landlady's
        to hand over: the student asked about one specific room in discovery, so
        there is nothing here for the manager to choose. -->
   <div v-else-if="role === 'manager'" class="app-card">
@@ -277,9 +277,9 @@ const applyUnavailable = ref(false)
 const applyForm = reactive({ startDate: todayStr() })
 const applying = ref(false)
 const deciding = ref(false)
-/** The room this conversation is about — what the manager can issue a form for. */
+/** The room this conversation is about — what the landlord/landlady can issue a form for. */
 const inquiryRoom = ref<{ id: string; label: string } | null>(null)
-/** Set once the manager has issued a form; the student's apply card reads it. */
+/** Set once the landlord/landlady has issued a form; the student's apply card reads it. */
 const invitedRoomId = ref<string | null>(null)
 /** The student's current lease when it is NOT this thread's pending application. */
 const otherLease = ref<{ leaseId: string; status: string; roomLabel: string; managerId: string } | null>(null)
@@ -331,13 +331,13 @@ function roomLabelOf(r: { label: string | null; room_number: string | null } | n
   return r?.label || (r?.room_number ? `Room ${r.room_number}` : 'this room')
 }
 
-/** The blocking lease is one of this manager's own — so it is theirs to open. */
+/** The blocking lease is one of this landlord/landlady's own — so it is theirs to open. */
 const isMyTenant = computed(
   () => props.role === 'manager' && otherLease.value?.managerId === props.me,
 )
 
-// A student can always open their own stay; a manager only their own tenancy.
-// RLS would refuse another manager's lease anyway, so offering the button would
+// A student can always open their own stay; a landlord/landlady only their own tenancy.
+// RLS would refuse another landlord/landlady's lease anyway, so offering the button would
 // only promise a screen that cannot load.
 const canViewOtherLease = computed(() => props.role === 'student' || isMyTenant.value)
 
@@ -373,19 +373,19 @@ async function runRefresh() {
 
   // At most one of these can exist: leases_one_current_per_student is a UNIQUE
   // index on student_id over ('pending','active','leave_requested'). Reading the
-  // student's lease across ALL managers, not just this thread's, is what stops a
+  // student's lease across ALL landlords/landladies, not just this thread's, is what stops a
   // form being offered to someone already housed — that insert can only ever
   // fail on the index, as a raw 409 after they have filled the form in.
   const { data: current } = await supabase
     .from('leases')
-    .select('id,status,start_date,end_date,monthly_rent,accommodation_manager_id,rooms(label,room_number)')
+    .select('id,status,start_date,end_date,monthly_rent,landlord_id,rooms(label,room_number)')
     .eq('student_id', studentId)
     .in('status', ['pending', 'active', 'leave_requested'])
     .maybeSingle()
 
   const currentLabel = roomLabelOf(current?.rooms as never)
 
-  if (current && current.status === 'pending' && current.accommodation_manager_id === managerId) {
+  if (current && current.status === 'pending' && current.landlord_id === managerId) {
     application.value = {
       leaseId: current.id,
       roomLabel: currentLabel,
@@ -406,7 +406,7 @@ async function runRefresh() {
         leaseId: current.id,
         status: current.status,
         roomLabel: currentLabel,
-        managerId: current.accommodation_manager_id,
+        managerId: current.landlord_id,
       }
     : null
 
@@ -417,7 +417,7 @@ async function runRefresh() {
     .from('leases')
     .select('decision_reason,rooms(label,room_number)')
     .eq('student_id', studentId)
-    .eq('accommodation_manager_id', managerId)
+    .eq('landlord_id', managerId)
     .eq('status', 'rejected')
     .not('decision_reason', 'is', null)
     .order('start_date', { ascending: false })
@@ -434,7 +434,7 @@ async function runRefresh() {
     .maybeSingle()
 
   // Arriving from a room page records what the student is asking about, so the
-  // manager's side of the thread knows which form to offer — before this the room
+  // landlord/landlady's side of the thread knows which form to offer — before this the room
   // lived only in the student's URL. Stamped only when it CHANGES, or re-opening
   // the thread would re-post the system message every time.
   let inquiryId = convo?.inquiry_room_id ?? null
@@ -458,8 +458,8 @@ async function runRefresh() {
     inquiryRoom.value = inquiryId ? { id: inquiryId, label: await fetchRoomLabel(inquiryId) } : null
   }
 
-  // The apply form opens only for a room the manager has actually issued one for,
-  // and only on the student's side — the manager sees that it is out, not the form.
+  // The apply form opens only for a room the landlord/landlady has actually issued one for,
+  // and only on the student's side — the landlord/landlady sees that it is out, not the form.
   invitedRoomId.value = convo?.invited_room_id ?? null
   if (invitedRoomId.value && props.role === 'student' && !otherLease.value) {
     await loadApplyRoom(invitedRoomId.value)
@@ -489,7 +489,7 @@ async function requestForm() {
   }
 }
 
-/** Manager hands over the form for whichever room the student asked about. */
+/** The landlord/landlady hands over the form for whichever room the student asked about. */
 async function sendForm() {
   if (issuing.value || !inquiryRoom.value) return
   issuing.value = true
@@ -511,18 +511,18 @@ async function loadApplyRoom(roomId: string) {
   const { data } = await supabase
     .from('rooms')
     .select(
-      'id,label,room_number,monthly_rent,capacity,rent_basis,status,advance_months,deposit_months,accommodations(name,accommodation_manager_id,accommodation_policies(min_stay))',
+      'id,label,room_number,monthly_rent,capacity,rent_basis,status,advance_months,deposit_months,accommodations(name,landlord_id,accommodation_policies(min_stay))',
     )
     .eq('id', roomId)
     .maybeSingle()
 
   const acc = data?.accommodations as unknown as {
     name: string | null
-    accommodation_manager_id: string | null
+    landlord_id: string | null
     accommodation_policies: unknown
   } | null
 
-  if (!data || !acc || acc.accommodation_manager_id !== props.otherId || data.status !== 'available') {
+  if (!data || !acc || acc.landlord_id !== props.otherId || data.status !== 'available') {
     applyRoom.value = null
     applyUnavailable.value = Boolean(data)
     return
@@ -545,7 +545,7 @@ async function loadApplyRoom(roomId: string) {
   }
 }
 
-/** Manager opens the details. Loaded on demand — most threads never need it. */
+/** The landlord/landlady opens the details. Loaded on demand — most threads never need it. */
 async function openReview() {
   reviewOpen.value = true
   if (applicant.value) return
@@ -570,12 +570,23 @@ async function submitApplication() {
     // The same predicate the RLS policy evaluates, rather than a second reading
     // of it. This used to check student_profiles.osas_verified_at by hand, which
     // was one of two hand-written copies of the rule -- and the other copy, on
-    // the manager's insert policy, had drifted to checking nothing at all. A
+    // the landlord/landlady's insert policy, had drifted to checking nothing at all. A
     // client that asks the database its own question cannot drift from it; all
     // this buys is saying so in words before RLS says it in an error.
     const { data: mayLease } = await supabase.rpc('student_may_lease', { p_student: props.me })
     if (mayLease !== true) {
-      notify.warning('Get OSAS-verified before applying for a room.')
+      // The same answer covers "not verified" and "OSAS paused applications";
+      // only the second has a reason worth reading out.
+      const { data: standing } = await supabase
+        .from('account_standing')
+        .select('reason, restrictions')
+        .eq('user_id', props.me)
+        .maybeSingle()
+      notify.warning(
+        standing?.restrictions?.includes('apply')
+          ? `OSAS has paused your room applications.${standing.reason ? ` ${standing.reason}` : ''}`
+          : 'Get OSAS-verified before applying for a room.',
+      )
       return
     }
 
@@ -585,7 +596,7 @@ async function submitApplication() {
       .insert({
         room_id: room.id,
         student_id: props.me,
-        accommodation_manager_id: props.otherId,
+        landlord_id: props.otherId,
         start_date: applyForm.startDate,
         end_date: applyEndDate.value,
         // ponytail: "whole room" rent is split evenly assuming full occupancy;

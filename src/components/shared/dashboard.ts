@@ -1,6 +1,6 @@
 /**
  * The one row shape both dashboards use for "something you may have to act on".
- * The student screen feeds it from rent, messages and OSAS; the manager screen
+ * The student screen feeds it from rent, messages and OSAS; the landlord/landlady screen
  * from concerns, applications, leave requests and permit expiry. Same card,
  * same list, same ranking — so the type lives here rather than in either.
  */

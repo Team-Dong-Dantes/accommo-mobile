@@ -1,5 +1,5 @@
 <template>
-  <q-page class="profile-page">
+  <q-page class="profile-page" :class="{ 'page-wide': isDesktop }">
     <!-- Loading -->
     <div v-if="loading" class="loading-stack">
       <div class="sk-card">
@@ -57,7 +57,10 @@
     </div>
 
     <!-- Profile Content -->
-    <div v-else class="content-stack">
+    <!-- Desktop: the two halves of a card — the hero on the left, every detail
+         on the right. Elsewhere the .desk-pass wrappers are display: contents. -->
+    <div v-else :class="isDesktop ? 'desk-card' : 'content-stack'">
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <!-- ===== HEADER ===== -->
       <ProfileHero
         v-model:avatar-url="avatarUrl"
@@ -65,10 +68,10 @@
         :user-id="userId"
         avatar-background="linear-gradient(135deg, #2563eb, #7c3aed)"
         :name="me.fullName || 'Your name'"
-        subtitle="Accommodation Manager"
+        :subtitle="landlordTitle(me.sex)"
         :status-tone="status.tone || 'warn'"
         :status-label="status.label || 'Unverified'"
-        action-icon="lucide:scan"
+        :action-icon="Capacitor.isNativePlatform() ? 'lucide:scan' : ''"
         action-label="Scan QR"
         @action="go('/manager/profile/qr-scanner')"
       >
@@ -104,9 +107,11 @@
           </div>
         </div>
       </ProfileHero>
+      </div>
 
       <!-- ===== PROFILE ===== -->
-      <ProfileCard>
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
+      <ProfileCard :open="isDesktop">
         <template #always>
           <ProfileBlock icon="lucide:user" title="Personal details">
             <template #actions>
@@ -144,7 +149,7 @@
                 <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
               </div>
             </div>
-            <EmptyState v-else variant="compact" icon="lucide:file-text" title="No documents yet" message="Documents you submit to OSAS show up here." />
+            <EmptyState v-else variant="compact" icon="lucide:file-text" title="No requirements yet" message="Requirements you submit to OSAS show up here." />
             <button class="link-btn" @click="go('/manager/osas')">
               <IconifyIcon icon="lucide:arrow-right" width="16" />
               <span>Open OSAS</span>
@@ -183,6 +188,7 @@
           <span v-if="updatedAt" class="updated">· {{ ago(updatedAt) }}</span>
         </template>
       </ProfileCard>
+      </div>
     </div>
   </q-page>
 </template>
@@ -190,10 +196,12 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { Capacitor } from '@capacitor/core'
+import { isDesktop } from '@/utils/useTabletMode'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
-import { initialsOf, isPhMobile, normalizePhPhone } from '@/utils/format'
+import { initialsOf, isPhMobile, landlordTitle, normalizePhPhone } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 import ProfileField from '@/components/shared/ProfileField.vue'
@@ -234,6 +242,9 @@ const me = reactive({
   phone: '',
   initials: '?',
   status: 'unverified',
+  // Drives the Landlord / Landlady title on this header. Null is normal — the
+  // column is optional — and falls back to the neutral compound.
+  sex: null as string | null,
 })
 
 // Draft for editing
@@ -324,11 +335,11 @@ async function load(silent = false) {
     const [{ data: profile, error: profileError }, { data: managerProfile }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, email, phone, initials, status, created_at, updated_at, avatar_url')
+        .select('full_name, email, phone, initials, status, sex, created_at, updated_at, avatar_url')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
-        .from('accommodation_manager_profiles')
+        .from('landlord_profiles')
         .select('response_rate')
         .eq('user_id', user.id)
         .maybeSingle(),
@@ -340,6 +351,7 @@ async function load(silent = false) {
     me.phone = profile?.phone || ''
     me.initials = profile?.initials || initialsOf(me.fullName)
     me.status = profile?.status || 'unverified'
+    me.sex = profile?.sex ?? null
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
 
@@ -365,7 +377,7 @@ async function load(silent = false) {
     const { data: accommodations } = await supabase
       .from('accommodations')
       .select('id')
-      .eq('accommodation_manager_id', user.id)
+      .eq('landlord_id', user.id)
     const accommodationIds = (accommodations || []).map((a) => a.id)
     accommodationCount.value = accommodationIds.length
 
@@ -503,6 +515,12 @@ useLiveData({
 }
 
 /* ===== CONTENT ===== */
+/* Desktop: the card fills the page below a gutter, like every halves page. */
+.profile-page.page-wide {
+  display: flex;
+  flex-direction: column;
+  padding: 8px var(--m-page-gutter) 0;
+}
 .content-stack {
   display: flex;
   flex-direction: column;

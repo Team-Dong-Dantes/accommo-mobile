@@ -71,7 +71,7 @@
           <router-view v-else v-slot="{ Component }">
             <transition :name="pageTransition">
               <keep-alive :include="KEEP_ALIVE_PAGES" :max="20">
-                <component :is="Component" :key="route.fullPath" />
+                <component :is="Component" :key="pageKey" />
               </keep-alive>
             </transition>
           </router-view>
@@ -83,8 +83,21 @@
          mode: a sub-page there fills the detail pane beside its list rather
          than replacing the screen, so there is nothing for it to hide behind
          the way a phone sub-page hides the footer. -->
+    <DesktopRail
+      v-if="isDesktop"
+      :tabs="displayTabs"
+      :active="activeBottomTab"
+      :actions="displayQuickActions"
+      :account-actions="railAccountActions"
+      :path="route.path"
+      :avatar-url="profileImageUrl"
+      :initials="userInitials"
+      @select="goToTab"
+      @navigate="navigateMenuAction"
+    />
+
     <SideRail
-      v-if="isTablet"
+      v-else-if="isTablet"
       :tabs="displayTabs"
       :active="activeBottomTab"
       :avatar-url="profileImageUrl"
@@ -158,8 +171,10 @@ import { useMessagesStore } from '@/stores/messages'
 import { initialsOf } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
-import { isTablet } from '@/utils/useTabletMode'
-import { useShellPanes } from '@/utils/useShellPanes'
+import { isTablet, isDesktop } from '@/utils/useTabletMode'
+import { Capacitor } from '@capacitor/core'
+import DesktopRail from '@/components/layout/DesktopRail.vue'
+import { useShellPanes, PANE_LISTS } from '@/utils/useShellPanes'
 import BottomNav from '@/components/layout/BottomNav.vue'
 import SideRail from '@/components/layout/SideRail.vue'
 import TermsGate from '@/components/shared/TermsGate.vue'
@@ -233,7 +248,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     notifications: '/manager/notifications',
     tabs: [
       { name: 'home', route: '/manager/dashboard', icon: 'lucide:house', label: 'Home' },
-      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'Tenants' },
+      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'Tenants', match: ['/manager/tenant/'] },
       { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages' },
       { name: 'menu', route: '/manager/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
@@ -291,7 +306,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: /^\/student\/listing\/[^/]+$/, title: 'Listing', back: '/student/discover', backLabel: 'discover' },
       { path: '/student/properties', title: 'Properties', back: '/student/discover', backLabel: 'discover' },
       { path: /^\/student\/room\/[^/]+$/, title: 'Room', back: '/student/discover', backLabel: 'discover' },
-      { path: /^\/student\/manager\/[^/]+$/, title: 'Manager', back: '/student/discover', backLabel: 'discover' },
+      { path: /^\/student\/manager\/[^/]+$/, title: 'Landlord/Landlady', back: '/student/discover', backLabel: 'discover' },
     ],
   },
 }
@@ -329,6 +344,28 @@ const KEEP_ALIVE_PAGES = [
   'StudentHistoryPage', 'ManagerHistoryPage',
 ]
 
+// Pages that show their list beside the open item on desktop and pick the item
+// by query (?c= a thread, ?t= a ticket). Keyed by fullPath, every pick remounted
+// the whole page, list and scroll position included; keyed by path, the page
+// (which reads the query reactively) swaps just the item.
+const SELF_SPLITTING = ['/manager/messages', '/student/messages', '/manager/osas', '/student/support']
+const pageKey = computed(() =>
+  isDesktop.value && SELF_SPLITTING.includes(route.path) ? route.path : route.fullPath,
+)
+
+/**
+ * Which desktop card a path belongs to: a list shown in a pane (or Tenants,
+ * which splits itself), for the list and for every detail whose `back` is it.
+ * Moving within one card swaps its contents in place (no slide, no back bar).
+ */
+function cardOf(path: string | undefined): string | null {
+  if (!path) return null
+  const lists = [...PANE_LISTS, '/manager/tenants']
+  if (lists.includes(path)) return path
+  const back = matchSecondary(path, SHELLS[path.startsWith('/manager') ? 'manager' : 'student'])?.back
+  return back && lists.includes(back) ? back : null
+}
+
 // Same tabs, with the live unread count from the messages store folded onto
 // the 'messages' entry — kept separate from SHELLS so that config stays a
 // plain static lookup.
@@ -356,7 +393,7 @@ const displayQuickActions = computed(() =>
 
 // The hamburger tab (bottom nav's old profile slot) opens this menu: Profile
 // and Settings up top, then the role's quick actions below, all in one card.
-// The third row is role-specific: a manager scans student QR codes, a
+// The third row is role-specific: a landlord/landlady scans student QR codes, a
 // student shows their own.
 const accountActions = computed(() => {
   const profileRoute = config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home
@@ -367,16 +404,25 @@ const accountActions = computed(() => {
     // profile screens and keep hanging off it.
     { icon: 'lucide:settings', label: 'Settings', route: `/${role.value}/settings` },
   ]
-  items.push(
-    role.value === 'manager'
-      ? { icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` }
-      : { icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` },
-  )
+  // The scanner is a phone held up to a phone; a browser has no business with it.
+  if (role.value === 'manager') {
+    if (Capacitor.isNativePlatform()) {
+      items.push({ icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` })
+    }
+  } else {
+    items.push({ icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` })
+  }
   // Last in the account group, directly under My QR / Scanner. Not a route —
   // navigateMenuAction intercepts this sentinel; see SIGN_OUT.
   items.push({ icon: 'lucide:log-out', label: 'Sign out', route: SIGN_OUT, danger: true })
   return items
 })
+
+// The desktop rail has no Menu tab to carry the needs-checking dot, so it moves
+// onto the Profile row, which is where the thing being flagged lives.
+const railAccountActions = computed(() =>
+  accountActions.value.map((a) => (a.avatar ? { ...a, dot: profileNeedsCheck.value } : a)),
+)
 
 const userInitials = ref('U')
 const profileImageUrl = ref<string | null>(null)
@@ -405,7 +451,16 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
   )
 }
 
-const subPage = computed(() => matchSecondary(route.path, config.value))
+// On desktop a detail shown inside a card has its way back right there — its
+// list in the pane beside it (a listing beside Discover, an announcement beside
+// Notifications), or a back button on the card itself (TenantProfile,
+// AccommodationDetail) — so the header stays the plain one, not a back bar.
+const OWN_BACK = /^\/manager\/(tenant\/[^/]+|properties\/(?!new$)[^/]+)$/
+const subPage = computed(() =>
+  isDesktop.value && (panes.value.mode === 'split' || OWN_BACK.test(route.path))
+    ? undefined
+    : matchSecondary(route.path, config.value),
+)
 const isSubPage = computed(() => Boolean(subPage.value))
 
 // Discover runs its map full-bleed behind this header instead of below it,
@@ -504,6 +559,11 @@ watch(
 
     pageTransition.value =
       entering && !leaving ? 'page-slide-left' : leaving && !entering ? 'page-slide-right' : 'page-fade'
+
+    // On desktop, moving within one card (a list and its details) changes that
+    // card's contents in place; a slide would say "new page".
+    const card = cardOf(path)
+    if (isDesktop.value && card && card === cardOf(previousPath)) pageTransition.value = 'page-swap'
 
     if (entering) menuOpen.value = false
 
@@ -612,7 +672,7 @@ function goToSecuritySettings() {
 // not realtime: these are low-frequency "does something need a look" flags,
 // not live counters — reopening the tab is enough to refresh them.
 //
-// Manager's signals are exact-state checks (a lease sitting at 'pending', a
+// The landlord/landlady's signals are exact-state checks (a lease sitting at 'pending', a
 // concern sitting at 'open') that self-clear the instant someone acts on the
 // row. Concerns has no per-student "seen this response" column, and
 // accommodations has no per-student "seen this listing" column either — so
@@ -637,9 +697,9 @@ async function loadNeedsCheckDots(userId: string) {
     isManager
       ? supabase
           .from('concerns')
-          .select('id, leases!inner(accommodation_manager_id)', { count: 'exact', head: true })
+          .select('id, leases!inner(landlord_id)', { count: 'exact', head: true })
           .eq('status', 'open')
-          .eq('leases.accommodation_manager_id', userId)
+          .eq('leases.landlord_id', userId)
       : supabase
           .from('concerns')
           .select('id, leases!inner(student_id)', { count: 'exact', head: true })
@@ -835,7 +895,23 @@ function onScroll() {
 .page-fade-leave-active { transition: opacity 120ms ease-out; }
 .page-fade-enter-from,
 .page-fade-leave-to { opacity: 0; }
+/* Tenants <-> a tenant on desktop. The leaving page is lifted out of the flow
+   and laid over the arriving one — two pages in flow at once would stack, and
+   the card would jump down by a whole page for the length of the fade. Its box
+   is the page's own container, made positioned for this in app.scss. */
+/* Only the leaving page fades: the arriving one is already solid underneath,
+   so the card's frame — identical in both — never dims mid-swap. */
+.page-swap-leave-active {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  transition: opacity 160ms ease-out;
+}
+.page-swap-leave-to {
+  opacity: 0;
+}
 @media (prefers-reduced-motion: reduce) {
+  .page-swap-leave-active,
   .page-slide-left-enter-active,
   .page-slide-left-leave-active,
   .page-slide-right-leave-active,

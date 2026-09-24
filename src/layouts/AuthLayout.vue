@@ -120,6 +120,13 @@ const transitionName = ref('splash-to-login');
 watch(
   () => route.path,
   (to, from) => {
+    // Tablet and desktop: leaving the role fork, the form is a panel on the
+    // right half, so it comes in from the right edge while the fork fades out
+    // in place. The phone's vertical moves below belong to its sheet shape.
+    if (isTablet.value && from === '/' && (to === '/login' || to.startsWith('/register'))) {
+      transitionName.value = 'splash-to-panel';
+      return;
+    }
     // Sign in and create an account are alternatives to each other, not one
     // inside the other, so moving between them travels sideways where the rest
     // of auth travels vertically. Both destinations the "Create account" link
@@ -378,5 +385,26 @@ watch(
 
 .slide-right-leave-to {
   transform: translateX(100%);
+}
+
+/* Tablet/desktop only: role fork -> sign-in or register. The page is the full
+   width with its form padded into the right half (app.scss), so starting it one
+   width to the right brings the panel in from off-screen right to left. */
+.splash-to-panel-enter-active,
+.splash-to-panel-leave-active {
+  transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1), opacity 0.35s ease-out;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.splash-to-panel-enter-from {
+  transform: translateX(100%);
+}
+
+.splash-to-panel-leave-to {
+  opacity: 0;
 }
 </style>

@@ -52,7 +52,7 @@ export default defineRouter(() => {
       const metaRole = session.user.user_metadata?.role;
       if (typeof metaRole !== 'string' || !metaRole) return null;
       const role = metaRole.toLowerCase();
-      return role === 'accommodation_manager' ? 'manager' : role;
+      return role === 'landlord' ? 'manager' : role;
     };
 
     roleFetchInProgress = (async () => {
@@ -71,7 +71,7 @@ export default defineRouter(() => {
           //
           // They have to be CLEARED to be null, which this did not do: they are
           // module-level and kept whatever the last successful read left behind.
-          // A manager last read as 'pending' who then lost the network was
+          // A landlord/landlady last read as 'pending' who then lost the network was
           // signed out by guard.ts on the next navigation, on the strength of a
           // stale value and a read that never returned.
           lastLookupFailed = true;
@@ -89,7 +89,7 @@ export default defineRouter(() => {
         lastRegistered = data.registered_at !== null;
 
         let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
-        if (role === 'accommodation_manager') role = 'manager';
+        if (role === 'landlord') role = 'manager';
         if (!role) role = roleFromToken();
         authStore.cachedRole = role;
         return role;

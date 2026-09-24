@@ -72,7 +72,7 @@ function onSelect(name: string) {
   left: 0;
   z-index: 60;
   display: flex;
-  width: 88px;
+  width: var(--m-rail);
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
@@ -133,6 +133,14 @@ function onSelect(name: string) {
 }
 .side-rail-item:active {
   transform: scale(0.96);
+}
+/* Mouse only — a touch screen never matches (hover: hover), so the APK and
+   tablets never get a hover state stuck on after a tap. */
+@media (hover: hover) {
+  .side-rail-item:not(.active):hover {
+    background: var(--m-bg);
+    color: var(--m-ink);
+  }
 }
 
 /* A tinted pill, not just a colour change. On a rail the active item has to hold

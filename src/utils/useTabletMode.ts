@@ -1,4 +1,4 @@
-import { readonly, ref } from 'vue'
+import { computed, readonly, ref } from 'vue'
 
 /**
  * Which of the app's two shells is on screen.
@@ -29,6 +29,18 @@ mql?.addEventListener('change', (e) => {
 
 /** True only in tablet landscape. Read-only — the media query owns it. */
 export const isTablet = readonly(state)
+
+/**
+ * Desktop: tablet mode on a screen wide enough to be a computer. Here the rail
+ * narrows to the admin console's width, opens on hover, and carries the
+ * hamburger's items itself. Must match the 1200px breakpoints in app.scss.
+ */
+const desktopMql = typeof window !== 'undefined' ? window.matchMedia('(min-width: 1200px)') : null
+const desktopState = ref(desktopMql?.matches ?? false)
+desktopMql?.addEventListener('change', (e) => {
+  desktopState.value = e.matches
+})
+export const isDesktop = computed(() => state.value && desktopState.value)
 
 export function useTabletMode() {
   return { isTablet }

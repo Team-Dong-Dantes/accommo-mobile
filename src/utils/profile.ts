@@ -1,4 +1,4 @@
-// Presentation helpers shared by the two profile pages, so a manager and a
+// Presentation helpers shared by the two profile pages, so a landlord/landlady and a
 // student never see the same underlying status described two different ways.
 
 import { parseServerTime } from '@/utils/format';

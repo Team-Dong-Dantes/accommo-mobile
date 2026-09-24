@@ -2,9 +2,9 @@ import { supabase } from '@/utils/supabase'
 import { createNotification } from '@/boot/notify'
 
 /**
- * Remembers which room the student is asking about, so the manager's side of the
+ * Remembers which room the student is asking about, so the landlord/landlady's side of the
  * thread knows what form to issue. Before this the room lived only in the student's
- * URL (`?room=`), which the manager's client never sees.
+ * URL (`?room=`), which the landlord/landlady's client never sees.
  *
  * Unvalidated on purpose: this is a hint, not a grant. invite_application() re-checks
  * ownership and availability at the moment a form is issued, and the room is frozen
@@ -20,7 +20,7 @@ export async function stampInquiryRoom(conversationId: string, roomId: string): 
 
 /**
  * Student nudge: "please send me the form". Deliberately holds no database state —
- * a manager who ignores it owes nothing, and a student who never taps it loses
+ * a landlord/landlady who ignores it owes nothing, and a student who never taps it loses
  * nothing, since plenty of tenancies are agreed in plain chat.
  */
 export async function requestApplicationForm(
@@ -38,7 +38,7 @@ export async function requestApplicationForm(
 }
 
 /**
- * Manager issues the form. The room comes from the student's inquiry, so there is
+ * The landlord/landlady issues the form. The room comes from the student's inquiry, so there is
  * nothing to pick — invite_application() reads it, checks this caller owns it and it
  * is still available, and copies it onto the invite.
  */
@@ -53,7 +53,7 @@ export async function issueApplicationForm(
   void createNotification(
     studentId,
     'Application form sent',
-    `Your manager sent you an application form for ${roomLabel}.`,
+    `Your landlord/landlady sent you an application form for ${roomLabel}.`,
     'application',
     `/student/messages?c=${conversationId}`,
   )

@@ -167,7 +167,7 @@
             <span class="mgr-body">
               <span class="mgr-name">{{ manager.name }}</span>
               <span class="mgr-sub">
-                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Accommodation manager' }}
+                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Landlord/Landlady' }}
               </span>
             </span>
             <IconifyIcon icon="lucide:chevron-right" width="16" class="mgr-chevron" />
@@ -264,7 +264,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('rooms')
       .select(
-        `${ROOM_DETAIL},room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,accommodation_manager_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(${POLICY_TERMS}))`,
+        `${ROOM_DETAIL},room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,landlord_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(${POLICY_TERMS}))`,
       )
       .eq('id', id.value)
       .maybeSingle()
@@ -274,7 +274,7 @@ async function load() {
       | {
           id: string
           name: string | null
-          accommodation_manager_id: string | null
+          landlord_id: string | null
           status: string
           lat: number | null
           lng: number | null
@@ -369,21 +369,21 @@ async function load() {
       : [...(property.accommodation_images ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     images.value = sourceImages.map((i) => resolveAsset(i.url)).filter(Boolean)
 
-    if (property.accommodation_manager_id) {
+    if (property.landlord_id) {
       const [{ data: person }, { data: profile }] = await Promise.all([
         supabase
           .from('users')
           .select('full_name,initials,avatar_url')
-          .eq('id', property.accommodation_manager_id)
+          .eq('id', property.landlord_id)
           .maybeSingle(),
         supabase
-          .from('accommodation_manager_profiles')
+          .from('landlord_profiles')
           .select('avg_response_minutes')
-          .eq('user_id', property.accommodation_manager_id)
+          .eq('user_id', property.landlord_id)
           .maybeSingle(),
       ])
-      manager.id = property.accommodation_manager_id
-      manager.name = person?.full_name || 'Accommodation manager'
+      manager.id = property.landlord_id
+      manager.name = person?.full_name || 'Landlord/Landlady'
       manager.initials = person?.initials || initialsOf(manager.name)
       manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null
       manager.replyMinutes = profile?.avg_response_minutes ?? null
@@ -409,7 +409,7 @@ async function load() {
 }
 
 // Opens the thread. When the room is actually open to apply for, it travels as the
-// inquiry (`?room=`) — that is what the manager's "Send application form" button
+// inquiry (`?room=`) — that is what the landlord/landlady's "Send application form" button
 // reads. A taken room, or a student who already has a stay, just opens the chat:
 // stamping an inquiry there would only produce a form invite_application() refuses.
 function goAsk() {
@@ -882,7 +882,7 @@ watch(id, load)
   opacity: 0.7;
 }
 
-/* Manager */
+/* Landlord/landlady */
 .mgr {
   display: flex;
   width: 100%;

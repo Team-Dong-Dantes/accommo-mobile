@@ -38,7 +38,7 @@ describe('suspension', () => {
     })
   })
 
-  it('evicts a suspended manager too', () => {
+  it('evicts a suspended landlord/landlady too', () => {
     const d = resolveDestination(student({ role: 'manager', path: '/manager/dashboard', status: 'suspended' }))
     expect(d).toEqual({ to: '/login?suspended=true', signOut: true })
   })
@@ -90,15 +90,15 @@ describe('re-registering', () => {
     })
   })
 
-  // A manager OSAS sent back is registered but must still reach the form.
-  it.each(['rejected', 'reviewing'])('lets a %s manager back in to resubmit', (status) => {
+  // A landlord/landlady OSAS sent back is registered but must still reach the form.
+  it.each(['rejected', 'reviewing'])('lets a %s landlord/landlady back in to resubmit', (status) => {
     expect(resolveDestination(student({ path: '/register/manager', role: 'manager', status })).to)
       .toBe(true)
   })
 })
 
-describe('manager approval', () => {
-  it('holds a pending manager out entirely', () => {
+describe('landlord/landlady approval', () => {
+  it('holds a pending landlord/landlady out entirely', () => {
     expect(resolveDestination(student({ path: '/manager/dashboard', role: 'manager', status: 'pending' })))
       .toEqual({ to: '/login?awaitingApproval=true', signOut: true })
   })
@@ -108,19 +108,19 @@ describe('manager approval', () => {
     expect(resolveDestination(student({ status: 'pending' })).to).toBe(true)
   })
 
-  it.each(['rejected', 'reviewing'])('routes a %s manager to the resubmission form', (status) => {
+  it.each(['rejected', 'reviewing'])('routes a %s landlord/landlady to the resubmission form', (status) => {
     expect(resolveDestination(student({ path: '/manager/dashboard', role: 'manager', status })).to)
       .toBe('/register/manager?resubmit=true')
   })
 })
 
 describe('role separation', () => {
-  it('keeps a manager out of student routes', () => {
+  it('keeps a landlord/landlady out of student routes', () => {
     expect(resolveDestination(student({ path: '/student/home', role: 'manager' })).to)
       .toBe('/manager/dashboard')
   })
 
-  it('keeps a student out of manager routes', () => {
+  it('keeps a student out of landlord/landlady routes', () => {
     expect(resolveDestination(student({ path: '/manager/dashboard', role: 'student' })).to)
       .toBe('/student/home')
   })
@@ -141,7 +141,7 @@ describe('landing a signed-in user', () => {
     expect(resolveDestination(student({ path: '/' })).to).toBe('/student/home')
   })
 
-  it('sends a manager to their dashboard', () => {
+  it('sends a landlord/landlady to their dashboard', () => {
     expect(resolveDestination(student({ path: '/login', role: 'manager' })).to).toBe('/manager/dashboard')
   })
 

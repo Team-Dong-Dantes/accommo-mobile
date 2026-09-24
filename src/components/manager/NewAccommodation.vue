@@ -485,7 +485,7 @@ async function submit() {
     const { data: accommodation, error: insertError } = await supabase
       .from('accommodations')
       .insert({
-        accommodation_manager_id: user.id,
+        landlord_id: user.id,
         name: form.name.trim(),
         accommodation_type: form.accommodationType || null,
         gender_policy: form.genderPolicy || null,

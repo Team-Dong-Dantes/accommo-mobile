@@ -69,7 +69,7 @@
                 {{ ratingAvg?.toFixed(1) }}
               </span>
               <span class="chip-label">
-                {{ reviewCount }} {{ reviewCount === 1 ? 'review' : 'reviews' }}
+                {{ reviewCount }} {{ reviewCount === 1 ? 'rating' : 'ratings' }}
               </span>
             </div>
           </template>
@@ -197,9 +197,9 @@ async function load(silent = false) {
       return
     }
 
-    // Everything keyed only off the manager's own id goes out at once. These
+    // Everything keyed only off the landlord/landlady's own id goes out at once. These
     // ran as nine round trips in series, which was comfortably the slowest
-    // thing about the first screen a manager sees.
+    // thing about the first screen a landlord/landlady sees.
     const [
       { data: profile },
       { data: accRows, error: accError },
@@ -212,18 +212,18 @@ async function load(silent = false) {
       supabase
         .from('accommodations')
         .select('id, name, status, address, barangay, city, accommodation_type, total_rooms')
-        .eq('accommodation_manager_id', user.id),
+        .eq('landlord_id', user.id),
       supabase
         .from('leases')
         .select('id, status, monthly_rent, room_id')
-        .eq('accommodation_manager_id', user.id)
+        .eq('landlord_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested']),
       supabase
         .from('concerns')
         .select(
-          'id, category, reported_at, leases!inner(accommodation_manager_id, users!leases_student_id_fkey(full_name), rooms(accommodations(name)))',
+          'id, category, reported_at, leases!inner(landlord_id, users!leases_student_id_fkey(full_name), rooms(accommodations(name)))',
         )
-        .eq('leases.accommodation_manager_id', user.id)
+        .eq('leases.landlord_id', user.id)
         .neq('status', 'resolved')
         .order('reported_at', { ascending: false })
         .limit(6),
@@ -232,7 +232,7 @@ async function load(silent = false) {
         .select(
           'id, status, start_date, leave_requested_at, users!leases_student_id_fkey(full_name), rooms(room_number, accommodations(name))',
         )
-        .eq('accommodation_manager_id', user.id)
+        .eq('landlord_id', user.id)
         .in('status', ['pending', 'leave_requested'])
         .limit(6),
       // Own rating, via the anonymous inbox view — the base table is no longer
@@ -250,7 +250,7 @@ async function load(silent = false) {
 
     // Second wave: rooms, photos and permits all key off the accommodation ids
     // above, so they couldn't join the first — but they can go out together.
-    // Skipped entirely for a manager with no accommodations, which is half of
+    // Skipped entirely for a landlord/landlady with no accommodations, which is half of
     // them (see the data notes in CLAUDE.md).
     let roomRows: { id: string; accommodation_id: string; capacity: number | null }[] = []
     let imageRows: { accommodation_id: string; url: string; sort_order: number | null }[] = []
@@ -432,6 +432,28 @@ async function load(silent = false) {
       }
     }
 
+    // OSAS has hidden their listings (account_standing, written only by OSAS):
+    // the first thing they should read, with the reason OSAS gave.
+    const { data: standing } = await supabase
+      .from('account_standing')
+      .select('reason, restrictions')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (standing?.restrictions?.includes('listings')) {
+      items.push({
+        id: 'osas-listings',
+        icon: 'lucide:eye-off',
+        kind: 'OSAS',
+        label: 'OSAS has hidden your listings',
+        hint: standing.reason || 'Students cannot see your accommodations for now',
+        when: '',
+        action: 'Contact OSAS',
+        route: '/manager/support',
+        tone: 'danger',
+        rank: 0,
+      })
+    }
+
     attention.value = items.sort((a, b) => a.rank - b.rank)
 
     // Self rating — hidden until at least one review exists.
@@ -464,7 +486,7 @@ type DashboardCache = {
 const { refresh } = useLiveData({
   key: 'manager-dashboard',
   load,
-  watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
+  watch: (uid) => [{ table: 'leases', filter: `landlord_id=eq.${uid}` }],
   cache: {
     get: (): DashboardCache => ({
       firstName: firstName.value,

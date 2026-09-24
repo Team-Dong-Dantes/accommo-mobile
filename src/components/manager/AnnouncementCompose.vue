@@ -207,7 +207,7 @@ export interface AnnouncementDraft {
 }
 
 const props = defineProps<{
-  /** The manager's houses; the first is the default target. */
+  /** The landlord/landlady's houses; the first is the default target. */
   accommodations: { id: string; name: string }[]
   /** Parent owns the insert, so it owns the in-flight flag too. */
   submitting?: boolean

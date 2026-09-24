@@ -1,5 +1,5 @@
 <template>
-  <div class="dock" :class="{ 'dock--above-nav': aboveNav }">
+  <div class="dock" :class="{ 'dock--above-nav': aboveNav, 'dock--inline': inline }">
     <button
       type="button"
       class="dock-btn"
@@ -48,6 +48,9 @@ defineProps<{
   searchLabel?: string
   /** True on bottom-nav tab screens, which must clear the footer. */
   aboveNav?: boolean
+  /** In the page's flow instead of floating at the bottom — for desktop, where
+   *  a pointer reaches the top of a column as easily as a thumb the bottom. */
+  inline?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -69,6 +72,9 @@ const emit = defineEmits<{
 }
 .dock--above-nav {
   bottom: 68px;
+}
+.dock--inline {
+  position: static;
 }
 
 /* Frosted glass, matching the pull-to-refresh puller and the map buttons —

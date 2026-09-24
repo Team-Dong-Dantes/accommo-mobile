@@ -33,7 +33,7 @@ function isCloudinaryUrl(url: string | null | undefined): boolean {
  * `dpr_auto` handles retina from there, so pass the layout size, not the device
  * size.
  *
- * Without this a manager's 3000x4000 phone photo is delivered whole into a
+ * Without this a landlord/landlady's 3000x4000 phone photo is delivered whole into a
  * 120px card — megabytes to paint a thumbnail, and far too large to survive in
  * the HTTP cache, so it is re-fetched on every visit.
  */

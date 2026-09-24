@@ -294,3 +294,29 @@ export function statusColor(
   if (!key) return fallback;
   return map[key]?.color ?? fallback;
 }
+
+/**
+ * The role as a label for nobody in particular — a nav item, a filter, a count.
+ * Never gendered, because it addresses no one.
+ */
+export const LANDLORD_ROLE_LABEL = 'Landlord/Landlady';
+
+/**
+ * How to title one specific person who holds the landlord role, from their
+ * recorded sex.
+ *
+ * The neutral fallback is load-bearing, not decorative: `users.sex` is nullable
+ * and holds only 'F' or 'M' when set, so anyone who did not state it — or who
+ * is neither — must still get a title rather than an empty string. Mirrors
+ * `landlordTitle` in accommo-web/src/utils/format.ts; keep the two in step.
+ */
+export function landlordTitle(sex: string | null | undefined): string {
+  switch ((sex ?? '').trim().toUpperCase()) {
+    case 'M':
+      return 'Landlord';
+    case 'F':
+      return 'Landlady';
+    default:
+      return LANDLORD_ROLE_LABEL;
+  }
+}

@@ -95,6 +95,14 @@ export default defineConfig((/* ctx */) => {
       // vitePlugins: [
       //   [ 'package-name', { ..pluginOptions.. }, { server: true, client: true } ]
       // ]
+
+      // Vue DevTools (dev-only): in-browser panel, no extension needed.
+      // client+server true → plugin is registered for the SPA dev config.
+      // (These flags select which Vite configs include it, NOT prod bundling —
+      // the plugin itself is a no-op in production builds.)
+      vitePlugins: [
+        [ 'vite-plugin-vue-devtools', {}, { client: true, server: true } ],
+      ]
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver

@@ -205,7 +205,7 @@ export function isSignupDatabaseError(text: string): boolean {
  * the access token must be a three-part JWT whose payload is JSON and whose
  * `sub` is the same id the envelope claims. Without that, the whole "session"
  * was a JSON object anyone could type into localStorage, and the router would
- * read a `user_metadata.role` out of it and open the manager shell.
+ * read a `user_metadata.role` out of it and open the landlord/landlady shell.
  *
  * ponytail: consistency only — the signature is not verified, because that needs
  * a key the client does not have and must not ship. This raises the bar from

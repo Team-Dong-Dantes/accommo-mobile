@@ -1,5 +1,5 @@
 <template>
-  <q-page class="person">
+  <q-page class="person" :class="{ 'page-wide': split }">
     <!-- Mirrors PersonProfile's real shape — hero, overlapping card, tabs —
          so the layout does not jump when the data lands. -->
     <div v-if="loading" class="stack">
@@ -35,9 +35,10 @@
       :chip-tone="chip.tone"
       :subtitle="subtitle"
       message-to
+      :split="split"
       @message="message"
     >
-      <div v-if="tab === 'overview'" class="sec">
+      <div v-if="split || tab === 'overview'" class="sec">
         <template v-if="scan">
           <!-- Straight off a scan: this is the answer to "is this a real ISU
                student", so it leads. -->
@@ -47,7 +48,7 @@
               <strong>{{ scan.osasVerified ? 'Verified ISU student' : 'Not verified by OSAS' }}</strong>
               <span>{{ scan.osasVerified
                 ? 'OSAS checked this student\'s school ID and enrolment.'
-                : 'OSAS has not confirmed this student\'s documents. Do not treat this as proof.' }}</span>
+                : 'OSAS has not confirmed this student\'s requirements. Do not treat this as proof.' }}</span>
             </div>
           </div>
           <p class="scan-note">
@@ -60,7 +61,7 @@
           <div v-if="person.program"><dt>Program</dt><dd>{{ person.program }}</dd></div>
           <div v-if="person.college"><dt>College</dt><dd>{{ person.college }}</dd></div>
           <div v-if="person.yearLevel"><dt>Year level</dt><dd>{{ person.yearLevel }}</dd></div>
-          <div><dt>Role</dt><dd>{{ person.role === 'accommodation_manager' ? 'Accommodation manager' : 'Student' }}</dd></div>
+          <div><dt>Role</dt><dd>{{ person.role === 'landlord' ? landlordTitle(person.sex) : 'Student' }}</dd></div>
         </dl>
 
         <div v-if="current" class="stay">
@@ -77,7 +78,10 @@
         />
       </div>
 
-      <div v-else class="sec">
+      <!-- The right half on desktop; the History tab elsewhere. -->
+      <template #right>
+      <div v-if="split || tab !== 'overview'" class="sec">
+        <h2 v-if="split" class="desk-col-title">History</h2>
         <div v-if="history.length" class="hist">
           <div v-for="h in history" :key="h.id" class="hist-row">
             <span class="hist-icon"><IconifyIcon icon="lucide:building-2" width="17" /></span>
@@ -97,6 +101,7 @@
           message="No lease records between the two of you."
         />
       </div>
+      </template>
     </PersonProfile>
   </q-page>
 </template>
@@ -107,8 +112,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useQrStore } from '@/stores/qr'
+import { isDesktop } from '@/utils/useTabletMode'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
-import { initialsOf, formatPeso } from '@/utils/format'
+import { initialsOf, formatPeso, landlordTitle } from '@/utils/format'
 import { period } from '@/utils/profile'
 import PersonProfile from '@/components/shared/PersonProfile.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -132,7 +138,13 @@ const qrStore = useQrStore()
 const role = computed<'manager' | 'student'>(() =>
   route.path.startsWith('/manager') ? 'manager' : 'student',
 )
-const targetId = computed(() => String(route.params.id ?? ''))
+// Given directly when Messages shows this inside its right panel on desktop;
+// otherwise it is the route's own :id.
+const props = defineProps<{ personId?: string }>()
+const targetId = computed(() => props.personId || String(route.params.id ?? ''))
+// Desktop, as a page of its own: profile and overview on the left, history on
+// the right. Not inside the Messages panel, which is already a half.
+const split = computed(() => isDesktop.value && !props.personId)
 
 const loading = ref(true)
 const error = ref('')
@@ -148,6 +160,9 @@ const person = reactive({
   college: null as string | null,
   yearLevel: null as number | null,
   osasVerified: false,
+  // Drives the Landlord / Landlady chip below. Null is normal and falls back to
+  // the neutral compound.
+  sex: null as string | null,
 })
 
 const history = ref<{ id: string; accommodationName: string; roomLabel: string; period: string; current: boolean }[]>([])
@@ -159,7 +174,7 @@ const scan = computed(() =>
 )
 
 const chip = computed<{ label: string; tone: 'good' | 'warn' | 'idle' }>(() => {
-  if (person.role !== 'student') return { label: 'Manager', tone: 'idle' }
+  if (person.role !== 'student') return { label: landlordTitle(person.sex), tone: 'idle' }
   return person.osasVerified
     ? { label: 'OSAS verified', tone: 'good' }
     : { label: 'Not verified', tone: 'warn' }
@@ -182,7 +197,7 @@ onMounted(async () => {
 
     const { data: user } = await supabase
       .from('users')
-      .select('full_name, initials, avatar_url, role')
+      .select('full_name, initials, avatar_url, role, sex')
       .eq('id', targetId.value)
       .maybeSingle()
     if (!user) throw new Error('That account no longer exists.')
@@ -191,6 +206,7 @@ onMounted(async () => {
     person.initials = user.initials || initialsOf(person.name)
     person.avatarUrl = user.avatar_url ? resolveAsset(user.avatar_url, AVATAR) : null
     person.role = user.role ?? ''
+    person.sex = user.sex ?? null
 
     // Readable only when a lease already links us; the scan payload covers the
     // case where it does not.
@@ -253,6 +269,8 @@ onMounted(async () => {
 
 <style scoped>
 .person { background: var(--m-bg); }
+/* Desktop: the card fills the page below a gutter, like every other halves page. */
+.person.page-wide { display: flex; flex-direction: column; padding: 8px var(--m-page-gutter) 0; }
 .stack { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
 .sk { margin: 0 var(--m-page-gutter); border-radius: var(--m-radius); }
 .sk-card {

@@ -21,7 +21,7 @@ const routes: RouteRecordRaw[] = [
   },
 
   // The design reference, for developing against. It is neither a student nor a
-  // manager screen, so the guard's role walls do not apply to it and any signed-in
+  // landlord/landlady screen, so the guard's role walls do not apply to it and any signed-in
   // account could open it — and it shipped inside the APK. Registered only on the
   // dev server, where Vite also then drops the page from the bundle.
   ...(import.meta.env.DEV

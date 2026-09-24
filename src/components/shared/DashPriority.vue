@@ -32,12 +32,12 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import type { Task } from './dashboard'
 
 // The all-clear copy is per-screen: a student is told where rent and OSAS
-// updates will land, a manager where applications and concerns will.
+// updates will land, a landlord/landlady where applications and concerns will.
 withDefaults(
   defineProps<{ task: Task | null; emptyLabel?: string; emptyHint?: string }>(),
   {
     emptyLabel: 'Nothing needs you',
-    emptyHint: 'Rent, manager replies and OSAS updates land here first',
+    emptyHint: 'Rent, landlord/landlady replies and OSAS updates land here first',
   },
 )
 const emit = defineEmits<{ go: [route: string] }>()

@@ -98,7 +98,7 @@ const verifiedRole = ref<string | null>(null);
 
 onMounted(() => {
   if (route.query.accountExists) {
-    notify.info('You already have an account — sign in to finish submitting your documents.');
+    notify.info('You already have an account — sign in to finish submitting your requirements.');
     void router.replace('/login');
   }
   if (route.query.suspended) {
@@ -129,7 +129,7 @@ onMounted(() => {
  * "Continue with Google" returns to this screen, and signInWithOAuth provisions
  * the account whether or not the person had ever registered. Nothing was reading
  * that outcome, so a brand-new Google user just landed back on a login form with
- * no message, and a manager still awaiting OSAS got no explanation either.
+ * no message, and a landlord/landlady still awaiting OSAS got no explanation either.
  */
 /**
  * Turns a raw Google failure into something worth showing.
@@ -191,7 +191,7 @@ async function handleOAuthReturn() {
       void router.push('/register/manager?resubmit=true');
       return;
     }
-    // A manager holds no session during registration (they are signed out
+    // A landlord/landlady holds no session during registration (they are signed out
     // until OSAS approves), so this is the first moment a PIN can be set.
     // Offered once per account, skippable, and settable later in Settings.
     if (!(await hasPinAlready()) && !alreadyOffered()) {
@@ -288,7 +288,7 @@ async function handleLogin() {
     }
 
     if (status === 'rejected') {
-      notify.warning('OSAS rejected your documents — re-upload them to try again.');
+      notify.warning('OSAS rejected your requirements — re-upload them to try again.');
     } else if (status === 'pending' || status === 'reviewing') {
       notify.info('Your account is still awaiting OSAS review.');
     } else {
@@ -296,7 +296,7 @@ async function handleLogin() {
     }
 
     // Students are sent straight to the screen where they can act on their
-    // status. Managers only ever reach this point when already verified —
+    // status. Landlords and landladies only ever reach this point when already verified —
     // login() refuses the sign-in otherwise.
     const studentNeedsOsas = status === 'rejected' || status === 'reviewing';
     if (role === 'student') void router.push(studentNeedsOsas ? '/student/support' : '/student/home');
@@ -326,7 +326,7 @@ async function handleForgotPassword() {
       // scheme the Google flow already registers.
       const redirectTo = Capacitor.isNativePlatform()
         ? 'com.accommo.app://auth/callback'
-        : window.location.origin + '/#/login';
+        : window.location.origin + '/login';
       const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo });
     if (error) throw error;
     notify.success('Password reset link sent to your email.');

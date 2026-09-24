@@ -122,7 +122,7 @@ function go(path: string) {
   void router.push(path)
 }
 
-// ?to= lets Messages find or create the thread with this manager.
+// ?to= lets Messages find or create the thread with this landlord/landlady.
 function messageManager() {
   const id = manager.value?.id
   void router.push(id ? `/student/messages?to=${id}` : '/student/messages')
@@ -146,12 +146,19 @@ async function load(silent = false) {
       .maybeSingle()
     firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
     const verification = profile?.status || 'unverified'
+    // Why OSAS put the account in this state, and what it is restricted from.
+    // Its own table because only the student and OSAS may read it.
+    const { data: standing } = await supabase
+      .from('account_standing')
+      .select('reason, restrictions')
+      .eq('user_id', user.id)
+      .maybeSingle()
 
     // A student holds at most one live lease, so one row is enough.
     const { data: leaseRow, error: leaseError } = await supabase
       .from('leases')
       .select(
-        'id, status, start_date, end_date, monthly_rent, room_id, advance_paid, deposit_paid, rooms(room_number, label, monthly_rent, accommodations(id, name, accommodation_manager_id, lat, lng))',
+        'id, status, start_date, end_date, monthly_rent, room_id, advance_paid, deposit_paid, rooms(room_number, label, monthly_rent, accommodations(id, name, landlord_id, lat, lng))',
       )
       .eq('student_id', user.id)
       .in('status', ['active', 'pending', 'leave_requested'])
@@ -163,7 +170,7 @@ async function load(silent = false) {
     type AccommodationEmbed = {
       id: string
       name: string
-      accommodation_manager_id: string
+      landlord_id: string
       lat: number | null
       lng: number | null
     } | null
@@ -213,12 +220,12 @@ async function load(silent = false) {
 
     if (leaseRow) {
       const room = leaseRow.rooms as unknown as {
-        accommodations: { accommodation_manager_id: string } | null
+        accommodations: { landlord_id: string } | null
       } | null
-      const managerId = room?.accommodations?.accommodation_manager_id
+      const managerId = room?.accommodations?.landlord_id
 
-      // No rating on the manager card. It used to average
-      // `accommodation_manager_reviews` filtered to this manager, but RLS only
+      // No rating on the landlord/landlady card. It used to average
+      // `landlord_reviews` filtered to this landlord/landlady, but RLS only
       // ever returned the reviews *this student* had written — so the number
       // shown was the student's own score played back at them. Students don't
       // see ratings while browsing either, so there is nothing to replace it
@@ -227,7 +234,7 @@ async function load(silent = false) {
         const [{ data: mgr }, { data: mgrProfile }] = await Promise.all([
           supabase.from('users').select('full_name, initials, avatar_url').eq('id', managerId).maybeSingle(),
           supabase
-            .from('accommodation_manager_profiles')
+            .from('landlord_profiles')
             .select('avg_response_minutes')
             .eq('user_id', managerId)
             .maybeSingle(),
@@ -246,6 +253,21 @@ async function load(silent = false) {
 
     const list: Task[] = []
 
+    if (standing?.restrictions?.includes('apply')) {
+      list.push({
+        id: 'osas-apply',
+        icon: 'lucide:shield-minus',
+        kind: 'OSAS',
+        label: 'OSAS has paused your room applications',
+        hint: standing.reason || 'Contact OSAS to sort this out',
+        when: '',
+        action: 'Open OSAS',
+        route: '/student/support',
+        tone: 'danger',
+        rank: 0,
+      })
+    }
+
     // Verification: whether they must act depends on what they have already
     // submitted, so the pending documents decide the wording and the action.
     if (verification !== 'verified') {
@@ -260,10 +282,10 @@ async function load(silent = false) {
           id: 'verify',
           icon: 'lucide:file-x',
           kind: 'OSAS',
-          label: verification === 'rejected' ? 'Your documents were rejected' : 'Your account is suspended',
-          hint: verification === 'rejected' ? 'Upload clearer copies to get verified' : 'Contact OSAS to sort this out',
+          label: verification === 'rejected' ? 'Your requirements were rejected' : 'Your account is suspended',
+          hint: standing?.reason || (verification === 'rejected' ? 'Upload clearer copies to get verified' : 'Contact OSAS to sort this out'),
           when: '',
-          action: verification === 'rejected' ? 'Re-upload documents' : 'Open OSAS',
+          action: verification === 'rejected' ? 'Re-upload requirements' : 'Open OSAS',
           route: '/student/support',
           tone: 'danger',
           rank: 1,
@@ -273,8 +295,8 @@ async function load(silent = false) {
           id: 'verify',
           icon: 'lucide:hourglass',
           kind: 'OSAS',
-          label: 'OSAS is reviewing your documents',
-          hint: `${pendingDocs} ${pendingDocs === 1 ? 'document' : 'documents'} submitted`,
+          label: 'OSAS is reviewing your requirements',
+          hint: `${pendingDocs} ${pendingDocs === 1 ? 'requirement' : 'requirements'} submitted`,
           when: '',
           action: '',
           route: '',
@@ -287,9 +309,9 @@ async function load(silent = false) {
           icon: 'lucide:id-card',
           kind: 'OSAS',
           label: 'Finish your OSAS verification',
-          hint: 'Managers can only accept verified students',
+          hint: 'Landlords/Landladies can only accept verified students',
           when: '',
-          action: 'Upload documents',
+          action: 'Upload requirements',
           route: '/student/support',
           tone: 'warn',
           rank: 2,
@@ -315,7 +337,7 @@ async function load(silent = false) {
         id: 'application',
         icon: 'lucide:file-clock',
         kind: 'Application',
-        label: 'Your manager is reviewing your application',
+        label: 'Your landlord/landlady is reviewing your application',
         hint: 'You will be told as soon as they decide',
         when: '',
         action: '',
@@ -354,9 +376,9 @@ async function load(silent = false) {
           icon: 'lucide:calendar-clock',
           kind: 'Lease',
           label: `Your lease ends in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}`,
-          hint: 'Talk to your manager if you want to renew',
+          hint: 'Talk to your landlord/landlady if you want to renew',
           when: '',
-          action: 'Message manager',
+          action: 'Message landlord/landlady',
           route: '/student/messages',
           tone: 'warn',
           rank: 5,
@@ -381,9 +403,9 @@ async function load(silent = false) {
           icon: answered ? 'lucide:message-square-reply' : 'lucide:triangle-alert',
           kind: 'Your report',
           label: answered
-            ? `Your manager replied about ${(titleCase(c.category) || 'your report').toLowerCase()}`
+            ? `Your landlord/landlady replied about ${(titleCase(c.category) || 'your report').toLowerCase()}`
             : `${titleCase(c.category) || 'Concern'} still open`,
-          hint: answered ? 'Read the reply and close it off' : 'Waiting on your manager',
+          hint: answered ? 'Read the reply and close it off' : 'Waiting on your landlord/landlady',
           when: ago(c.reported_at),
           action: answered ? 'Read reply' : '',
           route: '/student/concerns',
@@ -425,7 +447,7 @@ async function load(silent = false) {
       nextPayment.value = null
     }
 
-    // Unread messages from the manager.
+    // Unread messages from the landlord/landlady.
     const { data: convos } = await supabase
       .from('conversations')
       .select('user_a_id, user_b_id, unread_a, unread_b')
@@ -440,7 +462,7 @@ async function load(silent = false) {
         icon: 'lucide:message-circle',
         kind: 'Messages',
         label: `${unread} unread ${unread === 1 ? 'message' : 'messages'}`,
-        hint: 'From your accommodation manager',
+        hint: 'From your landlord/landlady',
         when: '',
         action: 'Open messages',
         route: '/student/messages',

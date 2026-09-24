@@ -1,5 +1,5 @@
 /**
- * The decisions the manager's property editor makes about its own inventory,
+ * The decisions the landlord/landlady's property editor makes about its own inventory,
  * pulled out of AccommodationDetail.vue so they can be tested.
  *
  * That component is 2,200 lines with ten dialogs and no test of any kind. The
@@ -74,7 +74,7 @@ export function nextFloorNumber(
 }
 
 /**
- * The other way of reading the rent a manager just typed.
+ * The other way of reading the rent a landlord/landlady just typed.
  *
  * Rent is quoted either for the whole room or per head, and the editor shows
  * the converse so a bedspace priced at 1,500 per person reads as 6,000 for a

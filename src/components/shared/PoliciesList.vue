@@ -53,7 +53,7 @@ import EmptyState from '@/components/shared/EmptyState.vue'
 
 // The OSAS policy documents — house rules, guidelines, regulations. Read-only
 // and identical for every reader, so one component serves the student and the
-// manager Policies screens.
+// landlord/landlady Policies screens.
 //
 // Deliberately NOT the Terms of Service or the Privacy Notice. Those are the
 // agreement between a user and Accommo rather than OSAS content, so they ship

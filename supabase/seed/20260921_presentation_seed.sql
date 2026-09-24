@@ -40,8 +40,8 @@ truncate table
   public.accommodation_amenities, public.accommodation_policies, public.accommodation_floors,
   public.accommodation_facilities, public.accommodation_facility_images,
   public.accommodation_documents, public.verification_documents,
-  public.accommodation_reviews, public.accommodation_manager_reviews, public.tenant_reviews,
-  public.student_profiles, public.accommodation_manager_profiles, public.admin_profiles,
+  public.accommodation_reviews, public.landlord_reviews, public.tenant_reviews,
+  public.student_profiles, public.landlord_profiles, public.admin_profiles,
   public.concerns, public.policies, public.user_pins
   restart identity cascade;
 
@@ -91,7 +91,7 @@ update public.users set
   terms_accepted_at=case when email like 'titus%' then timestamptz '2025-10-14 09:12:00+08' else timestamptz '2025-11-03 14:40:00+08' end,
   privacy_accepted_at=case when email like 'titus%' then timestamptz '2025-10-14 09:12:00+08' else timestamptz '2025-11-03 14:40:00+08' end,
   last_login_at=timestamp '2026-09-19 20:15:00'
-where role='accommodation_manager';
+where role='landlord';
 
 -- 1b. Six more managers.
 with newmgr(idx, email, fname, sex, phone, dob, reg) as (values
@@ -117,7 +117,7 @@ insert into public.users (id, email, phone, role, status, full_name, initials, a
                           email_verified_at, created_at, updated_at, last_login_at, is_superadmin,
                           onboarding_complete, registered_at, terms_accepted_at, privacy_accepted_at, date_of_birth)
 select ('00000000-0000-4000-8000-' || lpad((100+idx)::text,12,'0'))::uuid,
-       email, phone, 'accommodation_manager',
+       email, phone, 'landlord',
        case idx when 5 then 'pending'::user_status when 6 then 'reviewing'::user_status else 'verified'::user_status end,
        fname,
        upper(left(split_part(fname,' ',1),1) || left(split_part(fname,' ',2),1)),
@@ -126,13 +126,20 @@ select ('00000000-0000-4000-8000-' || lpad((100+idx)::text,12,'0'))::uuid,
        false, idx <= 4, reg, reg, reg, dob
 from newmgr;
 
--- GOTCHA 1: the auth.users trigger just overwrote role to 'student'.
-update public.users set role='accommodation_manager'
-where id::text like '00000000-0000-4000-8000-0000000001%';
+-- GOTCHA 1: the auth.users trigger just overwrote role to 'student' — and,
+-- before 20260923130000, sex to 'M' — so both are set back from newmgr's values.
+update public.users u set role='landlord',
+  sex = case u.email
+          when 'rosalinda.bagtas@gmail.com' then 'F'
+          when 'marilou.pascua@gmail.com' then 'F'
+          when 'aileen.mangaoang@gmail.com' then 'F'
+          else 'M'
+        end
+where u.id::text like '00000000-0000-4000-8000-0000000001%';
 
-insert into public.accommodation_manager_profiles (user_id, response_rate, avg_response_minutes, extracted_name)
+insert into public.landlord_profiles (user_id, response_rate, avg_response_minutes, extracted_name)
 select id, 78 + (abs(hashtext(email)) % 21), 25 + (abs(hashtext(email)) % 180), full_name
-from public.users where role='accommodation_manager'
+from public.users where role='landlord'
 on conflict (user_id) do update set response_rate=excluded.response_rate,
   avg_response_minutes=excluded.avg_response_minutes, extracted_name=excluded.extracted_name;
 
@@ -216,22 +223,22 @@ on conflict (user_id) do update set student_id=excluded.student_id, program=excl
 -- in Santiago City. 9 accredited / 1 pending / 1 reviewing / 1 rejected, so
 -- the Verifications queue and the status filter are not all one colour.
 with mgr as (
-  select id, row_number() over (order by registered_at) rn from public.users where role='accommodation_manager'
+  select id, row_number() over (order by registered_at) rn from public.users where role='landlord'
 ), acc(idx, name, biz, atype, brgy, city, lat, lng, floors, descr, st, accr_at, expires) as (values
  (1,'Plaza Student Residences','Plaza Realty & Rentals','boarding_house','San Fabian','Echague',16.72214,121.67967,3,'A three-storey boarding house a seven-minute walk from the ISU main gate. Purpose-built for students, with study nooks on every floor and a curfew the barangay actually enforces.','accredited',timestamptz '2025-11-04 10:00+08',timestamptz '2027-11-04 10:00+08'),
- (2,'Bagtas Ladies Dormitory','Bagtas Family Rentals','residence_hall','Soyung','Echague',16.70981,121.66742,2,'Ladies-only dormitory run by the Bagtas family since 2009. House mother on site, gate locked at 10PM, and a covered dining area that doubles as a study hall during finals.','accredited',timestamptz '2025-10-20 09:30+08',timestamptz '2027-10-20 09:30+08'),
- (3,'Dalisay Apartelle','Dalisay Holdings','apartment','Garit Norte','Echague',16.71455,121.68310,3,'Self-contained units with private kitchens and bathrooms. Popular with senior students and those on practicum who keep irregular hours.','accredited',timestamptz '2025-10-28 14:15+08',timestamptz '2027-10-28 14:15+08'),
+ (2,'Bagtas Ladies Dormitory','Bagtas Family Rentals','residence','Soyung','Echague',16.70981,121.66742,2,'Ladies-only dormitory run by the Bagtas family since 2009. House mother on site, gate locked at 10PM, and a covered dining area that doubles as a study hall during finals.','accredited',timestamptz '2025-10-20 09:30+08',timestamptz '2027-10-20 09:30+08'),
+ (3,'Dalisay Apartelle','Dalisay Holdings','residence','Garit Norte','Echague',16.71455,121.68310,3,'Self-contained units with private kitchens and bathrooms. Popular with senior students and those on practicum who keep irregular hours.','accredited',timestamptz '2025-10-28 14:15+08',timestamptz '2027-10-28 14:15+08'),
  (4,'Casa Pascua Boarding House','Casa Pascua','boarding_house','Silauan Sur','Echague',16.70122,121.67015,2,'Quiet family-run boarding house on a residential street. Ten rooms, a shared kitchen, and the owner living in the front unit.','accredited',timestamptz '2025-12-08 11:00+08',timestamptz '2027-12-08 11:00+08'),
  (5,'Tumaliuan Student Inn','Tumaliuan Enterprises','boarding_house','Angoluan','Echague',16.69760,121.68602,2,'Budget bedspace and shared rooms near the public market and jeepney terminal. The cheapest accredited option on the list.','accredited',timestamptz '2026-02-02 08:45+08',timestamptz '2028-02-02 08:45+08'),
  (6,'Blanza Hillside Lodging','Blanza Property Management','boarding_house','San Fabian','Echague',16.72540,121.68155,2,'Newer build on the hillside, concrete and steel, with a generator that actually gets used during brownouts. Fibre internet in every room.','accredited',timestamptz '2025-11-25 16:20+08',timestamptz '2027-11-25 16:20+08'),
- (7,'Mangaoang Residences','Mangaoang Rentals','apartment','Salay','Echague',16.70330,121.65980,3,'Studio-type units with individual meters, so tenants pay only what they use. Motorcycle parking in the courtyard.','pending',null,null),
+ (7,'Mangaoang Residences','Mangaoang Rentals','residence','Salay','Echague',16.70330,121.65980,3,'Studio-type units with individual meters, so tenants pay only what they use. Motorcycle parking in the courtyard.','pending',null,null),
  (8,'Cauilan Bedspace Center','Cauilan Bedspacing','boarding_house','Madadamian','Echague',16.69215,121.66421,2,'Bedspace-only operation aimed at working students. Twenty-four hour access and lockers in every room.','reviewing',null,null),
- (9,'Centro Student Hub','Centro Hub Inc.','condominium_unit','Centro East','Santiago',16.68804,121.54982,4,'Condominium units in Santiago City, for students commuting to the Echague campus on the weekday shuttle.','accredited',timestamptz '2026-01-20 13:00+08',timestamptz '2028-01-20 13:00+08'),
- (10,'Divisoria Suites','Divisoria Property Group','apartment','Divisoria','Santiago',16.69708,121.60500,3,'Apartment-style suites beside the Divisoria commercial strip. Two students per unit, each with their own room.','accredited',timestamptz '2026-03-11 10:30+08',timestamptz '2028-03-11 10:30+08'),
- (11,'Ipil Gardens Dormitory','Ipil Gardens','residence_hall','Ipil','Echague',16.71890,121.66120,2,'Garden dormitory with a large shared kitchen and a laundry area under a covered walkway. Mixed, with separate wings by floor.','accredited',timestamptz '2025-12-19 09:00+08',timestamptz '2027-12-19 09:00+08'),
+ (9,'Centro Student Hub','Centro Hub Inc.','residence','Centro East','Santiago',16.68804,121.54982,4,'Condominium units in Santiago City, for students commuting to the Echague campus on the weekday shuttle.','accredited',timestamptz '2026-01-20 13:00+08',timestamptz '2028-01-20 13:00+08'),
+ (10,'Divisoria Suites','Divisoria Property Group','residence','Divisoria','Santiago',16.69708,121.60500,3,'Apartment-style suites beside the Divisoria commercial strip. Two students per unit, each with their own room.','accredited',timestamptz '2026-03-11 10:30+08',timestamptz '2028-03-11 10:30+08'),
+ (11,'Ipil Gardens Dormitory','Ipil Gardens','residence','Ipil','Echague',16.71890,121.66120,2,'Garden dormitory with a large shared kitchen and a laundry area under a covered walkway. Mixed, with separate wings by floor.','accredited',timestamptz '2025-12-19 09:00+08',timestamptz '2027-12-19 09:00+08'),
  (12,'Dammang Transient Rooms','Dammang Rentals','boarding_house','Dammang East','Echague',16.68470,121.69340,1,'Single-storey rooms let by the month, mostly to students on short practicum rotations.','rejected',null,null)
 )
-insert into public.accommodations (id, accommodation_manager_id, name, business_name, accommodation_type, room_type,
+insert into public.accommodations (id, landlord_id, name, business_name, accommodation_type, room_type,
   address, barangay, city, lat, lng, total_floors, description, status, accreditation_status, accredited_at,
   accreditation_expires_at, gender_policy)
 select ('00000000-0000-4000-8000-' || lpad((300+idx)::text,12,'0'))::uuid,
@@ -350,7 +357,7 @@ where accreditation_status is not null and status::text <> accreditation_status;
 -- PART 3 - TENANCIES, RENT, HISTORY
 -- ===========================================================================
 create temporary table _slot as
-select r.id as room_id, r.accommodation_id, r.monthly_rent, a.accommodation_manager_id,
+select r.id as room_id, r.accommodation_id, r.monthly_rent, a.landlord_id,
        row_number() over (order by a.name, r.room_number, g.i) as sn
 from public.rooms r
 join public.accommodations a on a.id = r.accommodation_id
@@ -362,19 +369,19 @@ select u.id, row_number() over (order by u.registered_at, u.email) as sn
 from public.users u where u.role='student' and u.status='verified';
 
 -- First semester, finished.
-insert into public.leases (id, room_id, student_id, accommodation_manager_id, start_date, end_date,
+insert into public.leases (id, room_id, student_id, landlord_id, start_date, end_date,
                            monthly_rent, advance_paid, deposit_paid, status, ended_reason)
 select ('00000000-0000-4000-8000-' || lpad((600 + s.sn)::text,12,'0'))::uuid,
-       sl.room_id, s.id, sl.accommodation_manager_id, date '2025-11-03', date '2026-03-27',
+       sl.room_id, s.id, sl.landlord_id, date '2025-11-03', date '2026-03-27',
        sl.monthly_rent, sl.monthly_rent, sl.monthly_rent, 'ended'::lease_status,
        case when s.sn % 3 = 0 then 'Semester ended' when s.sn % 3 = 1 then 'Moved closer to campus' else 'Completed contract' end
 from _stud s join _slot sl on sl.sn = s.sn where s.sn <= 14;
 
 -- Second semester, current. Different rooms, so boarding history means something.
-insert into public.leases (id, room_id, student_id, accommodation_manager_id, start_date, end_date,
+insert into public.leases (id, room_id, student_id, landlord_id, start_date, end_date,
                            monthly_rent, advance_paid, deposit_paid, status, leave_requested_at)
 select ('00000000-0000-4000-8000-' || lpad((700 + s.sn)::text,12,'0'))::uuid,
-       sl.room_id, s.id, sl.accommodation_manager_id,
+       sl.room_id, s.id, sl.landlord_id,
        date '2026-06-08' + ((s.sn % 5) * 7)::int, date '2027-04-30',
        sl.monthly_rent, sl.monthly_rent, sl.monthly_rent,
        case when s.sn = 7 then 'leave_requested'::lease_status else 'active'::lease_status end,
@@ -408,7 +415,7 @@ select gen_random_uuid(), l.id, m::date,
        'REF' || upper(substr(md5(l.id::text || m::text), 1, 10)),
        case when m < date_trunc('month', current_date) or (abs(hashtext(l.id::text)) % 3) <> 0
             then m::timestamp + interval '4 days' + ((abs(hashtext(l.id::text||m::text)) % 72) * interval '1 hour') end,
-       case when m < date_trunc('month', current_date) then l.accommodation_manager_id end
+       case when m < date_trunc('month', current_date) then l.landlord_id end
 from public.leases l
 cross join lateral generate_series(
   date_trunc('month', l.start_date::timestamp),
@@ -426,7 +433,7 @@ where status in ('due','overdue');
 with c(k, body) as (values
  (0,'Malinis at tahimik. The house rules are strict but that is exactly why I could study at night.'),
  (1,'Walking distance to campus and the water never ran out. Wifi slows down around 9PM when everyone is online.'),
- (2,'Manager is responsive - reported a broken faucet in the morning and it was fixed by afternoon.'),
+ (2,'The landlord is responsive - reported a broken faucet in the morning and it was fixed by afternoon.'),
  (3,'Good value for the price. The shared kitchen gets crowded at dinner but everyone takes turns.'),
  (4,'Clean rooms and the curfew is enforced fairly. Would recommend to first-year students.'),
  (5,'Comfortable stay overall. Parking for my motorcycle was the deciding factor.'),
@@ -448,8 +455,8 @@ with c(k, body) as (values
  (2,'Handles repairs quickly and checks in on the tenants now and then.'),
  (3,'Strict about the rules but consistent, which I appreciated.')
 )
-insert into public.accommodation_manager_reviews (id, lease_id, student_id, accommodation_manager_id, rating, comment, created_at)
-select gen_random_uuid(), l.id, l.student_id, l.accommodation_manager_id,
+insert into public.landlord_reviews (id, lease_id, student_id, landlord_id, rating, comment, created_at)
+select gen_random_uuid(), l.id, l.student_id, l.landlord_id,
        4 + (abs(hashtext(l.id::text || 'm')) % 2), c.body,
        coalesce(l.end_date, current_date)::timestamp - interval '2 days'
 from public.leases l join c on c.k = (abs(hashtext(l.id::text || 'm')) % 4)
@@ -461,8 +468,8 @@ with c(k, body) as (values
  (2,'Followed house rules and got along with the other boarders.'),
  (3,'Left the room clean at the end of the contract.')
 )
-insert into public.tenant_reviews (id, lease_id, accommodation_manager_id, student_id, rating, comment, created_at)
-select gen_random_uuid(), l.id, l.accommodation_manager_id, l.student_id,
+insert into public.tenant_reviews (id, lease_id, landlord_id, student_id, rating, comment, created_at)
+select gen_random_uuid(), l.id, l.landlord_id, l.student_id,
        4 + (abs(hashtext(l.id::text || 't')) % 2), c.body,
        coalesce(l.end_date, current_date)::timestamp - interval '1 day'
 from public.leases l join c on c.k = (abs(hashtext(l.id::text || 't')) % 4)
@@ -549,14 +556,14 @@ with t(k, subj, descr, cat, pri, st, age) as (values
  (7,'Request to transfer rooms','I would like to move to a solo room if one becomes available next semester.','other','low','open',1)
 )
 insert into public.tickets (id, lease_id, subject, description, category, photo_urls, priority, status,
-                            reported_at, updated_at, resolved_at, student_id, accommodation_manager_id,
+                            reported_at, updated_at, resolved_at, student_id, landlord_id,
                             accommodation_id, assignee_id, reporter_name)
 select ('00000000-0000-4000-8000-' || lpad((800 + row_number() over (order by l.id, t.k))::text,12,'0'))::uuid,
        l.id, t.subj, t.descr, t.cat, '{}'::text[], t.pri, t.st,
        (current_date - t.age)::timestamptz + interval '9 hours',
        (current_date - greatest(t.age - 2, 0))::timestamptz + interval '11 hours',
        case when t.st='resolved' then (current_date - greatest(t.age - 4, 0))::timestamptz + interval '15 hours' end,
-       l.student_id, l.accommodation_manager_id, r.accommodation_id,
+       l.student_id, l.landlord_id, r.accommodation_id,
        case when t.st <> 'open' then '672e25f5-8798-4a47-9c94-dbb7774bccd8'::uuid end,
        u.full_name
 from (select l.*, row_number() over (order by id) rn from public.leases l where l.status in ('active','leave_requested')) l
@@ -583,13 +590,13 @@ from public.tickets tk where tk.status='resolved';
 insert into public.announcements (id, author_id, title, body, summary, audience, published_at, expires_at, archived, event_at, deadline_at, location)
 values
  (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Accommo is now live for ISU Echague','The Office of Student Affairs and Services is rolling out Accommo, the accredited housing directory for ISU Echague. Browse accredited boarding houses, apply for a room, and raise concerns directly with OSAS.','Accommo launches for ISU Echague.','all',timestamp '2025-10-06 08:00',timestamp '2025-12-31 23:59',true,null,null,'OSAS Office'),
- (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Call for accommodation accreditation, AY 2025-2026','Owners of boarding houses, dormitories and apartments serving ISU students are invited to apply for accreditation. Submit your fire safety, sanitary, business and building permits through the Accommo manager app.','Accreditation applications are open.','accommodation_managers',timestamp '2025-10-15 09:00',timestamp '2026-01-31 23:59',true,null,timestamp '2026-01-31 17:00','OSAS Office'),
+ (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Call for accommodation accreditation, AY 2025-2026','Owners of boarding houses, dormitories and apartments serving ISU students are invited to apply for accreditation. Submit your fire safety, sanitary, business and building permits through the Accommo app.','Accreditation applications are open.','landlords',timestamp '2025-10-15 09:00',timestamp '2026-01-31 23:59',true,null,timestamp '2026-01-31 17:00','OSAS Office'),
  (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Reminder: second semester move-in schedule','Students moving in for the second semester should coordinate with their accommodation manager before 3 January. Bring your validated ID and proof of enrolment.','Coordinate move-in before 3 January.','students',timestamp '2025-12-18 10:00',timestamp '2026-01-15 23:59',true,timestamp '2026-01-03 08:00',null,null),
- (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Boarding house safety inspection, February','OSAS together with the Bureau of Fire Protection will conduct the annual safety inspection of accredited accommodations. Managers should ensure extinguishers are within their inspection date.','Annual BFP safety inspection.','accommodation_managers',timestamp '2026-01-28 08:30',timestamp '2026-03-01 23:59',true,timestamp '2026-02-10 08:00',null,'All accredited accommodations'),
+ (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Boarding house safety inspection, February','OSAS together with the Bureau of Fire Protection will conduct the annual safety inspection of accredited accommodations. Landlords and landladies should ensure extinguishers are within their inspection date.','Annual BFP safety inspection.','landlords',timestamp '2026-01-28 08:30',timestamp '2026-03-01 23:59',true,timestamp '2026-02-10 08:00',null,'All accredited accommodations'),
  (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Summer break: securing your belongings','Students leaving for the summer break should coordinate with their manager about storage and whether their room is being held. OSAS is not liable for belongings left behind.','Coordinate storage before the break.','students',timestamp '2026-04-02 09:00',timestamp '2026-06-01 23:59',true,null,timestamp '2026-04-20 17:00',null),
  (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Accredited housing list for first semester AY 2026-2027','The updated list of accredited accommodations is now available in the app. Nine houses passed accreditation this cycle. Staying in a non-accredited house is at your own risk.','Nine accredited houses for the new year.','all',timestamp '2026-06-01 08:00',timestamp '2026-10-31 23:59',false,null,null,null),
  (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Rent payment reminders now in the app','Payments are now tracked in Accommo. You will get a reminder three days before rent is due, and your payment history is visible under My Stay.','Rent reminders are now automatic.','students',timestamp '2026-07-14 13:00',timestamp '2026-12-31 23:59',false,null,null,null),
- (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Permit renewal deadline approaching','Accommodation managers whose permits expire within the next sixty days should upload the renewed documents. Accreditation lapses automatically when a required permit expires.','Renew expiring permits now.','accommodation_managers',timestamp '2026-09-08 08:00',timestamp '2026-11-30 23:59',false,null,timestamp '2026-10-15 17:00',null),
+ (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Permit renewal deadline approaching','Accommodation managers whose permits expire within the next sixty days should upload the renewed documents. Accreditation lapses automatically when a required permit expires.','Renew expiring permits now.','landlords',timestamp '2026-09-08 08:00',timestamp '2026-11-30 23:59',false,null,timestamp '2026-10-15 17:00',null),
  (gen_random_uuid(),'672e25f5-8798-4a47-9c94-dbb7774bccd8','Student welfare check, October','OSAS will visit accredited accommodations for the semestral welfare check. Tenants may raise concerns anonymously through the support ticket channel in the app.','Semestral welfare check in October.','all',timestamp '2026-09-16 10:00',timestamp '2026-10-31 23:59',false,timestamp '2026-10-06 09:00',null,'Accredited accommodations');
 
 -- verification_requests records decisions only: approved | rejected |
@@ -630,7 +637,7 @@ cross join lateral unnest(
   case when u.role='student' then array['school_id','assessment_of_fees']
        else array['government_id','business_permit'] end) d(t)
 join userpics up on up.t = d.t
-where u.role in ('student','accommodation_manager')
+where u.role in ('student','landlord')
 on conflict (user_id, doc_type) do nothing;
 
 insert into public.notifications (id, user_id, type, title, body, link_url, read_at, created_at, ref_id, source)
@@ -651,7 +658,7 @@ select gen_random_uuid(), u.id, 'announcement', an.title, coalesce(an.summary, l
 from public.announcements an
 join public.users u on (an.audience = 'all'
    or (an.audience = 'students' and u.role='student')
-   or (an.audience = 'accommodation_managers' and u.role='accommodation_manager'))
+   or (an.audience = 'landlords' and u.role='landlord'))
 where an.published_at > now() - interval '120 days';
 
 insert into public.audit_logs (actor_id, action, entity_type, entity_id, created_at, after_json)
@@ -698,15 +705,15 @@ where l.rn <= 16;
 -- Messaging. conversations_unique_pair is a unique index on
 -- (LEAST(user_a_id,user_b_id), GREATEST(...)), so one row per pair.
 create temporary table _convo as
-select distinct on (l.student_id, l.accommodation_manager_id)
-       gen_random_uuid() as id, l.student_id, l.accommodation_manager_id, l.room_id,
-       (row_number() over (order by l.student_id, l.accommodation_manager_id))::int as rn
+select distinct on (l.student_id, l.landlord_id)
+       gen_random_uuid() as id, l.student_id, l.landlord_id, l.room_id,
+       (row_number() over (order by l.student_id, l.landlord_id))::int as rn
 from public.leases l
 where l.status in ('active','leave_requested')
-order by l.student_id, l.accommodation_manager_id, l.id;
+order by l.student_id, l.landlord_id, l.id;
 
 insert into public.conversations (id, user_a_id, user_b_id, inquiry_room_id, unread_a, unread_b)
-select id, student_id, accommodation_manager_id, room_id, 0, 0 from _convo where rn <= 14;
+select id, student_id, landlord_id, room_id, 0, 0 from _convo where rn <= 14;
 
 with script(k, seq, who, body) as (values
  (0,1,'s','Good evening po, is the solo room on the second floor still available for next semester?'),
@@ -725,7 +732,7 @@ with script(k, seq, who, body) as (values
 )
 insert into public.messages (id, conversation_id, sender_id, body, status, sent_at)
 select gen_random_uuid(), c.id,
-       case when sc.who = 's' then c.student_id else c.accommodation_manager_id end,
+       case when sc.who = 's' then c.student_id else c.landlord_id end,
        sc.body, 'read'::msg_status,
        (current_date - (c.rn * 2))::timestamp + interval '18 hours' + (sc.seq * interval '7 minutes')
 from _convo c

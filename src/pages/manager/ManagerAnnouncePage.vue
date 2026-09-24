@@ -68,7 +68,7 @@ import { formatDate } from '@/utils/format'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import AnnouncementCompose, { type AnnouncementDraft } from '@/components/manager/AnnouncementCompose.vue'
 
-// A manager announcing to their own tenants. OSAS broadcasts leave
+// A landlord/landlady announcing to their own tenants. OSAS broadcasts leave
 // accommodation_id null; setting it is what makes an announcement a house
 // notice, and RLS uses that same column to decide who may write and read it.
 
@@ -116,7 +116,7 @@ async function load(silent = false) {
     supabase
       .from('accommodations')
       .select('id, name')
-      .eq('accommodation_manager_id', userId.value)
+      .eq('landlord_id', userId.value)
       .order('name'),
     supabase
       .from('announcements')

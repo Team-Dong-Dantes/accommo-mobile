@@ -32,7 +32,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
  * AccommodationDetail carried three of these — accommodation, floor and room —
  * written out separately and identical but for their wording and which busy
  * flag they watched. Deleting a floor takes its rooms with it, so these sheets
- * are the last thing standing between a manager and real data loss; three
+ * are the last thing standing between a landlord/landlady and real data loss; three
  * copies meant three places for that warning to drift.
  *
  * Deliberately not built on BottomSheet: that one is the list-filter panel

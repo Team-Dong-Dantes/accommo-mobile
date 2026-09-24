@@ -1,7 +1,7 @@
 <template>
   <!-- Beside its list rather than over it on a landscape tablet; see
        `.page-split` in app.scss. -->
-  <q-page class="op" :class="{ 'page-split': isTablet }">
+  <q-page class="op" :class="{ 'page-split': isTablet, 'page-wide desk-split': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="tabs">
@@ -63,7 +63,7 @@
                     </button>
                   </div>
 
-                  <p class="sec-hint">Accreditation depends on these staying current. Tap a document to view or upload.</p>
+                  <p class="sec-hint">Accreditation depends on these staying current. Tap a permit to view or upload.</p>
                   <div class="group">
                     <div v-for="d in docs" :key="d.type" class="doc-item">
                       <button
@@ -124,7 +124,7 @@
                     <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
                   </div>
                 </div>
-                <p class="sec-hint">Your own identity documents. Tap one to view or resubmit.</p>
+                <p class="sec-hint">Your own verification requirements. Tap one to view or resubmit.</p>
                 <div class="group">
                   <div v-for="d in myDocs" :key="d.type" class="doc-item">
                     <button
@@ -260,7 +260,7 @@ import { openExternal } from '@/utils/openExternal'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { chatFullscreen } from '@/utils/chatFullscreen'
-import { isTablet } from '@/utils/useTabletMode'
+import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
@@ -290,7 +290,7 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   building_permit: 'Building permit',
 }
 
-// Fixed set uploaded once at manager registration (stores/auth.ts,
+// Fixed set uploaded once at landlord/landlady registration (stores/auth.ts,
 // submitManagerVerificationDocuments) — OSAS reviews these per-document via
 // doc_status, independent of any accommodation.
 const MY_DOC_TYPES = ['government_id', 'business_permit'] as const
@@ -351,7 +351,7 @@ const uploadDocType = ref('')
 /**
  * The upload sheet serves both document sets. A property permit goes to
  * `accommodation_documents` against the selected accommodation; an account
- * document goes to `verification_documents` against this manager. They differ
+ * document goes to `verification_documents` against this landlord/landlady. They differ
  * in where the row lands, not in what is collected, so they share one form.
  */
 type UploadTarget = 'property' | 'account'
@@ -461,11 +461,11 @@ async function load() {
     myId.value = user.id
 
     const [{ data: accData, error: accError }, { data: ticketData, error: ticketError }, { data: userData, error: userError }] = await Promise.all([
-      supabase.from('accommodations').select('id, name').eq('accommodation_manager_id', user.id).order('name'),
+      supabase.from('accommodations').select('id, name').eq('landlord_id', user.id).order('name'),
       supabase
         .from('tickets')
         .select('id, subject, description, category, status, reported_at, photo_urls')
-        .eq('accommodation_manager_id', user.id)
+        .eq('landlord_id', user.id)
         .order('reported_at', { ascending: false }),
       supabase.from('users').select('status').eq('id', user.id).maybeSingle(),
     ])
@@ -573,7 +573,7 @@ async function submitDocUpload() {
  * An account document — government ID or business permit — now goes through the
  * same sheet as a property permit, so it carries an expiry date. It used to be
  * a bare file input that wrote the row immediately, which meant OSAS could see
- * a manager's permit had been approved but not that it had since lapsed.
+ * a landlord/landlady's permit had been approved but not that it had since lapsed.
  */
 async function submitMyDocUpload() {
   const file = uploadForm.file
@@ -654,7 +654,7 @@ async function submitTicket(draft: TicketDraft) {
     const { data: created, error: insertError } = await supabase
       .from('tickets')
       .insert({
-        accommodation_manager_id: user.id,
+        landlord_id: user.id,
         accommodation_id: selectedId.value || null,
         subject: draft.subject,
         description: draft.description || null,
@@ -694,7 +694,7 @@ const { refresh } = useLiveData({
       ? [{ table: 'accommodation_documents', filter: `accommodation_id=eq.${selectedId.value}` }]
       : []),
     { table: 'verification_documents', filter: `user_id=eq.${uid}` },
-    { table: 'tickets', filter: `accommodation_manager_id=eq.${uid}` },
+    { table: 'tickets', filter: `landlord_id=eq.${uid}` },
   ],
 })
 

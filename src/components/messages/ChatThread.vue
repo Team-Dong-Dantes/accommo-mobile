@@ -153,6 +153,7 @@ import { initialsOf, dayLabel, clockTime } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
+import { isDesktop } from '@/utils/useTabletMode'
 import { uploadToCloudinary } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
 import ApplicationCard from '@/components/messages/ApplicationCard.vue'
@@ -163,9 +164,15 @@ const router = useRouter()
 
 function openProfile() {
   if (!otherId.value) return
+  // Desktop: MessagesPage shows the profile in this same panel instead of
+  // leaving the page, so the conversation list stays beside it.
+  if (isDesktop.value) {
+    emit('profile', otherId.value)
+    return
+  }
   void router.push(`/${props.role}/person/${otherId.value}`)
 }
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; profile: [userId: string] }>()
 
 interface Msg {
   id: string
@@ -388,7 +395,7 @@ async function load() {
       } | null
       other.name = person?.full_name || 'Conversation'
       other.initials = person?.initials || initialsOf(other.name)
-      other.role = person?.role === 'accommodation_manager' ? 'Accommodation manager' : 'Student'
+      other.role = person?.role === 'landlord' ? 'Landlord/Landlady' : 'Student'
       other.color = person?.avatar_color ?? null
       other.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null
     }

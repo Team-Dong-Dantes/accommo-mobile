@@ -1,8 +1,26 @@
 <template>
   <!-- Beside its list rather than over it on a landscape tablet; see
        `.page-split` in app.scss. -->
-  <q-page class="cp" :class="{ 'page-split': isTablet }">
+  <q-page class="cp" :class="{ 'page-split': isTablet, 'page-wide desk-split': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
+      <!-- Desktop: search (and the report button) pinned at the top of the
+           list, not floating over it. -->
+      <SearchDock
+        v-if="isDesktop && !loading && !error"
+        v-model="query"
+        inline
+        class="desk-search"
+        :filter-count="filter !== 'all' ? 1 : 0"
+        placeholder="Search concerns"
+        search-label="Search concerns"
+        @open-filters="filtersOpen = true"
+      >
+        <template #action>
+          <button type="button" class="dock-btn" :disabled="!activeLease" aria-label="Report a concern" @click="openNew">
+            <IconifyIcon icon="lucide:plus" width="18" />
+          </button>
+        </template>
+      </SearchDock>
       <div v-if="loading" class="stack">
         <div class="group">
           <div v-for="n in 3" :key="n" class="row">
@@ -26,7 +44,7 @@
         v-else-if="!rows.length"
         icon="lucide:message-square-warning"
         title="No concerns yet"
-        message="Maintenance, safety and billing issues you raise will show up here, with each one's status and your manager's response."
+        message="Maintenance, safety and billing issues you raise will show up here, with each one's status and your landlord/landlady's response."
       />
 
       <EmptyState
@@ -57,7 +75,7 @@
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->
     <SearchDock
-      v-if="!loading && !error"
+      v-if="!loading && !error && !isDesktop"
       v-model="query"
       :filter-count="filter !== 'all' ? 1 : 0"
       placeholder="Search concerns"
@@ -102,7 +120,7 @@
     <SplitDetail
       v-model:open="detailOpen"
       icon="lucide:message-square-warning"
-      hint="Pick a concern to see its progress and your manager’s reply"
+      hint="Pick a concern to see its progress and your landlord/landlady’s reply"
     >
       <q-card v-if="selected" class="detail-sheet">
         <div class="detail-head">
@@ -131,7 +149,7 @@
         <img v-if="selected.photoUrl" :src="selected.photoUrl" alt="" class="detail-photo" />
 
         <template v-if="selected.managerResponse">
-          <p class="detail-label">Manager's response</p>
+          <p class="detail-label">Landlord/Landlady's response</p>
           <p class="detail-text">{{ selected.managerResponse }}</p>
         </template>
 
@@ -182,7 +200,7 @@ import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import SplitDetail from '@/components/shared/SplitDetail.vue'
-import { isTablet } from '@/utils/useTabletMode'
+import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { fetchCurrentLease } from '@/api/leases';
 
 const FILTERS = [
@@ -277,7 +295,7 @@ async function load() {
     }
 
     const leaseRow = await fetchCurrentLease(user.id)
-    activeLease.value = leaseRow ? { id: leaseRow.id, managerId: leaseRow.accommodation_manager_id } : null
+    activeLease.value = leaseRow ? { id: leaseRow.id, managerId: leaseRow.landlord_id } : null
 
     const { data, error: loadError } = await supabase
       .from('concerns')
@@ -316,7 +334,7 @@ async function load() {
 }
 
 /**
- * Live status/response updates from the manager land on an open list or detail
+ * Live status/response updates from the landlord/landlady land on an open list or detail
  * sheet without a manual reload. Patched in place rather than refetched — only
  * these five fields ever change on an existing concern.
  */

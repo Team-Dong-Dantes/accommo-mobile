@@ -1,7 +1,7 @@
 <template>
   <NotificationsPage
     role="student"
-    empty-message="Updates about your leases, payments, concerns and managers will land here."
+    empty-message="Updates about your leases, payments, concerns and landlords/landladies will land here."
   />
 </template>
 

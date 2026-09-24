@@ -1,8 +1,19 @@
 <template>
   <!-- Beside its list rather than over it on a landscape tablet; see
        `.page-split` in app.scss. -->
-  <q-page class="cp" :class="{ 'page-split': isTablet }">
+  <q-page class="cp" :class="{ 'page-split': isTablet, 'page-wide desk-split': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
+      <!-- Desktop: search pinned at the top of the list, not floating over it. -->
+      <SearchDock
+        v-if="isDesktop && !loading && !error"
+        v-model="query"
+        inline
+        class="desk-search"
+        :filter-count="filter !== 'all' ? 1 : 0"
+        placeholder="Search tenant or concern"
+        search-label="Search concerns"
+        @open-filters="filtersOpen = true"
+      />
       <div v-if="loading" class="stack">
         <div class="group">
           <div v-for="n in 3" :key="n" class="row">
@@ -62,7 +73,7 @@
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->
     <SearchDock
-      v-if="!loading && !error"
+      v-if="!loading && !error && !isDesktop"
       v-model="query"
       :filter-count="filter !== 'all' ? 1 : 0"
       placeholder="Search tenant or concern"
@@ -169,7 +180,7 @@ import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import SplitDetail from '@/components/shared/SplitDetail.vue'
-import { isTablet } from '@/utils/useTabletMode'
+import { isTablet, isDesktop } from '@/utils/useTabletMode'
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -246,9 +257,9 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('concerns')
       .select(
-        'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(accommodation_manager_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
+        'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(landlord_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
       )
-      .eq('leases.accommodation_manager_id', user.id)
+      .eq('leases.landlord_id', user.id)
       .order('reported_at', { ascending: false })
     if (loadError) throw loadError
 
@@ -286,7 +297,7 @@ async function load() {
 
 /**
  * New reports and status/response edits land live; RLS scopes the feed to this
- * manager's own leases. Both handlers patch `rows` in place rather than
+ * landlord/landlady's own leases. Both handlers patch `rows` in place rather than
  * refetching — a concerns feed grows one row at a time, so a full reload for
  * each would be wasteful.
  */
@@ -296,7 +307,7 @@ async function onConcernInserted(payload: LivePayload) {
   const { data } = await supabase
     .from('concerns')
     .select(
-      'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(accommodation_manager_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
+      'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(landlord_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
     )
     .eq('id', id)
     .maybeSingle()
@@ -401,7 +412,7 @@ async function decide(next: 'acknowledged' | 'in_progress' | 'resolved' | 'rejec
   }
 }
 
-/** Raises the concern as an OSAS ticket on the same lease/accommodation, for issues the manager can't resolve alone. */
+/** Raises the concern as an OSAS ticket on the same lease/accommodation, for issues the landlord/landlady can't resolve alone. */
 async function escalate() {
   if (escalating.value || !selected.value) return
   escalating.value = true
@@ -412,7 +423,7 @@ async function escalate() {
 
     const c = selected.value
     const { error: insertError } = await supabase.from('tickets').insert({
-      accommodation_manager_id: user.id,
+      landlord_id: user.id,
       accommodation_id: c.accommodationId,
       lease_id: c.leaseId,
       student_id: c.studentId,

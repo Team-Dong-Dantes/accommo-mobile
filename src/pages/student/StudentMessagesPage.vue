@@ -1,7 +1,7 @@
 <template>
   <MessagesPage
     role="student"
-    empty-message="Message a manager about a room and the thread shows up here."
+    empty-message="Message a landlord/landlady about a room and the thread shows up here."
   />
 </template>
 

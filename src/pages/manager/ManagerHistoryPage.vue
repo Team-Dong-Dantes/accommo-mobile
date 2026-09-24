@@ -1,5 +1,5 @@
 <template>
-  <q-page class="history-page">
+  <q-page class="history-page" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <q-skeleton type="rect" height="40px" class="sk" />
@@ -12,23 +12,35 @@
       </div>
 
       <div v-else class="stack">
+        <!-- Desktop: one search above the card; it searches both halves. -->
+        <SearchDock
+          v-if="split"
+          v-model="query"
+          inline
+          class="desk-search desk-search--above"
+          :filter-count="deskFilterCount"
+          placeholder="Search ratings, tenants, rooms or months"
+          search-label="Search"
+          @open-filters="filtersOpen = true"
+        />
         <div class="m-tabbed">
-          <div class="tabs">
+          <div v-if="!split" class="tabs">
             <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
-              Reviews
+              Ratings
             </button>
             <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'payments' }" @click="tab = 'payments'">
               Payments
             </button>
           </div>
 
-          <div class="panel">
-            <q-tab-panels v-model="tab" animated swipeable class="m-panels">
-              <q-tab-panel name="reviews" class="tab-panel">
+          <div :class="split ? 'desk-card' : 'panel'">
+            <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
+              <component :is="panelIs" name="reviews" :class="split ? 'desk-col' : 'tab-panel'">
+                <h2 v-if="split" class="desk-col-title">Ratings</h2>
                 <template v-if="reviews.length">
                   <div class="rating-summary">
                     <StarRating :model-value="avgRating" :size="18" />
-                    <span class="rating-count">{{ avgRating.toFixed(1) }} · {{ reviews.length }} review{{ reviews.length === 1 ? '' : 's' }}</span>
+                    <span class="rating-count">{{ avgRating.toFixed(1) }} · {{ reviews.length }} rating{{ reviews.length === 1 ? '' : 's' }}</span>
                   </div>
                   <div class="m-chips">
                     <button
@@ -60,10 +72,11 @@
                   </div>
                   <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
                 </template>
-                <EmptyState v-else variant="compact" icon="lucide:star" title="No reviews yet" message="Reviews from past tenants will show up here." />
-              </q-tab-panel>
+                <EmptyState v-else variant="compact" icon="lucide:star" title="No ratings yet" message="Ratings from past tenants will show up here." />
+              </component>
 
-              <q-tab-panel name="payments" class="tab-panel">
+              <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
+                <h2 v-if="split" class="desk-col-title">Payments</h2>
                 <template v-if="payments.length">
                   <div v-if="paymentProperties.length > 1" class="m-chips">
                     <button
@@ -113,8 +126,8 @@
                   <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
                 </template>
                 <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Payments you log against a tenant will be listed here." />
-              </q-tab-panel>
-            </q-tab-panels>
+              </component>
+            </component>
           </div>
         </div>
       </div>
@@ -127,10 +140,10 @@
          Outside the pull-to-refresh wrapper on purpose: it transforms its
          content while you pull, which would drag this fixed dock along. -->
     <SearchDock
-      v-if="!loading && !error"
+      v-if="!loading && !error && !split"
       v-model="query"
       :filter-count="(tab === 'reviews' ? reviewDateFilter : filter) !== 'all' ? 1 : 0"
-      :placeholder="tab === 'payments' ? 'Search tenant, room or month' : 'Search reviews'"
+      :placeholder="tab === 'payments' ? 'Search tenant, room or month' : 'Search ratings'"
       search-label="Search"
       @open-filters="filtersOpen = true"
     />
@@ -138,9 +151,11 @@
     <BottomSheet
       v-model="filtersOpen"
       title="Filters"
-      @clear="tab === 'reviews' ? (reviewDateFilter = 'all') : (filter = 'all')"
+      @clear="clearFilters"
     >
-      <div v-if="tab === 'reviews'" class="sheet-block">
+      <!-- One section per tab on a phone; both on desktop, where both halves
+           are on screen at once. -->
+      <div v-if="split || tab === 'reviews'" class="sheet-block">
         <span class="sheet-label">Date</span>
         <div class="m-chips">
           <button
@@ -155,7 +170,7 @@
           </button>
         </div>
       </div>
-      <div v-else class="sheet-block">
+      <div v-if="split || tab === 'payments'" class="sheet-block">
         <span class="sheet-label">Status</span>
         <div class="m-chips">
           <button
@@ -189,6 +204,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useDeskPanels } from '@/utils/useDeskPanels'
 import { useLiveData } from '@/utils/useLiveData'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -228,6 +244,8 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const tab = ref(route.query.tab === 'payments' ? 'payments' : 'reviews')
+// Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
+const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
 
 const reviews = ref<Review[]>([])
 const payments = ref<PaymentRow[]>([])
@@ -305,6 +323,15 @@ watch(tab, () => {
   propertyFilter.value = 'all'
 })
 
+// The sheet's Clear: the open tab's filter on a phone, both on desktop.
+function clearFilters() {
+  if (split.value || tab.value === 'reviews') reviewDateFilter.value = 'all'
+  if (split.value || tab.value === 'payments') filter.value = 'all'
+}
+const deskFilterCount = computed(() =>
+  [reviewDateFilter.value, filter.value].filter((f) => f !== 'all').length,
+)
+
 async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
@@ -317,7 +344,7 @@ async function load(silent = false) {
     }
 
     const [{ data: inboxRows }, { data: paymentRows }] = await Promise.all([
-      // Reviews received, about this manager and about their accommodations.
+      // Reviews received, about this landlord/landlady and about their accommodations.
       // `review_inbox` scopes to the caller and carries no reviewer identity —
       // reviews are anonymous to the person being reviewed, and the base tables
       // are no longer readable, so there is nothing to join a name from.
@@ -329,9 +356,9 @@ async function load(silent = false) {
       supabase
         .from('payments')
         .select(
-          'id, month, amount, status, leases!inner(id, accommodation_manager_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(room_number, label, accommodations(name)))',
+          'id, month, amount, status, leases!inner(id, landlord_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(room_number, label, accommodations(name)))',
         )
-        .eq('leases.accommodation_manager_id', user.id)
+        .eq('leases.landlord_id', user.id)
         .order('month', { ascending: false }),
     ])
 

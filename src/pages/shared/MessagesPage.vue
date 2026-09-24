@@ -3,18 +3,45 @@
        beside a thread" on a landscape tablet. The thread is a sibling of the
        refresher, not inside it: it is not pull-to-refreshable content, and as a
        direct child of the page it can be the second column. -->
-  <q-page class="msgs" :class="{ 'page-split': isTablet }">
+  <!-- Desktop: the same bordered two-half card as Tenants, search pinned at the
+       top of the list instead of floating over it. -->
+  <q-page class="msgs" :class="{ 'page-split': isTablet, 'page-wide desk-split': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
+      <SearchDock
+        v-if="isDesktop && store.ready"
+        v-model="query"
+        inline
+        class="desk-search"
+        :filter-count="filter !== 'all' ? 1 : 0"
+        placeholder="Search conversations"
+        search-label="Search conversations"
+        @open-filters="filtersOpen = true"
+      />
       <ThreadList :empty-message="emptyMessage" :query="query" :filter="filter" @open="openThread" />
     </q-pull-to-refresh>
 
+    <!-- Desktop: the other person's profile opens in the thread's own panel,
+         with a way back to the conversation, so the list never leaves. -->
+    <div v-if="openId && personId && isDesktop" class="desk-pane">
+      <header class="desk-panel-bar">
+        <button type="button" class="desk-panel-back" aria-label="Back to conversation" @click="closePerson">
+          <IconifyIcon icon="lucide:arrow-left" width="20" />
+        </button>
+        <span class="desk-panel-title">Profile</span>
+      </header>
+      <div class="desk-pane-body">
+        <PersonPage :key="personId" :person-id="personId" />
+      </div>
+    </div>
+
     <ChatThread
-      v-if="openId"
+      v-else-if="openId"
       :key="openId"
       :conversation-id="openId"
       :role="role"
       :room-id="roomId"
       @close="closeThread"
+      @profile="openPerson"
     />
 
     <div v-else-if="isTablet" class="page-split-empty">
@@ -24,7 +51,7 @@
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->
     <SearchDock
-      v-if="!openId && store.ready"
+      v-if="!openId && store.ready && !isDesktop"
       v-model="query"
       :filter-count="filter !== 'all' ? 1 : 0"
       placeholder="Search conversations"
@@ -64,10 +91,11 @@ import { authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useMessagesStore } from '@/stores/messages'
 import { chatFullscreen } from '@/utils/chatFullscreen'
-import { isTablet } from '@/utils/useTabletMode'
+import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { useNotify } from '@/utils/notify'
 import ThreadList from '@/components/messages/ThreadList.vue'
 import ChatThread from '@/components/messages/ChatThread.vue'
+import PersonPage from '@/pages/shared/PersonPage.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 
@@ -101,6 +129,19 @@ function openThread(id: string) {
 
 function closeThread() {
   void router.push({ path: route.path })
+}
+
+// ?p=<userId> alongside ?c= — desktop only, where the profile shares the
+// thread's panel. On the query, not in local state, so browser Back undoes it.
+const personId = computed(() => (typeof route.query.p === 'string' ? route.query.p : ''))
+
+function openPerson(userId: string) {
+  void router.push({ path: route.path, query: { ...route.query, p: userId } })
+}
+
+function closePerson() {
+  const { p: _p, ...rest } = route.query
+  void router.push({ path: route.path, query: rest })
 }
 
 async function resolveEnquiry(to: string) {

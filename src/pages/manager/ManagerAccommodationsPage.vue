@@ -71,7 +71,7 @@ async function load(silent = false) {
       .select(
         'id,name,address,barangay,city,status,accommodation_type,total_rooms,accommodation_images(url,sort_order),rooms(id,capacity)',
       )
-      .eq('accommodation_manager_id', user.id)
+      .eq('landlord_id', user.id)
       .order('name')
     if (loadError) throw loadError
 
@@ -91,7 +91,7 @@ async function load(silent = false) {
       const { data: leaseRows } = await supabase
         .from('leases')
         .select('room_id')
-        .eq('accommodation_manager_id', user.id)
+        .eq('landlord_id', user.id)
         .eq('status', 'active')
       for (const l of leaseRows || []) {
         const accId = roomToAcc.get(l.room_id)
@@ -150,7 +150,7 @@ async function load(silent = false) {
 const { refresh } = useLiveData({
   key: 'manager-accommodations',
   load,
-  watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
+  watch: (uid) => [{ table: 'leases', filter: `landlord_id=eq.${uid}` }],
   cache: { get: () => rows.value, set: (d) => { rows.value = d as Property[]; loading.value = false } },
 })
 

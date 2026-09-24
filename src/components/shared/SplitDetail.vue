@@ -31,7 +31,7 @@ import { isTablet } from '@/utils/useTabletMode'
 //
 // The obvious fix, a shared ConcernDetail component, turned out to be the wrong
 // one: the two roles' cards look alike but are not. The student's carries a
-// status timeline and reads the manager's reply; the manager's carries the
+// status timeline and reads the landlord/landlady's reply; the landlord/landlady's carries the
 // tenant's name and avatar, a reply box, four decision buttons and Escalate to
 // OSAS. One component covering both would be two cards behind a v-if with a prop
 // list stretched across them.

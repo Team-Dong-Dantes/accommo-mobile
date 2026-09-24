@@ -1,5 +1,5 @@
 <template>
-  <q-page class="history-page">
+  <q-page class="history-page" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <q-skeleton type="rect" height="40px" class="sk" />
@@ -12,22 +12,34 @@
       </div>
 
       <div v-else class="stack">
+        <!-- Desktop: one search above the card; it searches every half. -->
+        <SearchDock
+          v-if="split"
+          v-model="query"
+          inline
+          class="desk-search desk-search--above"
+          :filter-count="deskFilterCount"
+          placeholder="Search stays, ratings and payments"
+          search-label="Search"
+          @open-filters="filtersOpen = true"
+        />
         <div class="m-tabbed">
-          <div class="tabs">
+          <div v-if="!split" class="tabs">
             <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'history' }" @click="tab = 'history'">
               Boarding history
             </button>
             <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
-              Reviews
+              Ratings
             </button>
             <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'payments' }" @click="tab = 'payments'">
               Payments
             </button>
           </div>
 
-          <div class="panel">
-            <q-tab-panels v-model="tab" animated swipeable class="m-panels">
-              <q-tab-panel name="history" class="tab-panel">
+          <div :class="split ? 'desk-card' : 'panel'">
+            <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
+              <component :is="panelIs" name="history" :class="split ? 'desk-col' : 'tab-panel'">
+                <h2 v-if="split" class="desk-col-title">Boarding history</h2>
                 <div v-if="visibleHistory.length" class="group">
                   <div v-for="row in visibleHistory" :key="row.id" class="history-row">
                     <button type="button" class="history-info" @click="openHistoryDetail(row)">
@@ -46,13 +58,18 @@
                 </div>
                 <EmptyState v-else-if="history.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
                 <EmptyState v-else variant="compact" icon="lucide:history" title="No stays yet" message="Once a stay ends, it lands here and you can rate it." />
-              </q-tab-panel>
+              </component>
 
-              <q-tab-panel name="reviews" class="tab-panel">
+              <!-- Desktop: ratings sit below payments in the right half, moved there by
+                   the Teleport (inside the panel, so QTabPanels still finds it). -->
+              <component :is="panelIs" name="reviews" class="tab-panel" :class="{ 'desk-hidden': split }">
+                <Teleport :to="paymentsCol" :disabled="!split || !paymentsCol">
+                <div class="desk-moved">
+                <h2 v-if="split" class="desk-col-title">Ratings</h2>
                 <template v-if="visibleReviews.length">
                   <div class="rating-summary">
                     <StarRating :model-value="avgManagerRating" :size="18" />
-                    <span class="rating-count">{{ avgManagerRating.toFixed(1) }} · {{ reviewsFromManagers.length }} review{{ reviewsFromManagers.length === 1 ? '' : 's' }}</span>
+                    <span class="rating-count">{{ avgManagerRating.toFixed(1) }} · {{ reviewsFromManagers.length }} rating{{ reviewsFromManagers.length === 1 ? '' : 's' }}</span>
                   </div>
                   <div class="group">
                     <button v-for="r in visibleReviews" :key="r.id" type="button" class="review-row" @click="openReviewDetail(r)">
@@ -66,10 +83,13 @@
                   </div>
                 </template>
                 <EmptyState v-else-if="reviewsFromManagers.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
-                <EmptyState v-else variant="compact" icon="lucide:star" title="No reviews yet" message="Reviews a manager leaves after a stay will show up here." />
-              </q-tab-panel>
+                <EmptyState v-else variant="compact" icon="lucide:star" title="No ratings yet" message="Ratings a landlord/landlady leaves after a stay will show up here." />
+              </div>
+                </Teleport>
+              </component>
 
-              <q-tab-panel name="payments" class="tab-panel">
+              <component :is="panelIs" :ref="setPaymentsCol" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
+                <h2 v-if="split" class="desk-col-title">Payments</h2>
                 <div v-if="visiblePayments.length" class="group">
                   <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row" @click="openPaymentDetail(p)">
                     <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
@@ -88,8 +108,8 @@
                 </div>
                 <EmptyState v-else-if="payments.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
                 <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Rent payments you make will be recorded here." />
-              </q-tab-panel>
-            </q-tab-panels>
+              </component>
+            </component>
           </div>
         </div>
       </div>
@@ -102,10 +122,10 @@
          Outside the pull-to-refresh wrapper on purpose: it transforms its
          content while you pull, which would drag this fixed dock along. -->
     <SearchDock
-      v-if="!loading && !error"
+      v-if="!loading && !error && !split"
       v-model="query"
       :filter-count="activeFilter !== 'all' ? 1 : 0"
-      :placeholder="tab === 'payments' ? 'Search month or method' : tab === 'reviews' ? 'Search reviews' : 'Search boarding history'"
+      :placeholder="tab === 'payments' ? 'Search month or method' : tab === 'reviews' ? 'Search ratings' : 'Search boarding history'"
       search-label="Search"
       @open-filters="filtersOpen = true"
     />
@@ -113,9 +133,11 @@
     <BottomSheet
       v-model="filtersOpen"
       title="Filters"
-      @clear="tab === 'history' ? (historyFilter = 'all') : tab === 'reviews' ? (reviewDateFilter = 'all') : (filter = 'all')"
+      @clear="clearFilters"
     >
-      <div v-if="tab === 'history'" class="sheet-block">
+      <!-- One section per tab on a phone; every section on desktop, where
+           every half is on screen at once. -->
+      <div v-if="split || tab === 'history'" class="sheet-block">
         <span class="sheet-label">Rated</span>
         <div class="m-chips">
           <button
@@ -130,7 +152,7 @@
           </button>
         </div>
       </div>
-      <div v-else-if="tab === 'reviews'" class="sheet-block">
+      <div v-if="split || tab === 'reviews'" class="sheet-block">
         <span class="sheet-label">Date</span>
         <div class="m-chips">
           <button
@@ -145,7 +167,7 @@
           </button>
         </div>
       </div>
-      <div v-else class="sheet-block">
+      <div v-if="split || tab === 'payments'" class="sheet-block">
         <span class="sheet-label">Status</span>
         <div class="m-chips">
           <button
@@ -204,7 +226,7 @@
     <q-dialog v-model="reviewDetailOpen" position="bottom">
       <q-card v-if="reviewDetailTarget" class="detail-sheet">
         <span class="sheet-grip" aria-hidden="true" />
-        <h3 class="detail-title">A past manager</h3>
+        <h3 class="detail-title">A past landlord/landlady</h3>
         <StarRating :model-value="reviewDetailTarget.rating" :size="20" />
         <p v-if="reviewDetailTarget.comment" class="detail-text">{{ reviewDetailTarget.comment }}</p>
         <p class="detail-sub">{{ formatDate(reviewDetailTarget.createdAt) }}</p>
@@ -281,7 +303,7 @@
         </div>
 
         <div class="review-field">
-          <span class="review-field-label">The manager</span>
+          <span class="review-field-label">The landlord/landlady</span>
           <StarRating v-model="reviewForm.managerRating" interactive :size="26" />
           <textarea v-model="reviewForm.managerComment" class="review-textarea" rows="2" placeholder="How were they to deal with? (optional)" />
         </div>
@@ -294,6 +316,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
+import { useDeskPanels } from '@/utils/useDeskPanels'
 import { useLiveData } from '@/utils/useLiveData'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -351,6 +374,13 @@ const notify = useNotify()
 const loading = ref(true)
 const error = ref('')
 const tab = ref('history')
+// Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
+const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
+// The right half is the payments panel itself; ratings are moved in below them.
+const paymentsCol = ref<HTMLElement | null>(null)
+function setPaymentsCol(el: unknown) {
+  paymentsCol.value = el instanceof HTMLElement ? el : null
+}
 
 const userId = ref('')
 const studentName = ref('')
@@ -484,7 +514,7 @@ async function submitReview() {
     const { error: reviewError } = await supabase.rpc('submit_student_review', {
       p_lease_id: row.leaseId,
       p_accommodation_id: row.accommodationId,
-      p_accommodation_manager_id: row.managerId,
+      p_landlord_id: row.managerId,
       p_acc_rating: reviewForm.accRating,
       p_acc_comment: reviewForm.accComment,
       p_manager_rating: reviewForm.managerRating,
@@ -492,12 +522,12 @@ async function submitReview() {
     })
     if (reviewError) throw reviewError
 
-    // Anonymous both ways: the manager is told a review arrived, not who wrote
+    // Anonymous both ways: the landlord/landlady is told a review arrived, not who wrote
     // it or what they scored — the star count would identify it on their list.
     void createNotification(
       row.managerId,
-      'New review',
-      'A past tenant left a review of their stay.',
+      'New rating',
+      'A past tenant rated their stay.',
       'review',
       '/manager/profile/history',
     )
@@ -507,7 +537,7 @@ async function submitReview() {
     reviewOpen.value = false
     notify.success('Thanks for the feedback!')
   } catch (e) {
-    notify.error(e instanceof Error ? e.message : 'Could not submit your review.')
+    notify.error(e instanceof Error ? e.message : 'Could not submit your rating.')
   } finally {
     submittingReview.value = false
   }
@@ -541,14 +571,14 @@ async function load(silent = false) {
         .order('period_start', { ascending: false }),
       supabase
         .from('leases')
-        .select('id, accommodation_manager_id, rooms(accommodation_id)')
+        .select('id, landlord_id, rooms(accommodation_id)')
         .eq('student_id', user.id)
         .in('status', ['ended', 'terminated']),
       // Which stays this student has already rated. One view instead of two
       // table reads, and it is scoped to the caller by the view itself.
       supabase.from('review_written_leases').select('lease_id').in('kind', ['accommodation', 'manager']),
-      // Reviews managers left about this student — anonymous, so no name join:
-      // the manager's identity is not exposed by the view at all.
+      // Reviews landlords/landladies left about this student — anonymous, so no name join:
+      // the landlord/landlady's identity is not exposed by the view at all.
       supabase
         .from('review_inbox')
         .select('id, rating, comment, created_at')
@@ -569,7 +599,7 @@ async function load(silent = false) {
     for (const l of endedLeases ?? []) {
       const accId = (l.rooms as unknown as { accommodation_id: string } | null)?.accommodation_id
       if (accId && !leaseByAccommodation.has(accId)) {
-        leaseByAccommodation.set(accId, { leaseId: l.id, managerId: l.accommodation_manager_id })
+        leaseByAccommodation.set(accId, { leaseId: l.id, managerId: l.landlord_id })
       }
     }
     const reviewedLeaseIds = new Set((myWrittenReviews ?? []).map((r) => r.lease_id))
@@ -634,6 +664,16 @@ watch(tab, () => {
   historyFilter.value = 'all'
   reviewDateFilter.value = 'all'
 })
+
+// The sheet's Clear: the open tab's filter on a phone, all of them on desktop.
+function clearFilters() {
+  if (split.value || tab.value === 'history') historyFilter.value = 'all'
+  if (split.value || tab.value === 'reviews') reviewDateFilter.value = 'all'
+  if (split.value || tab.value === 'payments') filter.value = 'all'
+}
+const deskFilterCount = computed(() =>
+  [historyFilter.value, reviewDateFilter.value, filter.value].filter((f) => f !== 'all').length,
+)
 
 // Not kept alive and with no realtime watch behind it, so a pull is the only
 // way to see anything that changed since the screen was opened.

@@ -73,9 +73,9 @@ let channel: RealtimeChannel | null = null
 async function refresh() {
   // RLS limits this to live, in-date announcements aimed at this reader, so
   // there is nothing to filter here beyond what has already been dismissed —
-  // except the reader's own notices. A manager can read the announcements they
+  // except the reader's own notices. A landlord/landlady can read the announcements they
   // sent to their own house (they have to, to see their own list), and without
-  // this the banner announced a manager's notice back at them the moment they
+  // this the banner announced a landlord/landlady's notice back at them the moment they
   // pressed Send. The database fan-out has always skipped the author; only this
   // banner did not.
   let query = supabase

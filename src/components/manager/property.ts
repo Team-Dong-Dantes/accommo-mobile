@@ -1,5 +1,5 @@
 /**
- * One accommodation as the manager's screens summarise it. The dashboard and
+ * One accommodation as the landlord/landlady's screens summarise it. The dashboard and
  * the properties page both built this shape (and the same health rule) from
  * their own queries, then rendered it with two copies of the same card.
  */

@@ -23,7 +23,7 @@ export const POLICY_FULL =
 /** Just the commercial terms — what a room costs to take. */
 export const POLICY_TERMS = 'advance_months,deposit_months,min_stay,contract_type'
 
-/** The manager's own editor, which reads the rules but sets terms per room. */
+/** The landlord/landlady's own editor, which reads the rules but sets terms per room. */
 export const POLICY_RULES = 'min_stay,curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets'
 
 /** A room as it appears on a card or in a list. */
@@ -38,6 +38,6 @@ export const ROOM_DETAIL =
  *  under RLS policies that deliberately expose only a narrow public profile. */
 export const USER_BRIEF = 'id,full_name,initials,avatar_color,avatar_url'
 
-/** A lease as the student's My Stay and the manager's tenant list read it. */
+/** A lease as the student's My Stay and the landlord/landlady's tenant list read it. */
 export const LEASE_CORE =
-  'id,room_id,status,start_date,end_date,monthly_rent,advance_paid,deposit_paid,accommodation_manager_id'
+  'id,room_id,status,start_date,end_date,monthly_rent,advance_paid,deposit_paid,landlord_id'

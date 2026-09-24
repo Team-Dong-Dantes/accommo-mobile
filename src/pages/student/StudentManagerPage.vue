@@ -10,7 +10,7 @@
     </div>
 
     <div v-else-if="error" class="stack">
-      <ErrorCard title="Couldn't load this manager" :detail="error" :retry="load" />
+      <ErrorCard title="Couldn't load this landlord/landlady" :detail="error" :retry="load" />
     </div>
 
     <div v-else class="stack">
@@ -20,7 +20,7 @@
           <template v-else>{{ manager.initials }}</template>
         </span>
         <span class="head-name">{{ manager.name }}</span>
-        <span class="head-sub">Accommodation manager</span>
+        <span class="head-sub">Landlord/Landlady</span>
         <span v-if="manager.verified" class="badge">
           <IconifyIcon icon="lucide:shield-check" width="11" />ID Verified
         </span>
@@ -62,7 +62,7 @@
           variant="compact"
           icon="lucide:building-2"
           title="No accredited properties yet"
-          message="This manager hasn't published any accommodations."
+          message="This landlord/landlady hasn't published any accommodations."
         />
       </section>
 
@@ -139,27 +139,27 @@ async function load(silent = false) {
         .from('users')
         .select('id,full_name,initials,avatar_color,avatar_url,created_at,status')
         .eq('id', id.value)
-        .eq('role', 'accommodation_manager')
+        .eq('role', 'landlord')
         .maybeSingle(),
       supabase
-        .from('accommodation_manager_profiles')
+        .from('landlord_profiles')
         .select('avg_response_minutes,response_rate')
         .eq('user_id', id.value)
         .maybeSingle(),
       supabase
         .from('accommodations')
         .select('id,name,address,city,barangay,lat,lng,accommodation_images(url,sort_order),rooms(status)')
-        .eq('accommodation_manager_id', id.value)
-        .eq('status', 'accredited'),
+        .eq('landlord_id', id.value)
+        .eq('status', 'accredited').eq('hidden_from_listings', false),
     ])
 
     if (!person) {
-      error.value = 'This manager could not be found.'
+      error.value = 'This landlord/landlady could not be found.'
       return
     }
     if (propsError) throw propsError
 
-    manager.name = person.full_name?.trim() || 'Accommodation manager'
+    manager.name = person.full_name?.trim() || 'Landlord/Landlady'
     manager.initials = person.initials || initialsOf(manager.name)
     manager.avatarColor = person.avatar_color
     manager.avatarUrl = person.avatar_url ? resolveAsset(person.avatar_url) : null
@@ -193,16 +193,16 @@ async function load(silent = false) {
   }
 }
 
-// Kept alive per manager id (see MainLayout's KEEP_ALIVE_PAGES + the
+// Kept alive per landlord/landlady id (see MainLayout's KEEP_ALIVE_PAGES + the
 // route.fullPath key), so new and updated listings push here instead of the
 // page re-asking on return. utils/useLiveData.ts owns the whole policy — the
-// key folds in the id so each manager gets its own freshness clock.
+// key folds in the id so each landlord/landlady gets its own freshness clock.
 useLiveData({
   key: () => `student-manager:${id.value}`,
   load,
   watch: () =>
     id.value
-      ? [{ table: 'accommodations', filter: `accommodation_manager_id=eq.${id.value}` }]
+      ? [{ table: 'accommodations', filter: `landlord_id=eq.${id.value}` }]
       : [],
   cache: { get: () => properties.value, set: (d) => { properties.value = d as Property[]; loading.value = false } },
 })

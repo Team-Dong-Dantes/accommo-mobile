@@ -1,6 +1,28 @@
 <template>
-  <q-page class="tprof">
-    <div v-if="loading" class="stack">
+  <q-page class="tprof" :class="{ 'page-wide': split }">
+    <!-- Desktop placeholder in the card's own shape, so the first open does not
+         show the phone layout and then snap into two halves. -->
+    <div v-if="loading && split" class="stack">
+      <div class="desk-card">
+        <div class="desk-col">
+          <div class="hero" />
+          <div class="body-card">
+            <div class="head">
+              <q-skeleton type="circle" size="84px" style="margin-top: -42px; margin-bottom: 4px;" />
+              <q-skeleton type="text" width="130px" height="17px" />
+              <q-skeleton type="text" width="160px" height="12px" />
+            </div>
+          </div>
+          <q-skeleton type="rect" height="90px" class="sk" style="margin-top: 14px;" />
+        </div>
+        <div class="desk-col">
+          <q-skeleton type="rect" height="120px" class="sk" />
+          <q-skeleton type="rect" height="70px" class="sk" />
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="loading" class="stack">
       <div class="hero"><q-skeleton type="rect" height="170px" square /></div>
       <div class="body-card">
         <div class="head">
@@ -23,10 +45,19 @@
     </div>
 
     <div v-else class="stack">
-      <div class="tabbed">
+      <!-- Desktop: two columns that scroll on their own — the profile and its
+           overview on the left, payments and history on the right. On a phone
+           .col-left is display: contents and nothing here changes. -->
+      <div :class="split ? 'desk-card' : 'tabbed'">
+        <div :class="split ? 'desk-col' : 'col-left'">
         <div class="hero">
           <img v-if="coverUrl" :src="coverUrl" alt="" class="hero-img" />
           <div class="hero-scrim" />
+          <!-- Desktop only: the app header stays the plain one here (MainLayout),
+               so the way back to the tenants list lives on the card itself. -->
+          <button v-if="split" type="button" class="hero-msg hero-back" aria-label="Back to tenants" @click="router.push('/manager/tenants')">
+            <IconifyIcon icon="lucide:arrow-left" width="16" />
+          </button>
           <button type="button" class="hero-msg" aria-label="Message tenant" @click="router.push(`/manager/messages?to=${lease.studentId}`)">
             <IconifyIcon icon="lucide:message-circle" width="16" />
           </button>
@@ -46,7 +77,7 @@
           </div>
         </div>
 
-        <div class="tabs">
+        <div v-if="!split" class="tabs">
           <button
             v-for="t in TABS"
             :key="t.key"
@@ -60,8 +91,10 @@
         </div>
 
         <div class="panel">
-          <q-tab-panels v-model="tab" animated swipeable class="m-panels">
-            <q-tab-panel name="overview" class="sec">
+          <!-- Plain divs on desktop, swipeable QTabPanels elsewhere; the same
+               markup either way. -->
+          <component :is="panelsIs" v-bind="panelsProps" class="m-panels">
+            <component :is="panelIs" name="overview" class="sec">
             <!-- Decisions -->
             <div v-if="lease.status === 'pending'" class="decide-box">
               <div v-if="decisionReasonFor === 'reject'" class="decide-reason">
@@ -158,9 +191,14 @@
                 </div>
               </div>
             </template>
-          </q-tab-panel>
+          </component>
 
-          <q-tab-panel name="payments" class="sec">
+          <!-- Payments and history move into the right column on desktop. The
+               Teleport sits inside the panel, not around it, so QTabPanels still
+               finds a panel named "payments" among its children on a phone. -->
+          <component :is="panelIs" name="payments" class="sec" :class="{ 'sec--moved': split }">
+            <Teleport :to="rightCol" :disabled="!split || !rightCol">
+            <div class="sec-body">
             <div class="sec-head">
               <h2 class="sec-title">Payments</h2>
               <button v-if="payments.length > 3" type="button" class="sec-link" @click="paymentsExpanded = !paymentsExpanded">
@@ -193,9 +231,13 @@
               title="No payments yet"
               message="Log a payment for this tenant from the tenants list to start their history."
             />
-          </q-tab-panel>
+            </div>
+            </Teleport>
+          </component>
 
-          <q-tab-panel name="history" class="sec">
+          <component :is="panelIs" name="history" class="sec" :class="{ 'sec--moved': split }">
+            <Teleport :to="rightCol" :disabled="!split || !rightCol">
+            <div class="sec-body">
             <h2 class="sec-title">Boarding history</h2>
             <div v-if="history.length" class="group">
               <div v-for="h in history" :key="h.id" class="rule">
@@ -204,9 +246,14 @@
               </div>
             </div>
             <p v-else class="none">No prior stays on record.</p>
-          </q-tab-panel>
-          </q-tab-panels>
+            </div>
+            </Teleport>
+          </component>
+          </component>
         </div>
+        </div>
+
+        <div v-if="split" ref="rightCol" class="desk-col col-right" />
       </div>
     </div>
 
@@ -321,6 +368,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
@@ -348,6 +396,10 @@ const loading = ref(true)
 const error = ref('')
 const deciding = ref(false)
 const tab = ref<(typeof TABS)[number]['key']>('overview')
+
+// Desktop lays the tabs out as the two halves of a card instead (useDeskPanels).
+const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
+const rightCol = ref<HTMLElement | null>(null)
 
 const lease = reactive({
   status: '',
@@ -470,7 +522,7 @@ async function load(silent = false) {
     }))
 
     if (data.status === 'ended' || data.status === 'terminated') {
-      // The review this manager wrote, read back through the "written by me"
+      // The review this landlord/landlady wrote, read back through the "written by me"
       // view. `unique (lease_id)` now guarantees at most one row, which is what
       // maybeSingle() always assumed — a second row used to make it throw.
       const { data: reviewRow } = await supabase
@@ -678,27 +730,27 @@ async function submitTenantReview() {
     const { error: insertError } = await supabase.from('tenant_reviews').insert({
       lease_id: leaseId.value,
       student_id: lease.studentId,
-      accommodation_manager_id: managerId,
+      landlord_id: managerId,
       rating: reviewForm.rating,
       comment: reviewForm.comment.trim() || null,
     })
     if (insertError) throw insertError
 
     // The student is told they were reviewed, but never by whom — reviews are
-    // anonymous in both directions, so no manager or accommodation name here.
+    // anonymous in both directions, so no landlord/landlady or accommodation name here.
     void createNotification(
       lease.studentId,
-      'You received a review',
-      'A manager left a review after one of your past stays.',
+      'You received a rating',
+      'A landlord/landlady rated you after one of your past stays.',
       'review',
       '/student/profile/history',
     )
 
     tenantReview.value = { rating: reviewForm.rating, comment: reviewForm.comment.trim() }
     reviewOpen.value = false
-    notify.success('Review submitted.')
+    notify.success('Rating submitted.')
   } catch (e) {
-    notify.error(errorMessage(e, 'Could not submit your review.'))
+    notify.error(errorMessage(e, 'Could not submit your rating.'))
   } finally {
     submittingReview.value = false
   }
@@ -791,6 +843,11 @@ useLiveData({
   color: #fff;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+.hero-back {
+  right: auto;
+  left: var(--m-page-gutter);
 }
 
 /* Profile info only — the avatar pulls up into the hero via a negative
@@ -990,6 +1047,47 @@ useLiveData({
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* ---- Desktop: two columns ----
+   Off the desktop these wrappers are transparent: .col-left and .sec-body are
+   display: contents, so the phone layout is exactly the tabbed one it was. */
+.col-left,
+.sec-body {
+  display: contents;
+}
+/* Desktop: the card (.desk-card / .desk-col, app.scss) — the same card as the
+   Tenants page, so opening a tenant reads as that card changing its contents. */
+/* The cover runs to the half's edges; the card's own rounding clips its corner. */
+.desk-card .hero {
+  margin: -14px -18px 0;
+}
+/* The avatar card's gap below the cover is its own; the column's gap would add
+   to it. */
+.desk-card .desk-col:first-child {
+  gap: 0;
+}
+/* Inside the half, the overview is just content — not a second card. */
+.desk-card .panel {
+  flex: none;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.desk-card .col-right {
+  gap: 22px;
+}
+.col-right .sec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The emptied tab shells left behind in the left column once their content has
+   moved right. */
+.sec--moved {
+  display: none;
 }
 .sec-head {
   display: flex;

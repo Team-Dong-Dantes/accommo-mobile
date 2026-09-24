@@ -149,7 +149,7 @@
             <span class="mgr-body">
               <span class="mgr-name">{{ manager.name }}</span>
               <span class="mgr-sub">
-                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Accommodation manager' }}
+                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Landlord/Landlady' }}
               </span>
             </span>
             <IconifyIcon icon="lucide:chevron-right" width="16" class="mgr-chevron" />
@@ -251,10 +251,10 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        `id,name,address,city,barangay,description,accommodation_type,gender_policy,lat,lng,accommodation_manager_id,total_floors,total_rooms,capacity,rooms(${ROOM_CARD},room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(${POLICY_FULL})`,
+        `id,name,address,city,barangay,description,accommodation_type,gender_policy,lat,lng,landlord_id,total_floors,total_rooms,capacity,rooms(${ROOM_CARD},room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(${POLICY_FULL})`,
       )
       .eq('id', id.value)
-      .eq('status', 'accredited')
+      .eq('status', 'accredited').eq('hidden_from_listings', false)
       .maybeSingle()
     if (loadError) throw loadError
     if (!data) {
@@ -355,21 +355,21 @@ async function load() {
       rules.value = built.filter((r) => r.value)
     }
 
-    if (data.accommodation_manager_id) {
+    if (data.landlord_id) {
       const [{ data: person }, { data: profile }] = await Promise.all([
         supabase
           .from('users')
           .select('full_name,initials,avatar_url')
-          .eq('id', data.accommodation_manager_id)
+          .eq('id', data.landlord_id)
           .maybeSingle(),
         supabase
-          .from('accommodation_manager_profiles')
+          .from('landlord_profiles')
           .select('avg_response_minutes')
-          .eq('user_id', data.accommodation_manager_id)
+          .eq('user_id', data.landlord_id)
           .maybeSingle(),
       ])
-      manager.id = data.accommodation_manager_id
-      manager.name = person?.full_name || 'Accommodation manager'
+      manager.id = data.landlord_id
+      manager.name = person?.full_name || 'Landlord/Landlady'
       manager.initials = person?.initials || initialsOf(manager.name)
       manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null
       manager.replyMinutes = profile?.avg_response_minutes ?? null
@@ -814,7 +814,7 @@ onMounted(load)
   font-weight: 600;
 }
 
-/* Manager — the one other tappable, contact-card-like row besides Rooms */
+/* Landlord/landlady — the one other tappable, contact-card-like row besides Rooms */
 .mgr {
   display: flex;
   width: 100%;

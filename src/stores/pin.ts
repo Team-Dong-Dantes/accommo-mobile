@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { supabase } from '@/utils/supabase'
 
 /**
- * How long one correct entry keeps the app unlocked. A manager verifying six
+ * How long one correct entry keeps the app unlocked. A landlord/landlady verifying six
  * payments should not type the PIN six times; five minutes is long enough to
  * finish a task and short enough that a phone left on a table re-locks.
  */

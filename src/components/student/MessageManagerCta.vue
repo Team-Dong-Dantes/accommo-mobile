@@ -23,7 +23,7 @@ const props = withDefaults(
 
 const router = useRouter()
 
-const label = computed(() => props.label ?? (props.mode === 'message' ? 'Message Manager' : 'View Manager'))
+const label = computed(() => props.label ?? (props.mode === 'message' ? 'Message Landlord/Landlady' : 'View Landlord/Landlady'))
 const icon = computed(() => (props.mode === 'message' ? 'lucide:message-circle' : 'lucide:user-round'))
 
 function go() {

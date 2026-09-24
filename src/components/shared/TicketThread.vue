@@ -216,7 +216,7 @@ async function send() {
     if (!user) throw new Error('Not signed in.')
 
     // author_role is constrained to 'student' | 'agent'; every reporter side —
-    // student or accommodation manager — files under 'student'.
+    // student or landlord/landlady — files under 'student'.
     const { error } = await supabase.from('ticket_messages').insert({
       ticket_id: props.ticket.id,
       author_id: user.id,

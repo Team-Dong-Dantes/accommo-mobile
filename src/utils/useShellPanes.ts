@@ -1,6 +1,7 @@
 import { computed, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { ShellConfig } from '@/types/app-types'
+import { isDesktop } from '@/utils/useTabletMode'
 
 /**
  * Which list belongs beside the screen you are on, in tablet mode.
@@ -22,7 +23,10 @@ import type { ShellConfig } from '@/types/app-types'
  * page splits itself (see `.page-split` in app.scss) and would otherwise end up
  * rendered whole inside the narrow left pane, thread and all.
  */
-const PANE_LISTS: readonly string[] = [
+/** Lists whose records take the whole desktop card instead of a pane. */
+export const OWN_CARD_LISTS: readonly string[] = ['/manager/tenants', '/manager/properties']
+
+export const PANE_LISTS: readonly string[] = [
   '/manager/tenants',
   '/manager/properties',
   '/manager/notifications',
@@ -75,11 +79,15 @@ export function useShellPanes(
     if (!isTablet()) return { mode: 'single' }
 
     const here = route.path
+    // Desktop gives these lists and their records the whole stage each: the
+    // record splits into two halves of its own (TenantProfile,
+    // AccommodationDetail), so the list is not a pane beside it there.
+    const lists = isDesktop.value ? PANE_LISTS.filter((p) => !OWN_CARD_LISTS.includes(p)) : PANE_LISTS
 
     // Already on the list itself: it takes the left pane and the right pane
     // waits. Landing on a list in tablet mode should not look different from
     // landing on it and then going back — same two panes, one of them empty.
-    if (PANE_LISTS.includes(here)) {
+    if (lists.includes(here)) {
       const c = componentFor(here)
       return c
         ? { mode: 'split', listPath: here, listComponent: c, hint: EMPTY_HINT[here] ?? '', detailOpen: false }
@@ -90,7 +98,7 @@ export function useShellPanes(
       typeof e.path === 'string' ? e.path === here : e.path.test(here),
     )
     const listPath = entry?.back
-    if (!listPath || !PANE_LISTS.includes(listPath)) return { mode: 'single' }
+    if (!listPath || !lists.includes(listPath)) return { mode: 'single' }
 
     const c = componentFor(listPath)
     if (!c) return { mode: 'single' }

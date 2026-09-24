@@ -1,6 +1,6 @@
 {
   "name": "accommo-mobile",
-  "version": "1.57.0",
+  "version": "1.63.0",
   "description": "Accommo Mobile",
   "productName": "Accommo Mobile",
   "type": "module",
@@ -53,6 +53,7 @@
     "postcss": "^8.5.8",
     "typescript": "^6.0.0",
     "typescript-eslint": "^8.70.0",
+    "vite-plugin-vue-devtools": "^8.2.1",
     "vitest": "^4.1.11",
     "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.3.3"

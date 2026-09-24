@@ -1,5 +1,5 @@
 <template>
-  <q-page class="prof">
+  <q-page class="prof" :class="{ 'page-wide': isDesktop }">
     <!-- Loading -->
     <div v-if="loading" class="stack">
       <div class="sk-card">
@@ -32,7 +32,10 @@
     </div>
 
     <!-- Profile Content -->
-    <div v-else class="stack">
+    <!-- Desktop: the two halves of a card — the hero on the left, every detail
+         on the right. Elsewhere the .desk-pass wrappers are display: contents. -->
+    <div v-else :class="isDesktop ? 'desk-card' : 'stack'">
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <!-- Hero Header -->
       <ProfileHero
         v-model:avatar-url="avatarUrl"
@@ -58,9 +61,11 @@
           <IconifyIcon v-if="stay" icon="lucide:chevron-right" width="16" class="stay-chevron" />
         </component>
       </ProfileHero>
+      </div>
 
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <!-- Profile -->
-      <ProfileCard>
+      <ProfileCard :open="isDesktop">
         <template #always>
           <ProfileBlock icon="lucide:user" title="Your details">
             <template #actions>
@@ -118,7 +123,7 @@
                 <span class="doc-tag" :class="`doc-tag--${doc.tone}`">{{ doc.statusLabel }}</span>
               </div>
             </div>
-            <EmptyState v-else variant="compact" icon="lucide:file-text" title="No documents yet" message="Documents you submit to OSAS show up here." />
+            <EmptyState v-else variant="compact" icon="lucide:file-text" title="No requirements yet" message="Requirements you submit to OSAS show up here." />
             <button class="row-link" @click="go('/student/support')">
               <IconifyIcon icon="lucide:arrow-right" width="16" />
               <span>Open OSAS verification</span>
@@ -146,6 +151,7 @@
           {{ saving ? 'Saving…' : 'Save changes' }}
         </button>
       </div>
+      </div>
     </div>
   </q-page>
 </template>
@@ -154,6 +160,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import { isDesktop } from '@/utils/useTabletMode'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { initialsOf, isPhMobile, normalizePhPhone } from '@/utils/format'
@@ -242,8 +249,8 @@ const documents = ref<DocRow[]>([])
 
 const status = computed(() => statusPresentation(me.status))
 const stayStatusNote = computed(() => {
-  if (stay.value?.status === 'pending') return 'Application pending — awaiting manager decision'
-  if (stay.value?.status === 'leave_requested') return 'Leave requested — awaiting manager decision'
+  if (stay.value?.status === 'pending') return 'Application pending — awaiting landlord/landlady decision'
+  if (stay.value?.status === 'leave_requested') return 'Leave requested — awaiting landlord/landlady decision'
   return ''
 })
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
@@ -444,7 +451,7 @@ async function load(silent = false) {
       } | null
       stay.value = {
         leaseId: leaseRow.id,
-        managerId: leaseRow.accommodation_manager_id,
+        managerId: leaseRow.landlord_id,
         accommodationName: room?.accommodations?.name || 'Your accommodation',
         roomNumber: room?.room_number ?? null,
         status: leaseRow.status as Stay['status'],
@@ -490,6 +497,12 @@ useLiveData({
 .prof {
   background: var(--m-bg);
   padding-bottom: 20px;
+}
+/* Desktop: the card fills the page below a gutter, like every halves page. */
+.prof.page-wide {
+  display: flex;
+  flex-direction: column;
+  padding: 8px var(--m-page-gutter) 0;
 }
 .stack {
   display: flex;

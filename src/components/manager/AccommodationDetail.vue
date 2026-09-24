@@ -1,5 +1,5 @@
 <template>
-  <q-page class="ad">
+  <q-page class="ad" :class="{ 'page-wide': split }">
     <div v-if="loading" class="stack">
       <q-skeleton type="rect" height="220px" square />
       <div class="tabs">
@@ -15,7 +15,11 @@
     </div>
 
     <div v-else class="stack">
-      <div class="tabbed">
+      <!-- Desktop: the two halves of a card — the photo, overview and settings
+           on the left, rooms on the right, each scrolling on its own. On a phone
+           .col-left is display: contents and nothing here changes. -->
+      <div :class="split ? 'desk-card' : 'tabbed'">
+        <div :class="split ? 'desk-col' : 'col-left'">
         <div class="hero">
           <div class="hero-media" :class="{ 'hero-media--empty': !coverUrl }">
             <img v-if="coverUrl" :src="coverUrl" alt="" class="hero-img" />
@@ -25,6 +29,11 @@
             </span>
             <div class="hero-scrim" />
           </div>
+          <!-- Desktop keeps the plain app header, so the way back to My
+               Properties lives on the card itself. -->
+          <button v-if="split" type="button" class="hero-edit hero-back" aria-label="Back to my properties" @click="router.push('/manager/properties')">
+            <IconifyIcon icon="lucide:arrow-left" width="16" />
+          </button>
           <button type="button" class="hero-edit" aria-label="Manage property photos" @click="coverSheetOpen = true">
             <IconifyIcon icon="lucide:camera" width="16" />
           </button>
@@ -34,7 +43,7 @@
           </div>
         </div>
 
-        <div class="tabs">
+        <div v-if="!split" class="tabs">
           <button
             v-for="t in TABS"
             :key="t.key"
@@ -48,9 +57,9 @@
         </div>
 
         <div class="panel">
-        <q-tab-panels v-model="tab" animated swipeable class="m-panels">
+        <component :is="panelsIs" v-bind="panelsProps" class="m-panels">
         <!-- OVERVIEW -->
-        <q-tab-panel name="overview" class="sec">
+        <component :is="panelIs" name="overview" class="sec">
           <div class="group">
             <div class="quick-stats">
               <div class="stat-block">
@@ -141,10 +150,14 @@
             </p>
           </div>
           <p v-else class="none">Location not set yet.</p>
-        </q-tab-panel>
+        </component>
 
-        <!-- ROOMS & FACILITIES, both floor-accurate -->
-        <q-tab-panel name="rooms" class="sec">
+        <!-- ROOMS & FACILITIES, both floor-accurate. On desktop the content
+             moves to the right half; the Teleport sits inside the panel so
+             QTabPanels still finds a panel named "rooms" on a phone. -->
+        <component :is="panelIs" name="rooms" class="sec" :class="{ 'sec--moved': split }">
+          <Teleport :to="rightCol" :disabled="!split || !rightCol">
+          <div class="sec-body">
           <p v-if="!canAddInventory" class="sec-hint">This accommodation is delisted — reactivate it to add rooms, facilities, or floors.</p>
           <template v-if="roomsByFloor.length">
             <div v-for="grp in roomsByFloor" :key="grp.floor ?? 'none'" class="floor-group">
@@ -191,8 +204,7 @@
                   <span class="room-body">
                     <span class="room-name">{{ f.label || FACILITY_META[f.facilityType]?.label || f.facilityType }}</span>
                     <span v-if="uploadingFacilityId === f.id" class="room-sub">Uploading…</span>
-                    <span v-else-if="f.description" class="room-sub">{{ f.description }}</span>
-                    <span v-else class="room-sub">{{ f.images.length ? `${f.images.length} photo${f.images.length === 1 ? '' : 's'}` : 'Shared facility' }}</span>
+                    <span v-else class="room-sub">{{ sharedFacilitySub(f) }}</span>
                   </span>
                 </button>
               </div>
@@ -219,10 +231,12 @@
               <q-btn unelevated rounded no-caps color="primary" label="Add floor" :loading="addingFloor" :disable="!canAddInventory" @click="addFloor" />
             </template>
           </EmptyState>
-        </q-tab-panel>
+          </div>
+          </Teleport>
+        </component>
 
         <!-- SETTINGS -->
-        <q-tab-panel name="settings" class="sec">
+        <component :is="panelIs" name="settings" class="sec">
           <h2 class="sec-title">House rules</h2>
           <div class="view-group">
             <button type="button" class="view-row view-row--tap" @click="openFieldDialog('curfewTime')">
@@ -300,9 +314,12 @@
               </button>
             </div>
           </template>
-        </q-tab-panel>
-        </q-tab-panels>
+        </component>
+        </component>
         </div>
+        </div>
+
+        <div v-if="split" ref="rightCol" class="desk-col col-right" />
       </div>
     </div>
 
@@ -766,7 +783,7 @@
     <ConfirmDeleteSheet
       v-model="confirmDeleteAccommodationOpen"
       title="Delete this accommodation?"
-      body="This permanently deletes it, along with its rooms, facilities, photos, and documents. This can't be undone."
+      body="This permanently deletes it, along with its rooms, facilities, photos, and permits. This can't be undone."
       confirm-label="Delete accommodation"
       :busy="deletingAccommodation"
       @confirm="deleteAccommodation"
@@ -845,12 +862,22 @@
                 <span class="view-label">Description</span>
                 <span class="view-value">{{ facilityForm.description || '—' }}</span>
               </div>
+              <template v-if="facilityScope === 'shared'">
+                <div class="view-row">
+                  <span class="view-label">Status</span>
+                  <span class="view-value">{{ FACILITY_STATUS_LABEL[facilityForm.status] }}</span>
+                </div>
+                <div class="view-row">
+                  <span class="view-label">Shared by</span>
+                  <span class="view-value">{{ roomNames(facilityForm.roomIds) || '—' }}</span>
+                </div>
+              </template>
             </div>
             <template v-else>
               <label class="field">
                 <span class="field-label">Type</span>
                 <select v-model="facilityForm.facilityType" class="field-input app-select">
-                  <option v-for="(meta, key) in FACILITY_META" :key="key" :value="key">{{ meta.label }}</option>
+                  <option v-for="(meta, key) in facilityTypeOptions" :key="key" :value="key">{{ meta.label }}</option>
                 </select>
               </label>
               <label class="field">
@@ -861,6 +888,19 @@
                 <span class="field-label">Description (optional)</span>
                 <input v-model="facilityForm.description" type="text" class="field-input" />
               </label>
+              <template v-if="facilityScope === 'shared'">
+                <label class="field">
+                  <span class="field-label">Status</span>
+                  <select v-model="facilityForm.status" class="field-input app-select">
+                    <option v-for="(label, key) in FACILITY_STATUS_LABEL" :key="key" :value="key">{{ label }}</option>
+                  </select>
+                </label>
+                <div class="field">
+                  <span class="field-label">Shared by</span>
+                  <q-option-group v-if="rooms.length" v-model="facilityForm.roomIds" :options="roomOptions" type="checkbox" color="primary" dense />
+                  <p v-else class="none">Add rooms first, then pick which ones share this facility.</p>
+                </div>
+              </template>
             </template>
           </template>
 
@@ -943,6 +983,7 @@ import { reactive, ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
+import { useDeskPanels } from '@/utils/useDeskPanels'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso, to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { since } from '@/utils/notifications'
@@ -951,7 +992,7 @@ import { requirePin } from '@/utils/requirePin'
 import { uploadDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset, isPdf, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, AMENITY_KEYS, FACILITY_META, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL, roomTypeLabel } from '@/utils/listings'
+import { AMENITY_META, AMENITY_KEYS, FACILITY_META, PRIVATE_ONLY_FACILITY_TYPES, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL, roomTypeLabel } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import type { Database } from '@/types/database.gen'
@@ -1037,6 +1078,8 @@ interface Img {
   id: string
   url: string
 }
+type FacilityStatus = 'available' | 'under_repair'
+
 interface Facility {
   id: string
   facilityType: string
@@ -1044,6 +1087,9 @@ interface Facility {
   description: string
   roomId: string | null
   floor: number | null
+  status: FacilityStatus
+  /** Rooms that share it; only a shared facility has any. */
+  roomIds: string[]
   images: Img[]
 }
 
@@ -1056,6 +1102,9 @@ const id = String(route.params.id || '')
 const loading = ref(true)
 const error = ref('')
 const tab = ref<(typeof TABS)[number]['key']>('overview')
+// Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
+const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
+const rightCol = ref<HTMLElement | null>(null)
 const savingAmenities = ref(false)
 const delisting = ref(false)
 const amenitiesDialogOpen = ref(false)
@@ -1103,7 +1152,7 @@ const coverUrl = computed(() => (images.value[0]?.url ? resolveAsset(images.valu
 const occupiedRoomIds = ref<string[]>([])
 const occupiedRoomCount = computed(() => occupiedRoomIds.value.length)
 const vacantRoomCount = computed(() => Math.max(rooms.value.length - occupiedRoomCount.value, 0))
-// Delisted accommodations are hidden from students — don't let managers keep
+// Delisted accommodations are hidden from students — don't let landlords/landladies keep
 // building out inventory (rooms, facilities, floors) behind a dead listing.
 const canAddInventory = computed(() => acc.status !== 'delisted')
 const distance = computed(() => campusDistanceLabel(acc.lat, acc.lng))
@@ -1149,7 +1198,40 @@ const facilityForm = reactive({
   facilityType: 'bathroom',
   label: '',
   description: '',
+  status: 'available' as FacilityStatus,
+  roomIds: [] as string[],
 })
+
+// Air-con and the like belong to a room; the shared picker leaves them out.
+const facilityTypeOptions = computed(() =>
+  facilityScope.value === 'shared'
+    ? Object.fromEntries(Object.entries(FACILITY_META).filter(([k]) => !PRIVATE_ONLY_FACILITY_TYPES.includes(k)))
+    : FACILITY_META,
+)
+const FACILITY_STATUS_LABEL: Record<FacilityStatus, string> = { available: 'Available', under_repair: 'Under repair' }
+const roomTitle = (r: Room) => (r.roomNumber ? `Room ${r.roomNumber}` : 'Room')
+const roomOptions = computed(() => rooms.value.map((r) => ({ label: roomTitle(r), value: r.id })))
+// Filtered through the live room list, so a deleted room drops out.
+const roomNames = (ids: string[]) => rooms.value.filter((r) => ids.includes(r.id)).map(roomTitle).join(', ')
+function sharedFacilitySub(f: Facility): string {
+  const n = rooms.value.filter((r) => f.roomIds.includes(r.id)).length
+  const shared = n ? `Shared by ${n} room${n === 1 ? '' : 's'}` : 'Shared facility'
+  return f.status === 'under_repair' ? `${shared} · Under repair` : shared
+}
+
+/** Replaces a facility's room links with `after`, touching only what changed. */
+async function syncFacilityRooms(facilityId: string, before: string[], after: string[]) {
+  const removed = before.filter((r) => !after.includes(r))
+  const added = after.filter((r) => !before.includes(r))
+  if (removed.length) {
+    const { error: e } = await supabase.from('accommodation_facility_rooms').delete().eq('facility_id', facilityId).in('room_id', removed)
+    if (e) throw e
+  }
+  if (added.length) {
+    const { error: e } = await supabase.from('accommodation_facility_rooms').insert(added.map((room_id) => ({ facility_id: facilityId, room_id })))
+    if (e) throw e
+  }
+}
 const activeFacilityImages = computed(() => facilities.value.find((f) => f.id === activeFacilityId.value)?.images ?? [])
 
 const addChoiceOpen = ref(false)
@@ -1178,6 +1260,8 @@ function openFacilityAddDialog(scope: 'shared' | 'private', roomId: string, floo
   facilityForm.facilityType = 'bathroom'
   facilityForm.label = ''
   facilityForm.description = ''
+  facilityForm.status = 'available'
+  facilityForm.roomIds = []
   facilityOpen.value = true
 }
 
@@ -1191,6 +1275,8 @@ function openFacilityDetails(f: Facility) {
   facilityForm.facilityType = f.facilityType
   facilityForm.label = f.label
   facilityForm.description = f.description
+  facilityForm.status = f.status
+  facilityForm.roomIds = [...f.roomIds]
   facilityOpen.value = true
 }
 
@@ -1202,6 +1288,7 @@ async function saveFacilityEdits() {
       facility_type: facilityForm.facilityType,
       label: facilityForm.label.trim() || null,
       description: facilityForm.description.trim() || null,
+      status: facilityForm.status,
     }
     const { error: updateError } = await supabase
       .from('accommodation_facilities')
@@ -1209,7 +1296,8 @@ async function saveFacilityEdits() {
       .eq('id', activeFacilityId.value)
     if (updateError) throw updateError
     const row = facilities.value.find((f) => f.id === activeFacilityId.value)
-    if (row) Object.assign(row, { facilityType: payload.facility_type, label: payload.label || '', description: payload.description || '' })
+    if (row && !row.roomId) await syncFacilityRooms(row.id, row.roomIds, facilityForm.roomIds)
+    if (row) Object.assign(row, { facilityType: payload.facility_type, label: payload.label || '', description: payload.description || '', status: payload.status, roomIds: row.roomId ? [] : [...facilityForm.roomIds] })
     facilityOpen.value = false
     notify.success('Facility saved.')
   } catch (e) {
@@ -1246,6 +1334,7 @@ async function confirmFacilityBasics() {
       description: facilityForm.description.trim() || null,
       room_id: facilityScope.value === 'private' ? facilityRoomId.value : null,
       floor: facilityScope.value === 'shared' ? facilityFloor.value : null,
+      status: facilityForm.status,
     }
     const { data: created, error: insertError } = await supabase
       .from('accommodation_facilities')
@@ -1253,6 +1342,8 @@ async function confirmFacilityBasics() {
       .select('id')
       .single()
     if (insertError) throw insertError
+    const roomIds = facilityScope.value === 'shared' ? [...facilityForm.roomIds] : []
+    await syncFacilityRooms(created.id, [], roomIds)
     facilities.value.push({
       id: created.id,
       facilityType: payload.facility_type,
@@ -1260,6 +1351,8 @@ async function confirmFacilityBasics() {
       description: payload.description || '',
       roomId: payload.room_id,
       floor: payload.floor,
+      status: payload.status,
+      roomIds,
       images: [],
     })
     activeFacilityId.value = created.id
@@ -1367,7 +1460,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        `name,accommodation_type,gender_policy,address,barangay,city,total_floors,description,status,lat,lng,accommodation_amenities(amenity),accommodation_policies(${POLICY_RULES}),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(id,url,sort_order))`,
+        `name,accommodation_type,gender_policy,address,barangay,city,total_floors,description,status,lat,lng,accommodation_amenities(amenity),accommodation_policies(${POLICY_RULES}),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,status,accommodation_facility_rooms(room_id),accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(id,url,sort_order))`,
       )
       .eq('id', id)
       .maybeSingle()
@@ -1425,6 +1518,8 @@ async function load() {
       description: string | null
       room_id: string | null
       floor: number | null
+      status: string
+      accommodation_facility_rooms: { room_id: string }[] | null
       accommodation_facility_images: { id: string; url: string; sort_order: number | null }[] | null
     }[]).map((f) => ({
       id: f.id,
@@ -1433,6 +1528,8 @@ async function load() {
       description: f.description || '',
       roomId: f.room_id,
       floor: f.floor,
+      status: f.status === 'under_repair' ? 'under_repair' : 'available',
+      roomIds: (f.accommodation_facility_rooms ?? []).map((l) => l.room_id),
       images: [...(f.accommodation_facility_images ?? [])]
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((i) => ({ id: i.id, url: i.url })),
@@ -1805,7 +1902,7 @@ const rentBasisHint = computed(() => {
     : `≈ ${formatPeso(rent / cap)}/mo per person`
 })
 
-// Floors a manager has explicitly added, tracked independently of rooms
+// Floors a landlord/landlady has explicitly added, tracked independently of rooms
 // (accommodation_floors) so an empty floor with no rooms yet still survives
 // a reload instead of only existing while this page happens to be open.
 const trackedFloors = ref<number[]>([])
@@ -2074,7 +2171,7 @@ async function confirmRoomBasics() {
 }
 
 // Occupied is set elsewhere (when a lease is active) and isn't something a
-// manager flips by hand here — this only toggles between the two states
+// landlord/landlady flips by hand here — this only toggles between the two states
 // that ARE theirs to set: open for applicants, or taken out of service
 // (renovation, damage, etc.) without deleting the room outright.
 async function toggleRoomStatus() {

@@ -6,11 +6,14 @@ import { uploadSecureDocument } from '@/utils/upload';
 import { initialsOf, isPhMobile } from '@/utils/format';
 import type { RegisterForm } from '@/types/forms';
 
-// The database role enum uses 'accommodation_manager' where the app's UI and
-// routing use 'manager' (the leader's terminology change). Map between them
-// at the DB boundary so the rest of the app keeps using 'manager'.
-const APP_ROLE_TO_DB: Record<string, string> = { manager: 'accommodation_manager' };
-const DB_ROLE_TO_APP: Record<string, string> = { accommodation_manager: 'manager' };
+// The database role enum says 'landlord'; this app's routes and folders say
+// 'manager' (`/manager/*`, `pages/manager/`). That split is deliberate and
+// documented in AGENTS.md — the role was renamed to Landlord/Landlady, but the
+// internal paths were left alone rather than churn 150+ references for
+// something no user reads. Map between the two at the DB boundary so routing
+// keeps working off 'manager' while everything stored stays 'landlord'.
+const APP_ROLE_TO_DB: Record<string, string> = { manager: 'landlord' };
+const DB_ROLE_TO_APP: Record<string, string> = { landlord: 'manager' };
 
 function toDbRole(role: string): string {
   return APP_ROLE_TO_DB[role] ?? role;
@@ -360,7 +363,7 @@ export const useAuthStore = defineStore('auth', {
     async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
       await this.submitManagerVerificationDocuments(userId, form);
       await this.markRegistered();
-      // A manager holds no session until OSAS approves. This sign-out used to be
+      // A landlord/landlady holds no session until OSAS approves. This sign-out used to be
       // theatre because login ignored status; login now enforces it, so the door
       // is really shut.
       await supabase.auth.signOut();
@@ -420,16 +423,16 @@ export const useAuthStore = defineStore('auth', {
 
     async submitManagerVerificationDocuments(userId: string, form: ManagerRegisterForm) {
       if (!form.governmentIdFile || !form.businessPermitFile) {
-        throw new Error('Both verification documents are required.');
+        throw new Error('Both requirements must be uploaded.');
       }
 
-      // Every student gets a student_profiles row at registration; managers were
-      // getting no profile row at all, so a manager had no record to hang
+      // Every student gets a student_profiles row at registration; landlords/landladies were
+      // getting no profile row at all, so a landlord/landlady had no record to hang
       // responsiveness stats or admin review data on. Created here because all
-      // three manager registration paths (password, resumed, Google) submit
+      // three landlord/landlady registration paths (password, resumed, Google) submit
       // documents through this method. Upsert: resubmitting must not fail.
       const { error: profileError } = await supabase
-        .from('accommodation_manager_profiles')
+        .from('landlord_profiles')
         .upsert({ user_id: userId }, { onConflict: 'user_id' });
       if (profileError) throw sanitizeError(profileError);
 
@@ -439,7 +442,7 @@ export const useAuthStore = defineStore('auth', {
       ]);
 
       // Upsert, not insert: a retried registration used to write a second copy
-      // of both documents, leaving the manager's record listing each one twice.
+      // of both documents, leaving the landlord/landlady's record listing each one twice.
       // (user_id, doc_type) is unique, so a retry now overwrites its own row.
       const { error } = await supabase.from('verification_documents').upsert(
         [
@@ -499,7 +502,7 @@ export const useAuthStore = defineStore('auth', {
         throw new Error('This account has been suspended. Contact OSAS if you think this is a mistake.');
       }
 
-      // A manager waits outside only while OSAS still owes them a decision. Once
+      // A landlord/landlady waits outside only while OSAS still owes them a decision. Once
       // OSAS has replied and wants changes ('rejected'/'reviewing'), they must be
       // able to sign in and fix the application — otherwise a rejection is a dead
       // end and the documents can never be corrected.
@@ -573,7 +576,7 @@ export const useAuthStore = defineStore('auth', {
 
     /**
      * Sets the role chosen on the role picker. An OAuth signup is defaulted to
-     * 'student' by the auth trigger because Google sends no role, so a manager
+     * 'student' by the auth trigger because Google sends no role, so a landlord/landlady
      * has to be able to correct it — the database allows this only while
      * registered_at is null.
      */
@@ -590,7 +593,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * Re-submits a manager application OSAS sent back. The account already exists
+     * Re-submits a landlord/landlady application OSAS sent back. The account already exists
      * and is registered, so this only replaces the documents and returns the
      * account to 'pending' — which re-closes the door until OSAS decides again.
      */

@@ -1,5 +1,5 @@
 <template>
-  <q-page class="tp">
+  <q-page class="tp" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="tabs">
@@ -30,7 +30,7 @@
 
       <div v-else class="stack">
         <div class="m-tabbed">
-        <div class="tabs">
+        <div v-if="!split" class="tabs">
           <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'tenants' }" @click="activeTab = 'tenants'">
             By tenant
           </button>
@@ -40,11 +40,26 @@
           </button>
         </div>
 
-        <div class="panel">
-        <q-tab-panels v-model="activeTab" animated swipeable class="m-panels">
-          <q-tab-panel name="tenants" class="tab-panel">
+        <!-- Desktop has the room for both at once, so the tabs go and the same
+             two panels sit side by side. The markup is shared: on desktop the
+             panels are plain divs, elsewhere the swipeable QTabPanels. -->
+        <div :class="split ? 'desk-card' : 'panel'">
+        <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
+          <component :is="panelIs" name="tenants" :class="split ? 'desk-col' : 'tab-panel'">
+            <template v-if="split">
+              <SearchDock
+                v-model="query"
+                inline
+                class="desk-search"
+                :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
+                placeholder="Search tenants or rooms"
+                search-label="Search tenants"
+                @open-filters="filtersOpen = true"
+              />
+              <h2 class="sec-title">By tenant</h2>
+            </template>
             <button type="button" class="top-pay-btn" @click="pickingPayment = !pickingPayment">
-              <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:receipt'" width="16" />
+              <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:plus'" width="16" />
               {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
             </button>
             <p v-if="pickingPayment" class="picking-hint">Tap a tenant below to log their payment.</p>
@@ -131,9 +146,10 @@
                 </div>
               </q-slide-transition>
             </section>
-          </q-tab-panel>
+          </component>
 
-          <q-tab-panel name="payments" class="tab-panel">
+          <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
+            <h2 v-if="split" class="sec-title">Payments</h2>
             <section v-if="paymentsNeedingVerification.length" class="pay-section">
               <h2 class="sec-title">Needs verification</h2>
               <div class="group">
@@ -186,8 +202,8 @@
                 message="Payments you log for any tenant will show up here."
               />
             </section>
-          </q-tab-panel>
-        </q-tab-panels>
+          </component>
+        </component>
         </div>
         </div>
       </div>
@@ -198,7 +214,7 @@
          Outside the pull-to-refresh wrapper on purpose: it transforms its
          content while you pull, which would drag this fixed dock along. -->
     <SearchDock
-      v-if="!loading && !error"
+      v-if="!loading && !error && !split"
       v-model="query"
       :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
       placeholder="Search tenants or rooms"
@@ -400,6 +416,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
@@ -471,6 +488,8 @@ const error = ref('')
 const myId = ref('')
 const accommodations = ref<Accommodation[]>([])
 const activeTab = ref<'tenants' | 'payments'>('tenants')
+// Desktop has the room for both panels at once (see useDeskPanels).
+const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(activeTab)
 const payments = ref<PaymentRow[]>([])
 const verifying = ref('')
 const query = ref('')
@@ -570,7 +589,7 @@ async function load(silent = false) {
     }
     myId.value = user.id
 
-    // Accommodations and leases both key only off the manager's id, so they go
+    // Accommodations and leases both key only off the landlord/landlady's id, so they go
     // out together; rooms and payments each need an id list from this wave and
     // follow in the second one below.
     const [
@@ -580,11 +599,11 @@ async function load(silent = false) {
       supabase
         .from('accommodations')
         .select('id,name,status,accommodation_images(url,sort_order)')
-        .eq('accommodation_manager_id', user.id),
+        .eq('landlord_id', user.id),
       supabase
         .from('leases')
         .select('id,status,room_id,student_id,start_date,monthly_rent,users!leases_student_id_fkey(full_name,avatar_color,avatar_url)')
-        .eq('accommodation_manager_id', user.id)
+        .eq('landlord_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested']),
     ])
     if (accError) throw accError
@@ -670,10 +689,10 @@ async function load(silent = false) {
           })),
       }
     })
-    // Closed by default — a manager opens the properties they're checking,
+    // Closed by default — a landlord/landlady opens the properties they're checking,
     // rather than scrolling past every room in every property up front. Only
     // on the real first load: a silent (realtime-triggered) refresh must not
-    // collapse whatever the manager already has open.
+    // collapse whatever the landlord/landlady already has open.
     if (!silent) collapsedAccIds.value = new Set(accommodations.value.map((acc) => acc.id))
 
     const roomInfoById = new Map(roomRows.map((r) => [r.id, r]))
@@ -727,7 +746,7 @@ async function load(silent = false) {
 const { refresh } = useLiveData({
   key: 'manager-tenants',
   load,
-  watch: (uid) => [{ table: 'leases', filter: `accommodation_manager_id=eq.${uid}` }],
+  watch: (uid) => [{ table: 'leases', filter: `landlord_id=eq.${uid}` }],
 })
 
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it
@@ -808,7 +827,7 @@ function openPaymentDetail(p: PaymentRow) {
   paymentDetailOpen.value = true
 }
 
-// Lets a manager log a payment from the top of the page: tapping the top
+// Lets a landlord/landlady log a payment from the top of the page: tapping the top
 // button turns the list itself into the picker — payable rows highlight,
 // everything else (decide/message actions, navigation) is disabled until
 // a tenant is tapped or picking is cancelled.

@@ -216,7 +216,7 @@ const radii = [
 
 const listItems = [
   { icon: 'lucide:receipt-text', label: 'Payments', caption: 'Review rent and payment history' },
-  { icon: 'lucide:shield-check', label: 'Verification', caption: 'Documents and account status' },
+  { icon: 'lucide:shield-check', label: 'Verification', caption: 'Requirements and account status' },
   { icon: 'lucide:life-buoy', label: 'Support', caption: 'Get help from the Accommo team' },
 ];
 

@@ -1,13 +1,15 @@
 // Shared vocabulary for the Discover list and the listing detail.
 
+/**
+ * Amenities are the utilities and services that come with the whole place.
+ * Spaces (kitchen, laundry, parking) are shared facilities and air-con is a
+ * private facility of a room — see FACILITY_META. The database's
+ * `accommodation_amenities_utilities_only` constraint holds the same list.
+ */
 export const AMENITY_META: Record<string, { icon: string; label: string }> = {
   wifi: { icon: 'lucide:wifi', label: 'Wi-Fi' },
   water: { icon: 'lucide:droplets', label: 'Water' },
   electric: { icon: 'lucide:zap', label: 'Electricity' },
-  aircon: { icon: 'lucide:air-vent', label: 'Air-con' },
-  parking: { icon: 'lucide:car', label: 'Parking' },
-  kitchen: { icon: 'lucide:cooking-pot', label: 'Kitchen' },
-  laundry: { icon: 'lucide:washing-machine', label: 'Laundry' },
   cctv: { icon: 'lucide:cctv', label: 'CCTV' },
 };
 
@@ -21,8 +23,26 @@ export const FACILITY_META: Record<string, { icon: string; label: string }> = {
   common_area: { icon: 'lucide:sofa', label: 'Common area' },
   study_area: { icon: 'lucide:book-open', label: 'Study area' },
   parking: { icon: 'lucide:car', label: 'Parking' },
+  aircon: { icon: 'lucide:air-vent', label: 'Air-con' },
   other: { icon: 'lucide:box', label: 'Facility' },
 };
+
+/** Facility types that only make sense inside a room, never as a shared space. */
+export const PRIVATE_ONLY_FACILITY_TYPES = ['aircon'];
+
+/**
+ * What students can filter listings by: the amenities plus the facilities they
+ * most often look for. Keys match AMENITY_META or FACILITY_META; a listing
+ * matches a key when it has that amenity or a facility of that type.
+ */
+export const SEARCH_FEATURES: { key: string; icon: string; label: string }[] = [
+  ...Object.entries(AMENITY_META).map(([key, m]) => ({ key, ...m })),
+  ...['aircon', 'kitchen', 'laundry', 'parking'].map((key) => ({
+    key,
+    icon: FACILITY_META[key]?.icon ?? 'lucide:box',
+    label: key === 'laundry' ? 'Laundry' : (FACILITY_META[key]?.label ?? key),
+  })),
+];
 
 export const ROOM_TYPE_LABEL: Record<string, string> = {
   solo: 'Solo',
@@ -48,11 +68,18 @@ export function roomTypeLabel(value: string | null | undefined): string {
 // accommodation_type holds a mix of real building types and, on some rows, a
 // room type that was written into the wrong field. Only recognised building
 // types get rendered; anything else is dropped rather than shown as a lie.
+/**
+ * The only three kinds of place an accommodation can be. The database enforces
+ * the same three (`accommodations_accommodation_type_check`), so anything not
+ * in here cannot be saved.
+ *
+ * `apartment_building`, `condominium_unit` and `residence_hall` are retired —
+ * the rows that held them were rewritten to `residence`. Do not reintroduce
+ * them here without lifting the check constraint first.
+ */
 export const BUILDING_TYPE_LABEL: Record<string, string> = {
   boarding_house: 'Boarding house',
-  apartment_building: 'Apartment',
-  residence_hall: 'Residence hall',
-  condominium_unit: 'Condominium',
+  residence: 'Residence',
   dormitory: 'Dormitory',
 };
 
