@@ -17,6 +17,7 @@
 --   M1-M3, R1-R2  PASS
 --   V1-V2  PASS
 --   S1-S8  PASS
+--   U1-U3  PASS
 
 create or replace function pg_temp.rls_check() returns table(test text, outcome text)
 language plpgsql as $$
@@ -316,7 +317,61 @@ begin
   outcome := case when v_msg = 'rollback' then 'FAIL - a non-admin closed an account' else 'PASS - ' || v_msg end;
   test := 'S8: non-admin closes an account'; return next;
 end $$;
+create or replace function pg_temp.unverified_check() returns table(test text, outcome text)
+language plpgsql as $$
+declare
+  v_pending uuid; v_verified uuid; v_acc uuid; v_msg text;
+begin
+  -- 20260924120000: an unverified landlord/landlady may sign in but may not add
+  -- inventory. Skipped when there is no such account to impersonate.
+  select id into v_pending from public.users where role = 'landlord' and status <> 'verified' limit 1;
+  select a.landlord_id, a.id into v_verified, v_acc
+    from public.accommodations a join public.users u on u.id = a.landlord_id
+   where u.status = 'verified' limit 1;
+
+  if v_pending is not null then
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_pending, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      insert into public.accommodations (landlord_id, name, status) values (v_pending, 'rls test', 'pending');
+      raise exception 'rollback';
+    exception when others then
+      get stacked diagnostics v_msg = message_text;
+      reset role;
+    end;
+    outcome := case when v_msg = 'rollback' then 'FAIL - an unverified landlord/landlady added an accommodation' else 'PASS - ' || v_msg end;
+    test := 'U1: unverified adds an accommodation'; return next;
+
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_pending, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      insert into public.rooms (accommodation_id, label, status) values (v_acc, 'rls test', 'available');
+      raise exception 'rollback';
+    exception when others then
+      get stacked diagnostics v_msg = message_text;
+      reset role;
+    end;
+    outcome := case when v_msg = 'rollback' then 'FAIL - an unverified landlord/landlady added a room' else 'PASS - ' || v_msg end;
+    test := 'U2: unverified adds a room'; return next;
+  end if;
+
+  if v_verified is not null then
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_verified, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      insert into public.accommodations (landlord_id, name, status) values (v_verified, 'rls test', 'pending');
+      raise exception 'rollback';
+    exception when others then
+      get stacked diagnostics v_msg = message_text;
+      reset role;
+    end;
+    outcome := case when v_msg = 'rollback' then 'PASS - verified landlord/landlady may add' else 'FAIL - ' || v_msg end;
+    test := 'U3: verified adds an accommodation'; return next;
+  end if;
+end $$;
 select * from pg_temp.rls_check()
+union all
+select * from pg_temp.unverified_check()
 union all
 select * from pg_temp.mgr_check()
 union all

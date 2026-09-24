@@ -119,20 +119,18 @@ export function resolveDestination(s: GuardState): GuardDecision {
   // instead of saying the admin console is elsewhere.
   if (s.role === 'admin') return go('/login?adminUsesWeb=true', true)
 
-  // A landlord/landlady holds no session at all until OSAS approves — not a reduced
-  // surface, no session. Enforced here as well as in login() so a session that
-  // predates the decision is dropped on the next navigation.
-  //
-  // Students are deliberately NOT treated this way: a pending student may browse
-  // while waiting, and the lease policy already stops them acting.
-  if (s.role === 'manager' && s.status === 'pending') {
-    return go('/login?awaitingApproval=true', true)
-  }
-
-  // OSAS has replied and wants changes: let them in, but only to the screen
-  // where they can act on it.
-  if (s.role === 'manager' && (s.status === 'rejected' || s.status === 'reviewing')) {
-    return go('/register/manager?resubmit=true')
+  // A landlord/landlady uses the app before OSAS verifies them — pending, or sent
+  // back for changes — and only adding inventory waits. The one screen that
+  // exists for nothing else is the new-accommodation form, so it bounces to the
+  // list, where the reason is shown. Only on a status actually read: a failed
+  // lookup (status null) must not lock a verified account out.
+  if (
+    s.role === 'manager' &&
+    s.status !== null &&
+    s.status !== 'verified' &&
+    s.path === '/manager/properties/new'
+  ) {
+    return go('/manager/properties')
   }
 
   if (s.path.startsWith('/student') && s.role !== 'student') {

@@ -71,8 +71,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import mapboxgl from '@/utils/mapbox'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useNotify } from '@/utils/notify'
 import { CAMPUS, geolocationErrorMessage } from '@/utils/geo'

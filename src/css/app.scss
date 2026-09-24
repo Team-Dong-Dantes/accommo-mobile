@@ -464,14 +464,14 @@ body {
     grid-template-columns: minmax(360px, 420px) 1fr;
   }
 
-  /* No visible scrollbars anywhere on the desktop stage: every region still
-     scrolls by wheel and trackpad, it just draws no gutter. */
-  .shell-tablet .page-stage,
-  .shell-tablet .pane {
+  /* No visible scrollbars anywhere in the desktop app, vertical or sideways
+     (photo strips, room rails): every region still scrolls by wheel, trackpad
+     and drag, it just draws no bar. */
+  .shell-tablet,
+  .shell-tablet * {
     scrollbar-width: none;
   }
-  .shell-tablet .page-stage::-webkit-scrollbar,
-  .shell-tablet .pane::-webkit-scrollbar {
+  .shell-tablet ::-webkit-scrollbar {
     display: none;
   }
 
@@ -621,6 +621,15 @@ body {
   background: transparent;
 }
 
+/* The way back to a list, just above a card's left half (an accommodation,
+   the new-accommodation form). */
+.shell-tablet .desk-back-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 -6px -8px;
+}
+
 /* A half's own header, holding its way back (e.g. a profile opened inside the
    Messages card). */
 .shell-tablet .desk-panel-bar {
@@ -670,10 +679,99 @@ body {
 }
 /* Lists paint the app ground behind their rows — right when the list is the
    page, a grey (or, in dark mode, black) band inside the card. */
-.shell-tablet .desk-split > .q-pull-to-refresh .q-pull-to-refresh__content > :not(.desk-search) {
+.shell-tablet .desk-split > .q-pull-to-refresh .q-pull-to-refresh__content > :not(.desk-search, .desk-foot) {
   background: transparent;
 }
-.shell-tablet .desk-split > :is(.chat, .mail, .split-pane, .page-split-empty, .desk-pane) {
+/* The list half is at least as tall as the card, so a footer (below) can sit
+   at its bottom even when the list is short. */
+.shell-tablet .desk-split > .q-pull-to-refresh > .q-pull-to-refresh__content {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+/* The list half's footer: its main action (New announcement, New ticket, Report
+   a concern), at the bottom of the half and stuck there while the list scrolls. */
+.shell-tablet .desk-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin-top: auto;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+.shell-tablet .desk-foot-btn {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.shell-tablet .desk-foot-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* The same footer at the bottom of a card half, pulled out over its padding. */
+.shell-tablet .desk-col > .desk-foot {
+  margin: auto -18px -18px;
+}
+/* A half whose content is one full-height thing — an open ticket thread, a
+   new-ticket form — rather than a scrolling list: no padding, no scroll of its
+   own; the thing inside scrolls itself. */
+.shell-tablet .desk-col--fill {
+  padding: 0;
+  overflow: hidden;
+}
+/* Overlays (TicketThread's .mail, TicketCompose's .compose) cover the screen
+   on a phone; inside a half they are simply its content. */
+.shell-tablet .desk-col > .desk-inpanel {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* A tabbed list in the list half (OSAS): the phone's tab folders become the
+   half's header, stuck to its top, and the bordered box under them goes — the
+   half is already the box. */
+.shell-tablet .desk-split .m-tabbed > .tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 12px 14px 0;
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+.shell-tablet .desk-split .m-tabbed > .panel {
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.shell-tablet .desk-split .q-pull-to-refresh__content > .stack:has(> .m-tabbed) {
+  padding: 0;
+}
+
+/* A form that opens in the open item's half instead of over the whole screen
+   (a new announcement). It is a full-screen overlay on a phone. */
+.shell-tablet .desk-split > .desk-compose {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+}
+.shell-tablet .desk-split > :is(.chat, .mail, .split-pane, .page-split-empty, .desk-pane, .desk-compose) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;

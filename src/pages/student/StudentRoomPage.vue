@@ -264,7 +264,11 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('rooms')
       .select(
-        `${ROOM_DETAIL},room_images(url,sort_order),accommodation_facilities(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,landlord_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(${POLICY_TERMS}))`,
+        // Named foreign key: rooms and accommodation_facilities are also joined
+        // through accommodation_facility_rooms, so an unnamed embed is ambiguous
+        // (PGRST201) and fails the whole query. This page wants the room's own
+        // private facilities — the ones pointing at it by room_id.
+        `${ROOM_DETAIL},room_images(url,sort_order),accommodation_facilities!accommodation_facilities_room_id_fkey(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,landlord_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(${POLICY_TERMS}))`,
       )
       .eq('id', id.value)
       .maybeSingle()

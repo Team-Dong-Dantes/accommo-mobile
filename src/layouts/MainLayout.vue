@@ -404,13 +404,14 @@ const accountActions = computed(() => {
     // profile screens and keep hanging off it.
     { icon: 'lucide:settings', label: 'Settings', route: `/${role.value}/settings` },
   ]
-  // The scanner is a phone held up to a phone; a browser has no business with it.
-  if (role.value === 'manager') {
-    if (Capacitor.isNativePlatform()) {
-      items.push({ icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` })
-    }
-  } else {
-    items.push({ icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` })
+  // The QR pair — a landlord/landlady's scanner and a student's code — is a
+  // phone held up to a phone, so the web app offers neither.
+  if (Capacitor.isNativePlatform()) {
+    items.push(
+      role.value === 'manager'
+        ? { icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` }
+        : { icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` },
+    )
   }
   // Last in the account group, directly under My QR / Scanner. Not a route —
   // navigateMenuAction intercepts this sentinel; see SIGN_OUT.
@@ -455,9 +456,19 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
 // list in the pane beside it (a listing beside Discover, an announcement beside
 // Notifications), or a back button on the card itself (TenantProfile,
 // AccommodationDetail) — so the header stays the plain one, not a back bar.
-const OWN_BACK = /^\/manager\/(tenant\/[^/]+|properties\/(?!new$)[^/]+)$/
+// Includes /manager/properties/new: the add-property form carries its own back
+// button above its card.
+const OWN_BACK = /^\/manager\/(tenant\/[^/]+|properties\/[^/]+)$/
+// Everything the desktop rail links to straight (OSAS, Concerns, My Properties,
+// Announce, My Stay, Profile, Settings, My QR) is a destination there, not a
+// step down from somewhere, so it gets no back button either.
+const railRoutes = computed(() => [
+  ...config.value.quickActions.map((a) => a.route),
+  ...accountActions.value.map((a) => a.route),
+])
 const subPage = computed(() =>
-  isDesktop.value && (panes.value.mode === 'split' || OWN_BACK.test(route.path))
+  isDesktop.value &&
+  (panes.value.mode === 'split' || OWN_BACK.test(route.path) || railRoutes.value.includes(route.path))
     ? undefined
     : matchSecondary(route.path, config.value),
 )

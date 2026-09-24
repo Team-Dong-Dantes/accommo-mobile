@@ -85,6 +85,10 @@ export default defineRouter(() => {
 
         lastLookupFailed = false;
         lastStatus = typeof data.status === 'string' ? data.status : null;
+        // Screens gate "add accommodation" on this (isVerifiedLandlord), so an
+        // OSAS decision shows up on the next navigation. A failed read (above)
+        // leaves the store alone rather than flashing a verified account locked.
+        authStore.accountStatus = lastStatus;
         lastEmailVerified = data.email_verified_at !== null;
         lastRegistered = data.registered_at !== null;
 

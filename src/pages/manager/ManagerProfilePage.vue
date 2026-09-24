@@ -61,6 +61,8 @@
          on the right. Elsewhere the .desk-pass wrappers are display: contents. -->
     <div v-else :class="isDesktop ? 'desk-card' : 'content-stack'">
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
+      <!-- Only while OSAS has not verified the account yet. -->
+      <VerificationBanner />
       <!-- ===== HEADER ===== -->
       <ProfileHero
         v-model:avatar-url="avatarUrl"
@@ -158,7 +160,13 @@
 
           <ProfileBlock icon="lucide:building-2" title="Accommodations">
             <template #actions>
-              <button class="icon-btn" @click="go('/manager/properties/new')">
+              <button
+                class="icon-btn"
+                :disabled="!auth.isVerifiedLandlord"
+                :title="auth.isVerifiedLandlord ? 'Add accommodation' : 'Available once OSAS verifies your account'"
+                aria-label="Add accommodation"
+                @click="go('/manager/properties/new')"
+              >
                 <IconifyIcon icon="lucide:plus" width="18" />
               </button>
             </template>
@@ -196,6 +204,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import VerificationBanner from '@/components/manager/VerificationBanner.vue'
 import { Capacitor } from '@capacitor/core'
 import { isDesktop } from '@/utils/useTabletMode'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -224,6 +234,7 @@ interface DocRow {
 
 // ----- Router & notifications -----
 const router = useRouter()
+const auth = useAuthStore()
 const notify = useNotify()
 
 // ----- Reactive State -----

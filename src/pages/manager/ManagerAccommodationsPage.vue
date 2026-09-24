@@ -1,6 +1,7 @@
 <template>
   <q-page class="ap">
     <q-pull-to-refresh @refresh="onPull">
+      <VerificationBanner class="ap-banner" />
       <div v-if="loading" class="stack">
         <q-skeleton type="rect" height="230px" class="sk" />
         <q-skeleton type="rect" height="230px" class="sk" />
@@ -14,16 +15,28 @@
         v-else-if="!rows.length"
         icon="lucide:building-2"
         title="No accommodations listed yet"
-        message="Add your first place and its rooms so students can find and apply to stay with you."
+        :message="auth.isVerifiedLandlord
+          ? 'Add your first place and its rooms so students can find and apply to stay with you.'
+          : 'Once OSAS verifies your account, add your first place and its rooms here.'"
       >
         <template #actions>
-          <q-btn unelevated rounded no-caps color="primary" label="Add accommodation" @click="router.push('/manager/properties/new')" />
+          <q-btn
+            unelevated
+            rounded
+            no-caps
+            color="primary"
+            label="Add accommodation"
+            :disable="!auth.isVerifiedLandlord"
+            @click="router.push('/manager/properties/new')"
+          />
         </template>
       </EmptyState>
 
       <div v-else class="grid">
         <PropertyCard v-for="a in rows" :key="a.id" :property="a" @open="open" />
-        <PropertyCard @add="router.push('/manager/properties/new')" />
+        <!-- The add card only while adding is possible; the banner above says
+             why it is missing otherwise. -->
+        <PropertyCard v-if="auth.isVerifiedLandlord" @add="router.push('/manager/properties/new')" />
       </div>
     </q-pull-to-refresh>
   </q-page>
@@ -39,7 +52,11 @@ import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import PropertyCard from '@/components/manager/PropertyCard.vue'
+import VerificationBanner from '@/components/manager/VerificationBanner.vue'
 import type { Property } from '@/components/manager/property'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
@@ -165,6 +182,9 @@ function onPull(done: () => void) {
 <style scoped>
 .ap {
   background: var(--m-bg);
+}
+.ap-banner {
+  margin: 10px var(--m-page-gutter) 0;
 }
 .stack {
   display: flex;

@@ -98,19 +98,30 @@ describe('re-registering', () => {
 })
 
 describe('landlord/landlady approval', () => {
-  it('holds a pending landlord/landlady out entirely', () => {
-    expect(resolveDestination(student({ path: '/manager/dashboard', role: 'manager', status: 'pending' })))
-      .toEqual({ to: '/login?awaitingApproval=true', signOut: true })
+  // An unverified landlord/landlady uses the app; only adding inventory waits.
+  it.each(['pending', 'rejected', 'reviewing'])('lets a %s landlord/landlady into the app', (status) => {
+    expect(resolveDestination(student({ path: '/manager/dashboard', role: 'manager', status })))
+      .toEqual({ to: true, signOut: false })
   })
 
-  // Students are deliberately not treated this way — a pending student may browse.
+  it.each(['pending', 'rejected', 'reviewing'])('keeps a %s landlord/landlady off the new-accommodation form', (status) => {
+    expect(resolveDestination(student({ path: '/manager/properties/new', role: 'manager', status })).to)
+      .toBe('/manager/properties')
+  })
+
+  it('lets a verified landlord/landlady add an accommodation', () => {
+    expect(resolveDestination(student({ path: '/manager/properties/new', role: 'manager', status: 'verified' })).to)
+      .toBe(true)
+  })
+
+  // A status nobody actually read must not lock a verified account out.
+  it('does not bounce the form on a failed status read', () => {
+    expect(resolveDestination(student({ path: '/manager/properties/new', role: 'manager', status: null })).to)
+      .toBe(true)
+  })
+
   it('lets a pending student browse', () => {
     expect(resolveDestination(student({ status: 'pending' })).to).toBe(true)
-  })
-
-  it.each(['rejected', 'reviewing'])('routes a %s landlord/landlady to the resubmission form', (status) => {
-    expect(resolveDestination(student({ path: '/manager/dashboard', role: 'manager', status })).to)
-      .toBe('/register/manager?resubmit=true')
   })
 })
 

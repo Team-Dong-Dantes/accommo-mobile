@@ -1,7 +1,9 @@
 <template>
   <!-- Beside its list rather than over it on a landscape tablet; see
        `.page-split` in app.scss. -->
-  <q-page class="op" :class="{ 'page-split': isTablet, 'page-wide desk-split': isDesktop }">
+  <!-- Desktop: requirements and support tickets are the two halves of a card
+       (the tabs, side by side); tablet keeps list-beside-thread. -->
+  <q-page class="op" :class="{ 'page-split': isTablet && !isDesktop, 'page-wide': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="tabs">
@@ -26,16 +28,17 @@
 
       <div v-else class="stack">
         <div class="m-tabbed">
-          <div class="tabs">
+          <div v-if="!isDesktop" class="tabs">
             <button v-for="t in TABS" :key="t.key" type="button" class="m-tab" :class="{ 'm-tab--on': tab === t.key }" @click="tab = t.key">
               {{ t.label }}
             </button>
           </div>
 
-          <div class="panel">
-            <q-tab-panels v-model="tab" animated swipeable class="m-panels">
-              <!-- DOCUMENTS -->
-              <q-tab-panel name="docs" class="tab-panel">
+          <div :class="isDesktop ? 'desk-card' : 'panel'">
+            <component :is="panelsIs" v-bind="panelsProps" :class="isDesktop ? 'desk-contents' : 'm-panels'">
+              <!-- DOCUMENTS (the left half on desktop) -->
+              <component :is="panelIs" name="docs" :class="isDesktop ? 'desk-col' : 'tab-panel'">
+                <h2 v-if="isDesktop" class="desk-col-title">Requirements</h2>
                 <!-- 'reviewing' is a soft reject: OSAS wants a better document and
                      the account can still be verified once it arrives. -->
                 <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
@@ -96,48 +99,82 @@
                   </div>
                 </div>
                 <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
-              </q-tab-panel>
+              </component>
 
-              <!-- TICKETS -->
-              <q-tab-panel name="tickets" class="tab-panel">
-                <div class="sec-head">
-                  <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
-                  <button type="button" class="sec-link" @click="openNewTicket">New ticket</button>
-                </div>
-
-                <EmptyState
-                  v-if="!tickets.length"
-                  variant="compact"
-                  icon="lucide:life-buoy"
-                  title="No tickets yet"
-                  message="Account, verification or technical issues you raise with OSAS will show up here."
+              <!-- TICKETS. On desktop this is the right half: the list, or —
+                   in its place, with their own way back — the open ticket or
+                   the new-ticket form. -->
+              <component
+                :is="panelIs"
+                name="tickets"
+                :class="isDesktop ? ['desk-col', { 'desk-col--fill': openTicket || newTicketOpen }] : 'tab-panel'"
+              >
+                <TicketCompose
+                  v-if="isDesktop && newTicketOpen"
+                  class="desk-inpanel"
+                  attachment
+                  :categories="TICKET_CATEGORIES"
+                  :submitting="submittingTicket"
+                  @close="newTicketOpen = false"
+                  @submit="submitTicket"
                 />
-                <div v-else class="group">
-                  <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
-                    <span class="ticket-body">
-                      <span class="ticket-subject">{{ t.subject }}</span>
-                      <span class="ticket-when">{{ since(t.reportedAt) }}</span>
-                    </span>
-                    <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
-                  </button>
-                </div>
-              </q-tab-panel>
-            </q-tab-panels>
+                <TicketThread
+                  v-else-if="isDesktop && openTicket"
+                  :key="openTicket.id"
+                  class="desk-inpanel"
+                  :ticket="openTicket"
+                  @close="closeTicket"
+                />
+                <template v-else>
+                  <h2 v-if="isDesktop" class="desk-col-title">Support tickets</h2>
+                  <div class="sec-head">
+                    <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
+                    <button v-if="!isDesktop" type="button" class="sec-link" @click="openNewTicket">New ticket</button>
+                  </div>
+
+                  <EmptyState
+                    v-if="!tickets.length"
+                    variant="compact"
+                    icon="lucide:life-buoy"
+                    title="No tickets yet"
+                    message="Account, verification or technical issues you raise with OSAS will show up here."
+                  />
+                  <div v-else class="group">
+                    <button v-for="t in tickets" :key="t.id" type="button" class="ticket-row" @click="showTicket(t)">
+                      <span class="ticket-body">
+                        <span class="ticket-subject">{{ t.subject }}</span>
+                        <span class="ticket-when">{{ since(t.reportedAt) }}</span>
+                      </span>
+                      <span class="ticket-chip" :class="`ticket-chip--${statusColor(TICKET_STATUS, t.status)}`">{{ statusText(TICKET_STATUS, t.status) }}</span>
+                    </button>
+                  </div>
+
+                  <!-- Desktop: the tickets half's footer. -->
+                  <div v-if="isDesktop" class="desk-foot">
+                    <button type="button" class="desk-foot-btn" @click="openNewTicket">
+                      <IconifyIcon icon="lucide:plus" width="17" />
+                      New ticket
+                    </button>
+                  </div>
+                </template>
+              </component>
+            </component>
           </div>
         </div>
       </div>
-
     </q-pull-to-refresh>
 
-    <TicketThread v-if="openTicket" :key="openTicket.id" :ticket="openTicket" @close="closeTicket" />
+    <!-- Phone and tablet: the thread covers the list (phone) or sits beside it
+         (tablet). Desktop shows it inside the tickets half above. -->
+    <TicketThread v-if="openTicket && !isDesktop" :key="openTicket.id" :ticket="openTicket" @close="closeTicket" />
 
-    <div v-else-if="isTablet" class="page-split-empty">
+    <div v-else-if="isTablet && !isDesktop" class="page-split-empty">
       <IconifyIcon icon="lucide:ticket" width="26" />
       <p>Pick a ticket to read the thread</p>
     </div>
 
     <TicketCompose
-      v-if="newTicketOpen"
+      v-if="newTicketOpen && !isDesktop"
       attachment
       :categories="TICKET_CATEGORIES"
       :submitting="submittingTicket"
@@ -158,6 +195,7 @@ import { DOC_LABEL, docPresentation } from '@/utils/profile'
 import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
+import { useDeskPanels } from '@/utils/useDeskPanels'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
@@ -209,6 +247,8 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const tab = ref<(typeof TABS)[number]['key']>('docs')
+// Desktop: both tabs at once, as the halves of a card (useDeskPanels).
+const { panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
 
 const myId = ref('')
 // OSAS approves/rejects identity documents by flipping the account's own

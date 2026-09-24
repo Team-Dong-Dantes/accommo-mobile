@@ -14,13 +14,7 @@
         placeholder="Search concerns"
         search-label="Search concerns"
         @open-filters="filtersOpen = true"
-      >
-        <template #action>
-          <button type="button" class="dock-btn" :disabled="!activeLease" aria-label="Report a concern" @click="openNew">
-            <IconifyIcon icon="lucide:plus" width="18" />
-          </button>
-        </template>
-      </SearchDock>
+      />
       <div v-if="loading" class="stack">
         <div class="group">
           <div v-for="n in 3" :key="n" class="row">
@@ -71,6 +65,13 @@
         </div>
       </div>
 
+      <!-- Desktop: the list half's footer. -->
+      <div v-if="isDesktop && !loading && !error" class="desk-foot">
+        <button type="button" class="desk-foot-btn" :disabled="!activeLease" @click="openNew">
+          <IconifyIcon icon="lucide:plus" width="17" />
+          Report a concern
+        </button>
+      </div>
     </q-pull-to-refresh>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->

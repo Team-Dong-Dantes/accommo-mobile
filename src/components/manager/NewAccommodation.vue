@@ -1,9 +1,40 @@
 <template>
-  <q-page class="wiz">
-    <div class="steps">
+  <q-page class="wiz" :class="{ 'page-wide wiz--desk': isDesktop }">
+    <!-- Desktop: the way back sits above the card, the steps are the left half
+         and the current step's form the right. Elsewhere the .desk-pass
+         wrappers are display: contents and the phone wizard is unchanged. -->
+    <div v-if="isDesktop" class="desk-back-row">
+      <button type="button" class="desk-panel-back" aria-label="Back to my properties" @click="router.push('/manager/properties')">
+        <IconifyIcon icon="lucide:arrow-left" width="20" />
+      </button>
+      <span class="desk-panel-title">New accommodation</span>
+    </div>
+
+    <div v-else class="steps">
       <span v-for="n in 5" :key="n" class="step-dot" :class="{ 'step-dot--on': n <= step }" />
     </div>
 
+    <div :class="isDesktop ? 'desk-card' : 'desk-pass'">
+    <nav v-if="isDesktop" class="desk-col wiz-steps" aria-label="Steps">
+      <button
+        v-for="(label, i) in STEP_LABELS"
+        :key="label"
+        type="button"
+        class="wiz-step"
+        :class="{ 'wiz-step--on': i + 1 === step, 'wiz-step--done': i + 1 < step }"
+        :disabled="i + 1 >= step"
+        :aria-current="i + 1 === step ? 'step' : undefined"
+        @click="step = i + 1"
+      >
+        <span class="wiz-step-num">
+          <IconifyIcon v-if="i + 1 < step" icon="lucide:check" width="14" />
+          <template v-else>{{ i + 1 }}</template>
+        </span>
+        {{ label }}
+      </button>
+    </nav>
+
+    <div :class="isDesktop ? 'desk-col wiz-form' : 'desk-pass'">
     <div class="stack">
       <section v-if="step === 1" class="sec">
         <h2 class="sec-title">Details</h2>
@@ -241,6 +272,10 @@
       </section>
     </div>
 
+    <!-- The footer group. Pinned to the window on a phone (each piece is
+         position: fixed); on desktop it is pinned to the foot of the form half
+         instead, as one sticky block. -->
+    <div :class="isDesktop ? 'wiz-foot' : 'desk-pass'">
     <!-- Camera / upload sit just above the footer, the way the room photo
          sheet does it, so they stay reachable however far the list scrolls. -->
     <div v-if="step === 3" class="photo-actions photo-actions--pinned">
@@ -275,6 +310,9 @@
         {{ submitting ? 'Creating…' : 'Create accommodation' }}
       </button>
     </div>
+    </div>
+    </div>
+    </div>
 
     <LocationPicker
       v-if="locationPickerOpen"
@@ -291,6 +329,7 @@ import { reactive, ref, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
+import { isDesktop } from '@/utils/useTabletMode'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument, uploadSecureDocument } from '@/utils/upload'
@@ -323,6 +362,8 @@ const router = useRouter()
 const notify = useNotify()
 
 const step = ref(1)
+// The desktop step list's names, in order.
+const STEP_LABELS = ['Details', 'Amenities and house rules', 'Exterior photos', 'Permits', 'Review'] as const
 const submitting = ref(false)
 const uploadingPhotos = ref(false)
 const photos = ref<{ url: string }[]>([])
@@ -1128,5 +1169,88 @@ async function submit() {
   border: 1px solid var(--m-border);
   background: var(--m-bg);
   color: var(--m-text);
+}
+/* ---- Desktop: the card (.desk-card / .desk-col, app.scss) ----
+   Steps on the left, the current step on the right, the footer pinned to the
+   foot of the form half rather than to the window. */
+.desk-pass {
+  display: contents;
+}
+.wiz--desk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px var(--m-page-gutter) 0;
+}
+.wiz--desk .stack {
+  padding: 0;
+}
+.wiz-steps {
+  gap: 4px;
+}
+.wiz-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--m-radius-sm, 8px);
+  background: transparent;
+  color: var(--m-muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+}
+.wiz-step--done {
+  color: var(--m-ink);
+  cursor: pointer;
+}
+.wiz-step--done:hover {
+  background: var(--m-bg);
+}
+.wiz-step--on {
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-weight: 700;
+}
+.wiz-step:disabled {
+  cursor: default;
+}
+.wiz-step-num {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.wiz-step--done .wiz-step-num {
+  border-color: var(--m-success);
+  background: var(--m-success);
+  color: #fff;
+}
+/* margin-top: auto keeps the footer at the bottom of a short step too. */
+.wiz-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: auto -18px -18px;
+  background: var(--m-surface);
+}
+.wiz-foot .nav,
+.wiz-foot .photo-actions--pinned,
+.wiz-foot .block-hint {
+  position: static;
+}
+.wiz-foot .nav {
+  padding-bottom: 10px;
+}
+.wiz--desk .sec--pinned-actions {
+  padding-bottom: 0;
 }
 </style>

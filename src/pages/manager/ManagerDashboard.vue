@@ -27,6 +27,9 @@
           <span class="greet-name">{{ firstName }}</span>
         </div>
 
+        <!-- Only while OSAS has not verified the account yet. -->
+        <VerificationBanner />
+
         <!-- Occupancy -->
         <q-card flat class="occ" :class="{ 'occ--empty': !hasProperties }">
           <div class="occ-left">
@@ -107,7 +110,7 @@
             </button>
 
             <PropertyCard
-              v-if="!hasProperties"
+              v-if="!hasProperties && auth.isVerifiedLandlord"
               add-label="Add your first accommodation"
               @add="go('/manager/properties/new')"
             />
@@ -129,12 +132,15 @@ import { ago } from '@/utils/profile'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import DashPriority from '@/components/shared/DashPriority.vue'
+import VerificationBanner from '@/components/manager/VerificationBanner.vue'
+import { useAuthStore } from '@/stores/auth'
 import DashTodoList from '@/components/shared/DashTodoList.vue'
 import PropertyCard from '@/components/manager/PropertyCard.vue'
 import { healthTone, type Property } from '@/components/manager/property'
 import type { Task } from '@/components/shared/dashboard'
 
 const router = useRouter()
+const auth = useAuthStore()
 
 const loading = ref(true)
 const error = ref('')

@@ -180,19 +180,11 @@ async function handleOAuthReturn() {
 
   const role = profile?.role;
   if (role === 'manager') {
-    if (status === 'pending') {
-      await supabase.auth.signOut();
-      authStore.clearCachedRole();
-      notify.info('Your application is still being reviewed by OSAS. You can sign in once it is approved.');
-      return;
-    }
+    // Unverified landlords/landladies come in too; the dashboard banner says
+    // what is still waiting on OSAS and links to the resubmission form.
     if (status === 'rejected' || status === 'reviewing') {
-      notify.warning('OSAS needs changes to your application — update it below.');
-      void router.push('/register/manager?resubmit=true');
-      return;
+      notify.warning('OSAS needs changes to your application.');
     }
-    // A landlord/landlady holds no session during registration (they are signed out
-    // until OSAS approves), so this is the first moment a PIN can be set.
     // Offered once per account, skippable, and settable later in Settings.
     if (!(await hasPinAlready()) && !alreadyOffered()) {
       markOffered();
@@ -282,12 +274,10 @@ async function handleLogin() {
     }
 
     if (role === 'manager' && (status === 'rejected' || status === 'reviewing')) {
-      notify.warning('OSAS needs changes to your application — update it below.');
-      void router.push('/register/manager?resubmit=true');
-      return;
-    }
-
-    if (status === 'rejected') {
+      notify.warning('OSAS needs changes to your application.');
+    } else if (role === 'manager' && status === 'pending') {
+      notify.info('Signed in. OSAS is still verifying your account.');
+    } else if (status === 'rejected') {
       notify.warning('OSAS rejected your requirements — re-upload them to try again.');
     } else if (status === 'pending' || status === 'reviewing') {
       notify.info('Your account is still awaiting OSAS review.');
@@ -296,8 +286,8 @@ async function handleLogin() {
     }
 
     // Students are sent straight to the screen where they can act on their
-    // status. Landlords and landladies only ever reach this point when already verified —
-    // login() refuses the sign-in otherwise.
+    // status. Landlords and landladies land on the dashboard whatever their
+    // status; its banner says what is still waiting on OSAS.
     const studentNeedsOsas = status === 'rejected' || status === 'reviewing';
     if (role === 'student') void router.push(studentNeedsOsas ? '/student/support' : '/student/home');
     else if (role === 'manager') void router.push('/manager/dashboard');

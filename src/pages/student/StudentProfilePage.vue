@@ -45,7 +45,7 @@
         :subtitle="courseLine || 'Student'"
         :status-tone="status.tone || 'warn'"
         :status-label="status.label || 'Unverified'"
-        action-icon="lucide:qr-code"
+        :action-icon="Capacitor.isNativePlatform() ? 'lucide:qr-code' : ''"
         action-label="My QR"
         @action="go('/student/profile/qr')"
       >
@@ -161,6 +161,7 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { isDesktop } from '@/utils/useTabletMode'
+import { Capacitor } from '@capacitor/core'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { initialsOf, isPhMobile, normalizePhPhone } from '@/utils/format'

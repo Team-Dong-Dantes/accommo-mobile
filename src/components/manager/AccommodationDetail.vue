@@ -15,6 +15,14 @@
     </div>
 
     <div v-else class="stack">
+      <!-- Desktop keeps the plain app header, so the way back to My Properties
+           sits just above the card's left half. -->
+      <div v-if="split" class="desk-back-row">
+        <button type="button" class="desk-panel-back" aria-label="Back to my properties" @click="router.push('/manager/properties')">
+          <IconifyIcon icon="lucide:arrow-left" width="20" />
+        </button>
+        <span class="desk-panel-title">My Properties</span>
+      </div>
       <!-- Desktop: the two halves of a card — the photo, overview and settings
            on the left, rooms on the right, each scrolling on its own. On a phone
            .col-left is display: contents and nothing here changes. -->
@@ -29,11 +37,6 @@
             </span>
             <div class="hero-scrim" />
           </div>
-          <!-- Desktop keeps the plain app header, so the way back to My
-               Properties lives on the card itself. -->
-          <button v-if="split" type="button" class="hero-edit hero-back" aria-label="Back to my properties" @click="router.push('/manager/properties')">
-            <IconifyIcon icon="lucide:arrow-left" width="16" />
-          </button>
           <button type="button" class="hero-edit" aria-label="Manage property photos" @click="coverSheetOpen = true">
             <IconifyIcon icon="lucide:camera" width="16" />
           </button>
@@ -158,7 +161,8 @@
         <component :is="panelIs" name="rooms" class="sec" :class="{ 'sec--moved': split }">
           <Teleport :to="rightCol" :disabled="!split || !rightCol">
           <div class="sec-body">
-          <p v-if="!canAddInventory" class="sec-hint">This accommodation is delisted — reactivate it to add rooms, facilities, or floors.</p>
+          <p v-if="!auth.isVerifiedLandlord" class="sec-hint">You can add rooms, facilities and floors once OSAS verifies your account.</p>
+          <p v-else-if="!canAddInventory" class="sec-hint">This accommodation is delisted — reactivate it to add rooms, facilities, or floors.</p>
           <template v-if="roomsByFloor.length">
             <div v-for="grp in roomsByFloor" :key="grp.floor ?? 'none'" class="floor-group">
               <div class="sec-head">
@@ -981,6 +985,7 @@
 <script setup lang="ts">
 import { reactive, ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { useDeskPanels } from '@/utils/useDeskPanels'
@@ -1095,6 +1100,7 @@ interface Facility {
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const notify = useNotify()
 
 const id = String(route.params.id || '')
@@ -1154,7 +1160,9 @@ const occupiedRoomCount = computed(() => occupiedRoomIds.value.length)
 const vacantRoomCount = computed(() => Math.max(rooms.value.length - occupiedRoomCount.value, 0))
 // Delisted accommodations are hidden from students — don't let landlords/landladies keep
 // building out inventory (rooms, facilities, floors) behind a dead listing.
-const canAddInventory = computed(() => acc.status !== 'delisted')
+// Two reasons adding can be closed: the accommodation is delisted, or the
+// landlord/landlady is not verified yet (the database refuses the insert then).
+const canAddInventory = computed(() => acc.status !== 'delisted' && auth.isVerifiedLandlord)
 const distance = computed(() => campusDistanceLabel(acc.lat, acc.lng))
 const mapUrl = computed(() => staticMapUrl(acc.lat, acc.lng))
 const locationPickerOpen = ref(false)

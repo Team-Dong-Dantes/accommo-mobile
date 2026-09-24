@@ -79,7 +79,22 @@ export interface ManagerRegisterForm {
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     cachedRole: null as string | null,
+    /**
+     * `users.status` of the signed-in account, as last read — by login() and
+     * by the router on every navigation, so an OSAS decision shows up on the
+     * next screen change. Screens read `isVerifiedLandlord` rather than this.
+     */
+    accountStatus: null as string | null,
   }),
+  getters: {
+    /**
+     * A landlord/landlady may use the app before OSAS verifies them, but may
+     * not add accommodations, rooms or facilities until then — the database
+     * refuses those inserts (20260924120000), and the UI says so up front
+     * instead of letting the form fail at the end.
+     */
+    isVerifiedLandlord: (state) => state.accountStatus === 'verified',
+  },
   actions: {
     formatProfileData(form: RegisterForm | ManagerRegisterForm, role: 'student' | 'manager') {
       // Was a second hand-rolled copy of initialsOf(), which drifted from it:
@@ -363,11 +378,9 @@ export const useAuthStore = defineStore('auth', {
     async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
       await this.submitManagerVerificationDocuments(userId, form);
       await this.markRegistered();
-      // A landlord/landlady holds no session until OSAS approves. This sign-out used to be
-      // theatre because login ignored status; login now enforces it, so the door
-      // is really shut.
-      await supabase.auth.signOut();
-      this.cachedRole = null;
+      // Stays signed in: an unverified landlord/landlady uses the app straight
+      // away, and only adding inventory waits for OSAS.
+      this.accountStatus = 'pending';
     },
 
     // --- MANAGER REGISTRATION (legacy one-shot) ---
@@ -393,9 +406,7 @@ export const useAuthStore = defineStore('auth', {
       await this.ensureUserRow(userId, form.email, profileData, 'pending');
       await this.submitManagerVerificationDocuments(userId, form);
       await this.markRegistered();
-
-      await supabase.auth.signOut();
-      this.cachedRole = null;
+      this.accountStatus = 'pending';
 
       return response.data;
     },
@@ -417,8 +428,7 @@ export const useAuthStore = defineStore('auth', {
 
       await this.submitManagerVerificationDocuments(userId, form);
       await this.markRegistered();
-      await supabase.auth.signOut();
-      this.cachedRole = null;
+      this.accountStatus = 'pending';
     },
 
     async submitManagerVerificationDocuments(userId: string, form: ManagerRegisterForm) {
@@ -502,14 +512,11 @@ export const useAuthStore = defineStore('auth', {
         throw new Error('This account has been suspended. Contact OSAS if you think this is a mistake.');
       }
 
-      // A landlord/landlady waits outside only while OSAS still owes them a decision. Once
-      // OSAS has replied and wants changes ('rejected'/'reviewing'), they must be
-      // able to sign in and fix the application — otherwise a rejection is a dead
-      // end and the documents can never be corrected.
-      if (toAppRole(userData.role) === 'manager' && userData.status === 'pending') {
-        await supabase.auth.signOut();
-        throw new Error('Your application is still being reviewed by OSAS. You can sign in once it is approved.');
-      }
+      // A landlord/landlady no longer waits outside while OSAS reviews them: they
+      // sign in, upload requirements, raise tickets and message, and only adding
+      // accommodations and rooms waits for verification (enforced by the
+      // database; see isVerifiedLandlord).
+      this.accountStatus = typeof userData.status === 'string' ? userData.status : null;
 
       let role = toAppRole(userData?.role);
 
@@ -594,15 +601,14 @@ export const useAuthStore = defineStore('auth', {
 
     /**
      * Re-submits a landlord/landlady application OSAS sent back. The account already exists
-     * and is registered, so this only replaces the documents and returns the
-     * account to 'pending' — which re-closes the door until OSAS decides again.
+     * and is registered, so this only replaces the requirements and returns the
+     * account to 'pending' until OSAS decides again. They stay signed in.
      */
     async resubmitManagerApplication(userId: string, form: ManagerRegisterForm) {
       await this.submitManagerVerificationDocuments(userId, form);
       const { error } = await supabase.rpc('resubmit_verification');
       if (error) throw sanitizeError(error);
-      await supabase.auth.signOut();
-      this.cachedRole = null;
+      this.accountStatus = 'pending';
     },
 
     /** The note OSAS left with their decision, for the resubmission screen. */
@@ -775,6 +781,7 @@ export const useAuthStore = defineStore('auth', {
 
       const role = toAppRole(profile?.role);
       this.cachedRole = role;
+      if (typeof profile?.status === 'string') this.accountStatus = profile.status;
 
       return {
         session,

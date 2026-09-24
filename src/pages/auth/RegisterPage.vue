@@ -1229,8 +1229,8 @@ async function handleRegister(skipVerification = false) {
     if (isManager.value) {
       if (isResubmit.value) {
         await authStore.resubmitManagerApplication(googleUserId.value, form);
-        notify.success('Application updated. OSAS will review it again — you can sign in once it is approved.');
-        void router.push('/login');
+        notify.success('Application updated. OSAS will review it again.');
+        void router.push('/manager/dashboard');
         return;
       }
 
@@ -1242,11 +1242,11 @@ async function handleRegister(skipVerification = false) {
         await authStore.registerManager(form); // safety fallback (no early account)
       }
 
-      // Both paths end the same way: signed out, waiting on OSAS. A landlord/landlady
-      // holds no session until the application is approved, and login()
-      // enforces that, so there is nowhere in the app to send them yet.
-      notify.success('Application submitted. OSAS will review your requirements — you can sign in once it is approved.');
-      void router.push('/login');
+      // Every path ends signed in. The app is theirs straight away; adding
+      // accommodations and rooms is what waits for OSAS (the dashboard banner
+      // says so, and the database enforces it).
+      notify.success('Account created. OSAS will verify your requirements — you can add accommodations once they do.');
+      void router.push('/manager/dashboard');
       return;
     }
 

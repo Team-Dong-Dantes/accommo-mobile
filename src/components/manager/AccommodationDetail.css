@@ -994,7 +994,3 @@
 .sec--moved {
   display: none;
 }
-.hero-back {
-  right: auto;
-  left: var(--m-page-gutter);
-}
