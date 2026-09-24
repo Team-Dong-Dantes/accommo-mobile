@@ -413,7 +413,10 @@ body {
    a settings list or a listing is still one column of cards; given 1200px it
    should hold a comfortable measure and centre, not stretch a 60-character line
    to 160. Only the panes themselves are allowed to be as wide as the screen. */
+/* Held to the container's height, or it grows with its content and the
+   container (overflow: hidden) clips it instead of this scrolling. */
 .shell-tablet .page-stage:not(.page-stage--split) {
+  height: 100%;
   overflow-y: auto;
 }
 /* The measure is set on the box the page lives in, never on the page itself.
