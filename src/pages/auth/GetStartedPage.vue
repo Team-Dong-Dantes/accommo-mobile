@@ -3,9 +3,18 @@
        top corner. Everything here sits on the dark end of its scrim, so the
        pitch and the fork read against the image rather than over flat colour. -->
   <q-page class="getstarted-page">
-    <h1 class="pitch-line">Verified boarding houses near ISU Echague.</h1>
+    <h1 class="pitch-line">{{ PITCH_LINE }}</h1>
 
-    <RoleFork variant="glass" @pick="pick" />
+    <!-- Landscape puts the pitch on the photograph (app.scss hides the line
+         above), which would leave the panel opening with two unexplained rows.
+         The fork's own question introduces them, in the same words
+         /register/role uses. -->
+    <header v-if="isTablet" class="auth-question">
+      <h1>{{ ROLE_QUESTION }}</h1>
+      <p>{{ ROLE_QUESTION_NOTE }}</p>
+    </header>
+
+    <RoleFork :variant="isTablet ? 'solid' : 'glass'" @pick="pick" />
 
     <p class="signin">
       Already have an account?
@@ -16,6 +25,8 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
+import { PITCH_LINE, ROLE_QUESTION, ROLE_QUESTION_NOTE } from '@/utils/config';
+import { isTablet } from '@/utils/useTabletMode';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase';
 import RoleFork from '@/components/auth/RoleFork.vue';

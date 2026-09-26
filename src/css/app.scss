@@ -332,10 +332,115 @@ body {
   margin-left: 0;
   padding-left: calc(var(--m-rail) + 12px);
 }
-/* The announcement banner hangs off the header with `left: 12px`, measured from
-   the header's own edge — which is the window's, under the rail. */
+/* The announcement banner becomes a popover hanging off the bell.
+
+   On a phone it is a strip pinned to both edges, which is right there: the
+   window is 400px wide, so the strip IS roughly a card. Stretched across a
+   1440px header the same rule gave a 1300px ribbon holding one line of 12.5px
+   text, with its dismiss button a full screen away from the notice it closes
+   and nothing tying it to the bell the notice also lands in.
+
+   `left: auto` releases the phone's left edge; `right` then sets how far in it
+   hangs. Worth knowing what that number is measured from: this box is
+   positioned against the header's PADDING box, and the header is already inset
+   12px by its own margin, so `right: 0` is the bell's right edge, not the
+   window's. 12px therefore pulls the popover a further 12px inboard of the
+   bell, which is the nudge it wants — flush with the button looked pinned to
+   the window's corner. */
 .shell-tablet .app-header .broadcast {
-  left: calc(var(--m-rail) + 12px);
+  right: 12px;
+  left: auto;
+  width: min(380px, calc(100vw - var(--m-rail) - 36px));
+  margin-top: 10px;
+  /* The component's own 16px radius is kept deliberately — bumping it to the
+     24px card radius put the corner curve under the caret, which then read as a
+     notch bitten out of the corner rather than a pointer on a flat edge. The
+     caret is centred 22px in; the curve has to end before that. */
+  /* The caret sits outside the box; the corners it would otherwise clip are on
+     children that paint no background of their own. */
+  overflow: visible;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 14%), 0 2px 6px rgb(0 0 0 / 8%);
+}
+
+/* The pointer. A rotated square rather than a border triangle so it inherits
+   the popover's own fill and edge, including the soft-info tint. Its two lit
+   sides are the ones that face the bell.
+
+   17px, and it stays there whatever `right` above is: a 10px square at 17px
+   spans 17-27px in from the corner, which is the first flat ground past the
+   16px border radius. Chasing the bell's exact centre once the popover moved
+   inboard would have put the caret at 4px — on the curve, where it reads as a
+   notch bitten out of the corner rather than a pointer. As it is the caret
+   lands about 7px inside the bell's left edge: still unmistakably on the
+   button, just not on its middle. */
+.shell-tablet .app-header .broadcast::before {
+  position: absolute;
+  z-index: 1;
+  top: -6px;
+  right: 17px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid color-mix(in srgb, var(--m-info) 30%, var(--m-border));
+  border-width: 1px 0 0 1px;
+  background: var(--m-info-soft);
+  content: '';
+  transform: rotate(45deg);
+}
+
+/* Room to read. The strip had to hold everything on one 28px line; a 380px card
+   can give the notice two lines of summary and a target worth clicking. */
+.shell-tablet .app-header .broadcast-main {
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 12px 13px 14px;
+}
+.shell-tablet .app-header .broadcast-icon {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  margin-top: 1px;
+}
+.shell-tablet .app-header .broadcast-title {
+  font-size: 13.5px;
+}
+.shell-tablet .app-header .broadcast-sub {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 2px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 12px;
+  line-height: 1.4;
+  /* The clamp does the eliding now, and it can only do it across lines if the
+     text is allowed to wrap. */
+  white-space: normal;
+}
+.shell-tablet .app-header .broadcast-count {
+  margin-top: 1px;
+  font-size: 11px;
+}
+/* Aligned with the icon rather than floating in the middle of a two-line card,
+   and given a hit area instead of a column of padding. */
+.shell-tablet .app-header .broadcast-x {
+  align-self: flex-start;
+  margin: 9px 9px 0 0;
+  padding: 4px;
+  border-radius: 8px;
+}
+.shell-tablet .app-header .broadcast-x:hover {
+  background: color-mix(in srgb, var(--m-ink) 8%, transparent);
+  color: var(--m-ink);
+}
+
+/* It now arrives from the bell, so it should come from it — downward and
+   slightly toward the corner it hangs off, rather than the strip's flat drop. */
+.shell-tablet .app-header .broadcast-enter-from,
+.shell-tablet .app-header .broadcast-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+}
+.shell-tablet .app-header .broadcast {
+  transform-origin: top right;
 }
 /* With the wordmark hidden (below) the bell is the row's only child, and
    space-between parks a lone child at the start. Push it to the far right. */
@@ -817,139 +922,248 @@ body {
 }
 
 /* =========================================================================
-   Auth in tablet landscape.
+   Auth in landscape — tablet and desktop.
 
-   The phone auth screens are a photograph with a sheet hanging into it — a
-   vertical idea, sized in dvh, that has nothing to do with a landscape tablet
-   beyond fitting on it. Here the photograph and the form stop sharing one axis
-   and take a half of the screen each.
+   One shell for all four screens: splash, sign-in, the role fork and register
+   are the same 60/40 page — photograph left, form panel right — and differ only
+   in what stands in the panel.
+
+   That sameness is the design, not a shortcut. Every earlier version gave the
+   splash a shape of its own (a full-bleed photograph) and the forms another (a
+   half each), so the one navigation everybody makes — splash to sign-in —
+   had to re-cut the window while the arriving form slid in, and the two had to
+   be animated in lockstep or bare ground showed between them. With the halves
+   fixed, there is no edge to chase: the photograph, the wordmark and the seam
+   hold still, the panel's contents cross-fade, and the whole apparatus that
+   existed to synchronise them is gone.
+
+   60/40 rather than half each: the form needs a readable measure and no more
+   (460px, `--auth-measure`), while the photograph is the only thing on the page
+   with somewhere to put the product's name and its one sentence. A 40% panel
+   at 1440 is 576px — comfortably more than the measure — and `--auth-form`
+   floors it at 380px so a small landscape tablet does not crush it.
 
    Written here rather than in the four page files because the pieces being
-   repositioned live across all of them — the hero and the scroller in
+   repositioned live across all of them — the hero and the wrapper in
    AuthLayout, `.auth-sheet` already global, `.login-container` scoped to
-   LoginPage — and the positions only make sense read together. Selectors carry
-   the page class as well as the target so they outrank the scoped rules they
-   are overriding without reaching for !important — every selector here carries
-   .auth-layout-bg, the page container both halves live in, so it outranks the
-   scoped rule it replaces instead of merely tying with it and depending on the
-   order the stylesheets happen to be injected in.
+   LoginPage, `.getstarted-page` to GetStartedPage — and the positions only make
+   sense read together. Every selector carries `.auth-layout-bg`, the container
+   they all live in, so it outranks the scoped rule it replaces rather than
+   merely tying with it and depending on stylesheet injection order. */
 
-   `.auth-wide` is the splash, which stays a full-bleed photograph: it is a
-   picture with one sentence on it, not a form, and cutting it in half to leave
-   an empty panel beside it would be worse than leaving it whole. */
+.auth-split .auth-layout-bg {
+  /* The two numbers the whole shell is built from. */
+  /* vw, never %. A percentage inside a custom property is resolved by whichever
+     element ends up using it, not where it is declared — so `40%` meant 40% of
+     the window on the splash (whose page element IS the panel content, and
+     whose containing block is the window) and 40% of the *panel* on sign-in and
+     register (whose containers are children of the page). The second is 230px
+     at 1440, below the 380px floor, so those two screens fell back to a 24px
+     gutter while the splash got 58px and the inputs visibly changed inset from
+     screen to screen. Viewport units mean the same thing to every element.
+     Safe here: the auth layout is `overflow: hidden` at both the layout and the
+     wrapper, so there is no scrollbar for 100vw to disagree with. */
+  --auth-form: max(380px, 40vw);
+  --auth-photo: calc(100vw - var(--auth-form));
+  --auth-measure: 460px;
+  /* What is left of the panel either side of the measure, floored so the
+     content never touches the seam or the window edge. */
+  --auth-gutter: max(24px, calc((var(--auth-form) - var(--auth-measure)) / 2));
+}
 
-/* ---- The photograph, now a panel ---- */
+/* ---- Left: the photograph ---- */
 .auth-split .auth-layout-bg .hero-section,
 .auth-split .auth-layout-bg .hero-section.splash-mode,
 .auth-split .auth-layout-bg .hero-section.login-mode,
 .auth-split .auth-layout-bg .hero-section.register-mode {
   top: 0;
   left: 0;
-  width: 50%;
+  width: var(--auth-photo);
   height: 100%;
   min-height: 100%;
   max-height: none;
-  /* The 0.7s move between auth screens was the hero travelling up and down the
-     screen. It no longer travels, so the transition would only smear the scrim
-     on each navigation. */
+  /* Identical on every auth screen, so there is nothing to animate and a
+     transition could only smear the scrim on each navigation. */
   transition: none;
 }
 
-/* The wordmark sits in the panel's bottom corner, where a title block belongs on
-   a half-screen photograph — not floating a fixed 90px from a top edge that is
-   now the top of the screen. */
-.auth-split .auth-layout-bg .hero-section .hero-content {
-  top: auto;
-  bottom: 56px;
-  padding: 0 48px;
+/* Weighted to the foot, where the pitch sits, and light across the middle so
+   the campus is actually visible. The version this replaces was a near-opaque
+   teal laid evenly over the whole half — it guaranteed contrast by painting the
+   photograph out, which is the expensive way to have no photograph. */
+.auth-split .auth-layout-bg .hero-section .hero-overlay,
+.auth-split .auth-layout-bg .hero-section.splash-mode .hero-overlay {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 40, 34, 0.58) 0%,
+      rgba(0, 40, 34, 0.18) 26%,
+      rgba(0, 34, 29, 0.42) 62%,
+      rgba(0, 26, 22, 0.88) 100%
+    ),
+    linear-gradient(135deg, rgba(0, 150, 136, 0.26), rgba(0, 121, 107, 0.2));
+}
+
+/* Identity in the corner at one size and one inset, on all four screens. It is
+   the only element that survives every navigation, and `top` against
+   `bottom: auto` cannot be interpolated — a wordmark that moves here can only
+   jump, which is what it used to do between the splash and sign-in. */
+.auth-split .auth-layout-bg .hero-section .hero-content,
+.auth-split .auth-layout-bg .hero-section.login-mode .hero-content,
+.auth-split .auth-layout-bg .hero-section.register-mode .hero-content,
+.auth-split .auth-layout-bg .hero-section.splash-mode .hero-content {
+  top: calc(env(safe-area-inset-top) + 28px);
+  bottom: auto;
+  padding-inline: clamp(32px, 4vw, 64px);
   text-align: left;
   transition: none;
 }
 .auth-split .auth-layout-bg .hero-section .logo-text {
-  font-size: 54px;
+  font-size: 26px;
 }
+/* The pitch below says this, and says it better. */
 .auth-split .auth-layout-bg .hero-section .hero-subtitle {
-  margin-top: 6px;
-  font-size: 16px;
+  display: none;
+}
+.auth-split .auth-layout-bg .hero-section .hero-pitch {
+  display: block;
+  position: absolute;
+  right: 0;
+  bottom: clamp(40px, 6vh, 64px);
+  left: 0;
+  margin: 0;
+  padding-inline: clamp(32px, 4vw, 64px);
+  color: #fff;
+  font-family: var(--m-font-display);
+  /* Sized against the half it lives in, not the window. No character cap: at
+     748px of column a 15ch measure broke the sentence over four lines, which
+     reads as a list rather than a statement. `text-wrap: balance` splits it
+     evenly over the two the width actually wants. */
+  font-size: clamp(28px, 3vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-wrap: balance;
 }
 
-/* ---- The form half ---- */
-/* Note what this rule does NOT do: it does not change the wrapper's box.
-   Every auth screen shares one .content-wrapper, and both the outgoing and the
-   incoming page live in it for the 0.7s a transition lasts. Making the wrapper
-   the right half here and the full width on the splash meant that the instant
-   the route changed — before anything had slid anywhere — the sign-in form was
-   re-laid-out into the middle of the screen and then slid away from there.
-   The half is drawn with padding on the page instead, below. */
+/* ---- Right: the form panel ---- */
+/* The panel's surface is painted here, on the wrapper, and NOT on the pages
+   inside it. Both the outgoing and the incoming page live in this wrapper for
+   the length of a transition; if each carried the white itself, the two would
+   cross-fade through each other and the photograph would show through the
+   panel at the halfway point. On the wrapper it is one opaque, motionless
+   surface and only the contents fade. */
 .auth-split .auth-layout-bg .content-wrapper {
-  display: grid;
-  /* stretch, not center: the form takes the whole half it has been given. A
-     centred card left the right side mostly empty, which is the thing splitting
-     the screen was meant to fix. */
-  place-items: stretch;
-  /* The form is sized to fit its half and scrolls internally where it needs to
-     (the register sheet has its own scroller), so the half itself never does. */
   overflow: hidden;
-
-  /* No padding here, deliberately — the gutter is on the page below instead.
-     An absolutely positioned box resolves against its ancestor's PADDING box,
-     so a page in flow sat inside this padding while the same page mid-transition
-     (the slide rules give it position: absolute) ignored it. That was the
-     misalignment that snapped into place when the animation finished. With the
-     gutter on the page, both states describe the same rectangle. */
-  padding: 0;
+  background: linear-gradient(
+    to right,
+    transparent 0 var(--auth-photo),
+    var(--m-surface) var(--auth-photo) 100%
+  );
 }
 
-/* The gutter AND the half, both owned by the page.
-
-   Padding belongs to the element itself rather than to its containing block, so
-   it is the one way of insetting content that a page honours identically in
-   flow and while the transition has it position: absolute. Everything that has
-   jumped mid-animation on these screens has been an inset expressed somewhere
-   the absolute state could not see. */
+/* The page is the whole window with its content pushed past the photograph.
+   Padding, not a narrower box: padding belongs to the element itself rather
+   than to its containing block, so a page honours it identically in flow and
+   while the transition has it position: absolute. Every inset on these screens
+   that has ever jumped mid-animation was expressed somewhere the absolute state
+   could not see. */
 .auth-split .auth-layout-bg .q-page {
+  display: flex;
   box-sizing: border-box;
-  padding: 20px 20px 20px calc(50% + 20px);
+  height: 100%;
+  min-height: 100%;
+  padding: 0 0 0 var(--auth-photo);
 }
 
-/* The sheet stops being a sheet — nothing is hanging into anything — so it drops
-   the top-anchored geometry for a panel that fills the half it was given. No
-   max-width and no height cap: the point of the split is that the form gets the
-   room, and a 560px card floating in a 680px column is the phone layout again
-   with more whitespace round it.
-
-   It keeps a definite height because that is what pins its action bar while the
-   fields scroll. It does not react to the keyboard: like the phone sheet, it
-   holds still and lets the keyboard come up over its foot. */
-.auth-split .auth-sheet {
+/* Flush, full-height, no card: the panel is a half of the page, so an inset
+   rectangle with a radius and a drop shadow put a second, smaller edge just
+   inside the real one. Its surface comes from the wrapper above. */
+/* A flex child of the page, so it takes the panel's full height from
+   `align-items: stretch` — `min-height: 100%` cannot, because the page's own
+   height is only a minimum and a percentage against `auto` resolves to auto.
+   That is why these first measured as tall as their content and no more. */
+.auth-split .auth-layout-bg .login-container,
+.auth-split .auth-layout-bg .auth-sheet {
   width: 100%;
   max-width: none;
-  height: calc(var(--auth-vh, 100dvh) - 40px);
-  border-radius: var(--m-radius-lg);
-  box-shadow: var(--m-shadow);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: var(--auth-gutter);
 }
 
-/* Sign-in: its 150px of top padding was clearing a hero band that is not above
-   it any more; the rule above gives it the same even gutter as the rest. */
-.auth-split .auth-layout-bg .login-page .login-container {
-  width: 100%;
-  max-width: none;
-  min-height: calc(var(--auth-vh, 100dvh) - 40px);
-  border-radius: var(--m-radius-lg);
-  box-shadow: var(--m-shadow);
+/* The splash is the one screen whose page element IS the panel content —
+   `<q-page class="getstarted-page">` — so it carries the photograph's offset
+   and the panel's gutter on the same box. Setting `padding-inline` on it, as
+   the other two get, silently overwrote the `padding-left` that clears the
+   photograph and the splash spanned the whole window. */
+.auth-split .auth-layout-bg .getstarted-page {
+  padding-left: calc(var(--auth-photo) + var(--auth-gutter));
+  padding-right: var(--auth-gutter);
 }
 
-/* ---- Splash: full-bleed photograph, text reined in ---- */
-/* The measure, as padding on the page for the same reason as the split above:
-   it survives the page being position: absolute mid-transition, and it leaves
-   the wrapper the same box it is on every other auth screen. Only the inline
-   padding is named, so the page keeps its own top and bottom spacing. */
-.auth-wide .auth-layout-bg .q-page {
-  box-sizing: border-box;
-  padding-inline: max(20px, calc((100% - 620px) / 2));
+/* Sign-in, the role fork and the splash are as tall as their content, so they
+   centre in the panel; top-aligned, each ended a third of the way down with the
+   rest of the panel empty under it. */
+.auth-split .auth-layout-bg .login-page .login-container,
+.auth-split .auth-layout-bg .getstarted-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: 32px;
 }
-.auth-wide .auth-layout-bg .pitch-line {
-  font-size: 44px;
+.auth-split .auth-layout-bg .auth-sheet--short {
+  height: 100%;
+  padding-block: 28px;
+}
+.auth-split .auth-layout-bg .auth-sheet--short > div.col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Register is the exception and stays a frame: its action bar is pinned to the
+   foot so the primary button holds one position from step to step, and the
+   scroller between needs a definite height to scroll inside. Full panel height,
+   so that bar sits on the foot of the page. */
+.auth-split .auth-layout-bg .register-page .auth-sheet {
+  height: 100%;
+  padding-block: 24px 0;
+}
+/* `.steps` and `.actions` bleed by a hard -24px with matching padding
+   (RegisterPage.vue) to reach the sheet's edge, which was true when 24px was
+   the sheet's whole inline padding. Against a measure centred in a 576px panel
+   it lands nowhere: the action bar's hairline stopped 34px past the fields on
+   each side, too wide to align with them and far short of the panel. Cancel the
+   bleed and the hairline, the fields and the button share one column. */
+.auth-split .auth-layout-bg .auth-sheet .steps,
+.auth-split .auth-layout-bg .auth-sheet .actions {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+/* `.auth-question` holds a 12px inline margin of its own, which set every
+   screen's heading 12px further in than the fields it introduces — 70px against
+   58px, readable as a mistake once the gutter either side of it is even. The
+   phone keeps it; there the sheet's own padding is the only inset and the
+   margin is what separates the question from the edge. */
+.auth-split .auth-layout-bg .auth-question {
+  margin-inline: 0;
+}
+
+/* ---- The splash, which is now a panel screen like the others ---- */
+/* Its pitch moved onto the photograph, where every screen's is; its fork is on
+   a white surface, so GetStartedPage.vue swaps the glass variant for the solid
+   one in landscape. What is left here is the page's own phone styling, which
+   assumed white text on a photograph. */
+.auth-split .auth-layout-bg .getstarted-page .pitch-line {
+  display: none;
+}
+.auth-split .auth-layout-bg .getstarted-page .signin {
+  color: var(--m-muted);
+}
+.auth-split .auth-layout-bg .getstarted-page .signin-link {
+  color: var(--m-primary);
 }
 
 /* Shared by both empty panes — the shell's and the self-splitting pages'. */

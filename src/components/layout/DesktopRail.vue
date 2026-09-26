@@ -154,7 +154,7 @@ const groups = computed<Row[][]>(() => {
   width: 28px;
   height: 28px;
   flex: 0 0 auto;
-  background-color: var(--m-primary);
+  background-color: var(--m-muted);
   -webkit-mask: url(/accommo-logo.svg) no-repeat center / contain;
   mask: url(/accommo-logo.svg) no-repeat center / contain;
 }

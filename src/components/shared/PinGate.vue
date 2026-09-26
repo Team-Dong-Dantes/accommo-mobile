@@ -222,8 +222,8 @@ function cancel() {
   z-index: 1;
   width: 100%;
   height: 400px;
-  /* Brand ground under the photo: it is fetched from isu.edu.ph, and a lock
-     screen that cannot be dismissed is the worst place for a blank frame. */
+  /* Brand ground under the photo: a lock screen that cannot be dismissed is
+     the worst place for a blank frame. */
   background-color: var(--m-primary-dark);
   background-image: var(--hero-bg);
   background-position: 46% center;

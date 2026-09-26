@@ -3,7 +3,11 @@ import { Capacitor } from '@capacitor/core';
 
 export const EXTERNAL_URLS = {
   GOOGLE_ICON: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-  ISU_BACKGROUND: 'https://isu.edu.ph/wp-content/uploads/2024/11/ISU-Aerial.jpg',
+  // Bundled in public/, not hotlinked from isu.edu.ph: the campus site goes
+  // down (ERR_CONNECTION_REFUSED), and it backs the splash, the PIN lock and
+  // the update wall — three screens with no way past them. accommo-web already
+  // ships the same file at the same path.
+  ISU_BACKGROUND: '/isu-aerial.jpg',
 } as const;
 
 /**
@@ -17,6 +21,22 @@ export const EXTERNAL_URLS = {
  * could otherwise connect. Change both together.
  */
 export const ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'isu.edu.ph'] as const;
+
+/**
+ * The product's one-line pitch. Shown on the splash (GetStartedPage) and, on a
+ * landscape tablet or desktop, on the photo half of sign-in and register — the
+ * same sentence in both places rather than two copies that drift.
+ */
+export const PITCH_LINE = 'Verified boarding houses near ISU Echague.';
+
+/**
+ * The student/manager fork, asked in the same words wherever it is offered —
+ * the splash's panel and `/register/role`. Two screens ask one question; they
+ * had their own copies of it until the splash grew a heading in landscape.
+ */
+export const ROLE_QUESTION = 'Are you a student or a manager?';
+export const ROLE_QUESTION_NOTE =
+  'This sets what Accommo shows you, and OSAS verifies each differently.';
 
 /** Reads as a sentence: "@gmail.com or @isu.edu.ph". */
 export const ALLOWED_EMAIL_DOMAINS_TEXT = ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ');

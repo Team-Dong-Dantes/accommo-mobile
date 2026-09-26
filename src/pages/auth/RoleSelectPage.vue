@@ -4,13 +4,18 @@
          leads into, from app.scss. This screen had kept its own copy of both,
          frozen at the 34px body-font heading and the taller sheet register no
          longer uses, so the two halves of one flow stopped matching. -->
-    <div class="auth-sheet column">
-      <header class="auth-question col-auto">
-        <h1>Are you a student or a manager?</h1>
-        <p>This sets what Accommo shows you, and OSAS verifies each differently.</p>
-      </header>
-
+    <div class="auth-sheet auth-sheet--short column">
+      <!-- Question and fork share the growing column so they stay one block. On
+           a phone that reads exactly as before — the column just holds two
+           children now — while on the split shell app.scss centres the column,
+           and centring it with the question left outside opened 350px of gap
+           between the question and the rows it asks about. -->
       <div class="col">
+        <header class="auth-question">
+          <h1>{{ ROLE_QUESTION }}</h1>
+          <p>{{ ROLE_QUESTION_NOTE }}</p>
+        </header>
+
         <RoleFork @pick="pick" />
       </div>
 
@@ -27,6 +32,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase';
 import RoleFork from '@/components/auth/RoleFork.vue';
+import { ROLE_QUESTION, ROLE_QUESTION_NOTE } from '@/utils/config';
 
 const router = useRouter();
 const authStore = useAuthStore();

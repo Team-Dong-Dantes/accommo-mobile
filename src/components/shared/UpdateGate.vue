@@ -163,8 +163,8 @@ onMounted(() => {
   z-index: 1;
   width: 100%;
   height: 400px;
-  /* Brand ground under the photo: it is fetched from isu.edu.ph, and a screen
-     with no way out is the worst place for a blank frame. */
+  /* Brand ground under the photo: a screen with no way out is the worst place
+     for a blank frame. */
   background-color: var(--m-primary-dark);
   background-image: var(--hero-bg);
   background-position: 46% center;

@@ -22,6 +22,11 @@
             <div class="logo-text">accommo</div>
             <div class="hero-subtitle">Verified boarding houses · ISU Echague</div>
           </div>
+          <!-- Landscape only (app.scss). The photograph half carries the pitch
+               on every auth screen, the splash included — so the sentence has
+               one home on this shell instead of living inside GetStartedPage
+               and vanishing the moment you leave it. -->
+          <p class="hero-pitch">{{ PITCH_LINE }}</p>
         </div>
       </div>
 
@@ -45,7 +50,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { EXTERNAL_URLS } from '@/utils/config';
+import { EXTERNAL_URLS, PITCH_LINE } from '@/utils/config';
 import { isTablet } from '@/utils/useTabletMode';
 
 const route = useRoute();
@@ -100,15 +105,17 @@ onUnmounted(() => window.removeEventListener('resize', onResize));
 const isSplash = computed(() => route.path === '/');
 
 /**
- * Which of the three auth shells is on screen. One class rather than several
- * booleans because they are mutually exclusive by definition, and the CSS that
- * reads them (app.scss) is easier to follow keyed on one name each.
+ * Which shell is on screen: the phone's column, or the landscape card.
+ *
+ * Landscape used to be two shells — `auth-wide` for the splash, `auth-split`
+ * for the forms — because the splash was a full-bleed photograph while the
+ * forms cut the window in half. All four screens now share one 60/40 split, so
+ * there is nothing to tell the splash apart from: one class covers them all,
+ * and the halves are therefore identical across every navigation.
  */
-const authShell = computed(() => {
-  if (!isTablet.value) return 'shell-column';
-  return isSplash.value ? 'auth-wide' : 'auth-split';
-});
+const authShell = computed(() => (isTablet.value ? 'auth-split' : 'shell-column'));
 const isLogin = computed(() => route.path === '/login');
+
 
 // CHANGED: Now triggers for BOTH '/register' and '/register/manager'
 const isRegister = computed(() => route.path.startsWith('/register'));
@@ -120,11 +127,16 @@ const transitionName = ref('splash-to-login');
 watch(
   () => route.path,
   (to, from) => {
-    // Tablet and desktop: leaving the role fork, the form is a panel on the
-    // right half, so it comes in from the right edge while the fork fades out
-    // in place. The phone's vertical moves below belong to its sheet shape.
-    if (isTablet.value && from === '/' && (to === '/login' || to.startsWith('/register'))) {
-      transitionName.value = 'splash-to-panel';
+    // Landscape: both halves are identical on every auth screen and neither
+    // moves, so a navigation has one thing to animate — the panel's
+    // contents. One
+    // transition covers all of them rather than a direction per route pair: the
+    // cards are alternatives to each other, not steps through a space, and
+    // sliding them sideways only asked which way was "forward" between a
+    // sign-in and a registration. The phone's vertical moves below belong to
+    // its sheet, which really does hang from an edge.
+    if (isTablet.value) {
+      transitionName.value = 'card';
       return;
     }
     // Sign in and create an account are alternatives to each other, not one
@@ -167,11 +179,10 @@ watch(
   left: 0;
   width: 100%;
   height: 400px;
-  /* Solid brand ground underneath: the photo is fetched from isu.edu.ph, so a
-     slow or unreachable campus site would otherwise leave the first frame of
-     the app blank. ponytail: bundle the image locally to drop the dependency. */
+  /* Solid brand ground underneath: kept even though the photo is now bundled,
+     so the first frame is brand-coloured rather than blank while it decodes. */
   background-color: var(--m-primary-dark);
-  background-image: var(--hero-bg, url('https://isu.edu.ph/wp-content/uploads/2024/11/ISU-Aerial.jpg'));
+  background-image: var(--hero-bg, url('/isu-aerial.jpg'));
   background-size: cover;
   background-position: 46% center;
   z-index: 1;
@@ -294,6 +305,12 @@ watch(
   opacity: 0.95;
 }
 
+/* Placed and revealed by app.scss on the landscape shell; the phone's hero is a
+   400px band with no room for it. */
+.hero-pitch {
+  display: none;
+}
+
 @media (max-height: 600px) {
   .hero-section {
     height: 300px;
@@ -387,12 +404,16 @@ watch(
   transform: translateX(100%);
 }
 
-/* Tablet/desktop only: role fork -> sign-in or register. The page is the full
-   width with its form padded into the right half (app.scss), so starting it one
-   width to the right brings the panel in from off-screen right to left. */
-.splash-to-panel-enter-active,
-.splash-to-panel-leave-active {
-  transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1), opacity 0.35s ease-out;
+/* Landscape only. The card rises a little and fades up; the one leaving fades
+   out where it stands. Short and small on purpose — the photograph behind is
+   motionless, so a long or far-travelling move would read as the card sliding
+   over a still photo rather than as the screen changing.
+
+   The outgoing card leaves faster than the incoming one arrives, so the two are
+   not both half-opaque over the same patch of photograph for long. */
+.card-enter-active,
+.card-leave-active {
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease-out;
   position: absolute;
   top: 0;
   left: 0;
@@ -400,11 +421,23 @@ watch(
   height: 100%;
 }
 
-.splash-to-panel-enter-from {
-  transform: translateX(100%);
+.card-enter-from {
+  opacity: 0;
+  transform: translateY(14px);
 }
 
-.splash-to-panel-leave-to {
+.card-leave-to {
   opacity: 0;
+  transition-duration: 0.18s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-enter-active,
+  .card-leave-active {
+    transition: opacity 0.2s ease-out;
+  }
+  .card-enter-from {
+    transform: none;
+  }
 }
 </style>
