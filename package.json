@@ -1,8 +1,8 @@
 {
   "name": "accommo-mobile",
-  "version": "1.63.0",
-  "description": "Accommo Mobile",
-  "productName": "Accommo Mobile",
+  "version": "1.67.0",
+  "description": "Accommo",
+  "productName": "Accommo",
   "type": "module",
   "private": true,
   "scripts": {

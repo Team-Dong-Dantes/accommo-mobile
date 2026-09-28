@@ -5,8 +5,8 @@
         <IconifyIcon icon="lucide:arrow-left" width="20" />
       </button>
       <span class="bar-title">Ticket</span>
-      <span class="bar-chip" :class="`bar-chip--${statusColor(TICKET_STATUS, ticket.status)}`">
-        {{ statusText(TICKET_STATUS, ticket.status) }}
+      <span class="bar-chip" :class="`bar-chip--${statusColor(TICKET_STATUS, status)}`">
+        {{ statusText(TICKET_STATUS, status) }}
       </span>
     </header>
 
@@ -15,7 +15,7 @@
            often two lines long and the bar could only ellipsis it. -->
       <div class="head">
         <h1 class="head-subject">{{ ticket.subject || 'Untitled ticket' }}</h1>
-        <p class="head-meta">#{{ shortId }} · {{ titleCase(ticket.category) }} · Opened {{ stamp(ticket.reportedAt) }}</p>
+        <p class="head-meta">{{ ticketRef }} ·{{ titleCase(ticket.category) }} · Opened {{ stamp(ticket.reportedAt) }}</p>
       </div>
 
       <div class="msgs">
@@ -26,11 +26,11 @@
           :class="{ 'msg--pending': e.pending, 'msg--shut': !isOpen(e.id, i) }"
         >
           <button type="button" class="msg-top" :aria-expanded="isOpen(e.id, i)" @click="toggle(e.id, i)">
-            <span class="msg-avatar" :class="e.mine ? 'msg-avatar--me' : 'msg-avatar--osas'">
-              <IconifyIcon :icon="e.mine ? 'lucide:user' : 'lucide:shield-check'" width="15" />
+            <span class="msg-avatar" :class="e.who === 'OSAS' ? 'msg-avatar--osas' : 'msg-avatar--me'">
+              <IconifyIcon :icon="e.who === 'OSAS' ? 'lucide:shield-check' : 'lucide:user'" width="15" />
             </span>
             <span class="msg-id">
-              <span class="msg-who">{{ e.mine ? 'You' : 'OSAS' }}</span>
+              <span class="msg-who">{{ e.mine ? 'You' : e.who }}</span>
               <!-- Collapsed rows carry the first line of the body, the way a
                    mail client previews a quoted message. -->
               <span v-if="!isOpen(e.id, i)" class="msg-peek">{{ e.body }}</span>
@@ -65,6 +65,9 @@
     <!-- Reply is docked to the bottom of the screen so it's reachable without
          scrolling the thread to its end. -->
     <form class="reply" @submit.prevent="send">
+      <p v-if="status === 'resolved'" class="reply-note">
+        This ticket is resolved. Replying will reopen it.
+      </p>
       <textarea
         v-model="draft"
         class="reply-input"
@@ -90,6 +93,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { dayLabel, clockTime, statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
+import { signRows } from '@/utils/upload'
 import { openExternal } from '@/utils/openExternal'
 import { useNotify } from '@/utils/notify'
 
@@ -102,6 +106,7 @@ export interface ThreadTicket {
   status: string
   reportedAt: string
   photoUrls: string[]
+  ticketNo?: number | null
 }
 
 const props = defineProps<{ ticket: ThreadTicket }>()
@@ -113,6 +118,8 @@ interface Msg {
   createdAt: string
   attachments: string[]
   mine: boolean
+  /** Shown when not "You": OSAS, or the other reporter on an escalated ticket. */
+  who: string
   pending?: boolean
 }
 
@@ -126,7 +133,17 @@ const scroller = useTemplateRef<HTMLElement>('scroller')
 /** Ids the reader has hand-opened; the newest entry is open regardless. */
 const unfolded = ref<string[]>([])
 
-const shortId = computed(() => props.ticket.id.replace(/-/g, '').slice(0, 6).toUpperCase())
+// The same TKT-0042 the OSAS console shows, so either side can quote it.
+const ticketRef = computed(() =>
+  props.ticket.ticketNo
+    ? 'TKT-' + String(props.ticket.ticketNo).padStart(4, '0')
+    : '#' + props.ticket.id.replace(/-/g, '').slice(0, 6).toUpperCase(),
+)
+
+// A reply reopens a resolved ticket in the database; mirror that here rather
+// than wait for the list page to refetch.
+const status = ref(props.ticket.status)
+const myId = ref('')
 
 // The report and the replies are one list: it's the same kind of thing, and the
 // collapsing rule below reads much worse split across two templates.
@@ -137,6 +154,7 @@ const entries = computed<Msg[]>(() => [
     createdAt: props.ticket.reportedAt,
     attachments: props.ticket.photoUrls ?? [],
     mine: true,
+    who: '',
   },
   ...messages.value,
 ])
@@ -182,16 +200,21 @@ async function load() {
     // filtered in the database, not here.
     const { data, error } = await supabase
       .from('ticket_messages')
-      .select('id, body, author_role, attachment_urls, created_at')
+      .select('id, body, author_role, author_id, attachment_urls, created_at, author:author_id ( full_name )')
       .eq('ticket_id', props.ticket.id)
       .order('created_at', { ascending: true })
     if (error) throw error
+    if (!myId.value) myId.value = (await authUser()).data?.user?.id ?? ''
+    await signRows('ticket_messages', data, 'attachment_urls')
     messages.value = (data ?? []).map((m) => ({
       id: m.id,
       body: m.body || '',
       createdAt: m.created_at,
       attachments: m.attachment_urls ?? [],
-      mine: m.author_role !== 'agent',
+      // By author, not role: an escalated ticket has two reporters, and the
+      // other one's replies are not "You".
+      mine: m.author_role !== 'agent' && m.author_id === myId.value,
+      who: m.author_role === 'agent' ? 'OSAS' : m.author?.full_name || 'Requester',
     }))
   } catch (e) {
     notify.error(errorMessage(e, 'Could not load replies.'))
@@ -206,7 +229,7 @@ async function send() {
   sending.value = true
 
   const tempId = `pending-${Date.now()}`
-  messages.value.push({ id: tempId, body, createdAt: new Date().toISOString(), attachments: [], mine: true, pending: true })
+  messages.value.push({ id: tempId, body, createdAt: new Date().toISOString(), attachments: [], mine: true, who: '', pending: true })
   draft.value = ''
   await toBottom()
 
@@ -225,6 +248,7 @@ async function send() {
       is_internal: false,
     })
     if (error) throw error
+    if (status.value === 'resolved') status.value = 'open'
     await load()
     await toBottom()
   } catch (e) {
@@ -458,6 +482,11 @@ useLiveData({
   font-size: 12.5px;
 }
 
+.reply-note {
+  margin: 0 0 8px;
+  color: var(--m-muted);
+  font-size: 12.5px;
+}
 .reply {
   flex: 0 0 auto;
   padding: 10px var(--m-page-gutter) calc(10px + env(safe-area-inset-bottom));

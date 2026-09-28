@@ -69,7 +69,7 @@
         </div>
 
         <!-- What it costs to move in, and how long you're committing to -->
-        <section v-if="moveIn || policy.minStay || policy.contractType" class="block">
+        <section v-if="moveIn || policy.contractType" class="block">
           <h2 class="block-title">Move-in cost</h2>
           <div class="rule-list">
             <div v-if="moveIn?.advance" class="rule-row">
@@ -79,10 +79,6 @@
             <div v-if="moveIn?.deposit" class="rule-row">
               <span class="rule-label">Deposit ({{ moveIn.depositMonths }} mo)</span>
               <span class="rule-value">{{ formatPeso(moveIn.deposit) }}</span>
-            </div>
-            <div v-if="policy.minStay" class="rule-row">
-              <span class="rule-label">Minimum stay</span>
-              <span class="rule-value">{{ policy.minStay }} month{{ policy.minStay === 1 ? '' : 's' }}</span>
             </div>
             <div v-if="policy.contractType" class="rule-row">
               <span class="rule-label">Contract type</span>
@@ -222,7 +218,7 @@ const room = reactive({
 const images = ref<string[]>([])
 const amenities = ref<string[]>([])
 const facilities = ref<{ type: string; label: string | null }[]>([])
-const policy = reactive({ advanceMonths: 0, depositMonths: 0, minStay: 0, contractType: '' })
+const policy = reactive({ advanceMonths: 0, depositMonths: 0, contractType: '' })
 const manager = reactive({ id: '', name: '', initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
 const myLease = reactive({ hasAny: false, onThisRoom: false })
 const listingDescription = ref('')
@@ -288,7 +284,6 @@ async function load() {
           accommodation_policies: {
             advance_months: number | null
             deposit_months: number | null
-            min_stay: number | null
             contract_type: string | null
           } | null
         }
@@ -358,9 +353,8 @@ async function load() {
     const accPolicy = property.accommodation_policies
     policy.advanceMonths = data.advance_months ?? accPolicy?.advance_months ?? 0
     policy.depositMonths = data.deposit_months ?? accPolicy?.deposit_months ?? 0
-    // Lease length/contract terms are set at the property level only (no
+    // Contract terms are set at the property level only (no
     // per-room override exists in the schema), so no fallback chain needed.
-    policy.minStay = accPolicy?.min_stay ?? 0
     policy.contractType = accPolicy?.contract_type ?? ''
 
     // Most rooms have no photos of their own yet — fall back to the

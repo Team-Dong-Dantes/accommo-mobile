@@ -331,6 +331,7 @@ import BottomSheet from '@/components/shared/BottomSheet.vue'
 import { period } from '@/utils/profile'
 import { formatPeso, formatMonth, formatDate, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { signRows } from '@/utils/upload'
 
 interface HistoryRow {
   id: string
@@ -629,6 +630,7 @@ async function load(silent = false) {
       createdAt: r.created_at ?? '',
     }))
 
+    await signRows('payments', paymentRows, 'proof_url')
     payments.value = (paymentRows ?? []).map((p) => {
       const payLease = p.leases as unknown as {
         rooms: { room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null

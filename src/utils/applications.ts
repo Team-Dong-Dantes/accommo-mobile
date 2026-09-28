@@ -59,6 +59,51 @@ export async function issueApplicationForm(
   )
 }
 
+/**
+ * A walk-in tenant: the landlord/landlady adds a student by their student ID. It
+ * stays pending until they scan that student's QR in person (acceptAddedStudent)
+ * — add_student_to_room() and the leases guard trigger hold both halves.
+ */
+export async function addStudentToRoom(
+  roomId: string,
+  studentNo: string,
+  startDate: string,
+  student: { id: string; roomLabel: string },
+): Promise<void> {
+  const { error } = await supabase.rpc('add_student_to_room', {
+    p_room: roomId,
+    p_student_no: studentNo,
+    p_start: startDate,
+  })
+  if (error) throw new Error(error.message)
+
+  void createNotification(
+    student.id,
+    'Added to a room',
+    `Your landlord/landlady added you to ${student.roomLabel}. Show them your student QR to confirm.`,
+    'lease',
+    '/student/profile/qr',
+  )
+}
+
+/** Accepts an added student with the QR code just scanned from their screen. */
+export async function acceptAddedStudent(
+  leaseId: string,
+  code: string,
+  student: { id: string; roomLabel: string },
+): Promise<void> {
+  const { error } = await supabase.rpc('accept_added_student', { p_lease: leaseId, p_code: code })
+  if (error) throw new Error(error.message)
+
+  void createNotification(
+    student.id,
+    'Stay confirmed',
+    `Your stay at ${student.roomLabel} is confirmed.`,
+    'lease',
+    '/student/stay',
+  )
+}
+
 /** Clears the invite once it has been used. */
 export async function clearApplicationInvite(conversationId: string): Promise<void> {
   await supabase

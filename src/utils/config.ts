@@ -46,12 +46,10 @@ export function isAllowedEmailDomain(email: string | null | undefined): boolean 
   return !!domain && (ALLOWED_EMAIL_DOMAINS as readonly string[]).includes(domain);
 }
 
-// Browser fallback only. On a device the installed versionName is the truth —
-// CI stamps it with the release's run number (see .github/workflows/build.yml),
-// which a constant baked into the bundle cannot know. Kept as a constant rather
-// than a JSON import since resolveJsonModule isn't guaranteed in the generated
-// Quasar tsconfig; bump it alongside package.json's version.
-export const APP_VERSION = '1.0.0';
+// Browser fallback only. On a device the installed versionName is the truth.
+// In the browser (the Vercel web version) it is inlined at build time by
+// quasar.config.ts from package.json, so it follows the version you bump there.
+export const APP_VERSION: string = import.meta.env.VITE_APP_VERSION || '0.0.0';
 
 /**
  * The version actually running. Reads the installed Android versionName on a

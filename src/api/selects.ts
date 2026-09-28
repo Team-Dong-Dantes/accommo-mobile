@@ -18,13 +18,13 @@
 
 /** Every house rule a student is shown. */
 export const POLICY_FULL =
-  'curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,min_stay,contract_type'
+  'curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets,contract_type'
 
 /** Just the commercial terms — what a room costs to take. */
-export const POLICY_TERMS = 'advance_months,deposit_months,min_stay,contract_type'
+export const POLICY_TERMS = 'advance_months,deposit_months,contract_type'
 
 /** The landlord/landlady's own editor, which reads the rules but sets terms per room. */
-export const POLICY_RULES = 'min_stay,curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets'
+export const POLICY_RULES = 'curfew_time,quiet_hours,visitor_policy,cooking,laundry,pets'
 
 /** A room as it appears on a card or in a list. */
 export const ROOM_CARD =

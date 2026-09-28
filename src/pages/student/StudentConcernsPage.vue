@@ -195,7 +195,7 @@ import { CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from 
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
-import { uploadDocument } from '@/utils/upload'
+import { uploadSecureDocument, signRows } from '@/utils/upload'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
@@ -306,6 +306,7 @@ async function load() {
       .eq('leases.student_id', user.id)
       .order('reported_at', { ascending: false })
     if (loadError) throw loadError
+    await signRows('concerns', data, 'photo_url')
 
     rows.value = (data ?? []).map((c) => {
       const lease = c.leases as unknown as {
@@ -382,7 +383,8 @@ async function submit() {
   if (submitting.value || !activeLease.value) return
   submitting.value = true
   try {
-    const photoUrl = form.photo ? await uploadDocument(form.photo, '', 'concern') : null
+    // Private: stored as a cld: ref, shown through a signed link.
+    const photoUrl = form.photo ? await uploadSecureDocument(form.photo) : null
 
     const { data: created, error: insertError } = await supabase
       .from('concerns')
@@ -408,7 +410,7 @@ async function submit() {
         inProgressAt: null,
         resolvedAt: null,
         managerResponse: '',
-        photoUrl: created.photo_url || '',
+        photoUrl: form.photo ? URL.createObjectURL(form.photo) : '',
         where: 'Your stay',
       },
       ...rows.value,

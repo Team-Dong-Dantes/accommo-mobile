@@ -1,22 +1,4 @@
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-function json(body: Record<string, unknown>) {
-  return new Response(JSON.stringify({ ok: true, ...body }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-function fail(message: string) {
-  return new Response(JSON.stringify({ ok: false, error: message }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+import { allowedOrigin, preflight, reply } from '../_shared/http.ts';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
@@ -41,15 +23,17 @@ const FALLBACK_APP_URL = 'https://accommo.vercel.app';
  * Redirect URLs, or Supabase silently ignores it and uses the Site URL anyway.
  */
 function redirectTarget(req: Request): string {
-  const origin = req.headers.get('origin');
-  const base = origin && /^https?:\/\//.test(origin) ? origin : FALLBACK_APP_URL;
+  // Only one of our own front ends — any other origin could point the invite
+  // link at a look-alike site.
+  const base = allowedOrigin(req) ?? FALLBACK_APP_URL;
   return `${base}/onboarding`;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  const pre = preflight(req);
+  if (pre) return pre;
+  const json = (body: Record<string, unknown>) => reply(req, 200, body);
+  const fail = (message: string, status = 400) => reply(req, status, { error: message });
 
   try {
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
@@ -59,7 +43,7 @@ Deno.serve(async (req) => {
     const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE) {
-      return fail('Missing Supabase environment variables.');
+      return fail('Missing Supabase environment variables.', 500);
     }
 
     const authHeader = req.headers.get('Authorization') ?? '';
@@ -71,7 +55,7 @@ Deno.serve(async (req) => {
 
     const { data: authData } = await userClient.auth.getUser();
     const userId = authData.user?.id;
-    if (!userId) return fail('Unauthorized');
+    if (!userId) return fail('Unauthorized', 401);
 
     const { data: me, error: meErr } = await userClient
       .from('users')
@@ -79,7 +63,14 @@ Deno.serve(async (req) => {
       .eq('id', userId)
       .single();
     if (meErr || !me?.is_superadmin) {
-      return fail('Only the main admin can invite administrators.');
+      return fail('Only the main admin can invite administrators.', 403);
+    }
+    // Reading your own row is allowed before the second factor, so the flag
+    // above proves only the password. mfa_ok() is the rule is_admin() uses:
+    // with an authenticator enrolled, the session must have passed the code.
+    const { data: mfaOk } = await userClient.rpc('mfa_ok', { p_uid: userId });
+    if (mfaOk !== true) {
+      return fail('Enter your authentication code before inviting administrators.', 403);
     }
 
     const body = await req.json().catch(() => ({}));
@@ -107,7 +98,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (existing) {
       if (existing.is_superadmin) {
-        return fail('That account is the main admin and cannot be re-invited.');
+        return fail('That account is the main admin and cannot be re-invited.', 409);
       }
       if (existing.role === 'admin') {
         // An admin who never accepted their invite is a resend, not a no-op.
@@ -189,6 +180,6 @@ Deno.serve(async (req) => {
 
     return json({ id: newId, invite_link: null, temporary_password });
   } catch (e) {
-    return fail(e instanceof Error ? e.message : String(e));
+    return fail(e instanceof Error ? e.message : String(e), 500);
   }
 });

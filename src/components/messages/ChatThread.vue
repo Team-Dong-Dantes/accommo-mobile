@@ -154,7 +154,7 @@ import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
 import { isDesktop } from '@/utils/useTabletMode'
-import { uploadToCloudinary } from '@/utils/upload'
+import { uploadSecureDocument, signRows, signRef } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
 import ApplicationCard from '@/components/messages/ApplicationCard.vue'
 
@@ -326,9 +326,9 @@ async function send() {
   try {
     let attachmentUrl: string | null = null
     if (file) {
-      const [uploaded] = await uploadToCloudinary(file)
-      if (!uploaded) throw new Error('Upload failed.')
-      attachmentUrl = uploaded.url
+      // Chat photos are private: the row stores a cld: ref, readable only
+      // through a signed link.
+      attachmentUrl = await uploadSecureDocument(file)
     }
 
     const { data, error: sendError } = await supabase
@@ -345,11 +345,11 @@ async function send() {
         senderId: data.sender_id,
         sentAt: data.sent_at,
         status: data.status,
-        attachmentUrl: data.attachment_url ?? undefined,
+        // Keep showing the local copy: the stored value is a ref, not a URL.
+        attachmentUrl: data.attachment_url ? localPreview : undefined,
       },
       tempId,
     )
-    if (localPreview) URL.revokeObjectURL(localPreview)
 
     // No notification row for a chat message. tg_message_after_insert already
     // bumps conversations.unread_a/unread_b, which is what the Messages tab
@@ -407,6 +407,7 @@ async function load() {
       .order('sent_at', { ascending: true })
       .limit(200)
     if (rowsError) throw rowsError
+    await signRows('messages', rows, 'attachment_url')
 
     messages.value = (rows ?? []).map((m) => ({
       id: m.id,
@@ -514,7 +515,7 @@ async function listen() {
         table: 'messages',
         filter: `conversation_id=eq.${props.conversationId}`,
       },
-      (payload) => {
+      async (payload) => {
         if (payload.eventType === 'INSERT') {
           const row = payload.new as {
             id: string
@@ -530,7 +531,7 @@ async function listen() {
             senderId: row.sender_id,
             sentAt: row.sent_at,
             status: row.status,
-            attachmentUrl: row.attachment_url ?? undefined,
+            attachmentUrl: (await signRef('messages', row.id, row.attachment_url)) || undefined,
           })
           void toBottom()
           // Their message arrived while the thread is open, so it is read.

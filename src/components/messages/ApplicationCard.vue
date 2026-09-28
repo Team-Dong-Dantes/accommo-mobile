@@ -95,7 +95,10 @@
       </span>
     </div>
     <p v-if="declined" class="app-card-reason">Reason: {{ declined.reason }}</p>
-    <div class="app-card-actions">
+    <!-- An unverified student cannot be issued a form, so they are not offered
+         the request at all — the reason stands in for the button. -->
+    <p v-if="applyBlocked" class="app-card-reason">{{ applyBlocked }}</p>
+    <div v-else class="app-card-actions">
       <button type="button" class="app-btn app-btn--ghost" :disabled="requesting" @click="requestForm">
         {{ requesting ? 'Requested' : declined ? 'Ask for another form' : 'Request application form' }}
       </button>
@@ -258,7 +261,6 @@ interface RoomBrief {
   label: string
   accommodation: string
   rent: number
-  minStay: number
   capacity: number
   rentBasis: 'room' | 'person'
   advanceMonths: number
@@ -287,6 +289,8 @@ const otherLease = ref<{ leaseId: string; status: string; roomLabel: string; man
 const declined = ref<{ roomLabel: string; reason: string } | null>(null)
 const issuing = ref(false)
 const requesting = ref(false)
+/** Why this student may not apply right now; null when they may. */
+const applyBlocked = ref<string | null>(null)
 const reviewOpen = ref(false)
 const declineOpen = ref(false)
 const declineReason = ref('')
@@ -308,7 +312,7 @@ function addMonths(dateStr: string, months: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-const applyEndDate = computed(() => addMonths(applyForm.startDate || todayStr(), applyRoom.value?.minStay || 12))
+const applyEndDate = computed(() => addMonths(applyForm.startDate || todayStr(), 12))
 
 /**
  * What this tenant actually pays each month. A "whole room" rate is split evenly
@@ -427,6 +431,8 @@ async function runRefresh() {
     ? { roomLabel: roomLabelOf(refused.rooms as never), reason: refused.decision_reason }
     : null
 
+  if (props.role === 'student') applyBlocked.value = await whyApplyBlocked()
+
   const { data: convo } = await supabase
     .from('conversations')
     .select('inquiry_room_id,invited_room_id')
@@ -477,7 +483,7 @@ async function fetchRoomLabel(roomId: string): Promise<string> {
 
 /** Student nudge. Holds no state beyond the transcript line and the notification. */
 async function requestForm() {
-  if (requesting.value || !inquiryRoom.value) return
+  if (requesting.value || !inquiryRoom.value || applyBlocked.value) return
   requesting.value = true
   try {
     await requestApplicationForm(props.conversationId, props.otherId, inquiryRoom.value.label)
@@ -511,7 +517,7 @@ async function loadApplyRoom(roomId: string) {
   const { data } = await supabase
     .from('rooms')
     .select(
-      'id,label,room_number,monthly_rent,capacity,rent_basis,status,advance_months,deposit_months,accommodations(name,landlord_id,accommodation_policies(min_stay))',
+      'id,label,room_number,monthly_rent,capacity,rent_basis,status,advance_months,deposit_months,accommodations(name,landlord_id)',
     )
     .eq('id', roomId)
     .maybeSingle()
@@ -519,7 +525,6 @@ async function loadApplyRoom(roomId: string) {
   const acc = data?.accommodations as unknown as {
     name: string | null
     landlord_id: string | null
-    accommodation_policies: unknown
   } | null
 
   if (!data || !acc || acc.landlord_id !== props.otherId || data.status !== 'available') {
@@ -528,16 +533,12 @@ async function loadApplyRoom(roomId: string) {
     return
   }
 
-  const policyRows = acc.accommodation_policies as unknown
-  const policyRow = (Array.isArray(policyRows) ? policyRows[0] : policyRows) as { min_stay: number | null } | null
-
   applyForm.startDate = todayStr()
   applyRoom.value = {
     id: data.id,
     label: data.label || (data.room_number ? `Room ${data.room_number}` : 'Room'),
     accommodation: acc.name || 'This accommodation',
     rent: Number(data.monthly_rent ?? 0),
-    minStay: policyRow?.min_stay ?? 12,
     capacity: data.capacity ?? 1,
     rentBasis: data.rent_basis === 'person' ? 'person' : 'room',
     advanceMonths: Number(data.advance_months ?? 0),
@@ -563,30 +564,35 @@ async function openReview() {
   }
 }
 
+/**
+ * Asks the database the same question the lease insert policy asks, rather than
+ * a second reading of it: a client that asks the database its own question
+ * cannot drift from it. The one answer covers "not verified" and "OSAS paused
+ * applications"; only the second has a reason worth reading out.
+ */
+async function whyApplyBlocked(): Promise<string | null> {
+  const { data: mayLease } = await supabase.rpc('student_may_lease', { p_student: props.me })
+  if (mayLease === true) return null
+  const { data: standing } = await supabase
+    .from('account_standing')
+    .select('reason, restrictions')
+    .eq('user_id', props.me)
+    .maybeSingle()
+  return standing?.restrictions?.includes('apply')
+    ? `OSAS has paused your room applications.${standing.reason ? ` ${standing.reason}` : ''}`
+    : 'OSAS needs to verify your account before you can request an application form.'
+}
+
 async function submitApplication() {
   if (applying.value || !applyRoom.value) return
   applying.value = true
   try {
-    // The same predicate the RLS policy evaluates, rather than a second reading
-    // of it. This used to check student_profiles.osas_verified_at by hand, which
-    // was one of two hand-written copies of the rule -- and the other copy, on
-    // the landlord/landlady's insert policy, had drifted to checking nothing at all. A
-    // client that asks the database its own question cannot drift from it; all
-    // this buys is saying so in words before RLS says it in an error.
-    const { data: mayLease } = await supabase.rpc('student_may_lease', { p_student: props.me })
-    if (mayLease !== true) {
-      // The same answer covers "not verified" and "OSAS paused applications";
-      // only the second has a reason worth reading out.
-      const { data: standing } = await supabase
-        .from('account_standing')
-        .select('reason, restrictions')
-        .eq('user_id', props.me)
-        .maybeSingle()
-      notify.warning(
-        standing?.restrictions?.includes('apply')
-          ? `OSAS has paused your room applications.${standing.reason ? ` ${standing.reason}` : ''}`
-          : 'Get OSAS-verified before applying for a room.',
-      )
+    // Re-asked at submit: OSAS may have paused applications since the card
+    // loaded. All this buys is saying so in words before RLS says it in an error.
+    const blocked = await whyApplyBlocked()
+    if (blocked) {
+      applyBlocked.value = blocked
+      notify.warning(blocked)
       return
     }
 

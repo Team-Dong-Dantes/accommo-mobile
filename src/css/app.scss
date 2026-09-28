@@ -706,8 +706,10 @@ body {
 
 /* Search pinned to the top of a half while its list scrolls, on a solid band
    so rows never show through round the rounded field. Pulled out over the
-   half's padding to sit flush with the card's edge. */
-.shell-tablet .desk-search {
+   half's padding to sit flush with the card's edge. The class is doubled to
+   outrank SearchDock's own scoped `.dock--inline { position: static }`, which
+   ties on specificity and loads later, so it used to win and nothing stuck. */
+.shell-tablet .desk-search.desk-search {
   position: sticky;
   top: 0;
   z-index: 3;
@@ -722,7 +724,7 @@ body {
   padding: 12px 14px 10px;
 }
 /* Above a card rather than inside one: the page's own ground behind it. */
-.shell-tablet .desk-search--above {
+.shell-tablet .desk-search.desk-search--above {
   position: static;
   margin: 0 0 10px;
   padding: 0;

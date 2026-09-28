@@ -63,18 +63,35 @@
         <div :class="panes.mode === 'split' ? 'pane pane--detail' : null">
           <!-- Nothing picked yet. Naming what the pane is waiting for beats a
                blank half-screen, which reads as a failure to load. -->
-          <div v-if="panes.mode === 'split' && !panes.detailOpen" class="pane-empty">
+          <!-- Desktop Discover: its map teleports in here and is the right half
+               until a listing is opened over it. Hidden, not unmounted, so the
+               map keeps its camera for the way back. -->
+          <div v-if="discoverMapSlot" v-show="panes.mode === 'split' && !panes.detailOpen" id="desk-map-slot" class="pane-map" />
+          <div
+            v-if="panes.mode === 'split' && !panes.detailOpen"
+            v-show="!discoverMapSlot"
+            class="pane-empty"
+          >
             <IconifyIcon icon="lucide:mouse-pointer-click" width="26" />
             <p>{{ panes.hint }}</p>
           </div>
 
-          <router-view v-else v-slot="{ Component }">
+          <template v-else>
+          <!-- Discover's detail covers its map; this is the way back to it. -->
+          <header v-if="discoverMapSlot" class="desk-panel-bar pane-back-bar">
+            <button type="button" class="desk-panel-back" aria-label="Back" @click="backInPane">
+              <IconifyIcon icon="lucide:arrow-left" width="20" />
+            </button>
+            <span class="desk-panel-title">{{ matchSecondary(route.path, config)?.title }}</span>
+          </header>
+          <router-view v-slot="{ Component }">
             <transition :name="pageTransition">
               <keep-alive :include="KEEP_ALIVE_PAGES" :max="20">
                 <component :is="Component" :key="pageKey" />
               </keep-alive>
             </transition>
           </router-view>
+          </template>
         </div>
       </div>
     </q-page-container>
@@ -477,12 +494,22 @@ const isSubPage = computed(() => Boolean(subPage.value))
 // Discover runs its map full-bleed behind this header instead of below it,
 // so the header needs its scrolled-state card background always — a plain
 // transparent header over a map (rather than over the page's own solid
-// background) leaves its icons floating with no backing.
-const hasFloatingMap = computed(() => route.path === '/student/discover')
+// background) leaves its icons floating with no backing. Not on desktop, where
+// the map is the card's right half, below the header — there the header stays
+// the plain, unoutlined one.
+const hasFloatingMap = computed(() => route.path === '/student/discover' && !isDesktop.value)
 
 // Which panes the stage shows. Single in phone mode, always — the composable
 // short-circuits on isTablet before it looks at anything else.
 const panes = useShellPanes(() => config.value, () => isTablet.value)
+/** A listing opened from a room goes back to the room, else to the map. */
+function backInPane() {
+  if (window.history.state?.back) router.back()
+  else void router.push('/student/discover')
+}
+const discoverMapSlot = computed(
+  () => isDesktop.value && panes.value.mode === 'split' && panes.value.listPath === '/student/discover',
+)
 
 // An open thread or ticket covers the screen on a phone, so the chrome steps
 // aside. In tablet mode it fills the detail pane instead, beside a list that is
@@ -883,6 +910,16 @@ function onScroll() {
   height: 100%;
   min-width: 0;
   overflow-y: auto;
+}
+.pane-back-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--m-surface);
+}
+.pane-map {
+  position: relative;
+  height: 100%;
 }
 .pane--list {
   border-right: 1px solid var(--m-border);

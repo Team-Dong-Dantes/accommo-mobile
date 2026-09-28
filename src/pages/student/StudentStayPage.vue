@@ -298,7 +298,7 @@
             <span class="file-picker-text">{{ uploadingProof ? 'Uploading…' : form.proofUrl ? 'Replace file' : 'Choose file' }}</span>
             <input type="file" accept="image/*" class="file-picker-input" :disabled="uploadingProof" @change="onProofSelected" />
           </span>
-          <img v-if="form.proofUrl" :src="resolveAsset(form.proofUrl)" alt="Proof of payment" class="submit-proof-preview" />
+          <img v-if="proofPreview" :src="proofPreview" alt="Proof of payment" class="submit-proof-preview" />
           <span v-if="!isCash" class="submit-hint">Required for non-cash payments, so there's something to verify against.</span>
         </label>
 
@@ -394,7 +394,7 @@ import {
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import { createNotification } from '@/boot/notify'
-import { uploadDocument } from '@/utils/upload'
+import { uploadSecureDocument, signRows } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { AMENITY_META, roomTypeLabel } from '@/utils/listings'
 import {
@@ -492,6 +492,8 @@ const leaving = ref(false)
 const submitOpen = ref(false)
 const submitting = ref(false)
 const uploadingProof = ref(false)
+// Local preview of the chosen receipt; the stored value is a private ref.
+const proofPreview = ref('')
 const form = reactive({
   category: 'rent' as 'rent' | 'advance' | 'deposit',
   month: new Date().toISOString().slice(0, 7),
@@ -567,6 +569,7 @@ async function load(silent = false) {
     if (leaseError) throw leaseError
     if (paymentsError) throw paymentsError
 
+    await signRows('payments', paymentRows, 'proof_url')
     payments.value = (paymentRows ?? []).map((p) => {
       const payLease = p.leases as unknown as {
         rooms: { room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
@@ -625,7 +628,6 @@ async function load(silent = false) {
             { label: 'Cooking', value: yesNo(policy.cooking as boolean | null) },
             { label: 'Laundry', value: yesNo(policy.laundry as boolean | null) },
             { label: 'Pets', value: yesNo(policy.pets as boolean | null) },
-            { label: 'Minimum stay', value: policy.min_stay ? `${policy.min_stay} month(s)` : '' },
             { label: 'Contract type', value: String(policy.contract_type ?? '') },
           ] as { label: string; value: string }[]
         ).filter((r) => r.value)
@@ -718,6 +720,7 @@ function openSubmit(category: typeof form.category) {
   form.method = 'gcash'
   form.reference = ''
   form.proofUrl = ''
+  proofPreview.value = ''
   submitOpen.value = true
 }
 
@@ -727,7 +730,10 @@ async function onProofSelected(event: Event) {
   if (!file) return
   uploadingProof.value = true
   try {
-    form.proofUrl = await uploadDocument(file, '', 'payment_proof')
+    // A receipt is private: signed upload, so form.proofUrl is a cld: ref and the
+    // preview comes from the file itself.
+    form.proofUrl = await uploadSecureDocument(file)
+    proofPreview.value = URL.createObjectURL(file)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload the proof image.'))
   } finally {
@@ -796,7 +802,7 @@ async function submitPayment() {
         accommodationName: lease.value.accommodationName,
         description: description || '',
         txnReference: form.reference.trim(),
-        proofUrl: form.proofUrl,
+        proofUrl: proofPreview.value,
         paidAt: null,
         verifiedByName: '',
         rejectionReason: '',

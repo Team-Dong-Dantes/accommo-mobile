@@ -172,6 +172,7 @@ import { useLiveData, type LivePayload } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { initialsOf, CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
+import { signRows } from '@/utils/upload'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
@@ -262,6 +263,7 @@ async function load() {
       .eq('leases.landlord_id', user.id)
       .order('reported_at', { ascending: false })
     if (loadError) throw loadError
+    await signRows('concerns', data, 'photo_url')
 
     rows.value = (data ?? []).map((c) => {
       const lease = c.leases as unknown as {
@@ -312,6 +314,7 @@ async function onConcernInserted(payload: LivePayload) {
     .eq('id', id)
     .maybeSingle()
   if (!data) return
+  await signRows('concerns', [data], 'photo_url')
   const lease = data.leases as unknown as {
     student_id: string
     users: { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null

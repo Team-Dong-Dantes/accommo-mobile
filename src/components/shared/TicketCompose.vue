@@ -72,7 +72,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { errorMessage } from '@/utils/errors'
-import { uploadDocument } from '@/utils/upload'
+import { uploadSecureDocument } from '@/utils/upload'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import { useNotify } from '@/utils/notify'
 
@@ -117,7 +117,8 @@ async function onFileSelected(event: Event) {
   if (!file) return
   uploading.value = true
   try {
-    form.photoUrl = await uploadDocument(file, '', 'ticket_photo')
+    // Private: a cld: ref, shown to OSAS through a signed link.
+    form.photoUrl = await uploadSecureDocument(file)
     fileName.value = file.name
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload that screenshot.'))

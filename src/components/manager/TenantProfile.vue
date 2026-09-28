@@ -118,7 +118,19 @@
                 <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'reject'; decisionReason = ''">
                   Decline
                 </button>
-                <button type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
+                <!-- Added by hand: accepted only by scanning their QR (DB-enforced). -->
+                <template v-if="lease.addedByLandlord">
+                  <button
+                    v-if="isNative"
+                    type="button"
+                    class="decide-btn"
+                    @click="router.push(`/manager/profile/qr-scanner?accept=${leaseId}`)"
+                  >
+                    Scan to accept
+                  </button>
+                  <span v-else class="decide-note">Accept in the Accommo app</span>
+                </template>
+                <button v-else type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
                   Accept
                 </button>
               </div>
@@ -378,9 +390,11 @@ import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
+import { signRows } from '@/utils/upload'
 import StarRating from '@/components/shared/StarRating.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import { Capacitor } from '@capacitor/core'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -416,7 +430,9 @@ const lease = reactive({
   startDate: '',
   endDate: '',
   monthlyRent: 0,
+  addedByLandlord: false,
 })
+const isNative = Capacitor.isNativePlatform()
 const coverUrl = ref('')
 const payments = ref<
   {
@@ -447,7 +463,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,student_id,room_id,users!leases_student_id_fkey(full_name,initials,email,phone,avatar_url),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,monthly_rent,student_id,room_id,added_by_landlord,users!leases_student_id_fkey(full_name,initials,email,phone,avatar_url),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -467,6 +483,7 @@ async function load(silent = false) {
     } | null
 
     lease.status = data.status
+    lease.addedByLandlord = data.added_by_landlord
     lease.studentId = data.student_id
     lease.studentName = student?.full_name || 'A student'
     lease.studentInitials = student?.initials || initialsOf(lease.studentName)
@@ -500,6 +517,7 @@ async function load(silent = false) {
         .eq('student_id', data.student_id)
         .order('period_start', { ascending: false }),
     ])
+    await signRows('payments', paymentRows, 'proof_url')
     payments.value = (paymentRows ?? []).map((p) => ({
       id: p.id,
       month: p.month,
@@ -984,6 +1002,14 @@ useLiveData({
   color: var(--m-muted);
   font-size: 12.5px;
   font-weight: 600;
+}
+.decide-note {
+  flex: 1;
+  align-self: center;
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
 }
 .decide-btn {
   flex: 1;

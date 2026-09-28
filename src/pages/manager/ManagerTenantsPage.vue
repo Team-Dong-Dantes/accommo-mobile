@@ -62,6 +62,11 @@
               <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:plus'" width="16" />
               {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
             </button>
+            <!-- Walk-in tenants. APK only: accepting them needs the camera. -->
+            <button v-if="isNative && !pickingPayment" type="button" class="top-pay-btn top-pay-btn--ghost" @click="addOpen = true">
+              <IconifyIcon icon="lucide:user-plus" width="16" />
+              Add a student
+            </button>
             <p v-if="pickingPayment" class="picking-hint">Tap a tenant below to log their payment.</p>
 
             <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
@@ -121,7 +126,21 @@
                           >
                             Decline
                           </button>
+                          <!-- A student added by hand is accepted by scanning
+                               their QR, never with a tap (DB-enforced). -->
+                          <template v-if="l.addedByLandlord">
+                            <button
+                              v-if="isNative"
+                              type="button"
+                              class="lease-act"
+                              @click="router.push(`/manager/profile/qr-scanner?accept=${l.id}`)"
+                            >
+                              Scan to accept
+                            </button>
+                            <span v-else class="lease-act-note">Accept in the Accommo app</span>
+                          </template>
                           <button
+                            v-else
                             type="button"
                             class="lease-act"
                             :disabled="decidingId === l.id"
@@ -288,6 +307,8 @@
       </div>
     </BottomSheet>
 
+    <AddStudentSheet v-model="addOpen" @added="refresh" />
+
     <q-dialog v-model="paymentOpen" position="bottom">
       <q-card class="pay-sheet">
         <h3 class="pay-title">Log a payment{{ paymentLease ? ` — ${paymentLease.studentName}` : '' }}</h3>
@@ -426,10 +447,13 @@ import { requirePin } from '@/utils/requirePin'
 import { createNotification } from '@/boot/notify'
 import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
+import { signRows } from '@/utils/upload'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
+import AddStudentSheet from '@/components/manager/AddStudentSheet.vue'
+import { Capacitor } from '@capacitor/core'
 
 interface Lease {
   id: string
@@ -440,6 +464,7 @@ interface Lease {
   avatarUrl: string | null
   startDate: string
   monthlyRent: number
+  addedByLandlord: boolean
 }
 interface Room {
   id: string
@@ -602,7 +627,7 @@ async function load(silent = false) {
         .eq('landlord_id', user.id),
       supabase
         .from('leases')
-        .select('id,status,room_id,student_id,start_date,monthly_rent,users!leases_student_id_fkey(full_name,avatar_color,avatar_url)')
+        .select('id,status,room_id,student_id,start_date,monthly_rent,added_by_landlord,users!leases_student_id_fkey(full_name,avatar_color,avatar_url)')
         .eq('landlord_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested']),
     ])
@@ -652,6 +677,7 @@ async function load(silent = false) {
     roomRows = roomsResult?.data ?? []
     if (paymentsResult?.error) throw paymentsResult.error
     paymentRows = (paymentsResult?.data ?? []) as unknown as typeof paymentRows
+    await signRows('payments', paymentRows, 'proof_url')
 
     const leasesByRoom = new Map<string, Lease[]>()
     for (const l of leaseRows ?? []) {
@@ -666,6 +692,7 @@ async function load(silent = false) {
         avatarUrl: student?.avatar_url ? resolveAsset(student.avatar_url, AVATAR) : null,
         startDate: l.start_date,
         monthlyRent: Number(l.monthly_rent ?? 0),
+        addedByLandlord: l.added_by_landlord,
       })
       leasesByRoom.set(l.room_id, list)
     }
@@ -759,6 +786,7 @@ function onPull(done: () => void) {
 // Rent is stated as expected from leases.monthly_rent, not a collection/arrears
 // status — the payments table is too sparse against active leases to build that on.
 function leaseSubline(l: Lease): string {
+  if (l.status === 'pending' && l.addedByLandlord) return `Awaiting QR check · move-in ${formatDate(l.startDate)}`
   if (l.status === 'pending') return `Requested move-in ${formatDate(l.startDate)}`
   const rent = l.monthlyRent ? `${formatPeso(l.monthlyRent)}/mo` : 'Rent not set'
   return l.status === 'leave_requested' ? `Leave requested · ${rent}` : `Since ${formatDate(l.startDate)} · ${rent}`
@@ -779,6 +807,8 @@ function occupancyTone(pct: number) {
 }
 
 const decidingId = ref('')
+const isNative = Capacitor.isNativePlatform()
+const addOpen = ref(false)
 
 const declineOpen = ref(false)
 const declineReason = ref('')
@@ -1098,6 +1128,11 @@ async function rejectPayment(paymentId: string) {
   font-size: 14px;
   font-weight: 700;
 }
+.top-pay-btn--ghost {
+  border: 1px solid var(--m-border);
+  background: var(--m-surface);
+  color: var(--m-ink);
+}
 .picking-hint {
   margin: -6px 2px 0;
   color: var(--m-muted);
@@ -1306,6 +1341,12 @@ async function rejectPayment(paymentId: string) {
   font-size: 11.5px;
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
+}
+.lease-act-note {
+  align-self: center;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 600;
 }
 .lease-act:disabled {
   opacity: 0.6;

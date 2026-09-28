@@ -349,7 +349,6 @@ async function load() {
         { label: 'Cooking', value: yesNo(policy.cooking as boolean | null) },
         { label: 'Laundry', value: yesNo(policy.laundry as boolean | null) },
         { label: 'Pets', value: yesNo(policy.pets as boolean | null) },
-        { label: 'Minimum stay', value: policy.min_stay ? `${policy.min_stay} month(s)` : '' },
         { label: 'Contract type', value: String(policy.contract_type ?? '') },
       ]
       rules.value = built.filter((r) => r.value)

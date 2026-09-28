@@ -233,13 +233,17 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
 //
 // Both signatures come from the `doc-access` edge function, because computing
 // them needs the Cloudinary API secret and that must never reach client code.
-// Photos, avatars and listing images deliberately keep using the public,
-// unsigned path above.
+// Payment proofs, chat photos, concern photos and support-ticket photos go the
+// same way — they show receipts, rooms and people. Avatars and listing images
+// deliberately keep using the public, unsigned path above.
 
 /** What we store in file_url: cld:<resource_type>:<type>:<format>:<public_id> */
 export type DocumentRef = string;
 
 export type DocumentTable = 'verification_documents' | 'accommodation_documents';
+
+/** Every table whose file column holds private refs; mirrors doc-access. */
+export type PrivateFileTable = DocumentTable | 'payments' | 'messages' | 'concerns' | 'tickets' | 'ticket_messages';
 
 /** Uploads a document to Cloudinary with authenticated delivery; returns the ref to store. */
 export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
@@ -279,11 +283,40 @@ export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
  * function via this caller's own RLS, so a row you cannot select yields nothing.
  * Returns '' when the document is missing or not permitted.
  */
-export async function secureDocUrl(table: DocumentTable, id: string | null | undefined): Promise<string> {
+export async function secureDocUrl(
+  table: PrivateFileTable,
+  id: string | null | undefined,
+  ref?: string,
+): Promise<string> {
   if (!id) return '';
   const { data, error } = await supabase.functions.invoke('doc-access', {
-    body: { action: 'view', table, id },
+    body: { action: 'view', table, id, ref },
   });
   if (error) return '';
   return (data?.url as string) || '';
+}
+
+/** One stored value: a private ref gets signed, anything else passes through. */
+export async function signRef(table: PrivateFileTable, id: string, value: string | null | undefined): Promise<string> {
+  if (!value) return '';
+  return value.startsWith('cld:') ? secureDocUrl(table, id, value) : value;
+}
+
+/**
+ * Swaps each row's private file refs in `column` for short-lived signed links,
+ * in place — a string or an array of strings. Plain URLs from before files went
+ * private are left as they are. Call it right after the rows are fetched.
+ */
+export async function signRows<R extends { id: string }>(
+  table: PrivateFileTable,
+  rows: R[] | null | undefined,
+  column: keyof R & string,
+): Promise<void> {
+  await Promise.all((rows ?? []).map(async (row) => {
+    const value = row[column] as unknown;
+    const signed = Array.isArray(value)
+      ? await Promise.all(value.map((v: string) => signRef(table, row.id, v)))
+      : typeof value === 'string' ? await signRef(table, row.id, value) : value;
+    (row as Record<string, unknown>)[column] = signed;
+  }));
 }

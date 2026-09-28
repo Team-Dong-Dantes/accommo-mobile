@@ -312,7 +312,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { uploadSecureDocument, secureDocUrl } from '@/utils/upload'
+import { uploadSecureDocument, secureDocUrl, signRows } from '@/utils/upload'
 import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
 import { openExternal } from '@/utils/openExternal'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
@@ -377,6 +377,7 @@ interface Ticket {
   status: string
   reportedAt: string
   photoUrls: string[]
+  ticketNo: number | null
 }
 
 const route = useRoute()
@@ -532,13 +533,14 @@ async function load() {
       supabase.from('accommodations').select('id, name').eq('landlord_id', user.id).order('name'),
       supabase
         .from('tickets')
-        .select('id, subject, description, category, status, reported_at, photo_urls')
+        .select('id, ticket_no, subject, description, category, status, reported_at, photo_urls')
         .eq('landlord_id', user.id)
         .order('reported_at', { ascending: false }),
       supabase.from('users').select('status').eq('id', user.id).maybeSingle(),
     ])
     if (accError) throw accError
     if (ticketError) throw ticketError
+    await signRows('tickets', ticketData, 'photo_urls')
     if (userError) throw userError
     myStatus.value = userData?.status || ''
     if (myStatus.value === 'rejected' || myStatus.value === 'reviewing') {
@@ -569,6 +571,7 @@ async function load() {
       status: t.status,
       reportedAt: t.reported_at,
       photoUrls: t.photo_urls ?? [],
+      ticketNo: t.ticket_no,
     }))
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
@@ -730,12 +733,13 @@ async function submitTicket(draft: TicketDraft) {
         status: 'open',
         priority: 'medium',
       })
-      .select('id, subject, description, category, status, reported_at, photo_urls')
+      .select('id, ticket_no, subject, description, category, status, reported_at, photo_urls')
       .single()
     if (insertError) throw insertError
+    await signRows('tickets', [created], 'photo_urls')
 
     tickets.value = [
-      { id: created.id, subject: created.subject || 'Untitled', description: created.description || '', category: created.category || 'other', status: created.status, reportedAt: created.reported_at, photoUrls: created.photo_urls ?? [] },
+      { id: created.id, subject: created.subject || 'Untitled', description: created.description || '', category: created.category || 'other', status: created.status, reportedAt: created.reported_at, photoUrls: created.photo_urls ?? [], ticketNo: created.ticket_no },
       ...tickets.value,
     ]
 

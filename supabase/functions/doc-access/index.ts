@@ -8,8 +8,10 @@
 // secret. That secret must never reach client code, so both the upload params
 // and the read URLs are signed here.
 //
-// Photos, avatars and listing images are NOT routed through this function: they
-// are meant to be public and keep using the unsigned preset.
+// The same goes for payment proofs (bank/e-wallet receipts), chat photos,
+// concern photos and support-ticket photos. Avatars and listing images are NOT
+// routed through this function: they are meant to be public and keep using the
+// unsigned preset.
 //
 // Authorization deliberately reuses RLS instead of re-implementing it. The
 // caller's own JWT is used to select the document row; if the policies do not
@@ -17,30 +19,28 @@
 // from becoming an oracle that signs any public_id on request, and it cannot
 // drift out of step with the table policies.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { preflight, reply } from '../_shared/http.ts'
 
 const CLOUD = Deno.env.get('CLOUDINARY_CLOUD_NAME')!
 const KEY = Deno.env.get('CLOUDINARY_API_KEY')!
 const SECRET = Deno.env.get('CLOUDINARY_API_SECRET')!
 
-const DOC_TABLES = ['verification_documents', 'accommodation_documents'] as const
-type DocTable = (typeof DOC_TABLES)[number]
+/** Every table holding private file references, and the column that holds them. */
+const PRIVATE_COLUMNS: Record<string, string> = {
+  verification_documents: 'file_url',
+  accommodation_documents: 'file_url',
+  payments: 'proof_url',
+  messages: 'attachment_url',
+  concerns: 'photo_url',
+  tickets: 'photo_urls',
+  ticket_messages: 'attachment_urls',
+}
 
 /** Reference we store in file_url: cld:<resource_type>:<type>:<format>:<public_id> */
 const CLD_PREFIX = 'cld:'
 const UPLOAD_FOLDER = 'accommo/docs'
 const VIEW_TTL_SECONDS = 300
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-  })
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
 
 async function sha1Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(input))
@@ -90,11 +90,12 @@ async function privateDownloadUrl(ref: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
-  if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
+  const pre = preflight(req)
+  if (pre) return pre
+  if (req.method !== 'POST') return reply(req, 405, { error: 'POST only' })
 
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return json({ error: 'Not signed in.' }, 401)
+  if (!authHeader) return reply(req, 401, { error: 'Not signed in.' })
 
   // Caller-scoped client: every read below is subject to the caller's RLS.
   const supabase = createClient(
@@ -103,13 +104,13 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } },
   )
   const { data: auth } = await supabase.auth.getUser()
-  if (!auth?.user) return json({ error: 'Not signed in.' }, 401)
+  if (!auth?.user) return reply(req, 401, { error: 'Not signed in.' })
 
-  let body: { action?: string; table?: string; id?: string; resourceType?: string }
+  let body: { action?: string; table?: string; id?: string; ref?: string; resourceType?: string }
   try {
     body = await req.json()
   } catch {
-    return json({ error: 'Invalid JSON body.' }, 400)
+    return reply(req, 400, { error: 'Invalid JSON body.' })
   }
 
   // Params for a signed, type=authenticated upload straight to Cloudinary. The
@@ -119,29 +120,36 @@ Deno.serve(async (req) => {
     const timestamp = Math.floor(Date.now() / 1000)
     const folder = `${UPLOAD_FOLDER}/${auth.user.id}`
     const signature = await signParams({ folder, timestamp, type: 'authenticated' })
-    return json({ cloudName: CLOUD, apiKey: KEY, timestamp, folder, type: 'authenticated', resourceType, signature })
+    return reply(req, 200, { cloudName: CLOUD, apiKey: KEY, timestamp, folder, type: 'authenticated', resourceType, signature })
   }
 
-  // A short-lived URL for one document row the caller is allowed to read.
+  // A short-lived URL for one file on one row the caller is allowed to read.
+  // Array columns (ticket photos) also name which element with `ref`; it has to
+  // be one the row actually holds, so a readable row can't sign anything else.
   if (body.action === 'view') {
-    if (!DOC_TABLES.includes(body.table as DocTable)) return json({ error: 'Unknown document table.' }, 400)
-    if (!body.id) return json({ error: 'Missing document id.' }, 400)
+    const column = PRIVATE_COLUMNS[body.table ?? '']
+    if (!column) return reply(req, 400, { error: 'Unknown document table.' })
+    if (!body.id) return reply(req, 400, { error: 'Missing document id.' })
 
     const { data, error } = await supabase
-      .from(body.table as DocTable)
-      .select('file_url')
+      .from(body.table!)
+      .select(column)
       .eq('id', body.id)
       .maybeSingle()
-    // RLS decides: no row means this caller may not see this document.
-    if (error) return json({ error: error.message }, 400)
-    if (!data?.file_url) return json({ error: 'Not found.' }, 404)
+    // RLS decides: no row means this caller may not see this file.
+    if (error) return reply(req, 400, { error: error.message })
 
-    const ref = data.file_url as string
-    // Rows written before documents moved to authenticated delivery hold a plain
+    const stored = (data as Record<string, unknown> | null)?.[column]
+    const ref = Array.isArray(stored)
+      ? (stored.includes(body.ref) ? body.ref : undefined)
+      : (typeof stored === 'string' && (!body.ref || body.ref === stored) ? stored : undefined)
+    if (!ref) return reply(req, 404, { error: 'Not found.' })
+
+    // Rows written before files moved to authenticated delivery hold a plain
     // URL. Nothing to sign — hand it back so old records still open.
-    if (!ref.startsWith(CLD_PREFIX)) return json({ url: ref, legacy: true })
-    return json({ url: await privateDownloadUrl(ref), expiresIn: VIEW_TTL_SECONDS })
+    if (!ref.startsWith(CLD_PREFIX)) return reply(req, 200, { url: ref, legacy: true })
+    return reply(req, 200, { url: await privateDownloadUrl(ref), expiresIn: VIEW_TTL_SECONDS })
   }
 
-  return json({ error: 'Unknown action.' }, 400)
+  return reply(req, 400, { error: 'Unknown action.' })
 })

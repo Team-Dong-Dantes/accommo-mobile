@@ -8,6 +8,7 @@ import {
 import routes from './routes';
 import { supabase, storedSession, type StoredSession } from '@/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
+import { markActive } from '@/utils/activity';
 import { resolveDestination, type GuardRole } from './guard';
 
 export default defineRouter(() => {
@@ -151,6 +152,9 @@ export default defineRouter(() => {
       lastStatus = null;
       lastEmailVerified = null;
       lastRegistered = null;
+    } else if (session) {
+      // Opening the app counts as being active ("Last active" for OSAS).
+      markActive();
     }
 
     return decision.to;

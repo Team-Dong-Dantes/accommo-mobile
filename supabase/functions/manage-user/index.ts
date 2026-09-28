@@ -7,25 +7,7 @@
 // assert_admin_over(), called as the signed-in admin — so the rule "an admin,
 // acting on a student or landlord/landlady" lives in one place.
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-function json(body: Record<string, unknown>) {
-  return new Response(JSON.stringify({ ok: true, ...body }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-function fail(message: string) {
-  return new Response(JSON.stringify({ ok: false, error: message }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+import { preflight, reply } from '../_shared/http.ts';
 
 /** The same rule as signup (handle_auth_user_sync). */
 const ALLOWED_DOMAINS = ['gmail.com', 'isu.edu.ph'];
@@ -40,7 +22,10 @@ function generateTempPassword(): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const pre = preflight(req);
+  if (pre) return pre;
+  const json = (body: Record<string, unknown>) => reply(req, 200, body);
+  const fail = (message: string, status = 400) => reply(req, status, { error: message });
 
   try {
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
@@ -48,7 +33,7 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
     const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE) return fail('Missing Supabase environment variables.');
+    if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE) return fail('Missing Supabase environment variables.', 500);
 
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
@@ -56,7 +41,7 @@ Deno.serve(async (req) => {
     });
     const { data: authData } = await userClient.auth.getUser();
     const actorId = authData.user?.id;
-    if (!actorId) return fail('Unauthorized');
+    if (!actorId) return fail('Unauthorized', 401);
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? '');
@@ -64,12 +49,14 @@ Deno.serve(async (req) => {
     if (!targetId) return fail('No account given.');
 
     const { error: guardErr } = await userClient.rpc('assert_admin_over', { p_user: targetId });
-    if (guardErr) return fail(guardErr.message);
+    if (guardErr) return fail(guardErr.message, 403);
 
     const service = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-    const audit = (name: string, after: Record<string, unknown>, before: Record<string, unknown> | null = null) =>
-      service.from('audit_logs').insert({
+    // The change has already happened by the time this runs, so a failed audit
+    // write is reported rather than silently dropped.
+    const audit = async (name: string, after: Record<string, unknown>, before: Record<string, unknown> | null = null) => {
+      const { error } = await service.from('audit_logs').insert({
         actor_id: actorId,
         action: name,
         entity_type: 'users',
@@ -77,6 +64,9 @@ Deno.serve(async (req) => {
         before_json: before,
         after_json: after,
       });
+      if (error) console.error('manage-user: audit write failed', name, targetId, error.message);
+      return error;
+    };
 
     if (action === 'change_email') {
       const email = String(body.email ?? '').trim().toLowerCase();
@@ -92,7 +82,7 @@ Deno.serve(async (req) => {
       const { error } = await service.auth.admin.updateUserById(targetId, { email, email_confirm: true });
       if (error) return fail(error.message);
       // handle_auth_user_sync carries the new address onto public.users.
-      await audit('account.email_changed', { email }, { email: before?.email ?? null });
+      const auditErr = await audit('account.email_changed', { email }, { email: before?.email ?? null });
       await service.from('notifications').insert({
         user_id: targetId,
         type: 'system',
@@ -101,7 +91,7 @@ Deno.serve(async (req) => {
         link_url: '/profile',
         source: 'osas',
       });
-      return json({ email });
+      return json({ email, ...(auditErr ? { warning: 'Changed, but the audit log entry could not be written.' } : {}) });
     }
 
     if (action === 'set_temp_password') {
@@ -110,12 +100,12 @@ Deno.serve(async (req) => {
       if (error) return fail(error.message);
       // Whoever had the old password — or the lost phone — is signed out.
       await userClient.rpc('admin_sign_out_everywhere', { p_user: targetId });
-      await audit('account.temp_password', {});
-      return json({ temporary_password: password });
+      const auditErr = await audit('account.temp_password', {});
+      return json({ temporary_password: password, ...(auditErr ? { warning: 'Set, but the audit log entry could not be written.' } : {}) });
     }
 
     return fail('Unknown action.');
   } catch (e) {
-    return fail(e instanceof Error ? e.message : String(e));
+    return fail(e instanceof Error ? e.message : String(e), 500);
   }
 });

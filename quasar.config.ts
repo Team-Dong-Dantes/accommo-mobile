@@ -3,6 +3,7 @@
 
 import { defineConfig } from '#q-app';
 import { config as loadDotenv } from 'dotenv';
+import { readFileSync } from 'node:fs';
 
 // process.env first, so it is the fallback rather than the winner: locally the
 // dotenv files are the source of truth, while CI has no .env at all (it is
@@ -14,6 +15,13 @@ const env = {
   ...loadDotenv({ path: '.env', quiet: true }).parsed,
   ...loadDotenv({ path: '.env.local', quiet: true }).parsed,
 };
+
+// The browser has no installed app to ask its version, so it is inlined: the
+// CI build's name (major.minor.run, see build.yml) when there is one, else
+// package.json's version — what a Vercel build has.
+const appVersion =
+  env.ACCOMMO_VERSION_NAME ||
+  (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version;
 
 export default defineConfig((/* ctx */) => {
   return {
@@ -77,6 +85,7 @@ export default defineConfig((/* ctx */) => {
         'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
         'import.meta.env.VITE_DEMO_MODE': JSON.stringify(env.VITE_DEMO_MODE),
         'import.meta.env.VITE_MAPBOX_TOKEN': JSON.stringify(env.VITE_MAPBOX_TOKEN),
+        'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
         // Google's WEB OAuth client ID — the same one configured in Supabase's
         // Google provider. Android's Credential Manager takes it as the server
         // client ID, so the ID token it mints is addressed to a client Supabase

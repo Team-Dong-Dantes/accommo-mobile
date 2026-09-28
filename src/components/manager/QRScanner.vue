@@ -37,14 +37,17 @@
   <!-- Hint bar -->
   <div class="scan-hint">
     <p>{{
-      manualMode
-        ? 'Camera is paused while you enter a code by hand.'
-        : 'Point the camera at the student’s QR code to verify identity.'
+      acceptFor
+        ? `Scan ${acceptFor.studentName}’s student QR to accept them into ${acceptFor.roomLabel}.`
+        : manualMode
+          ? 'Camera is paused while you enter a code by hand.'
+          : 'Point the camera at the student’s QR code to verify identity.'
     }}</p>
-    <button v-if="!cameraError" type="button" class="hint-action" @click="manualMode = !manualMode">
+    <!-- Accepting needs the student's own QR: a typed ID is not their consent. -->
+    <button v-if="!cameraError && !acceptLeaseId" type="button" class="hint-action" @click="manualMode = !manualMode">
       <IconifyIcon :icon="manualMode ? 'lucide:camera' : 'lucide:keyboard'" width="16" /> {{ manualMode ? 'Back to camera' : 'Enter code manually' }}
     </button>
-    <button v-else type="button" class="hint-action" @click="retryCamera">
+    <button v-else-if="cameraError" type="button" class="hint-action" @click="retryCamera">
       <IconifyIcon icon="lucide:refresh-cw" width="16" /> Camera off — try again
     </button>
   </div>
@@ -53,8 +56,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { supabase } from '@/utils/supabase'
+import { acceptAddedStudent } from '@/utils/applications'
 import { requirePin } from '@/utils/requirePin'
 import { useQuasar } from 'quasar'
 import { useQrStore } from '@/stores/qr'
@@ -62,6 +67,43 @@ import { Html5Qrcode } from 'html5-qrcode'
 
 const $q = useQuasar()
 const router = useRouter()
+const route = useRoute()
+
+/** Set when opened from "Scan to accept": a scan then accepts that lease. */
+const acceptLeaseId = computed(() => (typeof route.query.accept === 'string' ? route.query.accept : ''))
+const acceptFor = ref<{ studentId: string; studentName: string; roomLabel: string } | null>(null)
+
+async function loadAcceptLease() {
+  const { data } = await supabase
+    .from('leases')
+    .select('student_id,users!leases_student_id_fkey(full_name),rooms(label,room_number)')
+    .eq('id', acceptLeaseId.value)
+    .maybeSingle()
+  if (!data) return
+  const room = data.rooms as unknown as { label: string | null; room_number: string | null } | null
+  acceptFor.value = {
+    studentId: data.student_id,
+    studentName: (data.users as unknown as { full_name: string | null } | null)?.full_name || 'the student',
+    roomLabel: room?.label || (room?.room_number ? `Room ${room.room_number}` : 'the room'),
+  }
+}
+
+async function accept(code: string) {
+  try {
+    if (!acceptFor.value) await loadAcceptLease()
+    const who = acceptFor.value
+    await acceptAddedStudent(acceptLeaseId.value, code.trim(), {
+      id: who?.studentId ?? '',
+      roomLabel: who?.roomLabel ?? 'your room',
+    })
+    $q.notify({ message: `${who?.studentName ?? 'Student'} accepted.`, color: 'positive', position: 'top', icon: 'check_circle' })
+    void router.replace(`/manager/tenant/${acceptLeaseId.value}`)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Could not accept this student.'
+    $q.notify({ message, color: 'negative', position: 'top', icon: 'error_outline' })
+    void startScanner()
+  }
+}
 const qrStore = useQrStore()
 
 const cameraError = ref('')
@@ -73,7 +115,8 @@ let disposed = false
 
 function onScanSuccess(decodedText: string) {
   stopScanner()
-  void lookup(decodedText)
+  if (acceptLeaseId.value) void accept(decodedText)
+  else void lookup(decodedText)
 }
 
 async function lookup(code: string) {
@@ -130,9 +173,10 @@ async function startScanner() {
   } catch (error: unknown) {
     if (disposed) { stopScanner(); return }
     const message = error instanceof Error ? error.message : 'Camera unavailable.'
-    cameraError.value =
-      'Camera unavailable (' + message + '). You can enter the student code manually below.'
-    manualMode.value = true
+    cameraError.value = acceptLeaseId.value
+      ? 'Camera unavailable (' + message + '). Accepting needs the camera to scan the student’s QR.'
+      : 'Camera unavailable (' + message + '). You can enter the student code manually below.'
+    manualMode.value = !acceptLeaseId.value
   }
 }
 
@@ -167,6 +211,7 @@ onMounted(async () => {
     void router.back()
     return
   }
+  if (acceptLeaseId.value) void loadAcceptLease()
   void startScanner()
 })
 

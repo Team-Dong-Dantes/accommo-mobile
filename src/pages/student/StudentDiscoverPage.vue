@@ -39,14 +39,17 @@
     </div>
 
     <template v-else>
+      <!-- Desktop: the map is the card's right half (MainLayout's
+           #desk-map-slot), beside the list rather than a strip above it. -->
+      <Teleport v-if="!deskMap || active" to="#desk-map-slot" :disabled="!deskMap" defer>
       <div
         v-if="hasMapToken"
         class="map-region"
-        :class="{ 'map-region--full': mapExpanded }"
+        :class="{ 'map-region--full': mapExpanded, 'map-region--desk': deskMap }"
         :style="mapRegionStyle"
       >
         <div ref="mapEl" class="map-el" aria-label="Map of accommodations" />
-        <button v-if="!mapExpanded" type="button" class="map-expand-btn" @click="toggleMapExpanded(true)">
+        <button v-if="!mapExpanded && !deskMap" type="button" class="map-expand-btn" @click="toggleMapExpanded(true)">
           <IconifyIcon icon="lucide:maximize-2" width="15" />
           <span>Map view</span>
         </button>
@@ -69,7 +72,11 @@
       <!-- Full-map mode: a floating recommendations rail above the search
            dock; picking one flies the map to it and swaps the rail for that
            item's info + a way straight into it. -->
-      <div v-if="hasMapToken && mapExpanded" class="map-float">
+      <div
+        v-if="hasMapToken && (mapExpanded || (deskMap && selectedPin))"
+        class="map-float"
+        :class="{ 'map-float--desk': deskMap }"
+      >
         <div v-if="!selectedPin" class="map-float-rail">
           <PropertyCard
             v-for="item in mapProperties.slice(0, 10)"
@@ -129,16 +136,28 @@
           </div>
         </div>
       </div>
+      </Teleport>
 
-    <div class="stack">
+    <div class="stack" :class="{ 'stack--desk': isDesktop }">
       <section v-if="filteredProperties.length" class="sec">
         <div class="sec-head">
           <h2 class="sec-title">Accommodations</h2>
-          <button type="button" class="sec-more" @click="router.push('/student/properties')">
-            View all
-          </button>
+          <div class="sec-actions">
+            <!-- A mouse has no swipe, so desktop gets arrows for the rail. -->
+            <template v-if="isDesktop">
+              <button type="button" class="rail-arrow" aria-label="Previous accommodations" @click="slideRail(-1)">
+                <IconifyIcon icon="lucide:chevron-left" width="16" />
+              </button>
+              <button type="button" class="rail-arrow" aria-label="Next accommodations" @click="slideRail(1)">
+                <IconifyIcon icon="lucide:chevron-right" width="16" />
+              </button>
+            </template>
+            <button type="button" class="sec-more" @click="router.push('/student/properties')">
+              View all
+            </button>
+          </div>
         </div>
-        <div class="rail">
+        <div ref="railEl" class="rail" :class="{ 'rail--desk': isDesktop }">
           <PropertyCard
             v-for="item in filteredProperties.slice(0, 10)"
             :key="item.id"
@@ -300,7 +319,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import mapboxgl from '@/utils/mapbox'
@@ -380,6 +399,7 @@ const managers = ref<ManagerRow[]>([])
 // a handle — a plain height transition (CSS) between them.
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const hasMapToken = Boolean(MAPBOX_TOKEN)
+const deskMap = computed(() => hasMapToken && isDesktop.value)
 const MAP_PREVIEW_VH = 32
 const mapEl = ref<HTMLElement | null>(null)
 const mapExpanded = ref(false)
@@ -405,7 +425,9 @@ function measureViewport() {
  * came out around twice the height of the screen: the map rendered for a
  * viewport far taller than the visible one, which is why it looked stretched
  * and why pins sat off-screen and slid around when zooming. */
-const mapFillHeight = computed(() => (mapExpanded.value ? '100dvh' : `${MAP_PREVIEW_VH}vh`))
+const mapFillHeight = computed(() =>
+  deskMap.value ? '100%' : mapExpanded.value ? '100dvh' : `${MAP_PREVIEW_VH}vh`,
+)
 
 // In preview it's a plain in-flow block that scrolls away with the rest of the
 // page, pulled up by the header's reserved padding so it fills that space
@@ -523,6 +545,11 @@ function open(id: string) {
   void router.push(`/student/listing/${id}`)
 }
 
+const railEl = ref<HTMLElement | null>(null)
+function slideRail(dir: 1 | -1) {
+  railEl.value?.scrollBy({ left: dir * railEl.value.clientWidth * 0.9, behavior: 'smooth' })
+}
+
 function openRoom(id: string) {
   void router.push(`/student/room/${id}`)
 }
@@ -573,7 +600,7 @@ function initMap() {
 
   map.on('load', () => {
     addCampusLinkLayer()
-    syncMarkers()
+    syncMarkers(!mapExpanded.value)
   })
   // Mapbox has no built-in tracking of its own container's size (only a
   // window-resize listener) — its canvas keeps whatever pixel size it was
@@ -750,7 +777,7 @@ function frameAround(me: [number, number]) {
  * yank the camera out from under someone browsing — but a search or filter
  * change passes it explicitly, since that's the user asking to be shown
  * something and leaving the matches off-screen just looks broken. */
-function syncMarkers(reframe = !mapExpanded.value) {
+function syncMarkers(reframe = !mapExpanded.value && !deskMap.value) {
   if (!map) return
   for (const marker of markers) marker.remove()
   markers = []
@@ -765,7 +792,7 @@ function syncMarkers(reframe = !mapExpanded.value) {
     el.style.cursor = 'pointer'
     // Full map: tapping a pin selects it in the floating rail instead of
     // leaving the map. Smaller/default sizes still jump straight to it.
-    el.addEventListener('click', () => (mapExpanded.value ? selectPin(property) : open(property.id)))
+    el.addEventListener('click', () => (mapExpanded.value || deskMap.value ? selectPin(property) : open(property.id)))
     markers.push(marker)
   }
 
@@ -1038,16 +1065,34 @@ onMounted(() => {
   window.addEventListener('resize', measureViewport)
 })
 
+// Desktop keeps this page alive in the shell's list pane, and KeepAlive
+// restores a live Teleport into the page instead of its target (Vue 3.5
+// moveTeleport). So while inactive the map is dropped, and rebuilt in the
+// fresh #desk-map-slot on the way back.
+const active = ref(true)
+onActivated(() => (active.value = true))
+onDeactivated(() => {
+  if (!deskMap.value) return
+  active.value = false
+  destroyMap()
+})
+
 onUnmounted(() => {
   window.removeEventListener('resize', measureViewport)
+  destroyMap()
+})
+
+function destroyMap() {
   mapResizeObserver?.disconnect()
   mapResizeObserver = null
   campusLinkLabel?.remove()
   campusLinkLabel = null
   for (const marker of markers) marker.remove()
+  markers = []
   map?.remove()
   map = null
-})
+  selectedPin.value = null
+}
 </script>
 
 <style scoped>
@@ -1078,6 +1123,10 @@ onUnmounted(() => {
   right: 0;
   left: 0;
   z-index: 40;
+}
+/* Desktop: fills the right half it is teleported into. */
+.map-region--desk {
+  height: 100%;
 }
 .map-el {
   width: 100%;
@@ -1172,6 +1221,15 @@ onUnmounted(() => {
   left: 0;
   z-index: 60;
   padding: 0 var(--m-page-gutter);
+}
+/* Desktop: the picked pin's card sits inside the map half, not the window. */
+.map-float--desk {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  z-index: 6;
+  padding: 0;
 }
 .map-float-rail {
   display: flex;
@@ -1354,6 +1412,10 @@ onUnmounted(() => {
   /* Clears the docked search, which sits on the FAB's baseline. */
   padding: 8px var(--m-page-gutter) 126px;
 }
+/* Desktop: no docked search or FAB below the list to clear. */
+.stack--desk {
+  padding-bottom: 18px;
+}
 .sk {
   border-radius: var(--m-radius);
 }
@@ -1424,6 +1486,34 @@ onUnmounted(() => {
 .rail-item {
   flex: 0 0 62%;
   scroll-snap-align: start;
+}
+.rail--desk {
+  scrollbar-width: none;
+}
+.rail--desk::-webkit-scrollbar {
+  display: none;
+}
+.rail--desk .rail-item {
+  flex-basis: calc((100% - 8px) / 2);
+}
+.sec-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rail-arrow {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-ink);
+  cursor: pointer;
+}
+.rail-arrow:hover {
+  background: var(--m-bg);
 }
 
 /* Landlords and landladies */

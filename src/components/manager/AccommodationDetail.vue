@@ -1140,7 +1140,6 @@ const rules = reactive({
   curfewTime: '',
   quietHours: '',
   visitorPolicy: '',
-  minStay: null as number | null,
   cooking: true,
   laundry: true,
   pets: false,
@@ -1495,7 +1494,6 @@ async function load() {
     const policyRows = data.accommodation_policies as unknown
     const policy = (Array.isArray(policyRows) ? policyRows[0] : policyRows) as
       | {
-          min_stay: number | null
           curfew_time: string | null
           quiet_hours: string | null
           visitor_policy: string | null
@@ -1505,7 +1503,6 @@ async function load() {
         }
       | null
     if (policy) {
-      rules.minStay = policy.min_stay
       rules.curfewTime = policy.curfew_time || ''
       rules.quietHours = policy.quiet_hours || ''
       rules.visitorPolicy = policy.visitor_policy || ''
