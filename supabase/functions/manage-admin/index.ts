@@ -1,8 +1,18 @@
 // The main admin's controls over other administrators: withdraw a pending
-// invite (deletes the account) or remove admin access (keeps the account).
+// invite (deletes the account), remove admin access (keeps the account), set a
+// temporary password, or clear a lost two-factor device.
 // Was deployed from outside this repository until 2026-09-26; this is that
 // source, moved onto the shared CORS/reply helpers.
 import { preflight, reply } from '../_shared/http.ts';
+
+function generateTempPassword(): string {
+  // No look-alikes (0/O, 1/l/I), since it is read out or written down. Same as manage-user.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  let pwd = '';
+  for (const b of bytes) pwd += chars[b % chars.length];
+  return pwd;
+}
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -50,7 +60,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? '');
     const target_id = String(body.target_id ?? '');
-    if (!['revoke_invite', 'remove_admin'].includes(action) || !target_id) {
+    if (!['revoke_invite', 'remove_admin', 'set_temp_password', 'reset_mfa'].includes(action) || !target_id) {
       return json(400, { error: 'Invalid request.' });
     }
 
@@ -66,6 +76,37 @@ Deno.serve(async (req) => {
     if (tErr || !target) return json(404, { error: 'Target account not found.' });
     if (target.is_superadmin) return json(403, { error: 'The main admin cannot be modified this way.' });
     if (target.id === callerId) return json(403, { error: 'You cannot modify your own account here.' });
+
+    const audit = async (name: string, after: Record<string, unknown>) => {
+      const { error } = await serviceClient.from('audit_logs').insert({
+        actor_id: callerId, action: name, entity_type: 'users', entity_id: target_id, after_json: after,
+      });
+      if (error) console.error('manage-admin: audit write failed', name, target_id, error.message);
+    };
+
+    // An admin who forgot their password. Their other sessions are not signed
+    // out (admin_sign_out_everywhere refuses admin targets); for a compromised
+    // account, Remove admin is the tool.
+    if (action === 'set_temp_password') {
+      const password = generateTempPassword();
+      const { error } = await serviceClient.auth.admin.updateUserById(target_id, { password });
+      if (error) return json(400, { error: error.message });
+      await audit('account.temp_password', {});
+      return json(200, { action, temporary_password: password });
+    }
+
+    // An admin who lost their authenticator: clear it so they can sign in with
+    // their password and set two-factor up again.
+    if (action === 'reset_mfa') {
+      const { data: factors, error: listErr } = await serviceClient.auth.admin.mfa.listFactors({ userId: target_id });
+      if (listErr) return json(400, { error: listErr.message });
+      for (const f of factors?.factors ?? []) {
+        const { error } = await serviceClient.auth.admin.mfa.deleteFactor({ id: f.id, userId: target_id });
+        if (error) return json(400, { error: error.message });
+      }
+      await audit('account.mfa_reset', { factors: factors?.factors?.length ?? 0 });
+      return json(200, { action });
+    }
 
     if (action === 'revoke_invite') {
       // Pending invite: delete the account entirely (auth + public row).
