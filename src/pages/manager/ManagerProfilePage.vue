@@ -73,7 +73,7 @@
         :subtitle="landlordTitle(me.sex)"
         :status-tone="status.tone || 'warn'"
         :status-label="status.label || 'Unverified'"
-        :action-icon="Capacitor.isNativePlatform() ? 'lucide:scan' : ''"
+        action-icon="lucide:scan"
         action-label="Scan QR"
         @action="go('/manager/profile/qr-scanner')"
       >
@@ -206,7 +206,6 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import VerificationBanner from '@/components/manager/VerificationBanner.vue'
-import { Capacitor } from '@capacitor/core'
 import { isDesktop } from '@/utils/useTabletMode'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'

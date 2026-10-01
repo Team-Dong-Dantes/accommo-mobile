@@ -79,6 +79,7 @@
                 <span v-if="room.capacity" class="room-card-cap">{{ room.capacity }} left</span>
               </span>
               <span v-if="room.meta" class="room-card-meta">{{ room.meta }}</span>
+              <span v-if="room.utilities" class="room-card-meta room-card-utils">{{ room.utilities }}</span>
               <span v-if="room.rent" class="room-card-rent">
                 {{ formatPeso(room.rent) }}<span class="room-card-per">/mo{{ room.rentBasis === 'person' ? '/person' : '' }}</span>
               </span>
@@ -172,7 +173,7 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, FACILITY_META, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
+import { AMENITY_META, FACILITY_META, utilitiesFromRow, utilitiesHint, type UtilityColumns, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
 import MessageManagerCta from '@/components/student/MessageManagerCta.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { POLICY_FULL, ROOM_CARD } from '@/api/selects'
@@ -181,6 +182,8 @@ interface RoomRow {
   id: string
   label: string
   meta: string
+  /** How this room's utilities are paid, in one line (rooms in a house can differ). */
+  utilities: string
   capacity: number
   type: string
   rent: number
@@ -251,7 +254,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        `id,name,address,city,barangay,description,accommodation_type,gender_policy,lat,lng,landlord_id,total_floors,total_rooms,capacity,rooms(${ROOM_CARD},room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(${POLICY_FULL})`,
+        `id,name,address,city,barangay,purok,description,accommodation_type,gender_policy,lat,lng,landlord_id,total_floors,total_rooms,capacity,rooms(${ROOM_CARD},room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_facilities(facility_type,access_scope,label,room_id),accommodation_policies(${POLICY_FULL})`,
       )
       .eq('id', id.value)
       .eq('status', 'accredited').eq('hidden_from_listings', false)
@@ -264,7 +267,7 @@ async function load() {
 
     listing.name = data.name?.trim() || 'Unnamed accommodation'
     listing.address =
-      data.address || [data.barangay, data.city].filter(Boolean).join(', ') || 'Address not given'
+      data.address || [data.purok, data.barangay, data.city].filter(Boolean).join(', ') || 'Address not given'
     listing.description = data.description || ''
     listing.type = data.accommodation_type
     listing.genderPolicy = data.gender_policy
@@ -300,7 +303,7 @@ async function load() {
       privateByRoom.set(f.room_id, list)
     }
 
-    rooms.value = ((data.rooms ?? []) as {
+    rooms.value = ((data.rooms ?? []) as ({
       id: string
       room_number: string | null
       label: string | null
@@ -311,7 +314,7 @@ async function load() {
       rent_basis: string | null
       status: string
       room_images: { url: string; sort_order: number | null }[] | null
-    }[])
+    } & Partial<UtilityColumns>)[])
       .map((r) => {
         const roomImages = [...(r.room_images ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         const privateLabels = privateByRoom.get(r.id) ?? []
@@ -321,6 +324,7 @@ async function load() {
           // Capacity rides in its own capsule beside the title now, the way
           // the discover cards show it — so this is just the private bits.
           meta: privateLabels.length ? `private ${privateLabels.join(', ')}` : '',
+          utilities: utilitiesHint(utilitiesFromRow(r)),
           capacity: Number(r.capacity ?? 0),
           type: roomTypeLabel(r.custom_room_type || r.room_type),
           rent: Number(r.monthly_rent ?? 0),
@@ -331,9 +335,9 @@ async function load() {
       })
       .sort((a, b) => Number(b.free) - Number(a.free) || a.rent - b.rent)
 
-    amenities.value = ((data.accommodation_amenities ?? []) as { amenity: string }[]).map(
-      (a) => a.amenity,
-    )
+    amenities.value = ((data.accommodation_amenities ?? []) as { amenity: string }[])
+      .map((a) => a.amenity)
+      .filter((a) => a in AMENITY_META)
 
     // accommodation_policies is one row per accommodation, but the embed
     // returns it as an array when the relationship is not marked one-to-one.
@@ -705,6 +709,12 @@ onMounted(load)
   margin-top: 1px;
   color: var(--m-muted);
   font-size: 11px;
+}
+/* One line, however many utilities differ — the room page has the full terms. */
+.room-card-utils {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .room-card-rent {
   margin-top: 4px;

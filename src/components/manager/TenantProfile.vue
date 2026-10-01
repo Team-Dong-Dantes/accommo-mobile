@@ -213,6 +213,7 @@
             <div class="sec-body">
             <div class="sec-head">
               <h2 class="sec-title">Payments</h2>
+              <button v-if="canPostBill" type="button" class="sec-link" @click="postBillOpen = true">Post utility bill</button>
               <button v-if="payments.length > 3" type="button" class="sec-link" @click="paymentsExpanded = !paymentsExpanded">
                 {{ paymentsExpanded ? 'Show less' : `Show all (${payments.length})` }}
               </button>
@@ -221,8 +222,8 @@
             <div v-if="payments.length" class="group">
               <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row pay-row--tap" @click="openPaymentDetail(p)">
                 <div class="pay-row-main">
-                  <span class="pay-row-month">{{ formatMonth(p.month) }}</span>
-                  <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
+                  <span class="pay-row-month">{{ paymentTitle(p) }}</span>
+                  <span class="pay-row-amount">{{ formatPesoExact(p.amount) }}</span>
                 </div>
                 <div class="pay-row-sub">
                   <span class="pay-row-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
@@ -236,8 +237,28 @@
                 </span>
               </button>
             </div>
+            <template v-if="unpaidBills.length">
+              <p class="pay-label bills-head">Unpaid utility bills</p>
+              <div class="group">
+                <div v-for="b in unpaidBills" :key="b.id" class="pay-row">
+                  <div class="pay-row-main">
+                    <span class="pay-row-month">{{ BILL_TAG[b.utility] }} · {{ formatMonth(b.month) }}</span>
+                    <span class="pay-row-amount">{{ formatPesoExact(b.amount) }}</span>
+                  </div>
+                  <div class="pay-row-sub">
+                    <span class="pay-row-method" :class="{ 'bill-overdue': b.dueDate < today }">
+                      {{ b.dueDate < today ? 'Overdue since' : 'Due' }} {{ formatDate(b.dueDate) }}{{ b.note ? ` · ${b.note}` : '' }}
+                    </span>
+                    <span class="bill-actions">
+                      <button type="button" class="bill-cash" :disabled="!!billBusy" @click="recordBillCash(b)">Record cash</button>
+                      <button type="button" class="bill-remove" :disabled="!!billBusy" @click="removeBill(b.id)">Remove</button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </template>
             <EmptyState
-              v-else
+              v-else-if="!payments.length"
               variant="compact"
               icon="lucide:receipt"
               title="No payments yet"
@@ -269,6 +290,15 @@
       </div>
     </div>
 
+    <PostBillDialog
+      v-model="postBillOpen"
+      :lease-id="leaseId"
+      :student-id="lease.studentId"
+      :student-name="lease.studentName"
+      :utilities="monthlyUtilities"
+      @posted="load(true)"
+    />
+
     <q-dialog v-model="reviewOpen" position="bottom">
       <q-card class="pay-sheet">
         <h3 class="pay-title">Rate {{ lease.studentName }}</h3>
@@ -294,7 +324,7 @@
          straight off the row, so a proof/reference actually gets looked at. -->
     <q-dialog v-model="paymentDetailOpen" position="bottom">
       <q-card v-if="selectedPayment" class="pay-sheet">
-        <h3 class="pay-title">{{ formatMonth(selectedPayment.month) }}</h3>
+        <h3 class="pay-title">{{ paymentTitle(selectedPayment) }}</h3>
         <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
           {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
         </span>
@@ -302,7 +332,7 @@
         <div class="group">
           <div class="pay-detail-rule">
             <span class="pay-detail-rule-label">Amount</span>
-            <span class="pay-detail-rule-value">{{ formatPeso(selectedPayment.amount) }}</span>
+            <span class="pay-detail-rule-value">{{ formatPesoExact(selectedPayment.amount) }}</span>
           </div>
           <div class="pay-detail-rule">
             <span class="pay-detail-rule-label">Method</span>
@@ -384,7 +414,7 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { createNotification } from '@/boot/notify'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
@@ -392,6 +422,9 @@ import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 import StarRating from '@/components/shared/StarRating.vue'
+import PostBillDialog from '@/components/manager/PostBillDialog.vue'
+import { BILL_TAG, isBillSettled, manilaToday, paymentTitle } from '@/utils/payments'
+import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { Capacitor } from '@capacitor/core'
@@ -454,6 +487,19 @@ const visiblePayments = computed(() => (paymentsExpanded.value ? payments.value 
 const history = ref<{ id: string; accommodationName: string; roomType: string | null; periodStart: string; periodEnd: string }[]>([])
 const tenantReview = ref<{ rating: number; comment: string } | null>(null)
 
+// Utilities this place bills monthly, and the bills posted against this lease.
+const billing = ref<Record<UtilityKey, string | null>>({ water: null, electric: null, wifi: null })
+const monthlyUtilities = computed(() =>
+  UTILITIES.filter((u) => isBilledMonthly(billing.value[u.key])).map((u) => ({ key: u.key, label: u.label, billing: billing.value[u.key] as string })),
+)
+const canPostBill = computed(() => monthlyUtilities.value.length > 0 && (lease.status === 'active' || lease.status === 'leave_requested'))
+type Bill = { id: string; utility: UtilityKey; month: string; amount: number; note: string; dueDate: string; settled: boolean }
+const bills = ref<Bill[]>([])
+const unpaidBills = computed(() => bills.value.filter((b) => !b.settled).sort((a, b) => a.dueDate.localeCompare(b.dueDate)))
+const postBillOpen = ref(false)
+const billBusy = ref('')
+const today = manilaToday()
+
 const leaseId = computed(() => String(route.params.leaseId || ''))
 
 async function load(silent = false) {
@@ -463,7 +509,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,student_id,room_id,added_by_landlord,users!leases_student_id_fkey(full_name,initials,email,phone,avatar_url),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,monthly_rent,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,email,phone,avatar_url),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -479,8 +525,14 @@ async function load(silent = false) {
       room_number: string | null
       room_type: string | null
       accommodation_id: string
-      accommodations: { name: string | null; accommodation_images: { url: string; sort_order: number | null }[] | null } | null
+      accommodations: {
+        name: string | null
+        accommodation_images: { url: string; sort_order: number | null }[] | null
+      } | null
     } | null
+    // The terms this tenant's lease was agreed under decide which bills can
+    // be posted for them — not whatever the room says today.
+    billing.value = { water: data.water_billing, electric: data.electric_billing, wifi: data.wifi_billing }
 
     lease.status = data.status
     lease.addedByLandlord = data.added_by_landlord
@@ -503,7 +555,7 @@ async function load(silent = false) {
     lease.endDate = data.end_date
     lease.monthlyRent = Number(data.monthly_rent ?? 0)
 
-    const [{ data: paymentRows }, { data: historyRows }] = await Promise.all([
+    const [{ data: paymentRows }, { data: historyRows }, { data: billRows }] = await Promise.all([
       supabase
         .from('payments')
         .select(
@@ -516,7 +568,21 @@ async function load(silent = false) {
         .select('id,accommodation_name,room_type,period_start,period_end')
         .eq('student_id', data.student_id)
         .order('period_start', { ascending: false }),
+      supabase
+        .from('utility_bills')
+        .select('id,utility,month,amount,note,due_date,payments(status)')
+        .eq('lease_id', leaseId.value)
+        .order('month', { ascending: true }),
     ])
+    bills.value = (billRows ?? []).map((b) => ({
+      id: b.id,
+      utility: b.utility as UtilityKey,
+      month: b.month,
+      amount: Number(b.amount),
+      note: b.note || '',
+      dueDate: b.due_date,
+      settled: isBillSettled(b.payments),
+    }))
     await signRows('payments', paymentRows, 'proof_url')
     payments.value = (paymentRows ?? []).map((p) => ({
       id: p.id,
@@ -649,6 +715,49 @@ async function declineLeave() {
     notify.error(errorMessage(e, 'Could not update the leave request.'))
   } finally {
     deciding.value = false
+  }
+}
+
+// Only an unpaid bill can be removed — e.g. one posted with the wrong amount.
+async function removeBill(billId: string) {
+  if (!(await requirePin({ confirm: true, title: 'Remove this bill?', message: 'The tenant will no longer see it as due.' }))) return
+  billBusy.value = billId
+  try {
+    const { error: deleteError } = await supabase.from('utility_bills').delete().eq('id', billId)
+    if (deleteError) throw deleteError
+    bills.value = bills.value.filter((b) => b.id !== billId)
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not remove the bill.'))
+  } finally {
+    billBusy.value = ''
+  }
+}
+
+// The tenant paid this bill in cash, in person: log it already verified, the
+// way a cash rent payment is logged from the tenants list.
+async function recordBillCash(b: Bill) {
+  if (!(await requirePin({ confirm: true, title: `Record ${formatPesoExact(b.amount)} in cash?`, message: `${BILL_TAG[b.utility]} for ${formatMonth(b.month)}.` }))) return
+  billBusy.value = b.id
+  try {
+    const { data: authData } = await authUser()
+    const { error: insertError } = await supabase.from('payments').insert({
+      lease_id: leaseId.value,
+      bill_id: b.id,
+      month: b.month,
+      amount: b.amount,
+      method: 'cash',
+      status: 'paid',
+      description: BILL_TAG[b.utility],
+      paid_at: new Date().toISOString(),
+      verified_by: authData?.user?.id || null,
+    })
+    if (insertError) throw insertError
+    void load(true)
+    notify.success('Cash payment recorded.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not record this payment.'))
+  } finally {
+    billBusy.value = ''
   }
 }
 
@@ -1303,6 +1412,35 @@ useLiveData({
   color: var(--m-ink);
   font: inherit;
   font-size: 14px;
+}
+.bills-head {
+  margin: 12px 0 6px;
+}
+.bill-actions {
+  display: inline-flex;
+  gap: 12px;
+}
+.bill-overdue {
+  color: var(--m-danger);
+  font-weight: 700;
+}
+.bill-cash {
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.bill-remove {
+  border: 0;
+  background: transparent;
+  color: var(--m-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
 }
 .pay-submit {
   min-height: 48px;

@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { signOut as endSession } from '@/utils/signOut'
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, authUser } from '@/utils/supabase'
@@ -124,7 +125,7 @@ async function savePrefs() {
 }
 
 async function signOut() {
-  await supabase.auth.signOut()
+  await endSession()
   void router.push('/login')
 }
 

@@ -89,6 +89,10 @@
                         <span class="rule-label">Deposit paid</span>
                         <span class="rule-value">{{ formatPeso(lease.depositPaid) }}</span>
                       </div>
+                      <div v-for="u in UTILITIES" :key="u.key" class="rule">
+                        <span class="rule-label">{{ u.label }}</span>
+                        <span class="rule-value">{{ utilityTermsLabel(lease.utilities[u.key]) }}</span>
+                      </div>
                       <div class="rule">
                         <span class="rule-label">Lease term</span>
                         <span class="rule-value">{{ formatDate(lease.startDate) }} – {{ formatDate(lease.endDate) }}</span>
@@ -182,7 +186,16 @@
                   </button>
                   <p v-else class="pay-head-note">You'll be able to submit payments once your application is accepted.</p>
 
-                  <div v-if="canPay && (canPayAdvance || canPayDeposit)" class="pay-dues">
+                  <div v-if="canPay && (canPayAdvance || canPayDeposit || unpaidBills.length)" class="pay-dues">
+                    <button v-for="b in unpaidBills" :key="b.id" type="button" class="pay-due" @click="openSubmit('bill', b)">
+                      <span class="pay-due-body">
+                        <span class="pay-due-label">{{ BILL_TAG[b.utility] }} · {{ formatMonth(b.month) }}</span>
+                        <span class="pay-due-note" :class="{ 'pay-due-note--overdue': b.overdue }">
+                          {{ formatPesoExact(b.amount) }} · {{ b.overdue ? 'overdue since' : 'due' }} {{ formatDate(b.dueDate) }}{{ b.note ? ` · ${b.note}` : '' }}
+                        </span>
+                      </span>
+                      <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
+                    </button>
                     <button v-if="canPayAdvance" type="button" class="pay-due" @click="openSubmit('advance')">
                       <span class="pay-due-body">
                         <span class="pay-due-label">Advance</span>
@@ -218,11 +231,11 @@
                     >
                       <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
                       <span class="pay-body">
-                        <span class="pay-month">{{ formatMonth(p.month) }}</span>
+                        <span class="pay-month">{{ paymentTitle(p) }}</span>
                         <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.accommodationName }}</span>
                       </span>
                       <span class="pay-side">
-                        <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
+                        <span class="pay-amount">{{ formatPesoExact(p.amount) }}</span>
                         <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
                           {{ statusText(PAYMENT_STATUS, p.status) }}
                         </span>
@@ -273,9 +286,28 @@
           <span class="submit-hint">Months are paid in order — this is the next one due.</span>
         </div>
 
+        <div v-else-if="form.category === 'bill'" class="submit-field">
+          <span class="submit-label">Bill</span>
+          <div class="submit-locked-month">
+            <IconifyIcon icon="lucide:receipt" width="15" />
+            {{ submitTitle }} · {{ formatMonth(form.month) }}
+          </div>
+          <span class="submit-hint">Posted by your landlord/landlady — pay the full amount.</span>
+        </div>
+
         <label class="submit-field">
           <span class="submit-label">Amount</span>
-          <input v-model.number="form.amount" type="number" min="0" step="0.01" class="submit-input" />
+          <input
+            v-model.number="form.amount"
+            type="number"
+            min="0"
+            step="0.01"
+            class="submit-input"
+            :readonly="form.category === 'bill'"
+          />
+          <span v-if="form.category === 'rent' && rentFees.length" class="submit-hint">
+            Rent {{ formatPeso(lease?.monthlyRent ?? 0) }}<template v-for="f in rentFees" :key="f.key"> + {{ f.label.toLowerCase() }} {{ formatPeso(f.amount) }}</template>
+          </span>
         </label>
         <label class="submit-field">
           <span class="submit-label">Method</span>
@@ -320,7 +352,7 @@
       <q-card v-if="selectedPayment" class="detail-sheet">
         <span class="sheet-grip" aria-hidden="true" />
         <h3 class="detail-title">
-          {{ selectedPayment.description === ADVANCE_TAG || selectedPayment.description === DEPOSIT_TAG ? selectedPayment.description : formatMonth(selectedPayment.month) }}
+          {{ paymentTitle(selectedPayment) }}
         </h3>
         <span class="detail-chip" :class="`detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
           {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
@@ -329,7 +361,7 @@
         <div class="group">
           <div class="rule">
             <span class="rule-label">Amount</span>
-            <span class="rule-value">{{ formatPeso(selectedPayment.amount) }}</span>
+            <span class="rule-value">{{ formatPesoExact(selectedPayment.amount) }}</span>
           </div>
           <div class="rule">
             <span class="rule-label">Method</span>
@@ -382,6 +414,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import {
   formatPeso,
+  formatPesoExact,
   formatDate,
   formatMonth,
   initialsOf,
@@ -396,10 +429,15 @@ import { requirePin } from '@/utils/requirePin'
 import { createNotification } from '@/boot/notify'
 import { uploadSecureDocument, signRows } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { AMENITY_META, roomTypeLabel } from '@/utils/listings'
+import { AMENITY_META, UTILITIES, UTILITY_SELECT, roomTypeLabel, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
 import {
   ADVANCE_TAG,
   DEPOSIT_TAG,
+  BILL_TAG,
+  flatFees,
+  isBillSettled,
+  manilaToday,
+  paymentTitle,
   nextRentMonth as computeNextRentMonth,
 } from '@/utils/payments'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -437,8 +475,22 @@ interface Lease {
   capacity: number | null
   address: string
   amenities: string[]
+  utilities: Record<UtilityKey, UtilityTerms>
   rules: { label: string; value: string }[]
   roommateCount: number | null
+}
+/** A water/electric bill the landlord/landlady posted (utility_bills). */
+interface Bill {
+  id: string
+  leaseId: string
+  utility: UtilityKey
+  month: string
+  amount: number
+  note: string
+  dueDate: string
+  /** Unpaid past its due date (Manila time). */
+  overdue: boolean
+  settled: boolean
 }
 interface Payment {
   id: string
@@ -465,6 +517,13 @@ const loading = ref(true)
 const error = ref('')
 const lease = ref<Lease | null>(null)
 const payments = ref<Payment[]>([])
+const bills = ref<Bill[]>([])
+// Bills still owed on the current stay, soonest due first.
+const unpaidBills = computed(() =>
+  bills.value.filter((b) => !b.settled && b.leaseId === lease.value?.id).sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+)
+// Flat utility fees ride on every rent payment.
+const rentFees = computed(() => (lease.value ? flatFees(lease.value.utilities) : []))
 const showAllPayments = ref(false)
 
 // Payment history defaults to the current room only — a student who's moved
@@ -495,7 +554,8 @@ const uploadingProof = ref(false)
 // Local preview of the chosen receipt; the stored value is a private ref.
 const proofPreview = ref('')
 const form = reactive({
-  category: 'rent' as 'rent' | 'advance' | 'deposit',
+  category: 'rent' as 'rent' | 'advance' | 'deposit' | 'bill',
+  bill: null as Bill | null,
   month: new Date().toISOString().slice(0, 7),
   amount: 0,
   method: 'gcash' as 'gcash' | 'maya' | 'bank' | 'cash' | 'others',
@@ -515,6 +575,7 @@ const nextRentMonth = computed(() =>
 const submitTitle = computed(() => {
   if (form.category === 'advance') return 'Pay your advance'
   if (form.category === 'deposit') return 'Pay your deposit'
+  if (form.category === 'bill' && form.bill) return BILL_TAG[form.bill.utility]
   return 'Submit a payment'
 })
 
@@ -547,11 +608,15 @@ async function load(silent = false) {
     // the Payments tab) are independent — a student with no active lease can
     // still have real payments on file from a past stay, so the Payments tab
     // must not be gated on there being a lease right now.
-    const [{ data: leaseRow, error: leaseError }, { data: paymentRows, error: paymentsError }] = await Promise.all([
+    const [
+      { data: leaseRow, error: leaseError },
+      { data: paymentRows, error: paymentsError },
+      { data: billRows, error: billsError },
+    ] = await Promise.all([
       supabase
         .from('leases')
         .select(
-          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, landlord_id, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
+          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
         )
         .eq('student_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested'])
@@ -565,9 +630,26 @@ async function load(silent = false) {
         )
         .eq('leases.student_id', user.id)
         .order('month', { ascending: false }),
+      supabase
+        .from('utility_bills')
+        .select('id, lease_id, utility, month, amount, note, due_date, payments(status), leases!inner(student_id)')
+        .eq('leases.student_id', user.id),
     ])
     if (leaseError) throw leaseError
     if (paymentsError) throw paymentsError
+    if (billsError) throw billsError
+
+    bills.value = (billRows ?? []).map((b) => ({
+      id: b.id,
+      leaseId: b.lease_id,
+      utility: b.utility as UtilityKey,
+      month: b.month,
+      amount: Number(b.amount),
+      note: b.note || '',
+      dueDate: b.due_date,
+      overdue: b.due_date < manilaToday(),
+      settled: isBillSettled(b.payments),
+    }))
 
     await signRows('payments', paymentRows, 'proof_url')
     payments.value = (paymentRows ?? []).map((p) => {
@@ -616,7 +698,7 @@ async function load(silent = false) {
     } | null
 
     const acc = room?.accommodations
-    const amenities = ((acc?.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity)
+    const amenities = ((acc?.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity).filter((a) => a in AMENITY_META)
     const policyRows = acc?.accommodation_policies
     const policy = (Array.isArray(policyRows) ? policyRows[0] : policyRows) as Record<string, unknown> | null | undefined
     const rules = policy
@@ -669,6 +751,9 @@ async function load(silent = false) {
       capacity: room?.capacity ?? null,
       address: acc?.address || [acc?.barangay, acc?.city].filter(Boolean).join(', ') || '',
       amenities,
+      // The terms this lease was agreed under, copied from the room at move-in
+      // (like monthly_rent) — a later change to the room doesn't reach it.
+      utilities: utilitiesFromRow(leaseRow),
       rules,
       roommateCount: roommateResult.count,
     }
@@ -713,10 +798,15 @@ async function requestLeave() {
   }
 }
 
-function openSubmit(category: typeof form.category) {
+function openSubmit(category: typeof form.category, bill: Bill | null = null) {
   form.category = category
-  form.month = nextRentMonth.value
-  form.amount = lease.value?.monthlyRent ?? 0
+  form.bill = bill
+  form.month = bill ? bill.month : nextRentMonth.value
+  form.amount = bill
+    ? bill.amount
+    : category === 'rent'
+      ? (lease.value?.monthlyRent ?? 0) + rentFees.value.reduce((sum, f) => sum + f.amount, 0)
+      : (lease.value?.monthlyRent ?? 0)
   form.method = 'gcash'
   form.reference = ''
   form.proofUrl = ''
@@ -760,6 +850,11 @@ async function submitPayment() {
     notify.error('Deposit is already on file.')
     return
   }
+  const bill = form.category === 'bill' ? form.bill : null
+  if (form.category === 'bill' && !unpaidBills.value.some((b) => b.id === bill?.id)) {
+    notify.error('That bill is already paid or awaiting verification.')
+    return
+  }
   if (!isCash.value && !form.reference.trim()) {
     notify.error('Enter a reference number, or switch the method to Cash.')
     return
@@ -769,8 +864,12 @@ async function submitPayment() {
     return
   }
 
-  const description = form.category === 'advance' ? ADVANCE_TAG : form.category === 'deposit' ? DEPOSIT_TAG : null
-  const month = form.category === 'rent' ? `${form.month}-01` : `${new Date().toISOString().slice(0, 7)}-01`
+  const description = bill
+    ? BILL_TAG[bill.utility]
+    : form.category === 'advance' ? ADVANCE_TAG : form.category === 'deposit' ? DEPOSIT_TAG : null
+  // A bill is paid against its own month and amount — the database checks both.
+  const month = bill ? bill.month : form.category === 'rent' ? `${form.month}-01` : `${new Date().toISOString().slice(0, 7)}-01`
+  const amount = bill ? bill.amount : form.amount
 
   submitting.value = true
   try {
@@ -779,10 +878,11 @@ async function submitPayment() {
       .insert({
         lease_id: lease.value.id,
         month,
-        amount: form.amount,
+        amount,
         method: form.method,
         status: 'pending_verification',
         description,
+        bill_id: bill?.id ?? null,
         txn_reference: form.reference.trim() || null,
         proof_url: form.proofUrl || null,
       })
@@ -809,11 +909,12 @@ async function submitPayment() {
       },
       ...payments.value,
     ]
+    if (bill) bills.value = bills.value.map((b) => (b.id === bill.id ? { ...b, settled: true } : b))
 
     void createNotification(
       lease.value.managerId,
       'Payment submitted',
-      `A payment of ${formatPeso(form.amount)} was submitted for verification.`,
+      `A payment of ${formatPeso(amount)} was submitted for verification.`,
       'payment',
       `/manager/tenant/${lease.value.id}`,
     )
@@ -1370,6 +1471,10 @@ function onPull(done: () => void) {
 .pay-due-note {
   color: var(--m-muted);
   font-size: 11.5px;
+}
+.pay-due-note--overdue {
+  color: var(--m-danger);
+  font-weight: 700;
 }
 .pay-due-action {
   display: flex;

@@ -179,7 +179,7 @@
                       <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
                     </div>
                     <div class="pay-row-sub">
-                      <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }}</span>
+                      <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ paymentTitle(p) }}</span>
                       <span class="pay-row-review">
                         Tap to review
                         <IconifyIcon icon="lucide:chevron-right" width="13" />
@@ -208,7 +208,7 @@
                     <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
                   </div>
                   <div class="pay-row-sub">
-                    <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ formatMonth(p.month) }} · {{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
+                    <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ paymentTitle(p) }} · {{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
                     <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
                   </div>
                 </button>
@@ -345,7 +345,7 @@
 
     <q-dialog v-model="paymentDetailOpen" position="bottom">
       <q-card v-if="selectedPayment" class="pay-detail-sheet">
-        <h3 class="pay-detail-title">{{ formatMonth(selectedPayment.month) }}</h3>
+        <h3 class="pay-detail-title">{{ paymentTitle(selectedPayment) }}</h3>
         <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
           {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
         </span>
@@ -441,7 +441,8 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { formatDate, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { paymentTitle } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import { createNotification } from '@/boot/notify'

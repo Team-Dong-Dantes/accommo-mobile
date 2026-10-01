@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capitalizeName, composeStudentId, initialsOf, isPhMobile, isStudentId } from './format'
+import { capitalizeName, composeStudentId, formatPesoExact, initialsOf, isPhMobile, isStudentId } from './format'
 
 describe('isStudentId', () => {
   it('accepts a year and a student number of four to six digits', () => {
@@ -144,5 +144,16 @@ describe('initialsOf', () => {
 
   it('uppercases whatever it finds', () => {
     expect(initialsOf('juan dela cruz')).toBe('JC')
+  })
+})
+
+describe('formatPesoExact', () => {
+  it('keeps centavos when a bill has them', () => {
+    expect(formatPesoExact(412.5)).toBe('₱412.50')
+    expect(formatPesoExact(1234.05)).toBe('₱1,234.05')
+  })
+
+  it('stays whole for whole amounts', () => {
+    expect(formatPesoExact(2500)).toBe('₱2,500')
   })
 })

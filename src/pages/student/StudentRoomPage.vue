@@ -59,7 +59,7 @@
           </span>
           <span v-if="room.floor" class="stat">
             <IconifyIcon icon="lucide:layers" width="15" />
-            <strong>Floor {{ room.floor }}</strong>
+            <strong>{{ room.floorName || `Floor ${room.floor}` }}</strong>
           </span>
           <span v-if="distance" class="stat">
             <IconifyIcon icon="lucide:map-pin" width="15" />
@@ -88,6 +88,18 @@
           <div v-if="moveIn" class="total-strip">
             <span>Total due at signing</span>
             <strong>{{ formatPeso(moveIn.total) }}</strong>
+          </div>
+        </section>
+
+        <!-- How this room's utilities are paid, on top of the rent. Per room:
+             two rooms in one house can be billed differently. -->
+        <section v-if="utilities.length" class="block">
+          <h2 class="block-title">Utilities</h2>
+          <div class="rule-list">
+            <div v-for="u in utilities" :key="u.label" class="rule-row">
+              <span class="rule-label">{{ u.label }}</span>
+              <span class="rule-value">{{ u.value }}</span>
+            </div>
           </div>
         </section>
 
@@ -193,7 +205,7 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
-import { AMENITY_META, FACILITY_META, roomTypeLabel, listingMonogram } from '@/utils/listings'
+import { AMENITY_META, FACILITY_META, UTILITIES, roomTypeLabel, listingMonogram, utilitiesFromRow, utilityTermsLabel } from '@/utils/listings'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { POLICY_TERMS, ROOM_DETAIL } from '@/api/selects'
 
@@ -202,6 +214,8 @@ const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
+// Unspecified (rooms from before utilities existed) is left out, not shown blank.
+const utilities = ref<{ label: string; value: string }[]>([])
 const room = reactive({
   label: '',
   propertyId: '',
@@ -209,6 +223,7 @@ const room = reactive({
   type: null as string | null,
   capacity: null as number | null,
   floor: null as number | null,
+  floorName: '',
   rent: 0,
   rentBasis: 'room' as 'room' | 'person',
   free: false,
@@ -264,7 +279,7 @@ async function load() {
         // through accommodation_facility_rooms, so an unnamed embed is ambiguous
         // (PGRST201) and fails the whole query. This page wants the room's own
         // private facilities — the ones pointing at it by room_id.
-        `${ROOM_DETAIL},room_images(url,sort_order),accommodation_facilities!accommodation_facilities_room_id_fkey(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,landlord_id,status,description,accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(${POLICY_TERMS}))`,
+        `${ROOM_DETAIL},room_images(url,sort_order),accommodation_facilities!accommodation_facilities_room_id_fkey(facility_type,label),accommodations(id,name,address,city,barangay,lat,lng,landlord_id,status,description,accommodation_floors(floor_number,label),accommodation_amenities(amenity),accommodation_images(url,sort_order),accommodation_policies(${POLICY_TERMS}))`,
       )
       .eq('id', id.value)
       .maybeSingle()
@@ -279,6 +294,7 @@ async function load() {
           lat: number | null
           lng: number | null
           description: string | null
+          accommodation_floors: { floor_number: number; label: string | null }[] | null
           accommodation_amenities: { amenity: string }[] | null
           accommodation_images: { url: string; sort_order: number | null }[] | null
           accommodation_policies: {
@@ -299,13 +315,17 @@ async function load() {
     room.type = data.custom_room_type || data.room_type
     room.capacity = data.capacity
     room.floor = data.floor
+    // The landlord/landlady's name for the floor ("Ground floor"), if any.
+    room.floorName = property.accommodation_floors?.find((f) => f.floor_number === data.floor)?.label || ''
     room.rent = Number(data.monthly_rent ?? 0)
     room.rentBasis = data.rent_basis === 'person' ? 'person' : 'room'
     room.free = data.status === 'available'
+    const terms = utilitiesFromRow(data)
+    utilities.value = UTILITIES.filter((u) => terms[u.key].billing).map((u) => ({ label: u.label, value: utilityTermsLabel(terms[u.key]) }))
     room.lat = property.lat
     room.lng = property.lng
 
-    amenities.value = (property.accommodation_amenities ?? []).map((a) => a.amenity)
+    amenities.value = (property.accommodation_amenities ?? []).map((a) => a.amenity).filter((a) => a in AMENITY_META)
     listingDescription.value = property.description || ''
 
     facilities.value = ((data.accommodation_facilities ?? []) as { facility_type: string; label: string | null }[])

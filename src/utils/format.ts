@@ -16,6 +16,18 @@ export function formatPeso(amount: number): string {
 }
 
 /**
+ * Exact pesos, centavos shown only when there are any — for money that was
+ * actually billed or paid. A ₱412.50 electricity bill has to read ₱412.50: the
+ * database checks a bill payment against the exact amount, so formatPeso's
+ * rounding (right for quoted rents) would show the student a figure that the
+ * payment then has to differ from.
+ */
+export function formatPesoExact(amount: number): string {
+  const cents = !Number.isInteger(Math.round(amount * 100) / 100)
+  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 });
+}
+
+/**
  * Capitalises the first letter of each part of a name, leaving the rest of each
  * word exactly as typed.
  *

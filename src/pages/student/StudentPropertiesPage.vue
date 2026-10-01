@@ -230,7 +230,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'id,name,address,city,barangay,lat,lng,accommodation_type,rooms(status,monthly_rent,room_type),accommodation_amenities(amenity),accommodation_facilities(facility_type),accommodation_images(url,sort_order)',
+        'id,name,address,city,barangay,purok,lat,lng,accommodation_type,rooms(status,monthly_rent,room_type),accommodation_amenities(amenity),accommodation_facilities(facility_type),accommodation_images(url,sort_order)',
       )
       .eq('status', 'accredited').eq('hidden_from_listings', false)
     if (loadError) throw loadError
@@ -250,7 +250,7 @@ async function load(silent = false) {
           ...((row.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity),
           ...((row.accommodation_facilities ?? []) as { facility_type: string }[]).map((f) => f.facility_type),
         ]
-        const address = row.address || [row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
+        const address = row.address || [row.purok, row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
         const name = row.name?.trim() || 'Unnamed accommodation'
 
         return {

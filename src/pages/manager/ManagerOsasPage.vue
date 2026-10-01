@@ -559,7 +559,9 @@ async function load() {
     }
 
     accommodations.value = (accData ?? []).map((a) => ({ id: a.id, name: a.name?.trim() || 'Unnamed accommodation' }))
-    selectedId.value = accommodations.value[0]?.id || ''
+    // ?accommodation= comes from a draft's "Attach permits" in the editor.
+    const asked = accommodations.value.find((a) => a.id === route.query.accommodation)
+    selectedId.value = asked?.id || accommodations.value[0]?.id || ''
     if (selectedId.value) await loadDocsFor(selectedId.value)
     await loadMyDocs(user.id)
 

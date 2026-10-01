@@ -21,7 +21,7 @@ const PREFIX = 'accommo:cache:'
  * Cache keys are per account, not per screen.
  *
  * The screen keys are global names — `student-dashboard`, `manager-tenants` —
- * and clearAllCache() only runs on the explicit Sign out button. Every other way
+ * and clearAllCache() only runs on the explicit Sign out (Settings). Every other way
  * a session ends (it expires, OSAS suspends the account, the router guard signs
  * it out) left the previous account's rows on disk under a key the next account
  * reads, and useLiveData hydrates from it synchronously before its first fetch —

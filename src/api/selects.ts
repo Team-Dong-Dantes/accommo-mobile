@@ -28,11 +28,11 @@ export const POLICY_RULES = 'curfew_time,quiet_hours,visitor_policy,cooking,laun
 
 /** A room as it appears on a card or in a list. */
 export const ROOM_CARD =
-  'id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status'
+  'id,room_number,label,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,water_billing,water_flat_fee,electric_billing,electric_flat_fee,wifi_billing,wifi_flat_fee'
 
 /** A room with everything its own detail screen needs. */
 export const ROOM_DETAIL =
-  'id,label,room_number,room_type,custom_room_type,capacity,floor,monthly_rent,advance_months,deposit_months,rent_basis,status'
+  'id,label,room_number,room_type,custom_room_type,capacity,floor,monthly_rent,advance_months,deposit_months,rent_basis,status,water_billing,water_flat_fee,electric_billing,electric_flat_fee,wifi_billing,wifi_flat_fee'
 
 /** The person fields any avatar + name row needs. Never widen this: it is read
  *  under RLS policies that deliberately expose only a narrow public profile. */

@@ -330,7 +330,7 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, kmBetween, geolocationErrorMessage, CAMPUS } from '@/utils/geo'
-import { SEARCH_FEATURES, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
+import { SEARCH_FEATURES, isUtilityAvailable, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
 import { useNotify } from '@/utils/notify'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -872,7 +872,7 @@ async function loadProperties(silent = false) {
   const { data, error: loadError } = await supabase
     .from('accommodations')
     .select(
-      'id,name,address,city,barangay,lat,lng,accommodation_type,gender_policy,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_facilities(facility_type),accommodation_images(url,sort_order)',
+      'id,name,address,city,barangay,purok,lat,lng,accommodation_type,gender_policy,rooms(id,label,room_number,room_type,custom_room_type,capacity,monthly_rent,rent_basis,status,wifi_billing,room_images(url,sort_order)),accommodation_amenities(amenity),accommodation_facilities(facility_type),accommodation_images(url,sort_order)',
     )
     .eq('status', 'accredited').eq('hidden_from_listings', false)
   if (loadError) throw loadError
@@ -892,6 +892,7 @@ async function loadProperties(silent = false) {
       monthly_rent: number | null
       rent_basis: string | null
       status: string
+      wifi_billing: string | null
       room_images: { url: string; sort_order: number | null }[] | null
     }[]
     const priced = rows.map((r) => Number(r.monthly_rent)).filter((n) => n > 0)
@@ -903,8 +904,10 @@ async function loadProperties(silent = false) {
     const amenities = [
       ...((row.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity),
       ...((row.accommodation_facilities ?? []) as { facility_type: string }[]).map((f) => f.facility_type),
+      // Wi-Fi is per room; the listing offers it when any room has it.
+      ...(rows.some((r) => isUtilityAvailable({ billing: r.wifi_billing, flatFee: null })) ? ['wifi'] : []),
     ]
-    const address = row.address || [row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
+    const address = row.address || [row.purok, row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
     const name = row.name?.trim() || 'Unnamed accommodation'
     const monogram = listingMonogram(name)
 

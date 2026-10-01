@@ -217,7 +217,7 @@ async function load(silent = false) {
       supabase.from('users').select('full_name').eq('id', user.id).maybeSingle(),
       supabase
         .from('accommodations')
-        .select('id, name, status, address, barangay, city, accommodation_type, total_rooms')
+        .select('id, name, status, address, barangay, purok, city, accommodation_type, total_rooms')
         .eq('landlord_id', user.id),
       supabase
         .from('leases')
@@ -258,7 +258,14 @@ async function load(silent = false) {
     // above, so they couldn't join the first — but they can go out together.
     // Skipped entirely for a landlord/landlady with no accommodations, which is half of
     // them (see the data notes in CLAUDE.md).
-    let roomRows: { id: string; accommodation_id: string; capacity: number | null }[] = []
+    let roomRows: {
+      id: string
+      accommodation_id: string
+      capacity: number | null
+      water_billing: string | null
+      electric_billing: string | null
+      wifi_billing: string | null
+    }[] = []
     let imageRows: { accommodation_id: string; url: string; sort_order: number | null }[] = []
     let docRows: {
       id: string
@@ -268,7 +275,10 @@ async function load(silent = false) {
     }[] = []
     if (accIds.length) {
       const [rooms, images, docs] = await Promise.all([
-        supabase.from('rooms').select('id, accommodation_id, capacity').in('accommodation_id', accIds),
+        supabase
+          .from('rooms')
+          .select('id, accommodation_id, capacity, water_billing, electric_billing, wifi_billing')
+          .in('accommodation_id', accIds),
         supabase
           .from('accommodation_images')
           .select('accommodation_id, url, sort_order')
@@ -360,12 +370,35 @@ async function load(silent = false) {
       }
     }
 
+    // Rooms that don't yet say how utilities are paid — every room from before
+    // utilities were per room. Students see nothing for them, and a draft
+    // can't be submitted until they're set, so it's a task, not a footnote.
+    const unsetByAcc = new Map<string, number>()
+    for (const r of roomRows) {
+      if (r.water_billing && r.electric_billing && r.wifi_billing) continue
+      unsetByAcc.set(r.accommodation_id, (unsetByAcc.get(r.accommodation_id) || 0) + 1)
+    }
+    for (const [accId, count] of unsetByAcc) {
+      items.push({
+        id: `utilities-${accId}`,
+        icon: 'lucide:plug-zap',
+        kind: 'Utilities',
+        label: `Set utilities on ${count} room${count === 1 ? '' : 's'}`,
+        hint: `${accName.get(accId) || 'Accommodation'} — students can't see how water, power and Wi-Fi are paid`,
+        when: '',
+        action: 'Set utilities',
+        route: `/manager/properties/${accId}`,
+        tone: 'warn',
+        rank: 3,
+      })
+    }
+
     properties.value = accs.map((a) => ({
       id: a.id,
       name: a.name,
       status: a.status,
       type: titleCase(a.accommodation_type),
-      address: a.address || [a.barangay, a.city].filter(Boolean).join(', '),
+      address: a.address || [a.purok, a.barangay, a.city].filter(Boolean).join(', '),
       roomCount: a.total_rooms ?? roomCountByAcc.get(a.id) ?? null,
       capacity: capacityByAcc.get(a.id) || 0,
       filled: filledByAcc.get(a.id) || 0,

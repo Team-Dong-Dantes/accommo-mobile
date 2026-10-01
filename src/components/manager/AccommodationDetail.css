@@ -885,6 +885,16 @@
   flex-direction: column;
   gap: 8px;
 }
+.floor-rename {
+  display: inline-flex;
+  margin-left: 4px;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--m-muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
 .floor-title {
   margin: 4px 0 0;
   padding: 0 2px;

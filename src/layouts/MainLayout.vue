@@ -154,28 +154,6 @@
     <!-- One PIN pad for the whole app. Renders nothing until something asks. -->
     <PinGate @forgot="goToSecuritySettings" />
 
-    <!-- Same shape as the delete confirmations in AccommodationDetail: grip,
-         warning header, then Cancel beside the destructive action. -->
-    <q-dialog v-model="signOutConfirmOpen" position="bottom">
-      <q-card class="confirm-sheet">
-        <span class="confirm-grip" aria-hidden="true" />
-        <div class="confirm-header">
-          <span class="confirm-header-icon"><IconifyIcon icon="lucide:log-out" width="18" /></span>
-          <h3 class="confirm-title">Sign out?</h3>
-        </div>
-        <p class="confirm-hint">
-          You'll need your e-mail and password to get back in.
-        </p>
-        <div class="confirm-actions">
-          <button type="button" class="confirm-ghost" :disabled="signingOut" @click="signOutConfirmOpen = false">
-            Cancel
-          </button>
-          <button type="button" class="confirm-danger" :disabled="signingOut" @click="signOut">
-            {{ signingOut ? 'Signing out…' : 'Sign out' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
   </q-layout>
 </template>
 
@@ -189,7 +167,6 @@ import { initialsOf } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
-import { Capacitor } from '@capacitor/core'
 import DesktopRail from '@/components/layout/DesktopRail.vue'
 import { useShellPanes, PANE_LISTS } from '@/utils/useShellPanes'
 import BottomNav from '@/components/layout/BottomNav.vue'
@@ -200,7 +177,6 @@ import QuickActions from '@/components/layout/QuickActions.vue'
 import PinGate from '@/components/shared/PinGate.vue'
 import { usePinStore, RESUME_LOCK_MS } from '@/stores/pin'
 import { lockApp, settlePin } from '@/utils/requirePin'
-import { clearAllCache } from '@/utils/persistCache'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
 import { countLeasesAwaitingManager } from '@/api/leases';
 
@@ -420,19 +396,11 @@ const accountActions = computed(() => {
     // role path rather than profileRoute. Scanner/QR below genuinely are
     // profile screens and keep hanging off it.
     { icon: 'lucide:settings', label: 'Settings', route: `/${role.value}/settings` },
+    // Offered on web too; there the scanner is manual code entry only (see QRScanner).
+    role.value === 'manager'
+      ? { icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` }
+      : { icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` },
   ]
-  // The QR pair — a landlord/landlady's scanner and a student's code — is a
-  // phone held up to a phone, so the web app offers neither.
-  if (Capacitor.isNativePlatform()) {
-    items.push(
-      role.value === 'manager'
-        ? { icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` }
-        : { icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` },
-    )
-  }
-  // Last in the account group, directly under My QR / Scanner. Not a route —
-  // navigateMenuAction intercepts this sentinel; see SIGN_OUT.
-  items.push({ icon: 'lucide:log-out', label: 'Sign out', route: SIGN_OUT, danger: true })
   return items
 })
 
@@ -536,47 +504,8 @@ function goBack() {
   void router.push(lastPath.value ?? subPage.value?.back ?? config.value.home)
 }
 
-/**
- * Not a real path. The menu is route-driven, and Sign out is the one row that
- * acts instead of navigating, so it travels as a sentinel the handler below
- * intercepts — cheaper than giving QuickActions a second event for one row.
- */
-const SIGN_OUT = '#sign-out'
-
-const signOutConfirmOpen = ref(false)
-const signingOut = ref(false)
-
-async function signOut() {
-  if (signingOut.value) return
-  signingOut.value = true
-  try {
-    // Stop the realtime subscriptions before dropping the session: this layout
-    // owns them (see onUnmounted), and leaving them open would carry one user's
-    // channels into the next sign-in on the same device.
-    notifications.stop()
-    messagesStore.stop()
-    // Drop the unlock and the has-PIN answer with the session, so the next
-    // account on this device is never treated as already unlocked.
-    pin.lock()
-    pin.hasPin = false
-    pin.ready = false
-    // Same reasoning as the channels above: a cached dashboard/listing from
-    // this account must not flash on screen for the next one who signs in.
-    clearAllCache()
-    await supabase.auth.signOut()
-    signOutConfirmOpen.value = false
-    void router.push('/login')
-  } finally {
-    signingOut.value = false
-  }
-}
-
 function navigateMenuAction(path: string) {
   menuOpen.value = false
-  if (path === SIGN_OUT) {
-    signOutConfirmOpen.value = true
-    return
-  }
   void router.push(path)
 }
 
@@ -965,83 +894,5 @@ function onScroll() {
   .page-slide-right-leave-active,
   .page-fade-enter-active,
   .page-fade-leave-active { transition: none; }
-}
-/* Sign-out confirmation. Mirrors the delete sheets in AccommodationDetail so
-   a destructive confirm looks the same everywhere in the app. */
-.confirm-sheet {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 10px;
-  padding: 8px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom, 0px));
-  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
-  background: var(--m-surface);
-}
-.confirm-grip {
-  width: 38px;
-  height: 4px;
-  align-self: center;
-  margin-bottom: 4px;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.confirm-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.confirm-header-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: var(--m-radius-sm);
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.confirm-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 16px;
-  font-weight: 700;
-}
-.confirm-hint {
-  margin: 0;
-  color: var(--m-muted);
-  font-size: 12.5px;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-.confirm-ghost,
-.confirm-danger {
-  min-height: 46px;
-  flex: 0 0 auto;
-  padding: 0 20px;
-  border-radius: 999px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.confirm-ghost {
-  border: 1px solid var(--m-border);
-  background: var(--m-bg);
-  color: var(--m-text);
-}
-.confirm-danger {
-  border: 0;
-  background: var(--m-danger);
-  color: #fff;
-}
-.confirm-ghost:disabled,
-.confirm-danger:disabled {
-  opacity: 0.6;
 }
 </style>

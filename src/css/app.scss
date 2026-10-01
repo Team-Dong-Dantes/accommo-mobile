@@ -583,6 +583,24 @@ body {
     display: none;
   }
 
+  /* ---- Bottom sheets float ----
+     Every `position="bottom"` q-dialog is a phone sheet: pinned to the bottom
+     edge, 480px or less. In a desktop browser that is a strip along the bottom
+     of a wide window, so here it becomes a centred, wider card. `body.desktop`
+     (Quasar's platform class) keeps a native tablet past 1200px on real sheets.
+     !important because each sheet's scoped max-width/radius outranks this. */
+  body.desktop .q-dialog__inner--bottom {
+    top: 0;
+    align-items: center;
+    padding: 32px !important;
+  }
+  body.desktop .q-dialog__inner--bottom > div {
+    width: 640px !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 64px) !important;
+    border-radius: var(--m-radius-lg) !important;
+  }
+
   /* ---- Shell panes as one card ----
      A list pane and the detail routed beside it (Discover → a listing,
      Notifications → an announcement, My Properties → an accommodation) are the

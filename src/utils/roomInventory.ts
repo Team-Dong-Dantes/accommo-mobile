@@ -44,18 +44,38 @@ export function clampOptional(
 /** Anything with a floor — a room, as far as the numbering is concerned. */
 export interface FloorBearing {
   floor: number | null
+  /** The room's number as stored; any string, since landlords can rename. */
+  roomNumber?: string | null
+}
+
+/** Room numbers compare case- and space-blind, the same as the database's unique index. */
+export function sameRoomNumber(a: string | null | undefined, b: string | null | undefined): boolean {
+  return (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase()
 }
 
 /**
- * The next room number on a floor: the floor, then a two-digit sequence.
- * Floor 2 with three rooms already on it gives "204".
+ * The next free room number on a floor: the floor, then a two-digit sequence.
+ * Floor 2 holding 201 and 203 gives "204" — one past the highest, never a
+ * count, which handed a deleted room's neighbour's number out twice. Numbers a
+ * landlord typed by hand ("A", "Room 5") are ignored for the sequence but still
+ * never reused.
  *
  * A null floor counts as 0, which is what the ground/unassigned case produces.
  */
 export function nextRoomNumber(rooms: readonly FloorBearing[], floor: number | null): string {
-  const f = floor ?? 0
-  const onFloor = rooms.filter((r) => r.floor === floor).length
-  return `${f}${String(onFloor + 1).padStart(2, '0')}`
+  const f = String(floor ?? 0)
+  const pattern = new RegExp(`^${f}(\\d{2,})$`)
+  let seq = 0
+  for (const r of rooms) {
+    const m = (r.roomNumber ?? '').trim().match(pattern)
+    if (m) seq = Math.max(seq, Number(m[1]))
+  }
+  let candidate = ''
+  do {
+    seq += 1
+    candidate = `${f}${String(seq).padStart(2, '0')}`
+  } while (rooms.some((r) => sameRoomNumber(r.roomNumber, candidate)))
+  return candidate
 }
 
 /**

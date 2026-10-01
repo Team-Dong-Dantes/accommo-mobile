@@ -11,7 +11,7 @@
     </div>
 
     <div v-else class="steps">
-      <span v-for="n in 5" :key="n" class="step-dot" :class="{ 'step-dot--on': n <= step }" />
+      <span v-for="n in STEP_LABELS.length" :key="n" class="step-dot" :class="{ 'step-dot--on': n <= step }" />
     </div>
 
     <div :class="isDesktop ? 'desk-card' : 'desk-pass'">
@@ -60,12 +60,16 @@
              so they're a check-and-correct rather than something to type out. -->
         <span class="field-label">Location <span class="req">*</span></span>
         <div class="location-row">
-          <img v-if="locationPreviewUrl" :src="locationPreviewUrl" alt="Picked location preview" class="location-preview" />
           <button type="button" class="location-btn" @click="locationPickerOpen = true">
             <IconifyIcon icon="lucide:map-pin" width="15" />
             {{ form.lat != null ? 'Change location on map' : 'Set location on map' }}
           </button>
         </div>
+
+        <label class="field">
+          <span class="field-label">Purok</span>
+          <input v-model="form.purok" type="text" class="field-input" placeholder="e.g. Purok 3" />
+        </label>
 
         <div class="field-row">
           <label class="field">
@@ -85,8 +89,8 @@
       </section>
 
       <section v-else-if="step === 2" class="sec">
-        <h2 class="sec-title">Amenities <span class="req">*</span></h2>
-        <p class="sec-hint">Pick at least one — students filter by these.</p>
+        <h2 class="sec-title">Amenities</h2>
+        <p class="sec-hint">Tick what the place has — students filter by these.</p>
         <div class="m-chips">
           <button
             v-for="key in AMENITY_KEYS"
@@ -100,7 +104,9 @@
             {{ AMENITY_META[key]?.label || key }}
           </button>
         </div>
+      </section>
 
+      <section v-else-if="step === 3" class="sec">
         <h2 class="sec-title">House rules <span class="req">*</span></h2>
         <label class="field">
           <span class="field-label">Curfew <span class="req">*</span></span>
@@ -130,7 +136,7 @@
         </div>
       </section>
 
-      <section v-else-if="step === 3" class="sec sec--pinned-actions">
+      <section v-else-if="step === 4" class="sec sec--pinned-actions">
         <h2 class="sec-title">Exterior photos <span class="req">*</span></h2>
         <p class="sec-hint">Students see these first. At least one is required — you can add more later.</p>
 
@@ -147,7 +153,7 @@
         <p v-else-if="photos.length" class="sec-hint">{{ photos.length }} photo{{ photos.length === 1 ? '' : 's' }} added.</p>
       </section>
 
-      <section v-else-if="step === 4" class="sec">
+      <section v-else-if="step === 5" class="sec">
         <h2 class="sec-title">Permits <span class="req">*</span></h2>
         <p class="sec-hint">
           OSAS reviews these before your listing goes live. All four are required to submit.
@@ -224,7 +230,7 @@
           </span>
         </button>
 
-        <button type="button" class="rv-block rv-block--tap" @click="step = 2">
+        <button type="button" class="rv-block rv-block--tap" @click="step = 3">
           <span class="rv-block-head">
             <IconifyIcon icon="lucide:scroll-text" width="14" />
             House rules
@@ -240,7 +246,7 @@
           </span>
         </button>
 
-        <button type="button" class="rv-block rv-block--tap" @click="step = 3">
+        <button type="button" class="rv-block rv-block--tap" @click="step = 4">
           <span class="rv-block-head">
             <IconifyIcon icon="lucide:images" width="14" />
             Photos
@@ -253,7 +259,7 @@
           </span>
         </button>
 
-        <button type="button" class="rv-block rv-block--tap" @click="step = 4">
+        <button type="button" class="rv-block rv-block--tap" @click="step = 5">
           <span class="rv-block-head">
             <IconifyIcon icon="lucide:shield-check" width="14" />
             Permits
@@ -278,7 +284,7 @@
     <div :class="isDesktop ? 'wiz-foot' : 'desk-pass'">
     <!-- Camera / upload sit just above the footer, the way the room photo
          sheet does it, so they stay reachable however far the list scrolls. -->
-    <div v-if="step === 3" class="photo-actions photo-actions--pinned">
+    <div v-if="step === 4" class="photo-actions photo-actions--pinned">
       <button type="button" class="photo-action-btn" @click="takeExteriorPhoto">
         <IconifyIcon icon="lucide:camera" width="15" />
         Take photo
@@ -290,15 +296,26 @@
       </label>
     </div>
 
-    <p v-if="blockReason" class="block-hint" :class="{ 'block-hint--above-actions': step === 3 }">
+    <p v-if="blockReason" class="block-hint" :class="{ 'block-hint--above-actions': step === 4 }">
       <IconifyIcon icon="lucide:info" width="13" />
       {{ blockReason }}
     </p>
 
     <div class="nav">
+      <!-- Nothing here has to be finished in one sitting: a draft is private,
+           and rooms, photos and permits can be added to it before OSAS sees it. -->
+      <button
+        v-if="form.name.trim()"
+        type="button"
+        class="nav-btn nav-btn--ghost"
+        :disabled="submitting"
+        @click="submit(true)"
+      >
+        Save draft
+      </button>
       <button v-if="step > 1" type="button" class="nav-btn nav-btn--ghost" @click="step--">Back</button>
       <button
-        v-if="step < 5"
+        v-if="step < STEP_LABELS.length"
         type="button"
         class="nav-btn"
         :disabled="nextBlocked"
@@ -306,8 +323,8 @@
       >
         Next
       </button>
-      <button v-else type="button" class="nav-btn" :disabled="submitting" @click="submit">
-        {{ submitting ? 'Creating…' : 'Create accommodation' }}
+      <button v-else type="button" class="nav-btn" :disabled="submitting" @click="submit()">
+        {{ submitting ? 'Submitting…' : 'Submit to OSAS' }}
       </button>
     </div>
     </div>
@@ -334,7 +351,6 @@ import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadDocument, uploadSecureDocument } from '@/utils/upload'
 import { AMENITY_META, AMENITY_KEYS, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL } from '@/utils/listings'
-import { staticMapUrl } from '@/utils/geo'
 import { to12Hour } from '@/utils/format'
 import { capturePhoto } from '@/utils/camera'
 import type { Database } from '@/types/database.gen'
@@ -363,7 +379,7 @@ const notify = useNotify()
 
 const step = ref(1)
 // The desktop step list's names, in order.
-const STEP_LABELS = ['Details', 'Amenities and house rules', 'Exterior photos', 'Permits', 'Review'] as const
+const STEP_LABELS = ['Details', 'Amenities', 'House rules', 'Exterior photos', 'Permits', 'Review'] as const
 const submitting = ref(false)
 const uploadingPhotos = ref(false)
 const photos = ref<{ url: string }[]>([])
@@ -389,14 +405,13 @@ const blockReason = computed(() => {
     if (!form.barangay.trim()) return 'Add the barangay.'
     if (!form.city.trim()) return 'Add the city or municipality.'
   }
-  if (step.value === 2) {
-    if (!form.amenities.length) return 'Pick at least one amenity.'
+  if (step.value === 3) {
     if (!form.curfewTime) return 'Set a curfew time.'
     if (!form.quietFrom || !form.quietTo) return 'Set both ends of quiet hours.'
     if (!form.visitorPolicy.trim()) return 'Describe your visitor policy.'
   }
-  if (step.value === 3 && !photos.value.length) return 'Add at least one exterior photo.'
-  if (step.value === 4 && !permitsComplete.value) {
+  if (step.value === 4 && !photos.value.length) return 'Add at least one exterior photo.'
+  if (step.value === 5 && !permitsComplete.value) {
     return `Attach all ${DOC_TYPES.length} permits (${attachedPermits.value} so far).`
   }
   return ''
@@ -407,6 +422,7 @@ const form = reactive({
   name: '',
   accommodationType: '',
   genderPolicy: '',
+  purok: '',
   barangay: '',
   city: '',
   description: '',
@@ -431,9 +447,8 @@ const quietHoursLabel = computed(() =>
 )
 
 const locationPickerOpen = ref(false)
-const locationPreviewUrl = computed(() => staticMapUrl(form.lat, form.lng, 160, 90))
 const locationSummary = computed(
-  () => [form.barangay.trim(), form.city.trim()].filter(Boolean).join(', ') || (form.lat != null ? 'Pinned on map' : '—'),
+  () => [form.purok.trim(), form.barangay.trim(), form.city.trim()].filter(Boolean).join(', ') || (form.lat != null ? 'Pinned on map' : '—'),
 )
 
 // The map is the source of truth here, so a fresh pick overwrites the two
@@ -505,18 +520,25 @@ async function onPermitSelected(event: Event, docType: string) {
   if (file) await uploadPermit(file, docType)
 }
 
-async function submit() {
+/**
+ * Every listing is created as a draft. Submitting is the same save followed by
+ * submit_accommodation(), which re-checks completeness on the server — so a
+ * failed submit still leaves the work saved, as a draft, instead of lost.
+ */
+async function submit(asDraft = false) {
   if (submitting.value) return
-  // Walk back to the first incomplete step rather than only checking the last
-  // one — the nav gates each step, but this stays correct if that ever slips.
-  for (const s of [1, 2, 3, 4]) {
-    step.value = s
-    if (blockReason.value) {
-      notify.error(blockReason.value)
-      return
+  if (!asDraft) {
+    // Walk back to the first incomplete step rather than only checking the
+    // last one — the nav gates each step, but this stays correct if that slips.
+    for (let s = 1; s < STEP_LABELS.length; s++) {
+      step.value = s
+      if (blockReason.value) {
+        notify.error(blockReason.value)
+        return
+      }
     }
+    step.value = STEP_LABELS.length
   }
-  step.value = 5
   submitting.value = true
   try {
     const { data: authData } = await authUser()
@@ -531,14 +553,15 @@ async function submit() {
         accommodation_type: form.accommodationType || null,
         gender_policy: form.genderPolicy || null,
         // No address field any more — the student side already falls back to
-        // "Barangay, City" when this is null.
+        // "Purok, Barangay, City" when this is null.
         address: null,
+        purok: form.purok.trim() || null,
         barangay: form.barangay.trim() || null,
         city: form.city.trim() || null,
         description: form.description.trim() || null,
         lat: form.lat,
         lng: form.lng,
-        status: 'pending',
+        status: 'draft',
       })
       .select('id')
       .single()
@@ -578,7 +601,13 @@ async function submit() {
       if (docsError) throw docsError
     }
 
-    notify.success('Accommodation created — it now awaits OSAS review.')
+    if (asDraft) {
+      notify.success('Draft saved. Add rooms now, and submit to OSAS when it’s complete.')
+    } else {
+      const { error: submitError } = await supabase.rpc('submit_accommodation', { p_id: accommodationId })
+      if (submitError) notify.error(`Saved as a draft, but not submitted: ${submitError.message}`)
+      else notify.success('Submitted — it now awaits OSAS review.')
+    }
     void router.replace(`/manager/properties/${accommodationId}`)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not create this accommodation.'))
@@ -680,14 +709,6 @@ async function submit() {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-.location-preview {
-  width: 56px;
-  height: 40px;
-  flex: 0 0 56px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  object-fit: cover;
 }
 .location-btn {
   display: inline-flex;

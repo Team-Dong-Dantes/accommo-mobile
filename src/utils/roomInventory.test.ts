@@ -56,14 +56,30 @@ describe('clampOptional', () => {
 })
 
 describe('nextRoomNumber', () => {
+  const room = (floor: number | null, roomNumber: string) => ({ floor, roomNumber })
+
   it('numbers the first room on a floor', () => {
     expect(nextRoomNumber([], 2)).toBe('201')
   })
 
   it('continues the sequence on that floor only', () => {
-    const rooms = [{ floor: 2 }, { floor: 2 }, { floor: 3 }]
+    const rooms = [room(2, '201'), room(2, '202'), room(3, '301')]
     expect(nextRoomNumber(rooms, 2)).toBe('203')
     expect(nextRoomNumber(rooms, 3)).toBe('302')
+  })
+
+  // The bug this replaced: with 201 and 203 left after deleting 202, a count
+  // gave "203" again.
+  it('goes one past the highest number, not the count', () => {
+    expect(nextRoomNumber([room(2, '201'), room(2, '203')], 2)).toBe('204')
+  })
+
+  it('skips a number already taken by hand, ignoring case and spaces', () => {
+    expect(nextRoomNumber([room(1, '101'), room(3, ' 102 ')], 1)).toBe('103')
+  })
+
+  it('ignores hand-typed names when finding the sequence', () => {
+    expect(nextRoomNumber([room(1, 'A'), room(1, 'Room 5')], 1)).toBe('101')
   })
 
   it('pads to two digits', () => {
@@ -71,7 +87,7 @@ describe('nextRoomNumber', () => {
   })
 
   it('treats an unassigned floor as ground', () => {
-    expect(nextRoomNumber([{ floor: null }], null)).toBe('002')
+    expect(nextRoomNumber([room(null, '001')], null)).toBe('002')
   })
 })
 

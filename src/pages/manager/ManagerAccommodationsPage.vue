@@ -86,7 +86,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        'id,name,address,barangay,city,status,accommodation_type,total_rooms,accommodation_images(url,sort_order),rooms(id,capacity)',
+        'id,name,address,barangay,purok,city,status,accommodation_type,total_rooms,accommodation_images(url,sort_order),rooms(id,capacity)',
       )
       .eq('landlord_id', user.id)
       .order('name')
@@ -142,7 +142,7 @@ async function load(silent = false) {
       return {
         id: a.id,
         name: a.name?.trim() || 'Unnamed accommodation',
-        address: a.address || [a.barangay, a.city].filter(Boolean).join(', ') || 'Address not given',
+        address: a.address || [a.purok, a.barangay, a.city].filter(Boolean).join(', ') || 'Address not given',
         status: a.status,
         type: titleCase(a.accommodation_type),
         image: images[0]?.url ? resolveAsset(images[0].url, CARD) : '',

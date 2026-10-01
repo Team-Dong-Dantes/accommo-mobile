@@ -110,6 +110,11 @@
               <span class="view-value">{{ GENDER_POLICY_LABEL[acc.genderPolicy] || '—' }}</span>
               <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
             </button>
+            <button type="button" class="view-row view-row--tap" @click="openFieldDialog('purok')">
+              <span class="view-label">Purok</span>
+              <span class="view-value">{{ acc.purok || '—' }}</span>
+              <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
+            </button>
             <button type="button" class="view-row view-row--tap" @click="openFieldDialog('barangay')">
               <span class="view-label">Barangay</span>
               <span class="view-value">{{ acc.barangay || '—' }}</span>
@@ -120,22 +125,18 @@
               <span class="view-value">{{ acc.city || '—' }}</span>
               <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
             </button>
-            <button type="button" class="view-row view-row--tap" @click="openFieldDialog('totalFloors')">
+            <!-- Counted from the floors on the Rooms tab (the database keeps
+                 total_floors in step), so it can't disagree with them. -->
+            <div class="view-row">
               <span class="view-label">Floors</span>
-              <span class="view-value">{{ acc.totalFloors ?? '—' }}</span>
-              <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
-            </button>
+              <span class="view-value">{{ floorCount || '—' }}</span>
+            </div>
             <button type="button" class="view-row view-row--tap view-row--block" @click="openFieldDialog('description')">
               <span class="view-row-head">
                 <span class="view-label">Description</span>
                 <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
               </span>
               <p class="view-text">{{ acc.description || 'No description yet.' }}</p>
-            </button>
-            <button type="button" class="view-row view-row--tap" @click="amenitiesDialogOpen = true">
-              <span class="view-label">Amenities</span>
-              <span class="view-value">{{ rules.amenities.length ? `${rules.amenities.length} selected` : 'None yet' }}</span>
-              <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
             </button>
           </div>
 
@@ -166,7 +167,18 @@
           <template v-if="roomsByFloor.length">
             <div v-for="grp in roomsByFloor" :key="grp.floor ?? 'none'" class="floor-group">
               <div class="sec-head">
-                <h3 class="floor-title">{{ grp.label }} ({{ grp.rooms.length + grp.facilities.length }})</h3>
+                <h3 class="floor-title">
+                  {{ grp.label }} ({{ grp.rooms.length + grp.facilities.length }})
+                  <button
+                    v-if="grp.floor !== null"
+                    type="button"
+                    class="floor-rename"
+                    aria-label="Rename this floor"
+                    @click="openFloorName(grp.floor)"
+                  >
+                    <IconifyIcon icon="lucide:pencil" width="13" />
+                  </button>
+                </h3>
                 <div v-if="grp.floor !== null" class="floor-actions">
                   <button type="button" class="sec-link" :disabled="!canAddInventory" @click="openAddChoice(grp.floor)">Add room/facility</button>
                   <button
@@ -228,11 +240,11 @@
             v-else
             variant="compact"
             icon="lucide:layers"
-            title="No floors yet"
-            message="Add a floor to start adding rooms and facilities."
+            title="No rooms yet"
+            message="Add your first room — Floor 1 is created for you."
           >
             <template #actions>
-              <q-btn unelevated rounded no-caps color="primary" label="Add floor" :loading="addingFloor" :disable="!canAddInventory" @click="addFloor" />
+              <q-btn unelevated rounded no-caps color="primary" label="Add room" :loading="addingFloor" :disable="!canAddInventory" @click="addFirstRoom" />
             </template>
           </EmptyState>
           </div>
@@ -241,6 +253,19 @@
 
         <!-- SETTINGS -->
         <component :is="panelIs" name="settings" class="sec">
+          <!-- Amenities and house rules are separate questions, each its own
+               section. Utilities are per room — see the room form. -->
+          <h2 class="sec-title">Amenities</h2>
+          <div class="view-group">
+            <button type="button" class="view-row view-row--tap" @click="amenitiesDialogOpen = true">
+              <span class="view-label">Amenities</span>
+              <span class="view-value">
+                {{ rules.amenities.length ? rules.amenities.map((a) => AMENITY_META[a]?.label || a).join(', ') : 'None yet' }}
+              </span>
+              <IconifyIcon icon="lucide:chevron-right" width="14" class="view-chevron" />
+            </button>
+          </div>
+
           <h2 class="sec-title">House rules</h2>
           <div class="view-group">
             <button type="button" class="view-row view-row--tap" @click="openFieldDialog('curfewTime')">
@@ -290,7 +315,26 @@
             </div>
           </div>
 
-          <template v-if="acc.status === 'accredited' || acc.status === 'delisted'">
+          <template v-if="acc.status === 'draft'">
+            <h2 class="sec-title">Listing status</h2>
+            <div class="status-box">
+              <p class="status-text">
+                {{ draftMissing.length
+                  ? 'A private draft — only you can see it. Before OSAS can review it, add: ' + draftMissing.join(', ') + '.'
+                  : 'A private draft, and complete. Submit it when you’re ready for OSAS to review.' }}
+              </p>
+              <button v-if="draftMissing.includes('all four permits')" type="button" class="status-btn" @click="router.push(`/manager/osas?accommodation=${id}`)">
+                Attach permits
+              </button>
+              <button type="button" class="status-btn" :disabled="submittingDraft || draftMissing.length > 0" @click="submitDraft">
+                {{ submittingDraft ? 'Submitting…' : 'Submit to OSAS' }}
+              </button>
+              <button type="button" class="status-btn status-btn--danger" @click="confirmDeleteAccommodationOpen = true">
+                Delete draft
+              </button>
+            </div>
+          </template>
+          <template v-else-if="acc.status === 'accredited' || acc.status === 'delisted'">
             <h2 class="sec-title">Listing status</h2>
             <div class="status-box">
               <p class="status-text">
@@ -383,13 +427,6 @@
             <option value="">Select {{ FIELD_META[editingField].label.toLowerCase() }}</option>
             <option v-for="(label, key) in FIELD_META[editingField].options" :key="key" :value="key">{{ label }}</option>
           </select>
-          <input
-            v-else-if="editingField && FIELD_META[editingField].type === 'number'"
-            v-model.number="fieldDraftNum"
-            type="number"
-            min="0"
-            class="field-input"
-          />
           <textarea
             v-else-if="editingField && FIELD_META[editingField].type === 'textarea'"
             v-model="fieldDraft"
@@ -452,8 +489,27 @@
       </q-card>
     </q-dialog>
 
+    <!-- RENAME FLOOR -->
+    <q-dialog v-model="floorNameOpen" position="bottom">
+      <q-card class="room-sheet">
+        <span class="sheet-grip" aria-hidden="true" />
+        <div class="sheet-header">
+          <span class="sheet-header-icon"><IconifyIcon icon="lucide:layers" width="18" /></span>
+          <h3 class="room-sheet-title">Name Floor {{ floorNameFor }}</h3>
+        </div>
+        <label class="field">
+          <span class="field-label">Floor name</span>
+          <input v-model="floorNameDraft" type="text" maxlength="30" class="field-input" :placeholder="`Floor ${floorNameFor}`" />
+        </label>
+        <p class="sec-hint">e.g. Ground floor, Annex. Leave it blank to use the number.</p>
+        <div class="room-sheet-actions">
+          <q-btn unelevated rounded no-caps color="primary" class="save-btn" :loading="savingFloorName" label="Save" @click="saveFloorName" />
+        </div>
+      </q-card>
+    </q-dialog>
+
     <!-- ADD/EDIT ROOM -->
-    <q-dialog v-model="roomOpen" position="bottom">
+    <q-dialog v-model="roomOpen" position="bottom" @hide="onRoomDialogHide">
       <q-card class="room-sheet room-sheet--paged room-sheet--wizard">
         <span class="sheet-grip" aria-hidden="true" />
         <div class="sheet-header">
@@ -470,11 +526,11 @@
           <template v-if="roomDialogMode === 'edit' || roomStep === 1">
             <div v-if="editingRoomId" class="room-name-static">
               <span class="room-name-static-label">Room {{ activeRoomNumber || '—' }}</span>
-              <span class="room-name-static-floor">Floor {{ roomForm.floor }}</span>
+              <span class="room-name-static-floor">{{ floorName(roomForm.floor) }}</span>
             </div>
-            <div v-else class="room-name-static">
-              <span class="room-name-static-label">Floor {{ roomForm.floor }}</span>
-              <span class="room-name-static-floor">Will be named Room {{ previewRoomNumber }}</span>
+            <div v-else-if="roomStep > 1" class="room-name-static">
+              <span class="room-name-static-label">Room {{ activeRoomNumber }}</span>
+              <span class="room-name-static-floor">{{ floorName(roomForm.floor) }}</span>
             </div>
 
             <div v-if="roomDialogMode === 'edit'" class="status-box">
@@ -523,9 +579,26 @@
                 <span class="view-label">Deposit</span>
                 <span class="view-value">{{ roomForm.depositMonths ?? '—' }} mo</span>
               </div>
+              <div v-for="u in UTILITIES" :key="u.key" class="view-row">
+                <span class="view-label">{{ u.label }}</span>
+                <span class="view-value">{{ utilityTermsLabel(roomForm.utilities[u.key]) }}</span>
+              </div>
             </div>
 
             <template v-else>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">Room number or name</span>
+                  <input v-model="roomForm.roomNumber" type="text" maxlength="20" class="field-input" :placeholder="previewRoomNumber" />
+                </label>
+                <label class="field">
+                  <span class="field-label">Floor</span>
+                  <select v-model.number="roomForm.floor" class="field-input app-select" @change="onRoomFloorChange">
+                    <option v-for="f in floorOptions" :key="f" :value="f">{{ floorName(f) }}</option>
+                  </select>
+                </label>
+              </div>
+
               <div class="field-row">
                 <label class="field">
                   <span class="field-label">Room type</span>
@@ -620,6 +693,31 @@
                   />
                 </label>
               </div>
+
+              <div class="sheet-section">
+                <span class="field-label">Utilities</span>
+                <p v-if="activeRoomTenants > 0" class="sec-hint">
+                  Current tenants keep the terms they moved in with. Changes apply to new tenants.
+                </p>
+                <UtilitiesFields v-model="roomForm.utilities" />
+              </div>
+
+              <template v-if="roomDialogMode === 'create'">
+                <label class="field">
+                  <span class="field-label">How many rooms like this?</span>
+                  <input
+                    v-model.number="roomForm.count"
+                    type="number"
+                    min="1"
+                    :max="BULK_MAX"
+                    class="field-input"
+                    @blur="roomForm.count = clampNum(roomForm.count, 1, BULK_MAX)"
+                  />
+                </label>
+                <p v-if="roomForm.count > 1" class="sec-hint">
+                  Adds {{ bulkNumbers.length }} identical rooms: {{ bulkNumbers.join(', ') }}. Add photos to each one afterwards.
+                </p>
+              </template>
             </template>
           </template>
 
@@ -686,7 +784,7 @@
               <div class="group">
                 <div class="rule">
                   <span class="rule-label">Room</span>
-                  <span class="rule-value">Room {{ activeRoomNumber || '—' }} · Floor {{ roomForm.floor }}</span>
+                  <span class="rule-value">Room {{ activeRoomNumber || '—' }} · {{ floorName(roomForm.floor) }}</span>
                 </div>
                 <div class="rule">
                   <span class="rule-label">Type</span>
@@ -705,6 +803,10 @@
                 <div v-if="roomForm.advanceMonths || roomForm.depositMonths" class="rule">
                   <span class="rule-label">Advance / Deposit</span>
                   <span class="rule-value">{{ roomForm.advanceMonths ?? 0 }} / {{ roomForm.depositMonths ?? 0 }} mo</span>
+                </div>
+                <div v-for="u in UTILITIES" :key="u.key" class="rule">
+                  <span class="rule-label">{{ u.label }}</span>
+                  <span class="rule-value">{{ utilityTermsLabel(roomForm.utilities[u.key]) }}</span>
                 </div>
                 <div class="rule">
                   <span class="rule-label">Photos</span>
@@ -738,6 +840,7 @@
         </div>
 
         <div v-if="roomDialogMode === 'edit' && roomViewMode === 'view'" class="wizard-nav">
+          <button type="button" class="ghost-btn" :disabled="savingRoom || !canAddInventory" @click="duplicateRoom">Duplicate</button>
           <q-btn unelevated rounded no-caps color="primary" class="save-btn" label="Edit" @click="roomViewMode = 'edit'" />
         </div>
         <div v-else-if="roomDialogMode === 'edit'" class="room-sheet-actions">
@@ -753,7 +856,7 @@
             no-caps
             color="primary"
             class="save-btn"
-            label="Next"
+            :label="roomForm.count > 1 ? `Add ${bulkNumbers.length} rooms` : 'Next'"
             :loading="savingRoom"
             @click="confirmRoomBasics"
           />
@@ -775,7 +878,8 @@
             color="primary"
             class="save-btn"
             label="Done"
-            @click="roomOpen = false"
+            :loading="togglingRoomStatus"
+            @click="finishNewRoom"
           />
         </div>
       </q-card>
@@ -997,7 +1101,8 @@ import { requirePin } from '@/utils/requirePin'
 import { uploadDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset, isPdf, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, AMENITY_KEYS, FACILITY_META, PRIVATE_ONLY_FACILITY_TYPES, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL, roomTypeLabel } from '@/utils/listings'
+import UtilitiesFields from '@/components/manager/UtilitiesFields.vue'
+import { UTILITIES, UTILITY_SELECT, emptyUtilities, utilitiesFromRow, utilityColumns, utilitiesProblem, utilityTermsLabel, type UtilityKey, type UtilityTerms, type UtilityColumns, AMENITY_META, AMENITY_KEYS, FACILITY_META, PRIVATE_ONLY_FACILITY_TYPES, RETIRED_FACILITY_TYPES, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL, roomTypeLabel } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import type { Database } from '@/types/database.gen'
@@ -1007,7 +1112,7 @@ import ConfirmDeleteSheet from '@/components/shared/ConfirmDeleteSheet.vue'
 import {
   CAPACITY_MAX, MONTHS_MAX, RENT_MAX,
   clampNum, clampOptional, partitionFacilities,
-  nextFloorNumber as nextFloorNumberOf, nextRoomNumber as nextRoomNumberOf,
+  nextFloorNumber as nextFloorNumberOf, nextRoomNumber as nextRoomNumberOf, sameRoomNumber,
 } from '@/utils/roomInventory'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
@@ -1017,6 +1122,7 @@ const LocationPicker = defineAsyncComponent(() => import('@/components/manager/L
 type AmenityKey = Database['public']['Enums']['amenity']
 
 const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
   pending: 'Pending review',
   reviewing: 'Reviewing',
   accredited: 'Accredited',
@@ -1027,6 +1133,7 @@ const STATUS_LABEL: Record<string, string> = {
   delisted: 'Delisted',
 }
 const STATUS_TONE: Record<string, string> = {
+  draft: 'grey',
   pending: 'amber',
   reviewing: 'amber',
   accredited: 'green',
@@ -1075,6 +1182,8 @@ interface Room {
   advanceMonths: number | null
   depositMonths: number | null
   rentBasis: 'room' | 'person'
+  /** How this room's water, electricity and Wi-Fi are paid. */
+  utilities: Record<UtilityKey, UtilityTerms>
   status: string
   images: Img[]
   photoUrl: string
@@ -1120,16 +1229,15 @@ const editingField = ref<FieldKey | null>(null)
 const fieldDraft = ref('')
 // Second half of a time range (quiet hours "until"); unused by other types.
 const fieldDraftTo = ref('')
-const fieldDraftNum = ref<number | null>(null)
 
 const acc = reactive({
   name: '',
   accommodationType: '',
   genderPolicy: '',
   address: '',
+  purok: '',
   barangay: '',
   city: '',
-  totalFloors: null as number | null,
   description: '',
   status: 'pending',
   lat: null as number | null,
@@ -1161,6 +1269,37 @@ const vacantRoomCount = computed(() => Math.max(rooms.value.length - occupiedRoo
 // building out inventory (rooms, facilities, floors) behind a dead listing.
 // Two reasons adding can be closed: the accommodation is delisted, or the
 // landlord/landlady is not verified yet (the database refuses the insert then).
+// What a draft still needs before submit_accommodation() will take it — the
+// same list the database checks, worded the way its error reads.
+const draftMissing = computed(() => {
+  const missing: string[] = []
+  if (!acc.accommodationType || !acc.genderPolicy) missing.push('type and who it accepts')
+  if (acc.lat === null || acc.lng === null || !acc.barangay || !acc.city) missing.push('location')
+  if (rooms.value.some((r) => utilitiesProblem(r.utilities))) missing.push('utilities on every room')
+  if (!rules.curfewTime || !rules.quietHours || !rules.visitorPolicy) missing.push('house rules')
+  if (!images.value.length) missing.push('an exterior photo')
+  const docs = new Set(docRows.value.map((d) => d.doc_type))
+  if (!['sanitary_permit', 'fire_safety', 'business_permit', 'building_permit'].every((t) => docs.has(t))) {
+    missing.push('all four permits')
+  }
+  return missing
+})
+const submittingDraft = ref(false)
+async function submitDraft() {
+  if (submittingDraft.value) return
+  submittingDraft.value = true
+  try {
+    const { error: submitError } = await supabase.rpc('submit_accommodation', { p_id: id })
+    if (submitError) throw submitError
+    acc.status = 'pending'
+    notify.success('Submitted — it now awaits OSAS review.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not submit this accommodation.'))
+  } finally {
+    submittingDraft.value = false
+  }
+}
+
 const canAddInventory = computed(() => acc.status !== 'delisted' && auth.isVerifiedLandlord)
 const distance = computed(() => campusDistanceLabel(acc.lat, acc.lng))
 const mapUrl = computed(() => staticMapUrl(acc.lat, acc.lng))
@@ -1210,10 +1349,13 @@ const facilityForm = reactive({
 })
 
 // Air-con and the like belong to a room; the shared picker leaves them out.
+// Retired types (parking, now an amenity) are offered by neither.
 const facilityTypeOptions = computed(() =>
-  facilityScope.value === 'shared'
-    ? Object.fromEntries(Object.entries(FACILITY_META).filter(([k]) => !PRIVATE_ONLY_FACILITY_TYPES.includes(k)))
-    : FACILITY_META,
+  Object.fromEntries(
+    Object.entries(FACILITY_META).filter(
+      ([k]) => !RETIRED_FACILITY_TYPES.includes(k) && (facilityScope.value !== 'shared' || !PRIVATE_ONLY_FACILITY_TYPES.includes(k)),
+    ),
+  ),
 )
 const FACILITY_STATUS_LABEL: Record<FacilityStatus, string> = { available: 'Available', under_repair: 'Under repair' }
 const roomTitle = (r: Room) => (r.roomNumber ? `Room ${r.roomNumber}` : 'Room')
@@ -1467,7 +1609,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        `name,accommodation_type,gender_policy,address,barangay,city,total_floors,description,status,lat,lng,accommodation_amenities(amenity),accommodation_policies(${POLICY_RULES}),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,status,accommodation_facility_rooms(room_id),accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,room_images(id,url,sort_order))`,
+        `name,accommodation_type,gender_policy,address,purok,barangay,city,description,status,lat,lng,accommodation_amenities(amenity),accommodation_policies(${POLICY_RULES}),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,status,accommodation_facility_rooms(room_id),accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number,label),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,${UTILITY_SELECT},room_images(id,url,sort_order))`,
       )
       .eq('id', id)
       .maybeSingle()
@@ -1481,15 +1623,15 @@ async function load() {
     acc.accommodationType = data.accommodation_type || ''
     acc.genderPolicy = data.gender_policy || ''
     acc.address = data.address || ''
+    acc.purok = data.purok || ''
     acc.barangay = data.barangay || ''
     acc.city = data.city || ''
-    acc.totalFloors = data.total_floors
     acc.description = data.description || ''
     acc.status = data.status
     acc.lat = data.lat
     acc.lng = data.lng
 
-    rules.amenities = ((data.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity)
+    rules.amenities = ((data.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity).filter((a) => a in AMENITY_META)
 
     const policyRows = data.accommodation_policies as unknown
     const policy = (Array.isArray(policyRows) ? policyRows[0] : policyRows) as
@@ -1540,7 +1682,7 @@ async function load() {
         .map((i) => ({ id: i.id, url: i.url })),
     }))
 
-    rooms.value = ((data.rooms ?? []) as {
+    rooms.value = ((data.rooms ?? []) as ({
       id: string
       label: string | null
       room_number: string | null
@@ -1555,7 +1697,7 @@ async function load() {
       rent_basis: string | null
       status: string
       room_images: { id: string; url: string; sort_order: number | null }[] | null
-    }[]).map((r) => {
+    } & Partial<UtilityColumns>)[]).map((r) => {
       const imgs = [...(r.room_images ?? [])]
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
         .map((i) => ({ id: i.id, url: i.url }))
@@ -1572,15 +1714,16 @@ async function load() {
         advanceMonths: r.advance_months,
         depositMonths: r.deposit_months,
         rentBasis: r.rent_basis === 'person' ? 'person' : 'room',
+        utilities: utilitiesFromRow(r),
         status: r.status,
         images: imgs,
         photoUrl: imgs[0]?.url ? resolveAsset(imgs[0].url, CARD) : '',
       }
     })
 
-    trackedFloors.value = ((data.accommodation_floors ?? []) as { floor_number: number }[]).map(
-      (f) => f.floor_number,
-    )
+    const floorRows = (data.accommodation_floors ?? []) as { floor_number: number; label: string | null }[]
+    trackedFloors.value = floorRows.map((f) => f.floor_number)
+    floorLabels.value = Object.fromEntries(floorRows.filter((f) => f.label).map((f) => [f.floor_number, f.label as string]))
 
     if (rooms.value.length) {
       const { data: activeLeases, error: leaseError } = await supabase
@@ -1655,18 +1798,18 @@ async function saveToggle(key: 'cooking' | 'laundry' | 'pets') {
 }
 
 type FieldKey =
-  | 'name' | 'accommodationType' | 'genderPolicy' | 'barangay' | 'city' | 'totalFloors' | 'description'
+  | 'name' | 'accommodationType' | 'genderPolicy' | 'purok' | 'barangay' | 'city' | 'description'
   | 'curfewTime' | 'quietHours' | 'visitorPolicy'
 
 // `options` is what a 'select' field offers; the sheet renders straight from it,
 // so a second select needs an entry here rather than another branch in the template.
-const FIELD_META: Record<FieldKey, { label: string; type: 'text' | 'select' | 'number' | 'textarea' | 'time' | 'timerange'; table: 'accommodations' | 'accommodation_policies'; column: string; options?: Record<string, string> }> = {
+const FIELD_META: Record<FieldKey, { label: string; type: 'text' | 'select' | 'textarea' | 'time' | 'timerange'; table: 'accommodations' | 'accommodation_policies'; column: string; options?: Record<string, string> }> = {
   name: { label: 'Name', type: 'text', table: 'accommodations', column: 'name' },
   accommodationType: { label: 'Type', type: 'select', table: 'accommodations', column: 'accommodation_type', options: BUILDING_TYPE_LABEL },
   genderPolicy: { label: 'Accepts', type: 'select', table: 'accommodations', column: 'gender_policy', options: GENDER_POLICY_LABEL },
+  purok: { label: 'Purok', type: 'text', table: 'accommodations', column: 'purok' },
   barangay: { label: 'Barangay', type: 'text', table: 'accommodations', column: 'barangay' },
   city: { label: 'City', type: 'text', table: 'accommodations', column: 'city' },
-  totalFloors: { label: 'Floors', type: 'number', table: 'accommodations', column: 'total_floors' },
   description: { label: 'Description', type: 'textarea', table: 'accommodations', column: 'description' },
   curfewTime: { label: 'Curfew', type: 'time', table: 'accommodation_policies', column: 'curfew_time' },
   quietHours: { label: 'Quiet hours', type: 'timerange', table: 'accommodation_policies', column: 'quiet_hours' },
@@ -1678,9 +1821,7 @@ function openFieldDialog(key: FieldKey) {
   const meta = FIELD_META[key]
   const raw = key in acc ? acc[key as keyof typeof acc] : rules[key as keyof typeof rules]
   fieldDraftTo.value = ''
-  if (meta.type === 'number') {
-    fieldDraftNum.value = raw as number | null
-  } else if (meta.type === 'time') {
+  if (meta.type === 'time') {
     // Seed the picker from whatever's stored, including older hand-typed
     // values like "10PM"; anything unparseable just starts blank.
     fieldDraft.value = to24Hour(String(raw ?? ''))
@@ -1700,9 +1841,8 @@ async function saveField() {
   const meta = FIELD_META[key]
   savingField.value = true
   try {
-    let value: string | number | null
-    if (meta.type === 'number') value = fieldDraftNum.value
-    else if (meta.type === 'select') value = fieldDraft.value || null
+    let value: string | null
+    if (meta.type === 'select') value = fieldDraft.value || null
     else if (meta.type === 'time') value = to12Hour(fieldDraft.value) || null
     else if (meta.type === 'timerange') {
       value =
@@ -1727,10 +1867,10 @@ async function saveField() {
       case 'name': acc.name = String(value ?? ''); break
       case 'accommodationType': acc.accommodationType = String(value ?? ''); break
       case 'genderPolicy': acc.genderPolicy = String(value ?? ''); break
+      case 'purok': acc.purok = String(value ?? ''); break
       case 'barangay': acc.barangay = String(value ?? ''); break
       case 'city': acc.city = String(value ?? ''); break
       case 'description': acc.description = String(value ?? ''); break
-      case 'totalFloors': acc.totalFloors = value as number | null; break
       case 'curfewTime': rules.curfewTime = String(value ?? ''); break
       case 'quietHours': rules.quietHours = String(value ?? ''); break
       case 'visitorPolicy': rules.visitorPolicy = String(value ?? ''); break
@@ -1875,6 +2015,9 @@ const roomImages = ref<Img[]>([])
 const uploadingRoomPhoto = ref(false)
 const deletingRoomImage = ref('')
 const roomForm = reactive({
+  roomNumber: '',
+  /** Create only: how many identical rooms to add at once. */
+  count: 1,
   roomType: 'solo',
   customRoomType: '',
   floor: null as number | null,
@@ -1883,6 +2026,7 @@ const roomForm = reactive({
   advanceMonths: null as number | null,
   depositMonths: null as number | null,
   rentBasis: 'room' as 'room' | 'person',
+  utilities: emptyUtilities(),
 })
 
 // Bounds for the room form. A boarding-house room is not ₱1,000,000/month and
@@ -1911,6 +2055,45 @@ const rentBasisHint = computed(() => {
 // (accommodation_floors) so an empty floor with no rooms yet still survives
 // a reload instead of only existing while this page happens to be open.
 const trackedFloors = ref<number[]>([])
+/** Names landlords gave their floors ("Ground", "Annex"); the number is still the key. */
+const floorLabels = ref<Record<number, string>>({})
+function floorName(floor: number | null): string {
+  if (floor === null) return 'No floor set'
+  return floorLabels.value[floor] || `Floor ${floor}`
+}
+
+const floorNameOpen = ref(false)
+const floorNameFor = ref<number | null>(null)
+const floorNameDraft = ref('')
+const savingFloorName = ref(false)
+function openFloorName(floor: number) {
+  floorNameFor.value = floor
+  floorNameDraft.value = floorLabels.value[floor] || ''
+  floorNameOpen.value = true
+}
+async function saveFloorName() {
+  const floor = floorNameFor.value
+  if (floor === null || savingFloorName.value) return
+  const label = floorNameDraft.value.trim() || null
+  savingFloorName.value = true
+  try {
+    // Upsert: a floor that only exists through its rooms has no row yet.
+    const { error: saveError } = await supabase
+      .from('accommodation_floors')
+      .upsert({ accommodation_id: id, floor_number: floor, label }, { onConflict: 'accommodation_id,floor_number' })
+    if (saveError) throw saveError
+    if (!trackedFloors.value.includes(floor)) trackedFloors.value.push(floor)
+    const next = { ...floorLabels.value }
+    if (label) next[floor] = label
+    else delete next[floor]
+    floorLabels.value = next
+    floorNameOpen.value = false
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not rename this floor.'))
+  } finally {
+    savingFloorName.value = false
+  }
+}
 
 interface FloorGroup { floor: number | null; label: string; rooms: Room[]; facilities: Facility[] }
 const roomsByFloor = computed<FloorGroup[]>(() => {
@@ -1942,7 +2125,7 @@ const roomsByFloor = computed<FloorGroup[]>(() => {
   const groups = floors.map(
     (floor): FloorGroup => ({
       floor,
-      label: `Floor ${floor}`,
+      label: floorName(floor),
       rooms: roomMap.get(floor) ?? [],
       facilities: facilityMap.get(floor) ?? [],
     }),
@@ -1965,6 +2148,60 @@ function nextFloorNumber(): number {
   return nextFloorNumberOf(rooms.value, trackedFloors.value)
 }
 const previewRoomNumber = computed(() => nextRoomNumber(roomForm.floor))
+const activeRoomTenants = computed(() => rooms.value.find((r) => r.id === editingRoomId.value)?.currentPax ?? 0)
+
+// Rooms added in one go. Ceiling keeps a typo (60 for 6) from flooding a floor.
+const BULK_MAX = 20
+
+/** The floors a room can go on: every floor shown on the Rooms tab. */
+const floorOptions = computed(() => {
+  const floors = roomsByFloor.value.map((g) => g.floor).filter((f): f is number => f !== null)
+  if (roomForm.floor !== null && !floors.includes(roomForm.floor)) floors.push(roomForm.floor)
+  return floors.sort((a, b) => a - b)
+})
+
+/**
+ * The numbers a bulk add will use: the one in the form first, then the next
+ * free ones on that floor, each counted as taken before the next is picked.
+ */
+const bulkNumbers = computed(() => {
+  const count = clampNum(roomForm.count, 1, BULK_MAX)
+  const taken: { floor: number | null; roomNumber: string | null }[] = [...rooms.value]
+  const numbers: string[] = []
+  for (let i = 0; i < count; i++) {
+    const n = i === 0 && roomForm.roomNumber.trim() ? roomForm.roomNumber.trim() : nextRoomNumberOf(taken, roomForm.floor)
+    numbers.push(n)
+    taken.push({ floor: roomForm.floor, roomNumber: n })
+  }
+  return numbers
+})
+
+// A room's number follows its floor while it is still the auto kind ("204"):
+// moving 104 to floor 2 makes it the next free 2xx, and moving it back
+// restores 104. A hand-typed name ("A", "Annex 1") is left alone.
+let numberBeforeEdit = ''
+let floorBeforeEdit: number | null = null
+function onRoomFloorChange() {
+  if (roomDialogMode.value === 'edit' && roomForm.floor === floorBeforeEdit) {
+    roomForm.roomNumber = numberBeforeEdit
+    return
+  }
+  const others = rooms.value.filter((r) => r.id !== editingRoomId.value)
+  if (!roomForm.roomNumber.trim() || /^\d{3,}$/.test(roomForm.roomNumber.trim())) {
+    roomForm.roomNumber = nextRoomNumberOf(others, roomForm.floor)
+  }
+}
+
+/** What stops this room being saved, or ''. */
+function roomProblem(): string {
+  const number = roomForm.roomNumber.trim()
+  if (!number) return 'Give the room a number or name.'
+  const clash = rooms.value.find((r) => r.id !== editingRoomId.value && sameRoomNumber(r.roomNumber, number))
+  if (clash) return `Room ${number} already exists in this accommodation.`
+  if (roomForm.roomType === 'custom' && !roomForm.customRoomType.trim()) return 'Name the custom room type.'
+  if (!(Number(roomForm.monthlyRent) > 0)) return 'Enter the monthly rent.'
+  return utilitiesProblem(roomForm.utilities)
+}
 
 // Fires only on an actual pick in the <select> — never during openRoomDialog's
 // programmatic population — so an existing room's saved capacity is never
@@ -1982,6 +2219,10 @@ function openRoomDialog(room: Room | null, floor?: number) {
     editingRoomId.value = room.id
     activeRoomNumber.value = room.roomNumber || ''
     activeRoomStatus.value = room.status === 'occupied' || room.status === 'maintenance' ? room.status : 'available'
+    roomForm.roomNumber = room.roomNumber || ''
+    numberBeforeEdit = roomForm.roomNumber
+    floorBeforeEdit = room.floor
+    roomForm.count = 1
     roomForm.roomType = room.roomType || 'solo'
     roomForm.customRoomType = room.customRoomType || ''
     roomForm.floor = room.floor
@@ -1991,6 +2232,7 @@ function openRoomDialog(room: Room | null, floor?: number) {
     roomForm.advanceMonths = room.advanceMonths
     roomForm.depositMonths = room.depositMonths
     roomForm.rentBasis = room.rentBasis
+    roomForm.utilities = utilitiesFromRow(utilityColumns(room.utilities))
     roomImages.value = [...room.images]
   } else {
     roomDialogMode.value = 'create'
@@ -1999,11 +2241,14 @@ function openRoomDialog(room: Room | null, floor?: number) {
     roomForm.roomType = 'solo'
     roomForm.customRoomType = ''
     roomForm.floor = floor ?? nextFloorNumber()
+    roomForm.roomNumber = nextRoomNumber(roomForm.floor)
+    roomForm.count = 1
     roomForm.capacity = 1
     roomForm.monthlyRent = 0
     roomForm.advanceMonths = null
     roomForm.depositMonths = null
     roomForm.rentBasis = 'room'
+    roomForm.utilities = emptyUtilities()
     roomImages.value = []
   }
   roomOpen.value = true
@@ -2095,6 +2340,11 @@ async function deleteRoomImage(imageId: string) {
 
 async function confirmRoomBasics() {
   if (savingRoom.value) return
+  const problem = roomProblem()
+  if (problem) {
+    notify.error(problem)
+    return
+  }
   // Only an actual re-price of an existing room asks: adding rooms during
   // setup is frequent and harmless, while quietly changing what a room costs
   // flows into every future application quote and nobody is notified.
@@ -2109,6 +2359,7 @@ async function confirmRoomBasics() {
     const capacity = clampNum(roomForm.capacity, 1, CAPACITY_MAX)
     const payload = {
       label: null,
+      room_number: roomForm.roomNumber.trim(),
       room_type: roomForm.roomType,
       custom_room_type: roomForm.roomType === 'custom' ? roomForm.customRoomType.trim() || null : null,
       floor: roomForm.floor,
@@ -2117,6 +2368,7 @@ async function confirmRoomBasics() {
       advance_months: clampOptional(roomForm.advanceMonths, 0, MONTHS_MAX),
       deposit_months: clampOptional(roomForm.depositMonths, 0, MONTHS_MAX),
       rent_basis: capacity > 1 ? roomForm.rentBasis : ('room' as const),
+      ...utilityColumns(roomForm.utilities),
     }
 
     if (editingRoomId.value) {
@@ -2124,55 +2376,212 @@ async function confirmRoomBasics() {
       if (updateError) throw updateError
       const row = rooms.value.find((r) => r.id === editingRoomId.value)
       if (row) Object.assign(row, {
+        roomNumber: payload.room_number,
         roomType: payload.room_type,
         customRoomType: payload.custom_room_type,
+        floor: payload.floor,
         capacity: payload.capacity,
         monthlyRent: payload.monthly_rent,
         advanceMonths: payload.advance_months,
         depositMonths: payload.deposit_months,
         rentBasis: payload.rent_basis,
+        utilities: utilitiesFromRow(payload),
       })
+      activeRoomNumber.value = payload.room_number
       if (roomDialogMode.value === 'edit') {
         roomOpen.value = false
         notify.success('Room saved.')
       } else {
         roomStep.value = 2
       }
-    } else {
-      const roomNumber = nextRoomNumber(roomForm.floor)
+      return
+    }
+
+    // Several identical rooms: all created at once and open straight away —
+    // there is no per-room photo step to finish first.
+    const numbers = bulkNumbers.value
+    if (numbers.length > 1) {
       const { data: created, error: insertError } = await supabase
         .from('rooms')
-        .insert({ ...payload, room_number: roomNumber, accommodation_id: id, status: 'available' })
+        .insert(numbers.map((n) => ({ ...payload, room_number: n, accommodation_id: id, status: 'available' as const })))
         .select('id,current_pax,status,room_number')
-        .single()
       if (insertError) throw insertError
-      rooms.value.push({
-        id: created.id,
-        label: null,
-        roomNumber: created.room_number,
-        roomType: payload.room_type,
-        customRoomType: payload.custom_room_type,
-        floor: payload.floor,
-        capacity: payload.capacity,
-        currentPax: created.current_pax ?? 0,
-        monthlyRent: payload.monthly_rent,
-        advanceMonths: payload.advance_months,
-        depositMonths: payload.deposit_months,
-        rentBasis: payload.rent_basis,
-        status: created.status,
-        images: [],
-        photoUrl: '',
-      })
-      editingRoomId.value = created.id
-      activeRoomNumber.value = created.room_number ?? roomNumber
-      roomImages.value = []
-      roomStep.value = 2
+      for (const c of created ?? []) rooms.value.push(roomFromPayload(payload, c))
+      roomOpen.value = false
+      notify.success(`${numbers.length} rooms added. Open each one to add its photos.`)
+      return
     }
+
+    // One room walks on through photos and facilities. It is saved now, so
+    // photos have something to attach to, but stays unavailable — hidden from
+    // students — until Done, rather than going live half-described.
+    const { data: created, error: insertError } = await supabase
+      .from('rooms')
+      .insert({ ...payload, accommodation_id: id, status: 'maintenance' })
+      .select('id,current_pax,status,room_number')
+      .single()
+    if (insertError) throw insertError
+    rooms.value.push(roomFromPayload(payload, created))
+    editingRoomId.value = created.id
+    activeRoomNumber.value = created.room_number ?? payload.room_number
+    activeRoomStatus.value = 'maintenance'
+    roomImages.value = []
+    roomStep.value = 2
   } catch (e) {
-    notify.error(errorMessage(e, 'Could not save this room.'))
+    const code = (e as { code?: string } | null)?.code
+    notify.error(code === '23505' ? 'That room number is already used in this accommodation.' : errorMessage(e, 'Could not save this room.'))
   } finally {
     savingRoom.value = false
   }
+}
+
+type RoomPayload = UtilityColumns & {
+  room_number: string
+  room_type: string
+  custom_room_type: string | null
+  floor: number | null
+  capacity: number
+  monthly_rent: number
+  advance_months: number | null
+  deposit_months: number | null
+  rent_basis: 'room' | 'person'
+}
+
+function roomFromPayload(
+  payload: RoomPayload,
+  created: { id: string; current_pax: number | null; status: string; room_number: string | null },
+  images: Img[] = [],
+): Room {
+  return {
+    id: created.id,
+    label: null,
+    roomNumber: created.room_number ?? payload.room_number,
+    roomType: payload.room_type,
+    customRoomType: payload.custom_room_type,
+    floor: payload.floor,
+    capacity: payload.capacity,
+    currentPax: created.current_pax ?? 0,
+    monthlyRent: payload.monthly_rent,
+    advanceMonths: payload.advance_months,
+    depositMonths: payload.deposit_months,
+    rentBasis: payload.rent_basis,
+    utilities: utilitiesFromRow(payload),
+    status: created.status,
+    images,
+    photoUrl: images[0]?.url ? resolveAsset(images[0].url, CARD) : '',
+  }
+}
+
+/** Done on a new room: it goes live now that it has been described. */
+async function finishNewRoom() {
+  if (editingRoomId.value && activeRoomStatus.value === 'maintenance') {
+    togglingRoomStatus.value = true
+    try {
+      const { error: updateError } = await supabase.from('rooms').update({ status: 'available' }).eq('id', editingRoomId.value)
+      if (updateError) throw updateError
+      activeRoomStatus.value = 'available'
+      const row = rooms.value.find((r) => r.id === editingRoomId.value)
+      if (row) row.status = 'available'
+    } catch (e) {
+      notify.error(errorMessage(e, 'Could not open this room to students.'))
+      return
+    } finally {
+      togglingRoomStatus.value = false
+    }
+  }
+  roomOpen.value = false
+  notify.success('Room added.')
+}
+
+// A new room closed before Done is kept, just not live — say so, or it looks
+// like it vanished from Discover for no reason.
+function onRoomDialogHide() {
+  if (roomDialogMode.value === 'create' && editingRoomId.value && activeRoomStatus.value === 'maintenance') {
+    notify.warning(`Room ${activeRoomNumber.value} was saved as unavailable. Open it and mark it available when it's ready.`)
+  }
+}
+
+/** A copy of the open room on the same floor: next free number, same photos. */
+async function duplicateRoom() {
+  const source = rooms.value.find((r) => r.id === editingRoomId.value)
+  if (!source || savingRoom.value) return
+  savingRoom.value = true
+  try {
+    const payload: RoomPayload = {
+      room_number: nextRoomNumber(source.floor),
+      room_type: source.roomType || 'solo',
+      custom_room_type: source.customRoomType,
+      floor: source.floor,
+      capacity: source.capacity ?? 1,
+      monthly_rent: source.monthlyRent,
+      advance_months: source.advanceMonths,
+      deposit_months: source.depositMonths,
+      rent_basis: source.rentBasis,
+      ...utilityColumns(source.utilities),
+    }
+    const { data: created, error: insertError } = await supabase
+      .from('rooms')
+      .insert({ ...payload, label: null, accommodation_id: id, status: 'available' })
+      .select('id,current_pax,status,room_number')
+      .single()
+    if (insertError) throw insertError
+
+    let images: Img[] = []
+    if (source.images.length) {
+      const { data: imageRows, error: imagesError } = await supabase
+        .from('room_images')
+        .insert(source.images.map((img, i) => ({ room_id: created.id, url: img.url, sort_order: i })))
+        .select('id,url')
+      if (imagesError) throw imagesError
+      images = imageRows ?? []
+    }
+
+    // Its private facilities (own bath, air-con) come along, photos included.
+    for (const f of currentRoomFacilities.value) {
+      const { data: fac, error: facError } = await supabase
+        .from('accommodation_facilities')
+        .insert({
+          accommodation_id: id,
+          facility_type: f.facilityType,
+          access_scope: 'private',
+          label: f.label || null,
+          description: f.description || null,
+          room_id: created.id,
+          floor: null,
+          status: f.status,
+          sort_order: facilities.value.length,
+        })
+        .select('id')
+        .single()
+      if (facError) throw facError
+      let facImages: Img[] = []
+      if (f.images.length) {
+        const { data: imgRows, error: imgError } = await supabase
+          .from('accommodation_facility_images')
+          .insert(f.images.map((img, i) => ({ facility_id: fac.id, url: img.url, sort_order: i })))
+          .select('id,url')
+        if (imgError) throw imgError
+        facImages = imgRows ?? []
+      }
+      facilities.value.push({ ...f, id: fac.id, roomId: created.id, roomIds: [], images: facImages })
+    }
+
+    const copy = roomFromPayload(payload, created, images)
+    rooms.value.push(copy)
+    openRoomDialog(copy)
+    notify.success(`Room ${copy.roomNumber} added as a copy.`)
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not duplicate this room.'))
+  } finally {
+    savingRoom.value = false
+  }
+}
+
+/** First room on an empty accommodation: make Floor 1, then open the form on it. */
+async function addFirstRoom() {
+  await addFloor()
+  const floor = trackedFloors.value[trackedFloors.value.length - 1]
+  if (floor !== undefined) openRoomDialog(null, floor)
 }
 
 // Occupied is set elsewhere (when a lease is active) and isn't something a

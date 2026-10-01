@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       accommodation_amenities: {
@@ -191,16 +196,19 @@ export type Database = {
           accommodation_id: string
           created_at: string
           floor_number: number
+          label: string | null
         }
         Insert: {
           accommodation_id: string
           created_at?: string
           floor_number: number
+          label?: string | null
         }
         Update: {
           accommodation_id?: string
           created_at?: string
           floor_number?: number
+          label?: string | null
         }
         Relationships: [
           {
@@ -365,6 +373,7 @@ export type Database = {
           lat: number | null
           lng: number | null
           name: string
+          purok: string | null
           rating_avg: number | null
           reviewing_at: string | null
           reviewing_by: string | null
@@ -392,6 +401,7 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           name: string
+          purok?: string | null
           rating_avg?: number | null
           reviewing_at?: string | null
           reviewing_by?: string | null
@@ -419,6 +429,7 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           name?: string
+          purok?: string | null
           rating_avg?: number | null
           reviewing_at?: string | null
           reviewing_by?: string | null
@@ -979,6 +990,10 @@ export type Database = {
           advance_paid: number | null
           decision_reason: string | null
           deposit_paid: number | null
+          electric_billing:
+            | Database["public"]["Enums"]["utility_billing"]
+            | null
+          electric_flat_fee: number | null
           end_date: string
           ended_reason: string | null
           id: string
@@ -989,12 +1004,20 @@ export type Database = {
           start_date: string
           status: Database["public"]["Enums"]["lease_status"]
           student_id: string
+          water_billing: Database["public"]["Enums"]["utility_billing"] | null
+          water_flat_fee: number | null
+          wifi_billing: Database["public"]["Enums"]["utility_billing"] | null
+          wifi_flat_fee: number | null
         }
         Insert: {
           added_by_landlord?: boolean
           advance_paid?: number | null
           decision_reason?: string | null
           deposit_paid?: number | null
+          electric_billing?:
+            | Database["public"]["Enums"]["utility_billing"]
+            | null
+          electric_flat_fee?: number | null
           end_date: string
           ended_reason?: string | null
           id?: string
@@ -1005,12 +1028,20 @@ export type Database = {
           start_date: string
           status?: Database["public"]["Enums"]["lease_status"]
           student_id: string
+          water_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          water_flat_fee?: number | null
+          wifi_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          wifi_flat_fee?: number | null
         }
         Update: {
           added_by_landlord?: boolean
           advance_paid?: number | null
           decision_reason?: string | null
           deposit_paid?: number | null
+          electric_billing?:
+            | Database["public"]["Enums"]["utility_billing"]
+            | null
+          electric_flat_fee?: number | null
           end_date?: string
           ended_reason?: string | null
           id?: string
@@ -1021,6 +1052,10 @@ export type Database = {
           start_date?: string
           status?: Database["public"]["Enums"]["lease_status"]
           student_id?: string
+          water_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          water_flat_fee?: number | null
+          wifi_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          wifi_flat_fee?: number | null
         }
         Relationships: [
           {
@@ -1141,6 +1176,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          bill_id: string | null
           description: string | null
           id: string
           lease_id: string
@@ -1155,6 +1191,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          bill_id?: string | null
           description?: string | null
           id?: string
           lease_id: string
@@ -1169,6 +1206,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          bill_id?: string | null
           description?: string | null
           id?: string
           lease_id?: string
@@ -1182,6 +1220,13 @@ export type Database = {
           verified_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "utility_bills"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payments_lease_id_fkey"
             columns: ["lease_id"]
@@ -1439,6 +1484,10 @@ export type Database = {
           current_pax: number | null
           custom_room_type: string | null
           deposit_months: number | null
+          electric_billing:
+            | Database["public"]["Enums"]["utility_billing"]
+            | null
+          electric_flat_fee: number | null
           floor: number | null
           id: string
           label: string | null
@@ -1447,6 +1496,10 @@ export type Database = {
           room_number: string | null
           room_type: string | null
           status: Database["public"]["Enums"]["room_status"]
+          water_billing: Database["public"]["Enums"]["utility_billing"] | null
+          water_flat_fee: number | null
+          wifi_billing: Database["public"]["Enums"]["utility_billing"] | null
+          wifi_flat_fee: number | null
         }
         Insert: {
           accommodation_id: string
@@ -1455,6 +1508,10 @@ export type Database = {
           current_pax?: number | null
           custom_room_type?: string | null
           deposit_months?: number | null
+          electric_billing?:
+            | Database["public"]["Enums"]["utility_billing"]
+            | null
+          electric_flat_fee?: number | null
           floor?: number | null
           id?: string
           label?: string | null
@@ -1463,6 +1520,10 @@ export type Database = {
           room_number?: string | null
           room_type?: string | null
           status: Database["public"]["Enums"]["room_status"]
+          water_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          water_flat_fee?: number | null
+          wifi_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          wifi_flat_fee?: number | null
         }
         Update: {
           accommodation_id?: string
@@ -1471,6 +1532,10 @@ export type Database = {
           current_pax?: number | null
           custom_room_type?: string | null
           deposit_months?: number | null
+          electric_billing?:
+            | Database["public"]["Enums"]["utility_billing"]
+            | null
+          electric_flat_fee?: number | null
           floor?: number | null
           id?: string
           label?: string | null
@@ -1479,6 +1544,10 @@ export type Database = {
           room_number?: string | null
           room_type?: string | null
           status?: Database["public"]["Enums"]["room_status"]
+          water_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          water_flat_fee?: number | null
+          wifi_billing?: Database["public"]["Enums"]["utility_billing"] | null
+          wifi_flat_fee?: number | null
         }
         Relationships: [
           {
@@ -1869,6 +1938,53 @@ export type Database = {
           },
         ]
       }
+      utility_bills: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string
+          id: string
+          lease_id: string
+          month: string
+          note: string | null
+          overdue_notified_at: string | null
+          reminded_at: string | null
+          utility: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          lease_id: string
+          month: string
+          note?: string | null
+          overdue_notified_at?: string | null
+          reminded_at?: string | null
+          utility: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          lease_id?: string
+          month?: string
+          note?: string | null
+          overdue_notified_at?: string | null
+          reminded_at?: string | null
+          utility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utility_bills_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       verification_documents: {
         Row: {
           doc_type: string | null
@@ -2033,6 +2149,7 @@ export type Database = {
         Args: { p_code: string; p_lease: string }
         Returns: undefined
       }
+      accept_policy: { Args: { p_id: string }; Returns: undefined }
       add_student_to_room: {
         Args: { p_room: string; p_start: string; p_student_no: string }
         Returns: string
@@ -2070,36 +2187,17 @@ export type Database = {
       }
       admin_sign_out_everywhere: { Args: { p_user: string }; Returns: number }
       announce_due: { Args: never; Returns: number }
-      accept_policy: { Args: { p_id: string }; Returns: undefined }
-      touch_last_active: { Args: never; Returns: undefined }
-      announcement_reach_all: {
-        Args: never
+      announcement_reach: {
+        Args: { p_id: string }
         Returns: {
-          announcement_id: string
           seen: number
           sent: number
         }[]
       }
-      policy_acceptance_stats: {
+      announcement_reach_all: {
         Args: never
         Returns: {
-          accepted: number
-          eligible: number
-          policy_id: string
-        }[]
-      }
-      policy_pending_users: {
-        Args: { p_id: string }
-        Returns: {
-          email: string
-          full_name: string
-          id: string
-          role: string
-        }[]
-      }
-      announcement_reach: {
-        Args: { p_id: string }
-        Returns: {
+          announcement_id: string
           seen: number
           sent: number
         }[]
@@ -2172,6 +2270,23 @@ export type Database = {
         Returns: undefined
       }
       pin_attempt: { Args: { p_pin: string }; Returns: boolean }
+      policy_acceptance_stats: {
+        Args: never
+        Returns: {
+          accepted: number
+          eligible: number
+          policy_id: string
+        }[]
+      }
+      policy_pending_users: {
+        Args: { p_id: string }
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+          role: string
+        }[]
+      }
       purge_unverified_accounts: {
         Args: { p_older_than?: string }
         Returns: number
@@ -2185,6 +2300,7 @@ export type Database = {
         Returns: undefined
       }
       record_consent: { Args: { p_documents: string[] }; Returns: undefined }
+      remind_utility_bills: { Args: never; Returns: undefined }
       resubmit_verification: { Args: never; Returns: undefined }
       rotate_qr_token: { Args: never; Returns: string }
       set_audit_context: {
@@ -2193,6 +2309,7 @@ export type Database = {
       }
       set_pin: { Args: { p_pin: string }; Returns: boolean }
       student_may_lease: { Args: { p_student: string }; Returns: boolean }
+      submit_accommodation: { Args: { p_id: string }; Returns: undefined }
       submit_student_review: {
         Args: {
           p_acc_comment: string
@@ -2207,6 +2324,8 @@ export type Database = {
       }
       sweep_expired_accreditations: { Args: never; Returns: undefined }
       sweep_expired_permits: { Args: never; Returns: undefined }
+      sync_accommodation_totals: { Args: { p_id: string }; Returns: undefined }
+      touch_last_active: { Args: never; Returns: undefined }
       verify_pin: { Args: { p_pin: string }; Returns: boolean }
       verify_student_qr: { Args: { p_code: string }; Returns: Json }
     }
@@ -2220,6 +2339,7 @@ export type Database = {
         | "expired"
         | "suspended"
         | "needs_revision"
+        | "draft"
       amenity:
         | "wifi"
         | "water"
@@ -2229,6 +2349,9 @@ export type Database = {
         | "kitchen"
         | "laundry"
         | "cctv"
+        | "water_dispenser"
+        | "generator"
+        | "fire_extinguisher"
       audience_type: "all" | "students" | "landlords"
       doc_status: "pending" | "approved" | "rejected"
       lease_status:
@@ -2257,6 +2380,12 @@ export type Database = {
         | "verified"
         | "rejected"
         | "suspended"
+      utility_billing:
+        | "included"
+        | "own_meter"
+        | "split"
+        | "flat_fee"
+        | "not_available"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2393,6 +2522,7 @@ export const Constants = {
         "expired",
         "suspended",
         "needs_revision",
+        "draft",
       ],
       amenity: [
         "wifi",
@@ -2403,6 +2533,9 @@ export const Constants = {
         "kitchen",
         "laundry",
         "cctv",
+        "water_dispenser",
+        "generator",
+        "fire_extinguisher",
       ],
       audience_type: ["all", "students", "landlords"],
       doc_status: ["pending", "approved", "rejected"],
@@ -2435,7 +2568,13 @@ export const Constants = {
         "rejected",
         "suspended",
       ],
+      utility_billing: [
+        "included",
+        "own_meter",
+        "split",
+        "flat_fee",
+        "not_available",
+      ],
     },
   },
 } as const
-

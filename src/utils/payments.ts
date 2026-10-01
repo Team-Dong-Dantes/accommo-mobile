@@ -5,9 +5,54 @@
 // and a self-marked "paid". They are pure functions of the payment list, so
 // there is no reason for them to live inside a 1600-line component.
 
+import { formatMonth } from '@/utils/format'
+import { UTILITIES, type UtilityKey, type UtilityTerms } from '@/utils/listings'
+
 /** `description` markers that take a payment out of the monthly rent series. */
 export const ADVANCE_TAG = 'Advance payment'
 export const DEPOSIT_TAG = 'Security deposit'
+
+/**
+ * `description` of a payment made against a utility bill (payments.bill_id).
+ * The tag, not the bill link, is what keeps it out of the rent series: a bill
+ * deleted after it was paid leaves bill_id null but the tag in place.
+ */
+export const BILL_TAG: Record<UtilityKey, string> = {
+  water: 'Water bill',
+  electric: 'Electricity bill',
+  wifi: 'Wi-Fi bill',
+}
+
+const NON_RENT_TAGS = new Set<string>([ADVANCE_TAG, DEPOSIT_TAG, ...Object.values(BILL_TAG)])
+
+/** A payment's heading: "Advance payment", "Water bill · October 2026", or the rent month. */
+export function paymentTitle(p: { description?: string | null; month: string }): string {
+  if (p.description === ADVANCE_TAG || p.description === DEPOSIT_TAG) return p.description
+  if (p.description && Object.values(BILL_TAG).includes(p.description)) return `${p.description} · ${formatMonth(p.month)}`
+  return formatMonth(p.month)
+}
+
+/**
+ * A bill is settled by a payment that is paid or awaiting verification — the
+ * same rule a rent month follows, so a rejected payment leaves it due again.
+ */
+export function isBillSettled(payments: { status: string }[] | null | undefined): boolean {
+  return (payments ?? []).some((p) => p.status === 'paid' || p.status === 'pending_verification')
+}
+
+/** Today in Manila as YYYY-MM-DD — what a bill's due_date is compared with. */
+export function manilaToday(now: Date = new Date()): string {
+  return now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
+}
+
+/** The flat fees that ride on each rent payment. */
+export function flatFees(terms: Record<UtilityKey, UtilityTerms>): { key: UtilityKey; label: string; amount: number }[] {
+  return UTILITIES.filter((u) => terms[u.key].billing === 'flat_fee' && terms[u.key].flatFee).map((u) => ({
+    key: u.key,
+    label: u.label,
+    amount: terms[u.key].flatFee as number,
+  }))
+}
 
 /** The fields of a payment row these rules actually read. */
 export interface RentPayment {
@@ -36,7 +81,7 @@ function monthKey(d: Date): string {
 export function nextRentMonth(leaseStartDate: string, payments: RentPayment[]): string {
   const covered = new Set(
     payments
-      .filter((p) => p.description !== ADVANCE_TAG && p.description !== DEPOSIT_TAG)
+      .filter((p) => !NON_RENT_TAGS.has(p.description ?? ''))
       .filter((p) => p.status === 'paid' || p.status === 'pending_verification')
       .map((p) => p.month.slice(0, 7)),
   )

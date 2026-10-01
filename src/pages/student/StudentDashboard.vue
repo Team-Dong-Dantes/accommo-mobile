@@ -67,7 +67,9 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
-import { formatPeso, formatMonth, initialsOf } from '@/utils/format'
+import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf } from '@/utils/format'
+import { BILL_TAG, isBillSettled, manilaToday } from '@/utils/payments'
+import type { UtilityKey } from '@/utils/listings'
 import { ago } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -428,6 +430,28 @@ async function load(silent = false) {
       nextPayment.value = due
         ? { amount: Number(due.amount || 0), month: due.month, overdue: due.status === 'overdue' }
         : null
+
+      // Utility bills the landlord/landlady posted and nobody has paid yet.
+      const { data: billRows } = await supabase
+        .from('utility_bills')
+        .select('id, utility, month, amount, due_date, payments(status)')
+        .eq('lease_id', leaseRow.id)
+      for (const b of billRows ?? []) {
+        if (isBillSettled(b.payments)) continue
+        const overdue = b.due_date < manilaToday()
+        list.push({
+          id: `bill-${b.id}`,
+          icon: 'lucide:receipt',
+          kind: 'Utilities',
+          label: `${BILL_TAG[b.utility as UtilityKey]} · ${formatPesoExact(Number(b.amount || 0))}`,
+          hint: `${formatMonth(b.month)} · ${overdue ? 'overdue since' : 'due'} ${formatDate(b.due_date)}`,
+          when: '',
+          action: 'Pay now',
+          route: '/student/payments',
+          tone: overdue ? 'danger' : 'warn',
+          rank: overdue ? 0 : 1,
+        })
+      }
 
       if (due && due.status === 'overdue') {
         list.push({

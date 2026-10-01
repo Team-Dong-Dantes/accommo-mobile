@@ -148,7 +148,7 @@ async function load(silent = false) {
         .maybeSingle(),
       supabase
         .from('accommodations')
-        .select('id,name,address,city,barangay,lat,lng,accommodation_images(url,sort_order),rooms(status)')
+        .select('id,name,address,city,barangay,purok,lat,lng,accommodation_images(url,sort_order),rooms(status)')
         .eq('landlord_id', id.value)
         .eq('status', 'accredited').eq('hidden_from_listings', false),
     ])
@@ -173,7 +173,7 @@ async function load(silent = false) {
       const images = [...((row.accommodation_images ?? []) as { url: string; sort_order: number | null }[])].sort(
         (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
       )
-      const address = row.address || [row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
+      const address = row.address || [row.purok, row.barangay, row.city].filter(Boolean).join(', ') || 'Address not given'
       const name = row.name?.trim() || 'Unnamed accommodation'
       return {
         id: row.id,

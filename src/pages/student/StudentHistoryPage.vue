@@ -94,7 +94,7 @@
                   <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row" @click="openPaymentDetail(p)">
                     <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
                     <span class="pay-body">
-                      <span class="pay-month">{{ formatMonth(p.month) }}</span>
+                      <span class="pay-month">{{ paymentTitle(p) }}</span>
                       <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.roomLabel }}, {{ p.accommodationName }}</span>
                     </span>
                     <span class="pay-side">
@@ -238,7 +238,7 @@
     <q-dialog v-model="paymentDetailOpen" position="bottom">
       <q-card v-if="paymentDetailTarget" class="detail-sheet">
         <span class="sheet-grip" aria-hidden="true" />
-        <h3 class="detail-title">{{ formatMonth(paymentDetailTarget.month) }}</h3>
+        <h3 class="detail-title">{{ paymentTitle(paymentDetailTarget) }}</h3>
         <span class="detail-chip" :class="`detail-chip--${statusColor(PAYMENT_STATUS, paymentDetailTarget.status)}`">
           {{ statusText(PAYMENT_STATUS, paymentDetailTarget.status) }}
         </span>
@@ -330,6 +330,7 @@ import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import { period } from '@/utils/profile'
 import { formatPeso, formatMonth, formatDate, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { paymentTitle } from '@/utils/payments'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 

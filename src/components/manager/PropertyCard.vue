@@ -70,6 +70,7 @@ withDefaults(defineProps<{ property?: Property | null; addLabel?: string }>(), {
 const emit = defineEmits<{ open: [id: string]; add: [] }>()
 
 const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
   pending: 'Pending review',
   reviewing: 'Reviewing',
   accredited: 'Accredited',
@@ -80,6 +81,7 @@ const STATUS_LABEL: Record<string, string> = {
   delisted: 'Delisted',
 }
 const STATUS_TONE: Record<string, string> = {
+  draft: 'grey',
   pending: 'warn',
   reviewing: 'warn',
   accredited: 'ok',
@@ -90,6 +92,7 @@ const STATUS_TONE: Record<string, string> = {
   delisted: 'grey',
 }
 const STATUS_ICON: Record<string, string> = {
+  draft: 'lucide:file-pen-line',
   pending: 'lucide:hourglass',
   reviewing: 'lucide:search',
   accredited: 'lucide:badge-check',
