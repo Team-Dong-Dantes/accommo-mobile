@@ -85,7 +85,9 @@ Deno.serve(async (req) => {
           token,
           notification: { title: String(n.title ?? ''), body: String(n.body ?? '') },
           data,
-          android: { priority: 'high' },
+          // The channel src/utils/push.ts creates; on a device without it yet,
+          // Android falls back to FCM's default channel.
+          android: { priority: 'high', notification: { channel_id: 'accommo' } },
         },
       }),
     });

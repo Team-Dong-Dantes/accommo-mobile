@@ -34,6 +34,19 @@ export async function startPush(role: Role, router: Router) {
     void router.push(to ?? `/${role}/notifications`)
   })
 
+  // Our own channel instead of FCM's "Miscellaneous" fallback, at high importance so
+  // a push pops up as a heads-up banner. send-push and the manifest both name it.
+  // Private on the lock screen: bodies carry amounts and rejection reasons, so a
+  // locked phone shows only that accommo has a notification. Android fixes a
+  // channel's settings once it exists, so changing this later needs a new id.
+  await PushNotifications.createChannel({
+    id: 'accommo',
+    name: 'Accommo',
+    description: 'Applications, payments, messages and updates from OSAS',
+    importance: 4,
+    visibility: 0,
+  })
+
   let perm = await PushNotifications.checkPermissions()
   if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
     perm = await PushNotifications.requestPermissions()
