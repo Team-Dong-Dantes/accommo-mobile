@@ -19,16 +19,7 @@
       </button>
     </header>
 
-    <!-- Full-screen photo viewer. Tapping the backdrop closes it, which is what
-         a thumb reaches for first on a phone. -->
-    <q-dialog :model-value="!!viewerUrl" maximized @update:model-value="viewerUrl = ''">
-      <div class="viewer" @click="viewerUrl = ''">
-        <img :src="viewerUrl" alt="Photo" class="viewer-img" />
-        <button type="button" class="viewer-close" aria-label="Close photo" @click.stop="viewerUrl = ''">
-          <IconifyIcon icon="lucide:x" width="20" />
-        </button>
-      </div>
-    </q-dialog>
+    <PhotoViewer v-model="viewerUrl" />
 
     <ApplicationCard
       ref="applicationCard"
@@ -157,6 +148,7 @@ import { isDesktop } from '@/utils/useTabletMode'
 import { uploadSecureDocument, signRows, signRef } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
 import ApplicationCard from '@/components/messages/ApplicationCard.vue'
+import PhotoViewer from '@/components/shared/PhotoViewer.vue'
 
 const props = defineProps<{ conversationId: string; role: 'manager' | 'student'; roomId?: string | undefined }>()
 
@@ -777,34 +769,6 @@ onUnmounted(() => {
 }
 .msg--mine .msg-img {
   border-radius: 16px 16px 4px 16px;
-}
-.viewer {
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.92);
-}
-.viewer-img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-.viewer-close {
-  position: absolute;
-  top: calc(12px + env(safe-area-inset-top));
-  right: 12px;
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 }
 .msg--mine .msg-bubble {
   border-color: transparent;

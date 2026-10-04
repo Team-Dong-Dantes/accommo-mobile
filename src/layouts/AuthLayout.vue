@@ -9,25 +9,29 @@
     view="lHh Lpr lFf"
     class="window-height overflow-hidden"
     :class="authShell"
-    :style="{ '--auth-vh': authVh }"
+    :style="{ '--auth-vh': authVh, '--hero-scale': heroScale }"
   >
     <q-page-container class="auth-layout-bg relative-position">
-      <div class="hero-section shadow-5" :class="{
+      <!-- The photograph and the wordmark are siblings, not parent and child,
+           so each can move on its own transform; see .hero-photo below. -->
+      <div class="hero-section" :class="{
         'splash-mode': isSplash,
         'login-mode': isLogin,
         'register-mode': isRegister,
-      }" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
-        <div class="hero-overlay">
-          <div class="hero-content">
-            <div class="logo-text">accommo</div>
-            <div class="hero-subtitle">Verified boarding houses · ISU Echague</div>
-          </div>
-          <!-- Landscape only (app.scss). The photograph half carries the pitch
-               on every auth screen, the splash included — so the sentence has
-               one home on this shell instead of living inside GetStartedPage
-               and vanishing the moment you leave it. -->
-          <p class="hero-pitch">{{ PITCH_LINE }}</p>
+      }">
+        <div class="hero-photo shadow-5" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
+          <div class="hero-overlay hero-overlay--band" />
+          <div class="hero-overlay hero-overlay--splash" />
         </div>
+        <div class="hero-content">
+          <div class="logo-text">accommo</div>
+          <div class="hero-subtitle">Verified boarding houses · ISU Echague</div>
+        </div>
+        <!-- Landscape only (app.scss). The photograph half carries the pitch
+             on every auth screen, the splash included — so the sentence has
+             one home on this shell instead of living inside GetStartedPage
+             and vanishing the moment you leave it. -->
+        <p class="hero-pitch">{{ PITCH_LINE }}</p>
       </div>
 
       <div class="content-wrapper">
@@ -72,11 +76,17 @@ const route = useRoute();
  * scroll into view. Only the decorative hero is pinned.
  */
 const authVh = ref('100dvh');
+// How far the photo band (400px, 300px on short screens — the same breakpoint
+// as the max-height media query below) is scaled up to fill the splash. A
+// number, not a calc(): dividing a length by a length is too new for the
+// WebViews this APK installs on.
+const heroScale = ref(1);
 let lastWidth = 0;
 
 function measure() {
   lastWidth = window.innerWidth;
   authVh.value = `${window.innerHeight}px`;
+  heroScale.value = window.innerHeight / (window.innerHeight <= 600 ? 300 : 400);
 }
 
 function onResize() {
@@ -173,8 +183,43 @@ watch(
   position: relative;
 }
 
+/* Every move between the auth screens is a transform or an opacity, nothing
+   else. This used to transition `top`, `height`, `min-/max-height`, the
+   wordmark's `top` and its `font-size` — layout properties, so each frame of
+   the 0.7s re-laid out the page, re-scaled the cover photo to its new height
+   and repainted it under two gradients and a shadow. A desktop browser hid
+   that; a phone's WebView dropped frames all the way through. Transforms and
+   opacity run on the compositor without touching layout or paint.
+
+   The container is a transparent full-screen box; the photograph and the
+   wordmark inside it move independently. */
 .hero-section {
   position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: var(--auth-vh);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-section.splash-mode {
+  pointer-events: auto;
+}
+
+/* The photograph keeps the login band's own geometry — 400px tall, hung 80px
+   above the top edge — in every state, so `background-size: cover` crops it
+   exactly as it always has there (PinGate's lock screen copies that crop) and
+   never re-scales mid-move. The other screens are reached by transforming it:
+
+   - splash: scaled up to the full screen height. Scaled from 46% across, the
+     same 46% as the background-position, it lands on the very crop `cover`
+     gives at full height, so the splash looks as it did when the box itself
+     was resized.
+   - register: slid down so the band sits behind the sheet's foot. */
+.hero-photo {
+  position: absolute;
   top: -80px;
   left: 0;
   width: 100%;
@@ -185,22 +230,15 @@ watch(
   background-image: var(--hero-bg, url('/isu-aerial.jpg'));
   background-size: cover;
   background-position: 46% center;
-  z-index: 1;
-  pointer-events: none;
-  transition: all 0.7s cubic-bezier(0.25, 1, 0.3, 1);
-  transform: translateZ(0);
+  transform-origin: 46% 0;
+  transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1);
   will-change: transform;
 }
 
 /* --auth-vh, not dvh: see the measurement in <script>. A keyboard opening must
    not move the photograph. */
-.hero-section.splash-mode {
-  top: 0;
-  height: 100vh;
-  height: var(--auth-vh);
-  min-height: var(--auth-vh);
-  max-height: var(--auth-vh);
-  pointer-events: auto;
+.hero-section.splash-mode .hero-photo {
+  transform: translateY(80px) scale(var(--hero-scale, 1));
 }
 
 /* The register sheet needs the height more than the photograph does: with a
@@ -208,27 +246,28 @@ watch(
    campus at the foot was the difference between fitting and scrolling. It gives
    up 48px of that — not all of it, because the wordmark and its line have to
    stay legible in what is left. The sheet and this offset are a pair: 112px of
-   strip, with the hero content raised to sit inside it. */
-.hero-section.register-mode {
-  top: calc(var(--auth-vh) - 184px);
-  height: 400px;
-  min-height: 200px;
+   strip, with the hero content raised to sit inside it.
+   Band top at --auth-vh - 184px, moved from its resting -80px. */
+.hero-section.register-mode .hero-photo {
+  transform: translateY(calc(var(--auth-vh) - 104px));
+}
+
+/* Two washes, one per look, cross-faded. A gradient cannot be interpolated, so
+   the single overlay this replaces snapped from one to the other mid-move. */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.7s cubic-bezier(0.25, 1, 0.3, 1);
 }
 
 /* Login and register. The wash used to be 95%/85% teal, which painted the
-   aerial out completely — the cost of a remote photo with none of the picture.
-   A tint plus a scrim weighted to the top (where the wordmark sits) keeps the
-   text well past AA while letting the campus show through.
+   aerial out completely. A tint plus a scrim weighted to the top (where the
+   wordmark sits) keeps the text well past AA while letting the campus show
+   through.
 
    PinGate.vue's lock screen hand-copies this gradient so it can stand in for
-   the login screen. Change one and the other must follow.
-
-   Height was 1000px inside a 400px hero — the overlay overhung by 600px, which
-   the sheet hid but which left every gradient stop landing somewhere
-   unpredictable. At 100% the percentages mean what they say. */
-.hero-overlay {
-  position: relative;
-  height: 100%;
+   the login screen. Change one and the other must follow. */
+.hero-overlay--band {
   background:
     linear-gradient(
       180deg,
@@ -240,22 +279,11 @@ watch(
     linear-gradient(135deg, rgba(0, 150, 136, 0.52), rgba(0, 121, 107, 0.4));
 }
 
-.hero-content {
-  position: absolute;
-  left: 0;
-  top: 120px;
-  width: 100%;
-  padding: 0 24px;
-  color: white;
-  transition: all 0.7s cubic-bezier(0.25, 1, 0.3, 1);
-}
-
-/* Splash only. Login and register keep the near-opaque teal above — the PIN
-   lock screen mirrors it rule for rule, and drifting one drifts the other.
-   Here the photograph is the point, so the wash drops to a tint and a
-   bottom-weighted scrim carries the text contrast instead. */
-.hero-section.splash-mode .hero-overlay {
-  height: 100%;
+/* Splash only. Here the photograph is the point, so the wash drops to a tint
+   and a bottom-weighted scrim carries the text contrast instead. It scales
+   with the photo, so its stops still span the whole screen. */
+.hero-overlay--splash {
+  opacity: 0;
   background:
     linear-gradient(
       180deg,
@@ -267,42 +295,63 @@ watch(
     linear-gradient(135deg, rgba(0, 150, 136, 0.42), rgba(0, 121, 107, 0.3));
 }
 
+.hero-section.splash-mode .hero-overlay--splash {
+  opacity: 1;
+}
+
+.hero-section.splash-mode .hero-overlay--band {
+  opacity: 0;
+}
+
+/* The wordmark block, placed by translateY alone. The offsets are the screen
+   positions it always had: 120px into a band that starts at -80px on login,
+   the top corner on the splash, 90px into the band on register. */
+.hero-content {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  padding: 0 24px;
+  color: white;
+  transform: translateY(40px);
+  transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1);
+  will-change: transform;
+}
+
 /* The wordmark moves to the corner and shrinks; the pitch belongs to the page
    below, which can place it against the dark end of the scrim. */
 .hero-section.splash-mode .hero-content {
-  top: calc(env(safe-area-inset-top) + 20px);
-  transform: none;
-  text-align: left;
-}
-
-.hero-section.splash-mode .hero-subtitle {
-  display: none;
+  transform: translateY(calc(env(safe-area-inset-top) + 20px));
 }
 
 /* Raised with the hero, so the wordmark lands just under the sheet's rounded
    edge rather than off the bottom of the screen. */
 .hero-section.register-mode .hero-content {
-  top: 90px;
+  transform: translateY(calc(var(--auth-vh) - 94px));
 }
 
-.hero-section.register-mode .hero-subtitle {
-  margin-top: 0px;
-}
-
+/* Always laid out at 38px; the splash's 26px is a scale, so the text never
+   re-flows mid-move. Scaled from its top-left, where it is anchored. */
 .logo-text {
   font-size: 38px;
   font-weight: 700;
   line-height: 1;
-  transition: font-size 0.7s cubic-bezier(0.25, 1, 0.3, 1);
+  transform-origin: 0 0;
+  transition: transform 0.7s cubic-bezier(0.25, 1, 0.3, 1);
 }
 
 .hero-section.splash-mode .logo-text {
-  font-size: 26px;
+  transform: scale(0.6842); /* 26 / 38 */
 }
 
 .hero-subtitle {
   font-size: 14px;
   opacity: 0.95;
+  transition: opacity 0.35s ease-out;
+}
+
+.hero-section.splash-mode .hero-subtitle {
+  opacity: 0;
 }
 
 /* Placed and revealed by app.scss on the landscape shell; the phone's hero is a
@@ -311,12 +360,14 @@ watch(
   display: none;
 }
 
+/* Short screens: a 300px band (heroScale in <script> follows the same
+   breakpoint), with the wordmark 60px into it. */
 @media (max-height: 600px) {
-  .hero-section {
+  .hero-photo {
     height: 300px;
   }
-  .hero-content {
-    top: 60px;
+  .hero-section:not(.splash-mode):not(.register-mode) .hero-content {
+    transform: translateY(-20px);
   }
 }
 

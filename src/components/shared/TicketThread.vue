@@ -82,6 +82,8 @@
         </button>
       </div>
     </form>
+
+    <PhotoViewer v-model="viewerUrl" />
   </div>
 </template>
 
@@ -95,6 +97,7 @@ import { dayLabel, clockTime, statusText, statusColor, TICKET_STATUS } from '@/u
 import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 import { openExternal } from '@/utils/openExternal'
+import PhotoViewer from './PhotoViewer.vue'
 import { useNotify } from '@/utils/notify'
 
 /** The ticket fields both OSAS pages already hold for their list rows. */
@@ -183,8 +186,12 @@ function stamp(iso: string) {
   return `${dayLabel(iso)} · ${clockTime(iso)}`
 }
 
+/** Photos open in the in-app viewer; a PDF can only be handed to the system. */
+const viewerUrl = ref('')
 function openFile(url: string) {
-  if (url) openExternal(resolveAsset(url))
+  if (!url) return
+  if (isPdf(url)) openExternal(resolveAsset(url))
+  else viewerUrl.value = resolveAsset(url)
 }
 
 async function toBottom() {

@@ -9,7 +9,7 @@
       :aria-label="interactive ? `Rate ${n} out of 5` : undefined"
       @click="interactive && emit('update:modelValue', n)"
     >
-      <IconifyIcon :icon="n <= Math.round(modelValue) ? 'mdi:star' : 'mdi:star-outline'" :width="size" />
+      <IconifyIcon icon="lucide:star" :width="size" :class="{ 'star--on': n <= Math.round(modelValue) }" />
     </button>
   </div>
 </template>
@@ -43,6 +43,10 @@ const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
   color: #f5a623;
   cursor: default;
   -webkit-tap-highlight-color: transparent;
+}
+/* Lucide ships only the outline star; filling it gives the "on" state. */
+.star--on :deep(path) {
+  fill: currentColor;
 }
 .stars--interactive .star {
   cursor: pointer;

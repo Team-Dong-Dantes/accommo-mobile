@@ -1006,13 +1006,28 @@ body {
      transition could only smear the scrim on each navigation. */
   transition: none;
 }
+/* The phone moves the photograph by transform (AuthLayout); here it simply
+   fills the half and stays put. */
+.auth-split .auth-layout-bg .hero-section .hero-photo,
+.auth-split .auth-layout-bg .hero-section.splash-mode .hero-photo,
+.auth-split .auth-layout-bg .hero-section.register-mode .hero-photo {
+  top: 0;
+  height: 100%;
+  transform: none;
+  transition: none;
+}
 
 /* Weighted to the foot, where the pitch sits, and light across the middle so
    the campus is actually visible. The version this replaces was a near-opaque
    teal laid evenly over the whole half — it guaranteed contrast by painting the
    photograph out, which is the expensive way to have no photograph. */
-.auth-split .auth-layout-bg .hero-section .hero-overlay,
-.auth-split .auth-layout-bg .hero-section.splash-mode .hero-overlay {
+.auth-split .auth-layout-bg .hero-section .hero-overlay--splash {
+  display: none;
+}
+.auth-split .auth-layout-bg .hero-section .hero-overlay--band,
+.auth-split .auth-layout-bg .hero-section.splash-mode .hero-overlay--band {
+  opacity: 1;
+  transition: none;
   background:
     linear-gradient(
       180deg,
@@ -1036,10 +1051,13 @@ body {
   bottom: auto;
   padding-inline: clamp(32px, 4vw, 64px);
   text-align: left;
+  transform: none;
   transition: none;
 }
-.auth-split .auth-layout-bg .hero-section .logo-text {
+.auth-split .auth-layout-bg .hero-section .logo-text,
+.auth-split .auth-layout-bg .hero-section.splash-mode .logo-text {
   font-size: 26px;
+  transform: none;
 }
 /* The pitch below says this, and says it better. */
 .auth-split .auth-layout-bg .hero-section .hero-subtitle {
