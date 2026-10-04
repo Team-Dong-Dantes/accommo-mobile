@@ -1,6 +1,6 @@
 {
   "name": "accommo-mobile",
-  "version": "1.67.0",
+  "version": "1.69.0",
   "description": "Accommo",
   "productName": "Accommo",
   "type": "module",
@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "postinstall": "node node_modules/@quasar/app-vite/bin/quasar prepare --silent",
     "build:android": "node node_modules/@quasar/app-vite/bin/quasar build -m capacitor -T android",
-    "dev:android": "node node_modules/@quasar/app-vite/bin/quasar dev -m capacitor -T android -H 192.168.1.8"
+    "dev:android": "node node_modules/@quasar/app-vite/bin/quasar dev -m capacitor -T android -H 192.168.1.7 -p 9500"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
@@ -27,6 +27,10 @@
     "@capacitor/keyboard": "^8.0.5",
     "@capacitor/splash-screen": "^8.0.2",
     "@capgo/capacitor-social-login": "^8.5.8",
+    "@capgo/capacitor-updater": "^8.52.1",
+    "@fontsource/hanken-grotesk": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
     "@iconify-json/lucide": "^1.2.129",
     "@iconify/vue": "^5.0.1",
     "@ionic/pwa-elements": "^3.4.0",

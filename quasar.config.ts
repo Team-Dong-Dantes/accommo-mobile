@@ -23,7 +23,7 @@ const appVersion =
   env.ACCOMMO_VERSION_NAME ||
   (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version;
 
-export default defineConfig((/* ctx */) => {
+export default defineConfig((ctx) => {
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -32,6 +32,8 @@ export default defineConfig((/* ctx */) => {
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
     boot: [
+      'liveUpdate',
+      'fonts',
       'iconify',
       'keyboard',
       'deeplink',
@@ -111,7 +113,15 @@ export default defineConfig((/* ctx */) => {
       // the plugin itself is a no-op in production builds.)
       vitePlugins: [
         [ 'vite-plugin-vue-devtools', {}, { client: true, server: true } ],
-      ]
+      ],
+
+      // Live reload on the phone (`npm run dev:android`). Quasar insists on a LAN
+      // IP for capacitor dev and binds only to it, but the phone reaches the
+      // server through `adb reverse`, which lands on this PC's localhost. Listen
+      // on every interface so both work.
+      extendViteConf(viteConf) {
+        if (ctx.dev && ctx.mode.capacitor) viteConf.server = { ...viteConf.server, host: '0.0.0.0' };
+      },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver

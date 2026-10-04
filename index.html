@@ -10,16 +10,17 @@
     <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://api.mapbox.com blob:; style-src 'self' 'unsafe-inline' https://api.mapbox.com https://fonts.googleapis.com; connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com https://api.mapbox.com https://*.mapbox.com https://events.mapbox.com https://fonts.openmaptiles.org https://api.cloudinary.com https://res.cloudinary.com; img-src 'self' data: blob: https://*.supabase.co https://www.gstatic.com https://lh3.googleusercontent.com https://api.mapbox.com https://*.mapbox.com https://*.tiles.mapbox.com https://fonts.openmaptiles.org https://api.cloudinary.com https://res.cloudinary.com; font-src 'self' data: https://api.mapbox.com https://fonts.openmaptiles.org https://fonts.gstatic.com; worker-src 'self' blob:; form-action 'self'; base-uri 'self';<% if (!ctx.dev) { %> upgrade-insecure-requests;<% } %>"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.mapbox.com https://*.mapbox.com https://events.mapbox.com https://fonts.openmaptiles.org https://api.cloudinary.com https://res.cloudinary.com; img-src 'self' data: blob: https://*.supabase.co https://www.gstatic.com https://lh3.googleusercontent.com https://api.mapbox.com https://*.mapbox.com https://*.tiles.mapbox.com https://fonts.openmaptiles.org https://api.cloudinary.com https://res.cloudinary.com; font-src 'self' data: https://api.mapbox.com https://fonts.openmaptiles.org; worker-src 'self' blob:; form-action 'self'; base-uri 'self';<% if (!ctx.dev) { %> upgrade-insecure-requests;<% } %>"
     />
 
-    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <!-- Browser tab only. The Android WebView re-fetches and re-renders the
+         favicon on every in-app navigation, so the app gets none — the old
+         136 KB logo.svg froze the UI ~450 ms per page change. -->
+    <% if (!ctx.mode.capacitor) { %><link rel="icon" type="image/svg+xml" href="accommo-logo.svg"><% } %>
 
-    <link href="https://api.mapbox.com/mapbox-gl-js/v3.28.1/mapbox-gl.css" rel="stylesheet" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v3.28.1/mapbox-gl.js"></script>
+    <!-- Nothing in <head> may load from the network: it holds the first paint
+         until it arrives. Mapbox and the fonts are bundled instead (see
+         src/utils/mapbox.ts and src/boot/fonts.ts). -->
   </head>
   <body>
     <!-- quasar:entry-point -->

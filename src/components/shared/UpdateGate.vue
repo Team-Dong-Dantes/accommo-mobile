@@ -48,6 +48,8 @@
 import { ref, onMounted } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
+import { CapacitorUpdater } from '@capgo/capacitor-updater'
+import { updateAction, runningVersion, stageBundle, type Release } from '@/utils/liveUpdate'
 import { supabase } from '@/utils/supabase'
 import { openExternal } from '@/utils/openExternal'
 import { EXTERNAL_URLS } from '@/utils/config'
@@ -57,13 +59,12 @@ import { EXTERNAL_URLS } from '@/utils/config'
 // keep the app alive for weeks) this asks the single `app_release` row what the
 // current build is and compares it against our own Android versionCode.
 //
-// One outcome now, not two. This used to nudge for a new build and only wall the
-// app off below `min_supported_version_code`; being behind at all is now the
-// wall. That is a deliberate product decision and it has teeth — an old build is
-// unusable from the moment a new row lands, so publishing a release reaches for
-// every install at once. `min_supported_version_code` is left in the row and
-// unread rather than dropped: it is a column the web app and the backend also
-// know about, and this file is not the place to retire it.
+// Two outcomes. Web-only releases arrive over the air: the new bundle is
+// downloaded quietly and applied the next time the app reopens (see
+// src/utils/liveUpdate.ts). Only a release that changed native code — CI raises
+// `min_supported_version_code` for those — walls an older APK off, because no
+// OTA bundle can bring native plugins with it. That wall still has teeth: below
+// the minimum the app is unusable until the new APK is installed.
 //
 // Everything here still fails open. A network error, a missing row, an
 // unreadable version, a release with no APK to point at: render nothing. A
@@ -82,14 +83,6 @@ const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true'
 // gated, same as today, since it can genuinely ship stale code.
 const isDevBuild = import.meta.env.DEV
 
-type Release = {
-  latest_version_code: number
-  latest_version_name: string
-  min_supported_version_code: number
-  apk_url: string
-  release_notes: string | null
-}
-
 const open = ref(false)
 const release = ref<Release | null>(null)
 
@@ -105,18 +98,19 @@ async function check() {
 
     const { data, error } = await supabase
       .from('app_release')
-      .select('latest_version_code, latest_version_name, min_supported_version_code, apk_url, release_notes')
+      .select('latest_version_code, latest_version_name, min_supported_version_code, apk_url, release_notes, bundle_version, bundle_url, bundle_checksum')
       .eq('id', 1)
       .maybeSingle()
     if (error || !data) return
 
-    // The one guard that has to stay. With no way out of this screen, walling
-    // the app off while pointing at nothing downloadable would brick every
-    // install until someone fixed a database row.
-    if (!data.apk_url?.trim()) return
-
+    const { bundle } = await CapacitorUpdater.current()
+    // updateAction also holds the one guard that has to stay: it never walls
+    // the app off while pointing at nothing downloadable, which would brick
+    // every install until someone fixed a database row.
+    const action = updateAction(data, current, runningVersion(current, bundle))
     release.value = data
-    if (current < data.latest_version_code) open.value = true
+    if (action === 'wall') open.value = true
+    else if (action === 'stage') await stageBundle(data)
   } catch {
     // Fail open, deliberately silent.
   }

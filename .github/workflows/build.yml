@@ -61,9 +61,28 @@ jobs:
     needs: [validate, rls]
     outputs:
       version_name: ${{ steps.version.outputs.name }}
+      native_changed: ${{ steps.native.outputs.changed }}
+      bundle_checksum: ${{ steps.bundle.outputs.checksum }}
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history + tags, for the native-change check below
+      # Web-only releases reach installed apps over the air; a release that
+      # changes native code cannot, so it raises min_supported_version_code and
+      # older APKs get the update wall instead (src/utils/liveUpdate.ts). Native
+      # means anything Gradle or cap sync reads. No previous release tag counts
+      # as changed — the safe direction.
+      - name: Detect native changes since last release
+        id: native
+        shell: bash
+        run: |
+          PREV=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+          if [ -z "$PREV" ] || ! git diff --quiet "$PREV" HEAD -- src-capacitor/android src-capacitor/package.json src-capacitor/package-lock.json src-capacitor/capacitor.config.ts; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"; echo "Native changed since ${PREV:-<none>} — this release raises the minimum APK"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "Web-only since $PREV — ships over the air"
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -98,6 +117,19 @@ jobs:
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
           VITE_DEMO_MODE: ''
         run: npm run build
+      # The OTA bundle is this same web build, so it can never differ from what
+      # the APK ships. The updater plugin requires the zip's sha256 (lowercase hex).
+      - name: Package OTA bundle
+        id: bundle
+        shell: bash
+        run: |
+          (cd dist/spa && zip -qr ../../bundle.zip .)
+          echo "checksum=$(sha256sum bundle.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Upload OTA bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ota-bundle
+          path: bundle.zip
       # Cap sync must run inside src-capacitor, where the native android project
       # and this project's capacitor.config.json (webDir "www") live.
       - name: Stage web into Capacitor www
@@ -171,10 +203,17 @@ jobs:
         with:
           name: android-release
           path: apk
+      - name: Download OTA bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ota-bundle
+          path: ota
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: apk/**/*.apk
+          files: |
+            apk/**/*.apk
+            ota/bundle.zip
           tag_name: v${{ github.run_number }}
           name: Release v${{ github.run_number }}
           body: |
@@ -195,6 +234,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: ${{ needs.build-android.outputs.version_name }}
+          NATIVE_CHANGED: ${{ needs.build-android.outputs.native_changed }}
+          BUNDLE_CHECKSUM: ${{ needs.build-android.outputs.bundle_checksum }}
           REPO: ${{ github.repository }}
         run: |
           set -e
@@ -202,12 +243,17 @@ jobs:
             echo "::warning::SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — installed apps will not be told about this release"
             exit 0
           fi
-          # min_supported_version_code is deliberately not touched here. Cutting
-          # old builds off is a manual decision, never a side effect of shipping.
+          # min_supported_version_code moves only when native code changed: an
+          # older APK can't run this release's web bundle, so it gets the update
+          # wall. Web-only releases leave it alone and travel over the air. The
+          # bundle URL is pinned to this tag, never "latest", so the checksum
+          # always describes the file it points at.
+          MIN=""
+          if [ "$NATIVE_CHANGED" = "true" ]; then MIN=",\"min_supported_version_code\":$VERSION_CODE"; fi
           curl -fsS -X PATCH "$SUPABASE_URL/rest/v1/app_release?id=eq.1" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Content-Type: application/json" \
             -H "Prefer: return=minimal" \
-            -d "{\"latest_version_code\":$VERSION_CODE,\"latest_version_name\":\"$VERSION_NAME\",\"apk_url\":\"https://github.com/$REPO/releases/latest/download/app-release.apk\",\"updated_at\":\"$(date -u +%FT%TZ)\"}"
-          echo "Announced version code $VERSION_CODE"
+            -d "{\"latest_version_code\":$VERSION_CODE,\"latest_version_name\":\"$VERSION_NAME\",\"apk_url\":\"https://github.com/$REPO/releases/latest/download/app-release.apk\",\"bundle_version\":$VERSION_CODE,\"bundle_url\":\"https://github.com/$REPO/releases/download/v$VERSION_CODE/bundle.zip\",\"bundle_checksum\":\"$BUNDLE_CHECKSUM\"$MIN,\"updated_at\":\"$(date -u +%FT%TZ)\"}"
+          echo "Announced version code $VERSION_CODE (native changed: $NATIVE_CHANGED)"

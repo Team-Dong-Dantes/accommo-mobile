@@ -10,8 +10,11 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // `cap sync` runs as a child process of `quasar dev`, which forwards
 // QUASAR_DEV into its env (see @quasar/app-vite's CapacitorConfigFile) — so
 // this is true only for `npm run dev:android`, never for a real build.
-// ponytail: IP hardcoded to this machine's LAN adapter (see package.json's
-// `-H` flag on dev:android) — update both if the network changes.
+//
+// The phone reaches the dev server over the USB cable, not Wi-Fi: run
+// `adb reverse tcp:9500 tcp:9500` once the phone is plugged in. The LAN route
+// was blocked by the PC's firewall, and localhost needs no IP that changes with
+// the network. Keep the port in step with `-p` on dev:android in package.json.
 const isDev = process.env.QUASAR_DEV === 'true'
 
 const config: CapacitorConfig = {
@@ -19,13 +22,19 @@ const config: CapacitorConfig = {
   appName: 'Accommo Mobile',
   webDir: 'www',
   backgroundColor: '#f6f7f8',
-  ...(isDev ? { server: { url: 'http://192.168.1.8:9000', cleartext: true } } : {}),
+  ...(isDev ? { server: { url: 'http://localhost:9500', cleartext: true } } : {}),
   plugins: {
     // @capgo/capacitor-social-login enables all four providers by default, which
     // links the Facebook, Apple and Twitter SDKs into the APK for nothing.
     // Accommo only ever signs in with Google; the rest compile away.
     SocialLogin: {
       providers: { google: true, facebook: false, apple: false, twitter: false },
+    },
+    // Self-hosted OTA (src/utils/liveUpdate.ts drives it by hand): no Capgo
+    // cloud checks, and no stats sent to Capgo's servers.
+    CapacitorUpdater: {
+      autoUpdate: false,
+      statsUrl: '',
     },
   },
 }
