@@ -85,7 +85,7 @@
             <span class="desk-panel-title">{{ matchSecondary(route.path, config)?.title }}</span>
           </header>
           <router-view v-slot="{ Component }">
-            <transition :name="pageTransition">
+            <transition name="page">
               <keep-alive :include="KEEP_ALIVE_PAGES" :max="20">
                 <component :is="Component" :key="pageKey" />
               </keep-alive>
@@ -242,13 +242,16 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     tabs: [
       { name: 'home', route: '/manager/dashboard', icon: 'lucide:house', label: 'Home' },
       { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'Tenants', match: ['/manager/tenant/'] },
+      // Centre of the bar, raised (BottomNav). A tab, not a Menu entry, so it
+      // is no longer in quickActions or secondaryPages either: a tab screen has
+      // the nav under it and no back arrow.
+      { name: 'properties', route: '/manager/properties', icon: 'lucide:building-2', label: 'My Properties', featured: true },
       { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages' },
       { name: 'menu', route: '/manager/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
     quickActions: [
       { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
-      { icon: 'lucide:building-2', label: 'My Properties', route: '/manager/properties' },
       { icon: 'lucide:megaphone', label: 'Announce', route: '/manager/announcements' },
     ],
     secondaryPages: [
@@ -264,7 +267,6 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
-      { path: '/manager/properties', title: 'My Properties', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'my properties' },
       { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'my properties' },
     ],
@@ -275,12 +277,13 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     tabs: [
       { name: 'home', route: '/student/home', icon: 'lucide:house', label: 'Home' },
       { name: 'discover', route: '/student/discover', icon: 'lucide:search', label: 'Discover' },
+      // Centre of the bar, raised — see the manager's 'properties' tab.
+      { name: 'stay', route: '/student/stay', icon: 'lucide:bed-double', label: 'My Stay', featured: true },
       { name: 'messages', route: '/student/messages', icon: 'lucide:message-circle', label: 'Messages' },
       { name: 'menu', route: '/student/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
     quickActions: [
       { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
-      { icon: 'lucide:home', label: 'My Stay', route: '/student/stay' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
     ],
     secondaryPages: [
@@ -294,7 +297,6 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: /^\/student\/person\/[^/]+$/, title: 'Profile', back: '/student/messages', backLabel: 'messages' },
       { path: '/student/support', title: 'OSAS', back: '/student/home', backLabel: 'home' },
       { path: '/student/concerns', title: 'Concerns', back: '/student/home', backLabel: 'home' },
-      { path: '/student/stay', title: 'My Stay', back: '/student/home', backLabel: 'home' },
       { path: '/student/payments', title: 'Payments', back: '/student/home', backLabel: 'home' },
       { path: /^\/student\/listing\/[^/]+$/, title: 'Listing', back: '/student/discover', backLabel: 'discover' },
       { path: '/student/properties', title: 'Properties', back: '/student/discover', backLabel: 'discover' },
@@ -423,7 +425,6 @@ const discoverNeedCheck = ref(false)
 const menuOpen = ref(false)
 const scrolled = ref(false)
 const activeBottomTab = ref('home')
-const pageTransition = ref('page-fade')
 // Where the user actually was before landing on the current sub-page — a
 // sub-page like Settings or Concerns is reachable from anywhere via the
 // hamburger menu, so its back button must return there, not to a fixed
@@ -444,8 +445,8 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
 // Includes /manager/properties/new: the add-property form carries its own back
 // button above its card.
 const OWN_BACK = /^\/manager\/(tenant\/[^/]+|properties\/[^/]+)$/
-// Everything the desktop rail links to straight (OSAS, Concerns, My Properties,
-// Announce, My Stay, Profile, Settings, My QR) is a destination there, not a
+// Everything the desktop rail links to straight (OSAS, Concerns, Announce,
+// Profile, Settings, My QR — and the tabs) is a destination there, not a
 // step down from somewhere, so it gets no back button either.
 const railRoutes = computed(() => [
   ...config.value.quickActions.map((a) => a.route),
@@ -509,6 +510,32 @@ function navigateMenuAction(path: string) {
   void router.push(path)
 }
 
+// Which way a page change animates, as <html data-nav>, which the page
+// transition's CSS keys off. Not the <transition>'s name: a page coming back
+// out of keep-alive keeps the hooks of the name it last left with, so a
+// changing name gave the arriving and leaving pages different animations.
+// Set in beforeEach, before the route (and so the page) changes.
+function transitionFor(path: string, previousPath: string): string {
+  const shell = SHELLS[path.startsWith('/manager') ? 'manager' : 'student']
+  // Slide when moving between the main shell and a sub-page; fade otherwise.
+  const entering = Boolean(matchSecondary(path, shell))
+  const leaving = Boolean(matchSecondary(previousPath, shell))
+  // On desktop, moving within one card (a list and its details) changes that
+  // card's contents in place; a slide would say "new page".
+  const card = cardOf(path)
+  if (isDesktop.value && card && card === cardOf(previousPath)) return 'page-swap'
+  return entering && !leaving ? 'page-slide-left' : leaving && !entering ? 'page-slide-right' : 'page-fade'
+}
+const html = document.documentElement
+html.dataset.nav = 'page-fade'
+const stopNavDirection = router.beforeEach((to, from) => {
+  if (to.path !== from.path) html.dataset.nav = transitionFor(to.path, from.path)
+})
+onUnmounted(() => {
+  stopNavDirection()
+  delete html.dataset.nav
+})
+
 watch(
   () => route.path,
   (path, previousPath) => {
@@ -523,14 +550,6 @@ watch(
     // History) doesn't overwrite it, so back from Settings skips the Profile
     // stepping-stone and returns to the real page underneath both.
     if (previousPath && !leaving) lastPath.value = previousPath
-
-    pageTransition.value =
-      entering && !leaving ? 'page-slide-left' : leaving && !entering ? 'page-slide-right' : 'page-fade'
-
-    // On desktop, moving within one card (a list and its details) changes that
-    // card's contents in place; a slide would say "new page".
-    const card = cardOf(path)
-    if (isDesktop.value && card && card === cardOf(previousPath)) pageTransition.value = 'page-swap'
 
     if (entering) menuOpen.value = false
 
@@ -853,8 +872,8 @@ function onScroll() {
 .pane--list {
   border-right: 1px solid var(--m-border);
 }
-.page-slide-left-enter-active,
-.page-slide-right-leave-active {
+[data-nav=page-slide-left] .page-enter-active,
+[data-nav=page-slide-right] .page-leave-active {
   position: absolute;
   z-index: 1;
   inset: 0;
@@ -863,36 +882,32 @@ function onScroll() {
   box-shadow: -10px 0 24px rgba(15, 23, 42, .14);
   transition: transform 260ms cubic-bezier(.22, .61, .36, 1), box-shadow 260ms ease-out;
 }
-.page-slide-left-enter-from { transform: translateX(100%); }
-.page-slide-left-enter-to { transform: translateX(0); }
-.page-slide-left-leave-active { transition: opacity 260ms linear; }
-.page-slide-left-leave-to { opacity: .99; }
-.page-slide-right-leave-to { transform: translateX(100%); }
-.page-fade-enter-active,
-.page-fade-leave-active { transition: opacity 120ms ease-out; }
-.page-fade-enter-from,
-.page-fade-leave-to { opacity: 0; }
+[data-nav=page-slide-left] .page-enter-from { transform: translateX(100%); }
+[data-nav=page-slide-left] .page-enter-to { transform: translateX(0); }
+[data-nav=page-slide-left] .page-leave-active { transition: opacity 260ms linear; }
+[data-nav=page-slide-left] .page-leave-to { opacity: .99; }
+[data-nav=page-slide-right] .page-leave-to { transform: translateX(100%); }
+[data-nav=page-fade] .page-enter-active,
+[data-nav=page-fade] .page-leave-active { transition: opacity 120ms ease-out; }
+[data-nav=page-fade] .page-enter-from,
+[data-nav=page-fade] .page-leave-to { opacity: 0; }
 /* Tenants <-> a tenant on desktop. The leaving page is lifted out of the flow
    and laid over the arriving one — two pages in flow at once would stack, and
    the card would jump down by a whole page for the length of the fade. Its box
    is the page's own container, made positioned for this in app.scss. */
 /* Only the leaving page fades: the arriving one is already solid underneath,
    so the card's frame — identical in both — never dims mid-swap. */
-.page-swap-leave-active {
+[data-nav=page-swap] .page-leave-active {
   position: absolute;
   inset: 0;
   z-index: 1;
   transition: opacity 160ms ease-out;
 }
-.page-swap-leave-to {
+[data-nav=page-swap] .page-leave-to {
   opacity: 0;
 }
 @media (prefers-reduced-motion: reduce) {
-  .page-swap-leave-active,
-  .page-slide-left-enter-active,
-  .page-slide-left-leave-active,
-  .page-slide-right-leave-active,
-  .page-fade-enter-active,
-  .page-fade-leave-active { transition: none; }
+  [data-nav] .page-enter-active,
+  [data-nav] .page-leave-active { transition: none; }
 }
 </style>

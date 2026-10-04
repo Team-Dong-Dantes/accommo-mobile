@@ -5,11 +5,15 @@
       :key="tab.name"
       type="button"
       class="bottom-nav-item"
-      :class="{ active: active === tab.name }"
+      :class="{ active: active === tab.name, 'bottom-nav-item--featured': tab.featured }"
       :aria-label="tab.label"
       @click="onSelect(tab.name)"
     >
-      <q-avatar v-if="tab.avatar" size="26px" class="profile-avatar-mini" text-color="white">
+      <!-- Raised above the bar; the label stays in the bar with the others. -->
+      <span v-if="tab.featured" class="bottom-nav-fab" aria-hidden="true">
+        <IconifyIcon :icon="tab.icon" width="24" />
+      </span>
+      <q-avatar v-else-if="tab.avatar" size="26px" class="profile-avatar-mini" text-color="white">
         <q-img v-if="avatarUrl" :src="avatarUrl" alt="Profile" />
         <span v-else>{{ initials }}</span>
         <span v-if="tab.dot" class="bottom-nav-dot bottom-nav-dot--avatar" />
@@ -127,6 +131,45 @@ function onSelect(name: string) {
 .bottom-nav-dot--avatar {
   top: -1px;
   right: -1px;
+}
+/* The centre tab: a teal disc lifted 28px out of the bar. Its 4px ring is the
+   bar's own surface colour, so the disc reads as sitting in a notch cut into
+   the bar rather than pasted on top of it, in light and dark alike. The label
+   keeps the baseline every other tab's label sits on. */
+.bottom-nav-item--featured {
+  justify-content: flex-end;
+  padding-bottom: 5px;
+}
+.bottom-nav-item--featured:active {
+  transform: none;
+}
+.bottom-nav-fab {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  margin-left: -28px;
+  border: 4px solid var(--m-surface);
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--m-primary), var(--m-primary-dark));
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(0, 105, 92, 0.32);
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.16s ease;
+}
+.bottom-nav-item--featured:active .bottom-nav-fab {
+  transform: scale(0.92);
+  box-shadow: 0 3px 8px rgba(0, 105, 92, 0.28);
+}
+.bottom-nav-item--featured.active .bottom-nav-label {
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav-fab {
+    transition: none;
+  }
 }
 .bottom-nav-label {
   font-size: 10px;

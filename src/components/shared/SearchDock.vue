@@ -70,8 +70,13 @@ const emit = defineEmits<{
   align-items: center;
   gap: 8px;
 }
+/* The footer is 52px plus the gesture-bar inset (MainLayout), so the dock has
+   to add the inset too. A bare 68px left the 16px gap only on phones with no
+   inset; on gesture-navigation phones the inset ate it and the dock sat on
+   the nav bar. 86 = 52 bar + 18 for the raised centre button that sticks out
+   of it (BottomNav's .bottom-nav-fab) + the 16px gap. */
 .dock--above-nav {
-  bottom: 68px;
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px));
 }
 .dock--inline {
   position: static;

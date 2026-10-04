@@ -96,6 +96,12 @@ export interface BottomTab {
   badge?: number
   /** Plain red dot (no count) flagging something on this tab needs checking. */
   dot?: boolean
+  /**
+   * The role's own place in the app (a student's stay, a landlord's
+   * properties): drawn as the raised centre button on the phone's bottom nav.
+   * The rails list it like any other tab.
+   */
+  featured?: boolean
 }
 
 export interface QuickAction {
