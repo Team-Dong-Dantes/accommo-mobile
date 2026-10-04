@@ -246,7 +246,6 @@ import { errorMessage } from '@/utils/errors'
 import { formatDate, formatPeso } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
-import { createNotification } from '@/boot/notify'
 import {
   respondToApplication,
   stampInquiryRoom,
@@ -529,7 +528,7 @@ async function sendForm() {
   issuing.value = true
   try {
     const { id, label } = inquiryRoom.value
-    await issueApplicationForm(props.conversationId, props.otherId, label)
+    await issueApplicationForm(props.conversationId)
     emit('system', `Sent you an application form for ${label}.`)
     invitedRoomId.value = id
     declined.value = null
@@ -643,14 +642,6 @@ async function submitApplication() {
       .single()
     if (insertError) throw insertError
 
-    void createNotification(
-      props.otherId,
-      'New application',
-      `Applied for ${room.label}`,
-      'lease',
-      `/manager/messages?to=${props.me}`,
-    )
-
     emit('system', `Applied for ${room.label} — move-in ${formatDate(applyForm.startDate)}.`)
     // The form has been used up; a second one has to be issued again.
     await clearApplicationInvite(props.conversationId)
@@ -689,7 +680,7 @@ async function decideApplication(next: 'active' | 'rejected') {
   try {
     const { leaseId, roomLabel } = application.value
     const reason = declineReason.value.trim()
-    await respondToApplication(leaseId, props.otherId, roomLabel, next, reason)
+    await respondToApplication(leaseId, next, reason)
     emit(
       'system',
       next === 'active'

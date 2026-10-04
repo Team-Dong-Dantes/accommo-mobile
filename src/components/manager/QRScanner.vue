@@ -95,10 +95,7 @@ async function accept(code: string) {
   try {
     if (!acceptFor.value) await loadAcceptLease()
     const who = acceptFor.value
-    await acceptAddedStudent(acceptLeaseId.value, code.trim(), {
-      id: who?.studentId ?? '',
-      roomLabel: who?.roomLabel ?? 'your room',
-    })
+    await acceptAddedStudent(acceptLeaseId.value, code.trim())
     $q.notify({ message: `${who?.studentName ?? 'Student'} accepted.`, color: 'positive', position: 'top', icon: 'check_circle' })
     void router.replace(`/manager/tenant/${acceptLeaseId.value}`)
   } catch (error: unknown) {

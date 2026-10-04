@@ -426,7 +426,6 @@ import {
 } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
-import { createNotification } from '@/boot/notify'
 import { uploadSecureDocument, signRows } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { AMENITY_META, UTILITIES, UTILITY_SELECT, roomTypeLabel, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
@@ -780,14 +779,6 @@ async function requestLeave() {
       .eq('student_id', user.id)
     if (updateError) throw updateError
 
-    void createNotification(
-      lease.value.managerId,
-      'Leave request',
-      `A tenant requested to leave ${lease.value.accommodationName}.`,
-      'lease',
-      `/manager/tenant/${lease.value.id}`,
-    )
-
     lease.value = { ...lease.value, status: 'leave_requested' }
     leaveDialog.value = false
     notify.success('Leave request sent.')
@@ -910,14 +901,6 @@ async function submitPayment() {
       ...payments.value,
     ]
     if (bill) bills.value = bills.value.map((b) => (b.id === bill.id ? { ...b, settled: true } : b))
-
-    void createNotification(
-      lease.value.managerId,
-      'Payment submitted',
-      `A payment of ${formatPeso(amount)} was submitted for verification.`,
-      'payment',
-      `/manager/tenant/${lease.value.id}`,
-    )
 
     submitOpen.value = false
     notify.success('Payment submitted for verification.')

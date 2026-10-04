@@ -141,10 +141,7 @@ async function add() {
   if (!s || !room || adding.value) return
   adding.value = true
   try {
-    await addStudentToRoom(room.id, s.studentId ?? studentNo.value.trim(), startDate.value, {
-      id: s.userId,
-      roomLabel: `${room.label} at ${room.accommodation}`,
-    })
+    await addStudentToRoom(room.id, s.studentId ?? studentNo.value.trim(), startDate.value)
     notify.success(`${s.name} added. Scan their QR to accept.`)
     emit('added')
     emit('update:modelValue', false)

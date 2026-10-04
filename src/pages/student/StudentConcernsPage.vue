@@ -204,7 +204,6 @@ import { errorMessage } from '@/utils/errors'
 import { CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor, ticketLabel, ticketNoOf } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { createNotification } from '@/boot/notify'
 import { uploadSecureDocument, signRows } from '@/utils/upload'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -428,14 +427,6 @@ async function submit() {
       },
       ...rows.value,
     ]
-
-    void createNotification(
-      activeLease.value.managerId,
-      'New concern reported',
-      `A ${CONCERN_CATEGORY_LABEL[form.category] || form.category} concern was reported.`,
-      'concern',
-      '/manager/support',
-    )
 
     newOpen.value = false
     notify.success('Concern reported.')

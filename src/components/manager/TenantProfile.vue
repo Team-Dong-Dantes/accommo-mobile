@@ -415,7 +415,6 @@ import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
-import { createNotification } from '@/boot/notify'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import { respondToApplication } from '@/utils/applications'
@@ -632,7 +631,7 @@ async function decide(next: 'active' | 'rejected') {
   if (next === 'rejected' && !decisionReason.value.trim()) return
   deciding.value = true
   try {
-    await respondToApplication(leaseId.value, lease.studentId, lease.roomLabel, next, next === 'rejected' ? decisionReason.value.trim() : undefined)
+    await respondToApplication(leaseId.value, next, next === 'rejected' ? decisionReason.value.trim() : undefined)
     lease.status = next
     notify.success(next === 'active' ? 'Application accepted.' : 'Application declined.')
     decisionReasonFor.value = ''
@@ -672,18 +671,6 @@ async function approveLeave() {
 
     lease.status = 'ended'
 
-    // Approving the leave is what opens reviewing for the student (the RLS
-    // insert policies require an ended or terminated lease), so the notice
-    // invites the review and lands on the screen that has the button, rather
-    // than on the profile root where they'd have to go looking.
-    void createNotification(
-      lease.studentId,
-      'Leave request approved',
-      `Your move-out from ${lease.roomLabel} was approved. You can now rate your stay.`,
-      'lease',
-      '/student/profile/history',
-    )
-
     if (historyError) {
       notify.warning('Leave approved, but the stay was not added to their history — they will not be able to rate it.')
     } else {
@@ -704,11 +691,10 @@ async function declineLeave() {
   try {
     const { error: updateError } = await supabase
       .from('leases')
-      .update({ status: 'active', leave_requested_at: null })
+      .update({ status: 'active', leave_requested_at: null, decision_reason: reason })
       .eq('id', leaseId.value)
     if (updateError) throw updateError
     lease.status = 'active'
-    void createNotification(lease.studentId, 'Leave request declined', `Your request to leave ${lease.roomLabel} was declined. Reason: ${reason}`, 'lease', '/student/stay')
     notify.success('Leave request declined.')
     decisionReasonFor.value = ''
   } catch (e) {
@@ -789,7 +775,6 @@ async function verifyPayment(paymentId: string) {
       row.verifiedByName = 'You'
     }
 
-    void createNotification(lease.studentId, 'Payment verified', `Your payment for ${lease.roomLabel} was marked as paid.`, 'payment', '/student/payments')
     notify.success('Payment verified.')
   } catch (e) {
     notify.error(errorMessage(e, 'Could not verify this payment.'))
@@ -821,7 +806,6 @@ async function rejectPayment(paymentId: string) {
       row.verifiedByName = 'You'
     }
 
-    void createNotification(lease.studentId, 'Payment rejected', `Your payment for ${lease.roomLabel} was rejected. Reason: ${reason}`, 'payment', '/student/payments')
     notify.success('Payment rejected.')
     rejectingId.value = ''
     paymentDetailOpen.value = false
@@ -862,16 +846,6 @@ async function submitTenantReview() {
       comment: reviewForm.comment.trim() || null,
     })
     if (insertError) throw insertError
-
-    // The student is told they were reviewed, but never by whom — reviews are
-    // anonymous in both directions, so no landlord/landlady or accommodation name here.
-    void createNotification(
-      lease.studentId,
-      'You received a rating',
-      'A landlord/landlady rated you after one of your past stays.',
-      'review',
-      '/student/profile/history',
-    )
 
     tenantReview.value = { rating: reviewForm.rating, comment: reviewForm.comment.trim() }
     reviewOpen.value = false

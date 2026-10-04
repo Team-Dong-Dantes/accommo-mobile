@@ -42,21 +42,9 @@ export async function requestApplicationForm(
  * nothing to pick — invite_application() reads it, checks this caller owns it and it
  * is still available, and copies it onto the invite.
  */
-export async function issueApplicationForm(
-  conversationId: string,
-  studentId: string,
-  roomLabel: string,
-): Promise<void> {
+export async function issueApplicationForm(conversationId: string): Promise<void> {
   const { error } = await supabase.rpc('invite_application', { p_conversation: conversationId })
   if (error) throw new Error(error.message)
-
-  void createNotification(
-    studentId,
-    'Application form sent',
-    `Your landlord/landlady sent you an application form for ${roomLabel}.`,
-    'application',
-    `/student/messages?c=${conversationId}`,
-  )
 }
 
 /**
@@ -68,7 +56,6 @@ export async function addStudentToRoom(
   roomId: string,
   studentNo: string,
   startDate: string,
-  student: { id: string; roomLabel: string },
 ): Promise<void> {
   const { error } = await supabase.rpc('add_student_to_room', {
     p_room: roomId,
@@ -76,32 +63,12 @@ export async function addStudentToRoom(
     p_start: startDate,
   })
   if (error) throw new Error(error.message)
-
-  void createNotification(
-    student.id,
-    'Added to a room',
-    `Your landlord/landlady added you to ${student.roomLabel}. Show them your student QR to confirm.`,
-    'lease',
-    '/student/profile/qr',
-  )
 }
 
 /** Accepts an added student with the QR code just scanned from their screen. */
-export async function acceptAddedStudent(
-  leaseId: string,
-  code: string,
-  student: { id: string; roomLabel: string },
-): Promise<void> {
+export async function acceptAddedStudent(leaseId: string, code: string): Promise<void> {
   const { error } = await supabase.rpc('accept_added_student', { p_lease: leaseId, p_code: code })
   if (error) throw new Error(error.message)
-
-  void createNotification(
-    student.id,
-    'Stay confirmed',
-    `Your stay at ${student.roomLabel} is confirmed.`,
-    'lease',
-    '/student/stay',
-  )
 }
 
 /** Clears the invite once it has been used. */
@@ -115,15 +82,12 @@ export async function clearApplicationInvite(conversationId: string): Promise<vo
 /**
  * Accept or decline a pending room application (a `leases` row with status 'pending').
  *
- * A decline requires a reason. This function has always accepted one and folded it into
- * the student's notification, but no caller ever passed it, so every declined student
- * was told only that they had been declined. The reason lands in `decision_reason` —
- * `ended_reason` means "why the tenancy ended" and is used for 'leave_approved'.
+ * A decline requires a reason. It lands in `decision_reason`, which the student's
+ * notification (tg_lease_notify) quotes — `ended_reason` means "why the tenancy
+ * ended" and is used for 'leave_approved'.
  */
 export async function respondToApplication(
   leaseId: string,
-  studentId: string,
-  roomLabel: string,
   decision: 'active' | 'rejected',
   reason?: string,
 ): Promise<void> {
@@ -138,13 +102,4 @@ export async function respondToApplication(
     .eq('id', leaseId)
   if (error) throw error
 
-  void createNotification(
-    studentId,
-    decision === 'active' ? 'Application accepted' : 'Application declined',
-    decision === 'active'
-      ? `You're in! Your application for ${roomLabel} was accepted.`
-      : `Your application for ${roomLabel} was declined. Reason: ${trimmed}`,
-    'lease',
-    decision === 'active' ? '/student/stay' : '/student/profile',
-  )
 }

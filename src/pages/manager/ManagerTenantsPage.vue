@@ -122,7 +122,7 @@
                             type="button"
                             class="lease-act lease-act--ghost"
                             :disabled="decidingId === l.id"
-                            @click="openDecline(l, room.label)"
+                            @click="openDecline(l)"
                           >
                             Decline
                           </button>
@@ -144,7 +144,7 @@
                             type="button"
                             class="lease-act"
                             :disabled="decidingId === l.id"
-                            @click="decideApplication(l, room.label, 'active')"
+                            @click="decideApplication(l, 'active')"
                           >
                             Accept
                           </button>
@@ -445,7 +445,6 @@ import { formatDate, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYME
 import { paymentTitle } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
-import { createNotification } from '@/boot/notify'
 import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
@@ -823,29 +822,29 @@ const addOpen = ref(false)
 
 const declineOpen = ref(false)
 const declineReason = ref('')
-const declineTarget = ref<{ lease: Lease; roomLabel: string } | null>(null)
+const declineTarget = ref<{ lease: Lease } | null>(null)
 
-function openDecline(l: Lease, roomLabel: string) {
-  declineTarget.value = { lease: l, roomLabel }
+function openDecline(l: Lease) {
+  declineTarget.value = { lease: l }
   declineReason.value = ''
   declineOpen.value = true
 }
 
 async function confirmDecline() {
   if (!declineTarget.value) return
-  const { lease, roomLabel } = declineTarget.value
-  await decideApplication(lease, roomLabel, 'rejected', declineReason.value.trim())
+  const { lease } = declineTarget.value
+  await decideApplication(lease, 'rejected', declineReason.value.trim())
   declineOpen.value = false
   declineTarget.value = null
   declineReason.value = ''
 }
 
-async function decideApplication(l: Lease, roomLabel: string, decision: 'active' | 'rejected', reason?: string) {
+async function decideApplication(l: Lease, decision: 'active' | 'rejected', reason?: string) {
   if (!(await requirePin({ confirm: decision === 'active', title: decision === 'active' ? 'Accept this application?' : 'Decline this application?', ...(decision === 'active' ? { message: 'They become the tenant of this room.' } : {}) }))) return
   if (decidingId.value) return
   decidingId.value = l.id
   try {
-    await respondToApplication(l.id, l.studentId, roomLabel, decision, reason)
+    await respondToApplication(l.id, decision, reason)
     if (decision === 'rejected') {
       for (const acc of accommodations.value) {
         for (const room of acc.rooms) room.leases = room.leases.filter((r) => r.id !== l.id)
@@ -947,9 +946,6 @@ async function verifyPayment(paymentId: string) {
       row.status = 'paid'
       row.paidAt = paidAt
       row.verifiedByName = 'You'
-      if (row.studentId) {
-        void createNotification(row.studentId, 'Payment verified', `Your payment for ${row.roomLabel} was marked as paid.`, 'payment', '/student/payments')
-      }
     }
     notify.success('Payment verified.')
   } catch (e) {
@@ -980,9 +976,6 @@ async function rejectPayment(paymentId: string) {
       row.status = 'rejected'
       row.rejectionReason = reason
       row.verifiedByName = 'You'
-      if (row.studentId) {
-        void createNotification(row.studentId, 'Payment rejected', `Your payment for ${row.roomLabel} was rejected. Reason: ${reason}`, 'payment', '/student/payments')
-      }
     }
     notify.success('Payment rejected.')
     rejectingId.value = ''

@@ -322,7 +322,6 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
-import { createNotification } from '@/boot/notify'
 import StarRating from '@/components/shared/StarRating.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -523,16 +522,6 @@ async function submitReview() {
       p_manager_comment: reviewForm.managerComment,
     })
     if (reviewError) throw reviewError
-
-    // Anonymous both ways: the landlord/landlady is told a review arrived, not who wrote
-    // it or what they scored — the star count would identify it on their list.
-    void createNotification(
-      row.managerId,
-      'New rating',
-      'A past tenant rated their stay.',
-      'review',
-      '/manager/profile/history',
-    )
 
     const target = history.value.find((h) => h.id === row.id)
     if (target) target.reviewed = true

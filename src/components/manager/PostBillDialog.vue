@@ -31,8 +31,7 @@ import { reactive, ref, watch } from 'vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
-import { createNotification } from '@/boot/notify'
-import { formatDate, formatMonth, formatPesoExact } from '@/utils/format'
+import { formatMonth } from '@/utils/format'
 import { UTILITY_BILLING_LABEL, type UtilityKey } from '@/utils/listings'
 import { manilaToday } from '@/utils/payments'
 
@@ -97,14 +96,6 @@ async function post() {
       if (error.code === '23505') throw new Error(`A bill for ${formatMonth(`${month.value}-01`)} is already posted.`)
       throw error
     }
-    const total = rows.reduce((sum, r) => sum + r.amount, 0)
-    void createNotification(
-      props.studentId,
-      'New utility bill',
-      `${formatPesoExact(total)} in utilities for ${formatMonth(`${month.value}-01`)} is due ${formatDate(dueDate.value)}.`,
-      'payment',
-      '/student/payments',
-    )
     notify.success('Bill posted.')
     emit('posted')
     emit('update:modelValue', false)

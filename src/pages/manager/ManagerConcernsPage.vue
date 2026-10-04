@@ -178,7 +178,6 @@ import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { createNotification } from '@/boot/notify'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
@@ -369,13 +368,6 @@ const { refresh } = useLiveData({
   ],
 })
 
-const STATUS_VERB: Record<string, string> = {
-  acknowledged: 'acknowledged',
-  in_progress: 'marked in progress',
-  resolved: 'resolved',
-  rejected: 'rejected',
-}
-
 async function decide(next: 'acknowledged' | 'in_progress' | 'resolved' | 'rejected') {
   if (deciding.value || !selected.value) return
   deciding.value = true
@@ -404,14 +396,6 @@ async function decide(next: 'acknowledged' | 'in_progress' | 'resolved' | 'rejec
       row.status = next
       row.managerResponse = response.value.trim()
     }
-
-    void createNotification(
-      selected.value.studentId,
-      'Concern update',
-      `Your ${CONCERN_CATEGORY_LABEL[selected.value.category] || selected.value.category} concern was ${STATUS_VERB[next]}.`,
-      'concern',
-      '/student/concerns',
-    )
 
     notify.success('Updated.')
     if (next === 'resolved' || next === 'rejected') detailOpen.value = false
