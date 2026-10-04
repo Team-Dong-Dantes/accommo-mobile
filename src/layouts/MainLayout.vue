@@ -163,6 +163,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { supabase, authUser } from '@/utils/supabase'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useMessagesStore } from '@/stores/messages'
+import { startPush } from '@/utils/push'
 import { initialsOf } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { chatFullscreen } from '@/utils/chatFullscreen'
@@ -628,6 +629,7 @@ onMounted(async () => {
     // this same store instance, so start() here is a no-op once that page
     // also calls it (see the userId/channel guard in stores/messages.ts).
     await messagesStore.start(user.id)
+    void startPush(role.value, router)
 
 
   } catch {

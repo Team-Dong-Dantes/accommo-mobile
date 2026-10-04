@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "880310904731",
+    "project_id": "accommo-e283a",
+    "storage_bucket": "accommo-e283a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:880310904731:android:4f0a261d8566c5d122633e",
+        "android_client_info": {
+          "package_name": "com.accommo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDD5OoLRM_b6Drhbq0pYSBiGVzZ3UOov3s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

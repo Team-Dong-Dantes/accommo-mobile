@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       accommodation_amenities: {
@@ -1493,6 +1518,32 @@ export type Database = {
           },
         ]
       }
+      push_tokens: {
+        Row: {
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       qr_scans: {
         Row: {
           id: string
@@ -2502,6 +2553,7 @@ export type Database = {
         Returns: undefined
       }
       record_consent: { Args: { p_documents: string[] }; Returns: undefined }
+      register_push_token: { Args: { p_token: string }; Returns: undefined }
       remind_accreditation_expiry: { Args: never; Returns: undefined }
       remind_stale_drafts: { Args: never; Returns: undefined }
       remind_utility_bills: { Args: never; Returns: undefined }
@@ -2725,6 +2777,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       accommodation_status: [

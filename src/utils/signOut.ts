@@ -2,6 +2,7 @@ import { supabase } from '@/utils/supabase'
 import { clearAllCache } from '@/utils/persistCache'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useMessagesStore } from '@/stores/messages'
+import { stopPush } from '@/utils/push'
 import { usePinStore } from '@/stores/pin'
 
 /** The explicit Sign out (Settings). Callers navigate to /login afterwards. */
@@ -12,6 +13,8 @@ export async function signOut() {
   useMessagesStore().stop()
   // Drop the unlock and the has-PIN answer with the session, so the next
   // account on this device is never treated as already unlocked.
+  // Before signOut(): dropping this device's token is the user's own delete under RLS.
+  await stopPush().catch(() => {})
   const pin = usePinStore()
   pin.lock()
   pin.hasPin = false
