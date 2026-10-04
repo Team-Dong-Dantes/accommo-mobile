@@ -36,8 +36,8 @@ set local session_replication_role = origin;
 insert into public.accommodations (id, landlord_id, name, status)
 values ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-00000000a001', 'Test Boarding House', 'accredited');
 
-insert into public.rooms (id, accommodation_id, status, capacity)
-values ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', 'available', 4);
+insert into public.rooms (id, accommodation_id, status, capacity, monthly_rent)
+values ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', 'available', 4, 2500);
 
 insert into public.leases (id, room_id, student_id, landlord_id, start_date, end_date, status)
 values ('00000000-0000-0000-0000-00000000e001', '00000000-0000-0000-0000-00000000d001',
