@@ -127,7 +127,7 @@
           <span class="field-label">Visitor policy <span class="req">*</span></span>
           <input v-model="form.visitorPolicy" type="text" class="field-input" placeholder="e.g. Visitors allowed until 8 PM" />
         </label>
-        <p class="sec-hint">Advance and deposit are set per room once you add rooms.</p>
+        <p class="sec-hint">Advance and deposit are set per room, once it’s accredited and you add rooms.</p>
         <div class="toggles">
           <label v-for="t in RULE_TOGGLES" :key="t.key" class="toggle-row">
             <span>{{ t.label }}</span>
@@ -172,8 +172,14 @@
             <span class="permit-body">
               <span class="permit-label">{{ d.label }}</span>
               <span class="permit-status" :class="{ 'permit-status--muted': !permits[d.key] }">
-                {{ permits[d.key] ? 'Attached' : 'Required' }}
+                {{ permits[d.key] ? (permitExpiry[d.key] ? 'Attached' : 'Attached · add its expiry date') : 'Required' }}
               </span>
+              <!-- The date printed on the permit. OSAS checks it against the
+                   file, and the nightly sweep hides the listing when it passes. -->
+              <label v-if="permits[d.key]" class="permit-date">
+                <span>Expires</span>
+                <input v-model="permitExpiry[d.key]" type="date" :min="today" />
+              </label>
             </span>
             <IconifyIcon v-if="uploadingPermit === d.key" icon="lucide:loader" width="15" class="permit-spin" />
             <template v-else>
@@ -349,7 +355,8 @@ import { supabase, authUser } from '@/utils/supabase'
 import { isDesktop } from '@/utils/useTabletMode'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
-import { uploadDocument, uploadSecureDocument } from '@/utils/upload'
+import { uploadDocument } from '@/utils/upload'
+import { expiryProblem, uploadPermitFile, type UploadedPermit } from '@/utils/permits'
 import { AMENITY_META, AMENITY_KEYS, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL } from '@/utils/listings'
 import { to12Hour } from '@/utils/format'
 import { capturePhoto } from '@/utils/camera'
@@ -383,7 +390,9 @@ const STEP_LABELS = ['Details', 'Amenities', 'House rules', 'Exterior photos', '
 const submitting = ref(false)
 const uploadingPhotos = ref(false)
 const photos = ref<{ url: string }[]>([])
-const permits = reactive<Record<string, string>>({})
+const permits = reactive<Record<string, UploadedPermit>>({})
+const permitExpiry = reactive<Record<string, string>>({})
+const today = new Date().toISOString().slice(0, 10)
 const uploadingPermit = ref('')
 
 const attachedPermits = computed(() => DOC_TYPES.filter((d) => permits[d.key]).length)
@@ -413,6 +422,12 @@ const blockReason = computed(() => {
   if (step.value === 4 && !photos.value.length) return 'Add at least one exterior photo.'
   if (step.value === 5 && !permitsComplete.value) {
     return `Attach all ${DOC_TYPES.length} permits (${attachedPermits.value} so far).`
+  }
+  if (step.value === 5) {
+    for (const d of DOC_TYPES) {
+      const problem = expiryProblem(permitExpiry[d.key] ?? '')
+      if (problem) return `${d.label}: ${problem}`
+    }
   }
   return ''
 })
@@ -504,8 +519,9 @@ async function takePermitPhoto(docType: string) {
 async function uploadPermit(file: File, docType: string) {
   uploadingPermit.value = docType
   try {
-    // Permits are sensitive: authenticated delivery, signed on read.
-    permits[docType] = await uploadSecureDocument(file)
+    // Checked for legibility, shrunk, hashed, then uploaded with authenticated
+    // delivery (signed on read). See utils/permits.ts.
+    permits[docType] = await uploadPermitFile(file)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload that permit.'))
   } finally {
@@ -593,16 +609,22 @@ async function submit(asDraft = false) {
       if (imagesError) throw imagesError
     }
 
-    const docEntries = Object.entries(permits).filter(([, url]) => url)
+    const docEntries = Object.entries(permits)
     if (docEntries.length) {
       const { error: docsError } = await supabase
         .from('accommodation_documents')
-        .insert(docEntries.map(([doc_type, file_url]) => ({ accommodation_id: accommodationId, doc_type, file_url })))
+        .insert(docEntries.map(([doc_type, permit]) => ({
+          accommodation_id: accommodationId,
+          doc_type,
+          file_url: permit.ref,
+          file_sha256: permit.sha256,
+          expires_at: permitExpiry[doc_type] || null,
+        })))
       if (docsError) throw docsError
     }
 
     if (asDraft) {
-      notify.success('Draft saved. Add rooms now, and submit to OSAS when it’s complete.')
+      notify.success('Draft saved. Submit it to OSAS when it’s complete — rooms are added once it’s accredited.')
     } else {
       const { error: submitError } = await supabase.rpc('submit_accommodation', { p_id: accommodationId })
       if (submitError) notify.error(`Saved as a draft, but not submitted: ${submitError.message}`)
@@ -837,6 +859,25 @@ async function submit(asDraft = false) {
 .permit-status--muted {
   color: var(--m-muted);
   font-weight: 600;
+}
+.permit-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.permit-date input {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 13px;
 }
 .permit-spin {
   flex: 0 0 auto;

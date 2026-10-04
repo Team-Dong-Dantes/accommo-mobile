@@ -250,3 +250,27 @@ export function listingMonogram(name: string): string {
   if (words.length === 1) return (words[0] ?? '').slice(0, 2).toUpperCase();
   return ((words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')).toUpperCase();
 }
+
+/** Where an accommodation stands with OSAS (accommodation_status), as landlords/landladies read it. */
+export const ACCOMMODATION_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  pending: 'Pending review',
+  reviewing: 'Reviewing',
+  accredited: 'Accredited',
+  needs_revision: 'Needs revision',
+  rejected: 'Rejected',
+  expired: 'Accreditation expired',
+  suspended: 'Suspended by OSAS',
+  delisted: 'Delisted',
+};
+export const ACCOMMODATION_STATUS_TONE: Record<string, 'grey' | 'amber' | 'green' | 'red'> = {
+  draft: 'grey',
+  pending: 'amber',
+  reviewing: 'amber',
+  accredited: 'green',
+  needs_revision: 'amber',
+  rejected: 'red',
+  expired: 'red',
+  suspended: 'red',
+  delisted: 'grey',
+};

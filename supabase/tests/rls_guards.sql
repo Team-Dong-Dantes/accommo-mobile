@@ -23,6 +23,7 @@
 --   P1-P2  PASS
 --   T1-T4  PASS
 --   PA1-PA5  PASS
+--   AC1-AC7  PASS
 
 create or replace function pg_temp.rls_check() returns table(test text, outcome text)
 language plpgsql as $$
@@ -373,6 +374,22 @@ begin
     end;
     outcome := case when v_msg = 'rollback' then 'PASS - verified landlord/landlady may add' else 'FAIL - ' || v_msg end;
     test := 'U3: verified adds an accommodation'; return next;
+
+    -- 20261003000000: rooms and floors wait for accreditation, even for a
+    -- verified landlord/landlady on their own listing.
+    declare v_new uuid;
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', v_verified, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      insert into public.accommodations (landlord_id, name, status) values (v_verified, 'rls test', 'pending') returning id into v_new;
+      insert into public.rooms (accommodation_id, label, status) values (v_new, 'rls test', 'available');
+      raise exception 'rollback';
+    exception when others then
+      get stacked diagnostics v_msg = message_text;
+      reset role;
+    end;
+    outcome := case when v_msg = 'rollback' then 'FAIL - added a room to an unaccredited listing' else 'PASS - ' || v_msg end;
+    test := 'U3b: room on an unaccredited listing'; return next;
   end if;
 
   -- U4-U6: a student OSAS has not verified may not apply for a room, and a
@@ -706,6 +723,122 @@ begin
   test := 'L5: accept with another student''s QR'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
   test := 'L6: accept with their own QR'; outcome := coalesce(o6, 'FAIL - not reached'); return next;
 end $;
+-- AC1-AC7 (20261002120000): accreditation rounds. What OSAS checked stays put
+-- on a live listing, only OSAS decides, a sent-back listing cannot be
+-- resubmitted with the flagged permit unreplaced, one appeal only, and one
+-- landlord/landlady never sees another's history. Setup runs with no signed-in
+-- user; the whole block is rolled back.
+create or replace function pg_temp.accreditation_check() returns table(test text, outcome text)
+language plpgsql as $
+declare
+  v_acc uuid; v_landlord uuid; v_seen int; v_msg text;
+  o1 text; o2 text; o3 text; o4 text; o5 text; o6 text; o7 text; o8 text; o9 text;
+begin
+  select a.id, a.landlord_id into v_acc, v_landlord
+    from public.accommodations a where a.status = 'accredited' limit 1;
+  if v_acc is null then return; end if;
+
+  begin
+    perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+
+    begin
+      update public.accommodations set name = name || ' (renamed)' where id = v_acc;
+      o1 := 'FAIL - renamed an accredited listing directly';
+    exception when others then
+      get stacked diagnostics v_msg = message_text; o1 := 'PASS - ' || v_msg;
+    end;
+
+    begin
+      update public.accommodations set accreditation_expires_at = now() + interval '10 years' where id = v_acc;
+      o2 := 'FAIL - extended own accreditation';
+    exception when others then
+      get stacked diagnostics v_msg = message_text; o2 := 'PASS - ' || v_msg;
+    end;
+
+    begin
+      perform public.decide_accreditation(v_acc, 'approved');
+      o3 := 'FAIL - a landlord/landlady decided an accreditation';
+    exception when others then
+      get stacked diagnostics v_msg = message_text; o3 := 'PASS - ' || v_msg;
+    end;
+
+    begin
+      insert into public.accreditation_rounds (accommodation_id, round, kind) values (v_acc, 99, 'new');
+      o4 := 'FAIL - opened a round directly';
+    exception when others then
+      get stacked diagnostics v_msg = message_text; o4 := 'PASS - ' || v_msg;
+    end;
+
+    select count(*) into v_seen from public.accreditation_rounds r
+      join public.accommodations a on a.id = r.accommodation_id
+     where a.landlord_id <> v_landlord;
+    o5 := case when v_seen = 0 then 'PASS' else 'FAIL - sees ' || v_seen || ' rounds of other listings' end;
+    reset role;
+
+    -- Sent back with the fire safety permit flagged a minute ago.
+    perform set_config('request.jwt.claims', '', true);
+    update public.accommodations set status = 'needs_revision' where id = v_acc;
+    insert into public.accreditation_rounds (accommodation_id, round, kind, submitted_at, decided_at, decision, flagged_docs)
+    values (v_acc, 900, 'new', now() - interval '2 minutes', now() - interval '1 minute', 'returned', array['fire_safety']);
+    perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      perform public.resubmit_accommodation(v_acc);
+      o6 := 'FAIL - resubmitted without replacing the flagged permit';
+    exception when others then
+      get stacked diagnostics v_msg = message_text;
+      o6 := case when v_msg like 'Replace the fire safety permit%' then 'PASS - ' || v_msg else 'FAIL - wrong refusal: ' || v_msg end;
+    end;
+    reset role;
+
+    perform set_config('request.jwt.claims', '', true);
+    update public.accommodations set status = 'rejected', appeal_used = true where id = v_acc;
+    perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      perform public.appeal_accommodation(v_acc, 'Please look again.');
+      o7 := 'FAIL - appealed a second time';
+    exception when others then
+      get stacked diagnostics v_msg = message_text; o7 := 'PASS - ' || v_msg;
+    end;
+    reset role;
+
+    -- 20261003010000: accredited again, with a sanitary permit good for a year.
+    -- Unflagged and not near expiry, so it may be neither replaced nor edited.
+    perform set_config('request.jwt.claims', '', true);
+    update public.accommodations set status = 'accredited' where id = v_acc;
+    insert into public.accommodation_documents (accommodation_id, doc_type, file_url, expires_at, version)
+    values (v_acc, 'sanitary_permit', 'rls test', current_date + 365, 900);
+    perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      insert into public.accommodation_documents (accommodation_id, doc_type, file_url, expires_at, version)
+      values (v_acc, 'sanitary_permit', 'rls test 2', current_date + 700, 901);
+      o8 := 'FAIL - replaced a current permit on an accredited listing';
+    exception when others then
+      get stacked diagnostics v_msg = message_text; o8 := 'PASS - ' || v_msg;
+    end;
+    update public.accommodation_documents set expires_at = current_date + 3000 where accommodation_id = v_acc and version = 900;
+    get diagnostics v_seen = row_count;
+    o9 := case when v_seen = 0 then 'PASS - in-place edit refused' else 'FAIL - edited a permit on an accredited listing' end;
+    reset role;
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    reset role;
+    if v_msg <> 'rollback' then o1 := coalesce(o1, 'FAIL - ' || v_msg); end if;
+  end;
+  test := 'AC1: rename an accredited listing directly'; outcome := o1; return next;
+  test := 'AC2: extend own accreditation'; outcome := coalesce(o2, 'FAIL - not reached'); return next;
+  test := 'AC3: landlord/landlady decides'; outcome := coalesce(o3, 'FAIL - not reached'); return next;
+  test := 'AC4: open a round directly'; outcome := coalesce(o4, 'FAIL - not reached'); return next;
+  test := 'AC5: read other listings'' rounds'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
+  test := 'AC6: resubmit with a flagged permit unreplaced'; outcome := coalesce(o6, 'FAIL - not reached'); return next;
+  test := 'AC7: appeal twice'; outcome := coalesce(o7, 'FAIL - not reached'); return next;
+  test := 'AC8: replace a current permit while accredited'; outcome := coalesce(o8, 'FAIL - not reached'); return next;
+  test := 'AC9: edit a permit while accredited'; outcome := coalesce(o9, 'FAIL - not reached'); return next;
+end $;
 select * from pg_temp.rls_check()
 union all
 select * from pg_temp.added_check()
@@ -726,4 +859,6 @@ select * from pg_temp.private_ref_check()
 union all
 select * from pg_temp.ticket_check()
 union all
-select * from pg_temp.policy_check();
+select * from pg_temp.policy_check()
+union all
+select * from pg_temp.accreditation_check();

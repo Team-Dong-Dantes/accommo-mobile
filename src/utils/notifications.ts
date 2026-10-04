@@ -66,6 +66,14 @@ const ROUTES = new Set([
   '/student/stay',
 ]);
 
+/**
+ * Routes with an id in them, which a fixed list cannot hold. An accreditation
+ * decision links straight to the listing it is about (decide_accreditation).
+ */
+const ROUTE_PATTERNS: readonly RegExp[] = [
+  /^\/manager\/properties\/[0-9a-f-]{36}$/,
+];
+
 /** Where each type belongs when its own link_url is unusable here. */
 const BY_TYPE: Record<Role, Record<string, string>> = {
   manager: {
@@ -112,7 +120,8 @@ export function resolveNotifLink(
   if (linkUrl) {
     const base = linkUrl.split('?')[0] ?? '';
     // Own-role routes only: a student must never be sent into landlord/landlady screens.
-    if (ROUTES.has(base) && base.startsWith(`/${role}/`)) return linkUrl;
+    const known = ROUTES.has(base) || ROUTE_PATTERNS.some((pattern) => pattern.test(base));
+    if (known && base.startsWith(`/${role}/`)) return linkUrl;
   }
   return BY_TYPE[role][type || ''] ?? null;
 }

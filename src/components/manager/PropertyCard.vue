@@ -62,6 +62,7 @@
 <script setup lang="ts">
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { healthTone, type Property } from './property'
+import { ACCOMMODATION_STATUS_LABEL } from '@/utils/listings'
 
 withDefaults(defineProps<{ property?: Property | null; addLabel?: string }>(), {
   property: null,
@@ -69,17 +70,7 @@ withDefaults(defineProps<{ property?: Property | null; addLabel?: string }>(), {
 })
 const emit = defineEmits<{ open: [id: string]; add: [] }>()
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  pending: 'Pending review',
-  reviewing: 'Reviewing',
-  accredited: 'Accredited',
-  needs_revision: 'Needs revision',
-  rejected: 'Rejected',
-  expired: 'Accreditation expired',
-  suspended: 'Suspended by OSAS',
-  delisted: 'Delisted',
-}
+const STATUS_LABEL = ACCOMMODATION_STATUS_LABEL
 const STATUS_TONE: Record<string, string> = {
   draft: 'grey',
   pending: 'warn',

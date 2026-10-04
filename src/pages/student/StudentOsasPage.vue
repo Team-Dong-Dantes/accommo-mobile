@@ -10,15 +10,9 @@
           <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
           <q-skeleton type="rect" width="70px" height="38px" class="m-sk-tab" />
         </div>
-        <div class="group">
-          <div v-for="n in 2" :key="n" class="doc-row">
-            <q-skeleton type="circle" size="30px" />
-            <span class="doc-body">
-              <q-skeleton type="text" width="55%" height="13px" />
-              <q-skeleton type="text" width="35%" height="11px" />
-            </span>
-            <q-skeleton type="text" width="46px" height="18px" />
-          </div>
+        <q-skeleton type="rect" height="84px" class="sk-card" />
+        <div class="sk-grid">
+          <q-skeleton v-for="n in 2" :key="n" type="rect" height="180px" class="sk-card" />
         </div>
       </div>
 
@@ -48,57 +42,8 @@
                     <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
                   </div>
                 </div>
-                <p class="sec-hint">OSAS reviews these before your account is verified. Tap one to view or resubmit.</p>
-                <div class="group">
-                  <div v-for="d in docs" :key="d.type" class="doc-item">
-                    <button
-                      type="button"
-                      class="doc-row"
-                      :aria-expanded="expandedDoc === d.type"
-                      @click="expandedDoc = expandedDoc === d.type ? '' : d.type"
-                    >
-                      <span class="doc-icon" :class="`doc-icon--${d.tone}`">
-                        <IconifyIcon :icon="d.icon" width="16" />
-                      </span>
-                      <span class="doc-body">
-                        <span class="doc-name">{{ DOC_LABEL[d.type] || d.type }}</span>
-                        <span class="doc-when">{{ d.when }}</span>
-                      </span>
-                      <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-                      <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedDoc === d.type }" />
-                    </button>
-
-                    <q-slide-transition>
-                      <div v-if="expandedDoc === d.type" class="doc-detail">
-                        <div class="doc-preview">
-                          <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
-                          <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
-                            <IconifyIcon icon="lucide:file-text" width="26" />
-                            <span>View file</span>
-                          </button>
-                          <div v-else class="doc-preview-empty">
-                            <IconifyIcon icon="lucide:image-off" width="20" />
-                            <span>Nothing uploaded yet</span>
-                          </div>
-                        </div>
-                        <p v-if="d.verified" class="doc-locked">
-                          <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
-                        </p>
-                        <div class="doc-actions">
-                          <label v-if="!d.verified" class="doc-action doc-action--primary">
-                            <IconifyIcon icon="lucide:upload" width="14" />
-                            {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
-                            <input type="file" accept="image/*,application/pdf" class="doc-file-input" @change="onDocSelected($event, d.type)" />
-                          </label>
-                          <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
-                            <IconifyIcon icon="lucide:external-link" width="14" /> Open
-                          </button>
-                        </div>
-                      </div>
-                    </q-slide-transition>
-                  </div>
-                </div>
-                <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
+                <RequirementCards :items="docs" noun="requirements" done-word="approved" replace-label="Resubmit" :busy="uploadingDoc" @upload="pickFile" />
+                <input ref="fileInput" type="file" accept="image/*,application/pdf" hidden @change="onDocSelected" />
               </component>
 
               <!-- TICKETS. On desktop this is the right half: the list, or —
@@ -199,12 +144,11 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl, signRows } from '@/utils/upload'
-import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
-import { openExternal } from '@/utils/openExternal'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import RequirementCards, { type RequirementItem } from '@/components/shared/RequirementCards.vue'
 
 const TICKET_CATEGORIES = [
   { value: 'verification', label: 'Verification' },
@@ -220,16 +164,6 @@ const TABS = [
 
 const REQUIRED_DOCS = ['school_id', 'assessment_of_fees']
 
-interface DocRow {
-  type: string
-  statusLabel: string
-  tone: string
-  icon: string
-  when: string
-  fileUrl: string
-  /** OSAS has approved this one — locked from replacement. */
-  verified: boolean
-}
 interface Ticket {
   id: string
   subject: string
@@ -262,29 +196,29 @@ const myStatus = ref('')
 // that's the one place a reason can be read back from.
 const rejectionReason = ref('')
 const docRows = ref<{ id: string; doc_type: string; file_url: string; status: string; uploaded_at: string; verified_at: string | null }[]>([])
-const expandedDoc = ref('')
 const uploadingDoc = ref(false)
 const tickets = ref<Ticket[]>([])
 
-const docs = computed<DocRow[]>(() =>
+const docs = computed<RequirementItem[]>(() =>
   REQUIRED_DOCS.map((type) => {
+    const label = DOC_LABEL[type] ?? type
     const row = docRows.value.find((d) => d.doc_type === type)
-    if (!row) {
-      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '', verified: false }
-    }
+    if (!row) return { type, label, statusLabel: 'Not submitted', tone: 'idle', when: '', fileUrl: '', verified: false }
     // The account is the unit OSAS actually reviews — once it's verified (or
     // rejected), that decision overrides this row's own stale 'pending'.
     const effectiveStatus = myStatus.value === 'verified' ? 'approved' : myStatus.value === 'rejected' ? 'rejected' : row.status
     const presentation = docPresentation(effectiveStatus)
     const when = row.verified_at ? `Reviewed ${since(row.verified_at)}` : `Sent ${since(row.uploaded_at)}`
-    return { type, statusLabel: presentation.label, tone: presentation.tone, icon: presentation.icon, when, fileUrl: row.file_url, verified: effectiveStatus === 'approved' }
+    return { type, label, statusLabel: presentation.label, tone: presentation.tone, when, fileUrl: row.file_url, verified: effectiveStatus === 'approved' }
   }),
 )
 
-/** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
-
-function openFile(url: string) {
-  if (url) openExternal(resolveAsset(url))
+// One hidden file input serves every card; the card's type rides along here.
+const fileInput = ref<HTMLInputElement | null>(null)
+const pickingType = ref('')
+function pickFile(type: string) {
+  pickingType.value = type
+  fileInput.value?.click()
 }
 
 async function load() {
@@ -365,7 +299,8 @@ async function load() {
   }
 }
 
-async function onDocSelected(event: Event, docType: string) {
+async function onDocSelected(event: Event) {
+  const docType = pickingType.value
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file || !myId.value) return
@@ -563,7 +498,7 @@ function onPull(done: () => void) {
 .tab-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .sec-head {
@@ -619,182 +554,15 @@ function onPull(done: () => void) {
   overflow: hidden;
 }
 
-.doc-item {
-  border-top: 1px solid var(--m-border);
+.sk-card {
+  border-radius: var(--m-radius);
 }
-.group > .doc-item:first-child {
-  border-top: 0;
-}
-.doc-row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.doc-icon {
+.sk-grid {
   display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  place-items: center;
-  border-radius: 999px;
-}
-.doc-icon--good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.doc-icon--warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.doc-icon--danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.doc-icon--idle {
-  background: var(--m-surface);
-  color: var(--m-muted);
-}
-.doc-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-}
-.doc-name {
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-.doc-when {
-  color: var(--m-muted);
-  font-size: 11px;
-}
-.doc-tag {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.doc-tag--good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.doc-tag--warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.doc-tag--danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.doc-tag--idle {
-  background: var(--m-surface);
-  color: var(--m-muted);
-}
-.doc-chevron {
-  flex: 0 0 auto;
-  color: var(--m-muted);
-  transition: transform 0.15s ease;
-}
-.doc-chevron--on {
-  transform: rotate(180deg);
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
-.doc-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0 12px 12px;
-}
-.doc-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 96px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  overflow: hidden;
-}
-.doc-preview-img {
-  width: 100%;
-  max-height: 220px;
-  object-fit: contain;
-  cursor: pointer;
-}
-.doc-preview-file,
-.doc-preview-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 20px 12px;
-  border: 0;
-  background: transparent;
-  color: var(--m-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-}
-.doc-preview-file {
-  color: var(--m-primary-dark);
-  cursor: pointer;
-}
-.doc-locked {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-.doc-actions {
-  display: flex;
-  gap: 8px;
-}
-.doc-action {
-  display: flex;
-  min-height: 36px;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.doc-action--primary {
-  position: relative;
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  overflow: hidden;
-}
-.doc-file-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
 
 .ticket-row {
   display: flex;

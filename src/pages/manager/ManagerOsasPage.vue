@@ -11,15 +11,9 @@
           <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
           <q-skeleton type="rect" width="60px" height="38px" class="m-sk-tab" />
         </div>
-        <div class="group">
-          <div v-for="n in 4" :key="n" class="doc-row">
-            <q-skeleton type="circle" size="30px" />
-            <span class="doc-body">
-              <q-skeleton type="text" width="55%" height="13px" />
-              <q-skeleton type="text" width="35%" height="11px" />
-            </span>
-            <q-skeleton type="text" width="46px" height="18px" />
-          </div>
+        <q-skeleton type="rect" height="84px" class="sk-card" />
+        <div class="sk-grid">
+          <q-skeleton v-for="n in 4" :key="n" type="rect" height="180px" class="sk-card" />
         </div>
       </div>
 
@@ -73,70 +67,40 @@
                 </EmptyState>
 
                 <template v-else>
-                  <div v-if="accommodations.length > 1" class="m-chips">
-                    <button
-                      v-for="a in accommodations"
-                      :key="a.id"
-                      type="button"
-                      class="m-chip"
-                      :class="{ 'm-chip--on': selectedId === a.id }"
-                      @click="selectedId = a.id"
-                    >
-                      {{ a.name }}
-                    </button>
-                  </div>
+                  <!-- Which accommodation's permits are on screen; a menu
+                       switches when there is more than one. -->
+                  <button type="button" class="prop-head" :disabled="accommodations.length < 2">
+                    <span class="prop-icon"><IconifyIcon icon="lucide:building-2" width="18" /></span>
+                    <span class="prop-body">
+                      <span class="prop-name">{{ selected?.name }}</span>
+                      <span v-if="selected?.place" class="prop-place">{{ selected.place }}</span>
+                    </span>
+                    <span v-if="selected" class="ticket-chip" :class="`ticket-chip--${ACCOMMODATION_STATUS_TONE[selected.status] ?? 'grey'}`">
+                      {{ ACCOMMODATION_STATUS_LABEL[selected.status] ?? selected.status }}
+                    </span>
+                    <IconifyIcon v-if="accommodations.length > 1" icon="lucide:chevrons-up-down" width="16" class="prop-caret" />
+                    <q-menu v-if="accommodations.length > 1" fit anchor="bottom left" self="top left">
+                      <q-list>
+                        <q-item v-for="a in accommodations" :key="a.id" v-close-popup clickable :active="a.id === selectedId" @click="selectedId = a.id">
+                          <q-item-section>
+                            <q-item-label>{{ a.name }}</q-item-label>
+                            <q-item-label v-if="a.place" caption>{{ a.place }}</q-item-label>
+                          </q-item-section>
+                          <q-item-section side>
+                            <span class="ticket-chip" :class="`ticket-chip--${ACCOMMODATION_STATUS_TONE[a.status] ?? 'grey'}`">
+                              {{ ACCOMMODATION_STATUS_LABEL[a.status] ?? a.status }}
+                            </span>
+                          </q-item-section>
+                        </q-item>
+                      </q-list>
+                    </q-menu>
+                  </button>
 
-                  <p class="sec-hint">Accreditation depends on these staying current. Tap a permit to view or upload.</p>
-                  <div class="group">
-                    <div v-for="d in docs" :key="d.type" class="doc-item">
-                      <button
-                        type="button"
-                        class="doc-row"
-                        :aria-expanded="expandedProperty === d.type"
-                        @click="toggleProperty(d.type)"
-                      >
-                        <span class="doc-icon" :class="`doc-icon--${d.tone}`">
-                          <IconifyIcon :icon="d.icon" width="16" />
-                        </span>
-                        <span class="doc-body">
-                          <span class="doc-name">{{ DOC_TYPE_LABEL[d.type] }}</span>
-                          <span class="doc-when">{{ d.when }}</span>
-                        </span>
-                        <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-                        <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedProperty === d.type }" />
-                      </button>
-
-                      <q-slide-transition>
-                        <div v-if="expandedProperty === d.type" class="doc-detail">
-                          <div class="doc-preview">
-                            <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
-                            <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
-                              <IconifyIcon icon="lucide:file-text" width="26" />
-                              <span>View file</span>
-                            </button>
-                            <div v-else class="doc-preview-empty">
-                              <IconifyIcon icon="lucide:image-off" width="20" />
-                              <span>Nothing uploaded yet</span>
-                            </div>
-                          </div>
-                          <div class="doc-actions">
-                            <button type="button" class="doc-action doc-action--primary" @click="openUploadDialog(d.type)">
-                              <IconifyIcon icon="lucide:upload" width="14" />
-                              {{ d.fileUrl ? 'Replace' : 'Upload' }}
-                            </button>
-                            <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
-                              <IconifyIcon icon="lucide:external-link" width="14" /> Open
-                            </button>
-                          </div>
-                        </div>
-                      </q-slide-transition>
-                    </div>
-                  </div>
-                  <span v-if="uploadingDoc" class="sec-hint">Uploading…</span>
+                  <RequirementCards :items="docs" noun="permits" done-word="valid" :busy="uploadingDoc" @upload="openUploadDialog($event)" />
                 </template>
               </component>
 
-              <!-- MY DOCUMENTS (manager identity, reviewed by OSAS at registration) -->
+              <!-- MY REQUIREMENTS (landlord/landlady identity, reviewed by OSAS at registration) -->
               <component :is="panelIs" v-show="!isDesktop || leftTab === 'mine'" name="mine" :class="isDesktop ? 'desk-col osas-left' : 'tab-panel'">
                 <!-- 'reviewing' is a soft reject: OSAS wants a better document and
                      the account can still be verified once it arrives. -->
@@ -147,56 +111,7 @@
                     <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
                   </div>
                 </div>
-                <p class="sec-hint">Your own verification requirements. Tap one to view or resubmit.</p>
-                <div class="group">
-                  <div v-for="d in myDocs" :key="d.type" class="doc-item">
-                    <button
-                      type="button"
-                      class="doc-row"
-                      :aria-expanded="expandedMine === d.type"
-                      @click="expandedMine = expandedMine === d.type ? '' : d.type"
-                    >
-                      <span class="doc-icon" :class="`doc-icon--${d.tone}`">
-                        <IconifyIcon :icon="d.icon" width="16" />
-                      </span>
-                      <span class="doc-body">
-                        <span class="doc-name">{{ DOC_LABEL[d.type] || d.type }}</span>
-                        <span class="doc-when">{{ d.when }}</span>
-                      </span>
-                      <span class="doc-tag" :class="`doc-tag--${d.tone}`">{{ d.statusLabel }}</span>
-                      <IconifyIcon icon="lucide:chevron-down" width="16" class="doc-chevron" :class="{ 'doc-chevron--on': expandedMine === d.type }" />
-                    </button>
-
-                    <q-slide-transition>
-                      <div v-if="expandedMine === d.type" class="doc-detail">
-                        <div class="doc-preview">
-                          <img v-if="d.fileUrl && !isPdf(d.fileUrl)" :src="resolveAsset(d.fileUrl)" alt="" class="doc-preview-img" @click="openFile(d.fileUrl)" />
-                          <button v-else-if="d.fileUrl" type="button" class="doc-preview-file" @click="openFile(d.fileUrl)">
-                            <IconifyIcon icon="lucide:file-text" width="26" />
-                            <span>View file</span>
-                          </button>
-                          <div v-else class="doc-preview-empty">
-                            <IconifyIcon icon="lucide:image-off" width="20" />
-                            <span>Nothing uploaded yet</span>
-                          </div>
-                        </div>
-                        <p v-if="d.verified" class="doc-locked">
-                          <IconifyIcon icon="lucide:lock" width="13" /> Verified — can't be replaced.
-                        </p>
-                        <div class="doc-actions">
-                          <button v-if="!d.verified" type="button" class="doc-action doc-action--primary" @click="openUploadDialog(d.type, 'account')">
-                            <IconifyIcon icon="lucide:upload" width="14" />
-                            {{ d.fileUrl ? 'Resubmit' : 'Upload' }}
-                          </button>
-                          <button v-if="d.fileUrl" type="button" class="doc-action" @click="openFile(d.fileUrl)">
-                            <IconifyIcon icon="lucide:external-link" width="14" /> Open
-                          </button>
-                        </div>
-                      </div>
-                    </q-slide-transition>
-                  </div>
-                </div>
-                <span v-if="uploadingMyDoc" class="sec-hint">Uploading…</span>
+                <RequirementCards :items="myDocs" noun="requirements" done-word="approved" replace-label="Resubmit" :busy="uploadingMyDoc" @upload="openUploadDialog($event, 'account')" />
               </component>
 
               <!-- TICKETS -->
@@ -313,10 +228,10 @@ import { errorMessage } from '@/utils/errors'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl, signRows } from '@/utils/upload'
-import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
-import { openExternal } from '@/utils/openExternal'
+import { expiryProblem, permitDate, permitReplaceOpen, savePermitVersion, uploadPermitFile } from '@/utils/permits'
+import { ACCOMMODATION_STATUS_LABEL, ACCOMMODATION_STATUS_TONE } from '@/utils/listings'
 import { DOC_LABEL, docPresentation } from '@/utils/profile'
-import { statusText, statusColor, TICKET_STATUS } from '@/utils/format'
+import { parseServerTime, statusText, statusColor, TICKET_STATUS } from '@/utils/format'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { useDeskPanels } from '@/utils/useDeskPanels'
@@ -325,6 +240,7 @@ import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import RequirementCards, { type RequirementItem } from '@/components/shared/RequirementCards.vue'
 
 // `compliance` is the stored DB value — legacy rows and the admin client both
 // read it, so only the label follows the app's "accreditation" wording.
@@ -358,16 +274,9 @@ const MY_DOC_TYPES = ['government_id', 'business_permit'] as const
 interface Accommodation {
   id: string
   name: string
-}
-interface DocRow {
-  type: string
-  statusLabel: string
-  tone: string
-  icon: string
-  when: string
-  fileUrl: string
-  /** OSAS has approved this one — locked from replacement. */
-  verified: boolean
+  /** "Barangay, City" — how listings show an address. */
+  place: string
+  status: string
 }
 interface Ticket {
   id: string
@@ -409,9 +318,10 @@ const myStatus = ref('')
 const rejectionReason = ref('')
 const accommodations = ref<Accommodation[]>([])
 const selectedId = ref('')
-const docRows = ref<{ doc_type: string; file_url: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
-const expandedProperty = ref('')
+const permitRows = ref<{ id: string; accommodation_id: string; doc_type: string; file_url: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
 const uploadingDoc = ref(false)
+/** Per sent-back accommodation: the permits OSAS flagged, and when it decided. */
+const sentBack = ref<Record<string, { docs: string[]; decidedAt: number }>>({})
 
 // A permit already on file is view-only — replacing it goes through this
 // dialog's own blank form, never an inline field on the (read-only) row.
@@ -428,73 +338,122 @@ const uploadTarget = ref<UploadTarget>('property')
 const uploadForm = reactive({ file: null as File | null, expiresAt: '' })
 
 const myDocRows = ref<{ id: string; doc_type: string; file_url: string; filename: string | null; status: string; uploaded_at: string; verified_at: string | null }[]>([])
-const expandedMine = ref('')
 const uploadingMyDoc = ref(false)
 
 const tickets = ref<Ticket[]>([])
 
-/** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
-
-function openFile(url: string) {
-  if (url) openExternal(resolveAsset(url))
-}
-
-// Property permits have no admin-reviewed status column yet (see the OSAS
-// accreditation brainstorm) — every tone here is expiry-derived, never a
-// real OSAS approval, so replacement is never locked.
-const docs = computed<DocRow[]>(() =>
+// Property permits have no per-file approval: a tone is expiry-derived unless
+// OSAS flagged the permit when sending the listing back. Replacement locks once
+// the listing is accredited (permitReplaceOpen).
+const docs = computed<RequirementItem[]>(() =>
   DOC_TYPES.map((type) => {
-    const row = docRows.value.find((d) => d.doc_type === type)
-    if (!row) {
-      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '', verified: false }
+    const label = DOC_TYPE_LABEL[type] ?? type
+    const row = permitRows.value.find((d) => d.accommodation_id === selectedId.value && d.doc_type === type)
+    if (!row) return { type, label, statusLabel: 'Not submitted', tone: 'idle', when: '', fileUrl: '', verified: false }
+    const link = signed.value[row.id]
+    // OSAS's verdict outranks the date: a permit it flagged when sending the
+    // listing back needs a new file, however far off its expiry is.
+    const flag = sentBack.value[selectedId.value]
+    const flagged = Boolean(flag?.docs.includes(type) && parseServerTime(row.uploaded_at).getTime() <= flag.decidedAt)
+    // Locked once accredited unless expiring or flagged; shown as "Verified".
+    const locked = !permitReplaceOpen(selected.value?.status ?? '', row.expires_at, flagged)
+    const base = { type, label, fileUrl: link?.url ?? '', fileLoading: !link, verified: locked }
+    if (flagged) {
+      return { ...base, statusLabel: 'Needs resubmission', tone: 'danger', when: 'OSAS asked for a new file' }
     }
-    if (!row.expires_at) {
-      // Expiry is required on upload now, so a null one only happens on a
-      // legacy row from before that — flag it rather than reading as settled.
-      return { type, statusLabel: 'No expiration set', tone: 'warn', icon: 'lucide:calendar-x', when: `Uploaded ${since(row.uploaded_at)}`, fileUrl: row.file_url, verified: false }
-    }
+    // Expiry is required on upload now, so a null one only happens on a
+    // legacy row from before that — flag it rather than reading as settled.
+    if (!row.expires_at) return { ...base, statusLabel: 'No expiration set', tone: 'warn', when: `Uploaded ${since(row.uploaded_at)}` }
     const now = Date.now()
     const soon = now + 30 * 24 * 60 * 60 * 1000
     const t = new Date(row.expires_at).getTime()
-    if (t < now) return { type, statusLabel: 'Expired', tone: 'danger', icon: 'lucide:file-warning', when: `Expired ${since(row.expires_at)}`, fileUrl: row.file_url, verified: false }
-    if (t < soon) return { type, statusLabel: 'Expiring soon', tone: 'warn', icon: 'lucide:calendar-clock', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url, verified: false }
-    return { type, statusLabel: 'Valid', tone: 'good', icon: 'lucide:check', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url, verified: false }
+    if (t < now) return { ...base, statusLabel: 'Expired', tone: 'danger', when: `Expired ${permitDate(row.expires_at)}` }
+    if (t < soon) return { ...base, statusLabel: 'Expiring soon', tone: 'warn', when: `Expires ${permitDate(row.expires_at)}` }
+    return { ...base, statusLabel: 'Valid', tone: 'good', when: `Expires ${permitDate(row.expires_at)}` }
   }),
 )
 
-const myDocs = computed<DocRow[]>(() =>
+const myDocs = computed<RequirementItem[]>(() =>
   MY_DOC_TYPES.map((type) => {
+    const label = DOC_LABEL[type] ?? type
     const row = myDocRows.value.find((d) => d.doc_type === type)
-    if (!row) {
-      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '', verified: false }
-    }
+    if (!row) return { type, label, statusLabel: 'Not submitted', tone: 'idle', when: '', fileUrl: '', verified: false }
     // The account is the unit OSAS actually reviews — once it's verified (or
     // rejected), that decision overrides this row's own stale 'pending'.
     const effectiveStatus = myStatus.value === 'verified' ? 'approved' : myStatus.value === 'rejected' ? 'rejected' : row.status
     const presentation = docPresentation(effectiveStatus)
     const when = row.verified_at ? `Reviewed ${since(row.verified_at)}` : `Sent ${since(row.uploaded_at)}`
-    return { type, statusLabel: presentation.label, tone: presentation.tone, icon: presentation.icon, when, fileUrl: row.file_url, verified: effectiveStatus === 'approved' }
+    return { type, label, statusLabel: presentation.label, tone: presentation.tone, when, fileUrl: row.file_url, verified: effectiveStatus === 'approved' }
   }),
 )
 
-async function loadDocsFor(accommodationId: string) {
-  const { data, error: docError } = await supabase
-    .from('accommodation_documents')
-    .select('id, doc_type, file_url, expires_at, uploaded_at, version')
-    .eq('accommodation_id', accommodationId)
-    .order('version', { ascending: false })
+const selected = computed(() => accommodations.value.find((a) => a.id === selectedId.value))
+
+/**
+ * Every accommodation's latest permits, fetched in one query, so switching
+ * between boarding houses needs no round trip for statuses or dates. Only the
+ * file links are fetched per accommodation (signPermits), since each one is a
+ * call to the doc-access function.
+ */
+async function loadPermits() {
+  const ids = accommodations.value.map((a) => a.id)
+  if (!ids.length) {
+    permitRows.value = []
+    return
+  }
+  // Sent back for revision, or a permit update sent back on a live listing.
+  const returnedIds = accommodations.value
+    .filter((a) => ['needs_revision', 'accredited', 'delisted'].includes(a.status))
+    .map((a) => a.id)
+  const [{ data, error: docError }, { data: rounds, error: roundError }] = await Promise.all([
+    supabase
+      .from('accommodation_documents')
+      .select('id, accommodation_id, doc_type, file_url, expires_at, uploaded_at, version')
+      .in('accommodation_id', ids)
+      .order('version', { ascending: false }),
+    supabase
+      .from('accreditation_rounds')
+      .select('accommodation_id, flagged_docs, decided_at')
+      .in('accommodation_id', returnedIds)
+      .eq('decision', 'returned')
+      .order('round', { ascending: false }),
+  ])
   if (docError) throw docError
+  if (roundError) throw roundError
+
+  // Newest send-back per accommodation only; rounds come newest first.
+  const flags: typeof sentBack.value = {}
+  for (const r of rounds ?? []) {
+    if (flags[r.accommodation_id] || !r.decided_at) continue
+    flags[r.accommodation_id] = { docs: r.flagged_docs ?? [], decidedAt: parseServerTime(r.decided_at).getTime() }
+  }
+  sentBack.value = flags
 
   const seen = new Set<string>()
-  const latest = (data ?? []).filter((d) => {
-    if (seen.has(d.doc_type)) return false
-    seen.add(d.doc_type)
+  permitRows.value = (data ?? []).filter((d) => {
+    const key = `${d.accommodation_id}:${d.doc_type}`
+    if (seen.has(key)) return false
+    seen.add(key)
     return true
   })
-  // Permits use Cloudinary authenticated delivery: file_url holds a ref, so each
-  // one is signed for this viewer.
-  docRows.value = await Promise.all(
-    latest.map(async (d) => ({ ...d, file_url: await secureDocUrl('accommodation_documents', d.id) })),
+}
+
+// doc-access links live 5 minutes; reuse one for 4 so it never expires on screen.
+const SIGNED_FOR_MS = 4 * 60 * 1000
+const signed = ref<Record<string, { url: string; at: number }>>({})
+
+/** Signs the selected accommodation's files that have no fresh link yet. */
+async function signPermits(accommodationId: string) {
+  const now = Date.now()
+  await Promise.all(
+    permitRows.value
+      .filter((d) => d.accommodation_id === accommodationId && !(now - (signed.value[d.id]?.at ?? 0) < SIGNED_FOR_MS))
+      .map(async (d) => {
+        // Permits use Cloudinary authenticated delivery: file_url holds a ref,
+        // so each one is signed for this viewer.
+        const url = await secureDocUrl('accommodation_documents', d.id)
+        signed.value = { ...signed.value, [d.id]: { url, at: Date.now() } }
+      }),
   )
 }
 
@@ -530,7 +489,7 @@ async function load() {
     myId.value = user.id
 
     const [{ data: accData, error: accError }, { data: ticketData, error: ticketError }, { data: userData, error: userError }] = await Promise.all([
-      supabase.from('accommodations').select('id, name').eq('landlord_id', user.id).order('name'),
+      supabase.from('accommodations').select('id, name, barangay, city, status').eq('landlord_id', user.id).order('name'),
       supabase
         .from('tickets')
         .select('id, ticket_no, subject, description, category, status, reported_at, photo_urls')
@@ -558,11 +517,17 @@ async function load() {
         decision?.decision_notes || (decision?.rejection_reasons ?? []).join(', ') || ''
     }
 
-    accommodations.value = (accData ?? []).map((a) => ({ id: a.id, name: a.name?.trim() || 'Unnamed accommodation' }))
+    accommodations.value = (accData ?? []).map((a) => ({
+      id: a.id,
+      name: a.name?.trim() || 'Unnamed accommodation',
+      place: [a.barangay, a.city].filter(Boolean).join(', '),
+      status: a.status,
+    }))
     // ?accommodation= comes from a draft's "Attach permits" in the editor.
     const asked = accommodations.value.find((a) => a.id === route.query.accommodation)
     selectedId.value = asked?.id || accommodations.value[0]?.id || ''
-    if (selectedId.value) await loadDocsFor(selectedId.value)
+    await loadPermits()
+    if (selectedId.value) void signPermits(selectedId.value)
     await loadMyDocs(user.id)
 
     tickets.value = (ticketData ?? []).map((t) => ({
@@ -583,12 +548,8 @@ async function load() {
 }
 
 watch(selectedId, (id) => {
-  if (id) void loadDocsFor(id)
+  if (id) void signPermits(id)
 })
-
-function toggleProperty(type: string) {
-  expandedProperty.value = expandedProperty.value === type ? '' : type
-}
 
 function openUploadDialog(type: string, target: UploadTarget = 'property') {
   uploadDocType.value = type
@@ -617,22 +578,21 @@ async function submitDocUpload() {
     return
   }
   if (!selectedId.value) return
+  const expiryError = expiryProblem(uploadForm.expiresAt)
+  if (expiryError) {
+    notify.error(expiryError)
+    return
+  }
 
   uploadingDoc.value = true
   try {
-    const docType = uploadDocType.value
-    const url = await uploadSecureDocument(uploadForm.file)
-    const existing = docRows.value.find((d) => d.doc_type === docType)
-    const { error: insertError } = await supabase.from('accommodation_documents').insert({
-      accommodation_id: selectedId.value,
-      doc_type: docType,
-      file_url: url,
-      expires_at: uploadForm.expiresAt,
-      version: existing ? existing.version + 1 : 1,
-    })
-    if (insertError) throw insertError
+    // The same path as the wizard and the listing's Replace button: checked
+    // for legibility, shrunk, hashed, saved as the next version (utils/permits).
+    const uploaded = await uploadPermitFile(uploadForm.file)
+    await savePermitVersion(selectedId.value, uploadDocType.value, uploaded, uploadForm.expiresAt)
 
-    await loadDocsFor(selectedId.value)
+    await loadPermits()
+    await signPermits(selectedId.value)
     uploadDialogOpen.value = false
     notify.success('Uploaded.')
   } catch (e) {
@@ -848,7 +808,7 @@ function onPull(done: () => void) {
 .tab-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .sec-head {
@@ -904,173 +864,67 @@ function onPull(done: () => void) {
   overflow: hidden;
 }
 
-.doc-item {
-  border-top: 1px solid var(--m-border);
+.sk-card {
+  border-radius: var(--m-radius);
 }
-.group > .doc-item:first-child {
-  border-top: 0;
+.sk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
-.doc-row {
+
+/* The accommodation whose permits are listed below — a menu switches it. */
+.prop-head {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 0;
-  background: transparent;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+  color: inherit;
   cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
-.doc-icon {
+.prop-head:disabled {
+  cursor: default;
+}
+.prop-icon {
   display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
 }
-.doc-icon--good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.doc-icon--warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.doc-icon--danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.doc-icon--idle {
-  background: var(--m-surface);
-  color: var(--m-muted);
-}
-.doc-body {
+.prop-body {
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
-.doc-name {
+.prop-name {
+  overflow: hidden;
   color: var(--m-ink);
-  font-size: 13px;
+  font-family: var(--m-font-display);
+  font-size: 15px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.doc-when {
-  color: var(--m-muted);
-  font-size: 11px;
-}
-.doc-tag {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.doc-tag--good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.doc-tag--warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.doc-tag--danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.doc-tag--idle {
-  background: var(--m-surface);
-  color: var(--m-muted);
-}
-.doc-chevron {
-  flex: 0 0 auto;
-  color: var(--m-muted);
-  transition: transform 0.15s ease;
-}
-.doc-chevron--on {
-  transform: rotate(180deg);
-}
-
-.doc-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0 12px 12px;
-}
-.doc-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 96px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  overflow: hidden;
-}
-.doc-preview-img {
-  width: 100%;
-  max-height: 220px;
-  object-fit: contain;
-  cursor: pointer;
-}
-.doc-preview-file,
-.doc-preview-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 20px 12px;
-  border: 0;
-  background: transparent;
-  color: var(--m-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-}
-.doc-preview-file {
-  color: var(--m-primary-dark);
-  cursor: pointer;
-}
-.doc-locked {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
+.prop-place {
   color: var(--m-muted);
   font-size: 12px;
-  font-weight: 600;
 }
-.doc-actions {
-  display: flex;
-  gap: 8px;
-}
-.doc-action {
-  display: flex;
-  min-height: 36px;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.doc-action--primary {
-  position: relative;
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  overflow: hidden;
+.prop-caret {
+  flex: 0 0 auto;
+  color: var(--m-muted);
 }
 
 .ticket-row {
@@ -1125,6 +979,10 @@ function onPull(done: () => void) {
 .ticket-chip--grey {
   background: var(--m-bg);
   color: var(--m-muted);
+}
+.ticket-chip--red {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
 }
 
 .new-sheet {
@@ -1195,9 +1053,6 @@ function onPull(done: () => void) {
 .new-submit {
   min-height: 48px;
   font-weight: 700;
-}
-.m-chips {
-  margin-bottom: 4px;
 }
 /* ---- Desktop: requirements | tickets ----
    The card (.desk-card) is two columns and two rows here: the left column is

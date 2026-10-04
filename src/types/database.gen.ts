@@ -42,6 +42,7 @@ export type Database = {
           accommodation_id: string
           doc_type: string
           expires_at: string | null
+          file_sha256: string | null
           file_url: string
           id: string
           issued_at: string | null
@@ -52,6 +53,7 @@ export type Database = {
           accommodation_id: string
           doc_type: string
           expires_at?: string | null
+          file_sha256?: string | null
           file_url: string
           id?: string
           issued_at?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           accommodation_id?: string
           doc_type?: string
           expires_at?: string | null
+          file_sha256?: string | null
           file_url?: string
           id?: string
           issued_at?: string | null
@@ -361,11 +364,14 @@ export type Database = {
           accreditation_status: string | null
           accredited_at: string | null
           address: string | null
+          appeal_used: boolean
           barangay: string | null
           business_name: string | null
           capacity: number | null
           city: string | null
+          created_at: string
           description: string | null
+          draft_reminded_at: string | null
           gender_policy: string | null
           hidden_from_listings: boolean
           id: string
@@ -389,11 +395,14 @@ export type Database = {
           accreditation_status?: string | null
           accredited_at?: string | null
           address?: string | null
+          appeal_used?: boolean
           barangay?: string | null
           business_name?: string | null
           capacity?: number | null
           city?: string | null
+          created_at?: string
           description?: string | null
+          draft_reminded_at?: string | null
           gender_policy?: string | null
           hidden_from_listings?: boolean
           id?: string
@@ -417,11 +426,14 @@ export type Database = {
           accreditation_status?: string | null
           accredited_at?: string | null
           address?: string | null
+          appeal_used?: boolean
           barangay?: string | null
           business_name?: string | null
           capacity?: number | null
           city?: string | null
+          created_at?: string
           description?: string | null
+          draft_reminded_at?: string | null
           gender_policy?: string | null
           hidden_from_listings?: boolean
           id?: string
@@ -537,6 +549,79 @@ export type Database = {
           },
         ]
       }
+      accreditation_rounds: {
+        Row: {
+          accommodation_id: string
+          decided_at: string | null
+          decided_by: string | null
+          decision: string | null
+          flagged_docs: string[] | null
+          id: string
+          kind: string
+          message: string | null
+          note: string | null
+          proposed_changes: Json | null
+          round: number
+          submitted_at: string
+          submitted_by: string | null
+          tags: string[] | null
+        }
+        Insert: {
+          accommodation_id: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string | null
+          flagged_docs?: string[] | null
+          id?: string
+          kind: string
+          message?: string | null
+          note?: string | null
+          proposed_changes?: Json | null
+          round: number
+          submitted_at?: string
+          submitted_by?: string | null
+          tags?: string[] | null
+        }
+        Update: {
+          accommodation_id?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string | null
+          flagged_docs?: string[] | null
+          id?: string
+          kind?: string
+          message?: string | null
+          note?: string | null
+          proposed_changes?: Json | null
+          round?: number
+          submitted_at?: string
+          submitted_by?: string | null
+          tags?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accreditation_rounds_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accreditation_rounds_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accreditation_rounds_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_profiles: {
         Row: {
           employee_id: string | null
@@ -641,6 +726,9 @@ export type Database = {
       app_release: {
         Row: {
           apk_url: string
+          bundle_checksum: string | null
+          bundle_url: string | null
+          bundle_version: number | null
           id: number
           latest_version_code: number
           latest_version_name: string
@@ -650,6 +738,9 @@ export type Database = {
         }
         Insert: {
           apk_url: string
+          bundle_checksum?: string | null
+          bundle_url?: string | null
+          bundle_version?: number | null
           id?: number
           latest_version_code: number
           latest_version_name: string
@@ -659,6 +750,9 @@ export type Database = {
         }
         Update: {
           apk_url?: string
+          bundle_checksum?: string | null
+          bundle_url?: string | null
+          bundle_version?: number | null
           id?: number
           latest_version_code?: number
           latest_version_name?: string
@@ -893,6 +987,38 @@ export type Database = {
             columns: ["user_b_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expiry_reminders: {
+        Row: {
+          accommodation_id: string
+          days_before: number
+          due_date: string
+          sent_at: string
+          subject: string
+        }
+        Insert: {
+          accommodation_id: string
+          days_before: number
+          due_date: string
+          sent_at?: string
+          subject: string
+        }
+        Update: {
+          accommodation_id?: string
+          days_before?: number
+          due_date?: string
+          sent_at?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expiry_reminders_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
             referencedColumns: ["id"]
           },
         ]
@@ -2150,6 +2276,9 @@ export type Database = {
         Returns: undefined
       }
       accept_policy: { Args: { p_id: string }; Returns: undefined }
+      accommodation_missing: { Args: { p_id: string }; Returns: string[] }
+      accreditation_term: { Args: never; Returns: string }
+      accreditation_wait_estimate: { Args: never; Returns: number }
       add_student_to_room: {
         Args: { p_room: string; p_start: string; p_student_no: string }
         Returns: string
@@ -2202,6 +2331,10 @@ export type Database = {
           sent: number
         }[]
       }
+      appeal_accommodation: {
+        Args: { p_id: string; p_message: string }
+        Returns: undefined
+      }
       archive_expired_announcements: { Args: never; Returns: number }
       assert_admin_over: { Args: { p_user: string }; Returns: undefined }
       can_notify: { Args: { target: string }; Returns: boolean }
@@ -2219,6 +2352,17 @@ export type Database = {
           expires_at: string
           token: string
         }[]
+      }
+      decide_accreditation: {
+        Args: {
+          p_accommodation: string
+          p_decision: string
+          p_flagged_docs?: string[]
+          p_note?: string
+          p_override?: boolean
+          p_tags?: string[]
+        }
+        Returns: string
       }
       fanout_announcement: { Args: { p_id: string }; Returns: number }
       get_my_role: { Args: never; Returns: string }
@@ -2269,6 +2413,26 @@ export type Database = {
         }
         Returns: undefined
       }
+      notify_system: {
+        Args: {
+          p_body: string
+          p_link: string
+          p_title: string
+          p_type: string
+          p_user: string
+        }
+        Returns: undefined
+      }
+      open_accreditation_round: {
+        Args: {
+          p_changes?: Json
+          p_id: string
+          p_kind: string
+          p_message?: string
+        }
+        Returns: string
+      }
+      permit_label: { Args: { p_type: string }; Returns: string }
       pin_attempt: { Args: { p_pin: string }; Returns: boolean }
       policy_acceptance_stats: {
         Args: never
@@ -2300,7 +2464,18 @@ export type Database = {
         Returns: undefined
       }
       record_consent: { Args: { p_documents: string[] }; Returns: undefined }
+      remind_accreditation_expiry: { Args: never; Returns: undefined }
+      remind_stale_drafts: { Args: never; Returns: undefined }
       remind_utility_bills: { Args: never; Returns: undefined }
+      request_details_change: {
+        Args: { p_changes: Json; p_id: string; p_message?: string }
+        Returns: undefined
+      }
+      request_renewal: { Args: { p_id: string }; Returns: undefined }
+      resubmit_accommodation: {
+        Args: { p_id: string; p_message?: string }
+        Returns: number
+      }
       resubmit_verification: { Args: never; Returns: undefined }
       rotate_qr_token: { Args: never; Returns: string }
       set_audit_context: {
@@ -2328,6 +2503,7 @@ export type Database = {
       touch_last_active: { Args: never; Returns: undefined }
       verify_pin: { Args: { p_pin: string }; Returns: boolean }
       verify_student_qr: { Args: { p_code: string }; Returns: Json }
+      withdraw_details_change: { Args: { p_id: string }; Returns: undefined }
     }
     Enums: {
       accommodation_status:

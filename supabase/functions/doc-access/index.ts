@@ -145,6 +145,19 @@ Deno.serve(async (req) => {
       : (typeof stored === 'string' && (!body.ref || body.ref === stored) ? stored : undefined)
     if (!ref) return reply(req, 404, { error: 'Not found.' })
 
+    // Who at OSAS opened an identity document or a permit, and when. Written
+    // with the caller's own client: audit_logs only takes inserts from OSAS, so
+    // a landlord/landlady or student opening their own file is simply not
+    // recorded, and a refused insert must never block the file.
+    if (body.table === 'verification_documents' || body.table === 'accommodation_documents') {
+      await supabase.from('audit_logs').insert({
+        action: 'document.view',
+        actor_id: auth.user.id,
+        entity_type: body.table,
+        entity_id: body.id,
+      }).then(() => undefined, () => undefined)
+    }
+
     // Rows written before files moved to authenticated delivery hold a plain
     // URL. Nothing to sign — hand it back so old records still open.
     if (!ref.startsWith(CLD_PREFIX)) return reply(req, 200, { url: ref, legacy: true })

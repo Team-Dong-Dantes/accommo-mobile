@@ -162,8 +162,7 @@
         <component :is="panelIs" name="rooms" class="sec" :class="{ 'sec--moved': split }">
           <Teleport :to="rightCol" :disabled="!split || !rightCol">
           <div class="sec-body">
-          <p v-if="!auth.isVerifiedLandlord" class="sec-hint">You can add rooms, facilities and floors once OSAS verifies your account.</p>
-          <p v-else-if="!canAddInventory" class="sec-hint">This accommodation is delisted — reactivate it to add rooms, facilities, or floors.</p>
+          <p v-if="!canAddInventory && roomsByFloor.length" class="sec-hint">{{ inventoryClosedHint }}</p>
           <template v-if="roomsByFloor.length">
             <div v-for="grp in roomsByFloor" :key="grp.floor ?? 'none'" class="floor-group">
               <div class="sec-head">
@@ -241,9 +240,9 @@
             variant="compact"
             icon="lucide:layers"
             title="No rooms yet"
-            message="Add your first room — Floor 1 is created for you."
+            :message="canAddInventory ? 'Add your first room — Floor 1 is created for you.' : inventoryClosedHint"
           >
-            <template #actions>
+            <template v-if="canAddInventory" #actions>
               <q-btn unelevated rounded no-caps color="primary" label="Add room" :loading="addingFloor" :disable="!canAddInventory" @click="addFirstRoom" />
             </template>
           </EmptyState>
@@ -292,7 +291,12 @@
           </div>
 
           <h2 class="sec-title">Permits</h2>
-          <p class="sec-hint">Accreditation depends on these staying current. Manage uploads from OSAS.</p>
+          <p class="sec-hint">
+            Accreditation depends on these staying current.
+            {{ acc.status === 'accredited' || acc.status === 'delisted'
+              ? 'Locked while accredited — a permit can be replaced within 30 days of its expiry, or when OSAS asks. The new file goes to OSAS; the listing stays up meanwhile.'
+              : '' }}
+          </p>
           <div class="group">
             <div v-for="d in docs" :key="d.type" class="doc-row">
               <span class="doc-icon" :class="`doc-icon--${d.tone}`">
@@ -312,6 +316,15 @@
               >
                 <IconifyIcon icon="lucide:eye" width="15" />
               </button>
+              <button
+                v-if="d.canReplace"
+                type="button"
+                class="doc-view"
+                :aria-label="d.fileUrl ? `Replace ${DOC_TYPE_LABEL[d.type]}` : `Upload ${DOC_TYPE_LABEL[d.type]}`"
+                @click="openPermitSheet(d.type)"
+              >
+                <IconifyIcon :icon="d.fileUrl ? 'lucide:refresh-cw' : 'lucide:upload'" width="15" />
+              </button>
             </div>
           </div>
 
@@ -323,9 +336,6 @@
                   ? 'A private draft — only you can see it. Before OSAS can review it, add: ' + draftMissing.join(', ') + '.'
                   : 'A private draft, and complete. Submit it when you’re ready for OSAS to review.' }}
               </p>
-              <button v-if="draftMissing.includes('all four permits')" type="button" class="status-btn" @click="router.push(`/manager/osas?accommodation=${id}`)">
-                Attach permits
-              </button>
               <button type="button" class="status-btn" :disabled="submittingDraft || draftMissing.length > 0" @click="submitDraft">
                 {{ submittingDraft ? 'Submitting…' : 'Submit to OSAS' }}
               </button>
@@ -334,7 +344,19 @@
               </button>
             </div>
           </template>
-          <template v-else-if="acc.status === 'accredited' || acc.status === 'delisted'">
+          <AccreditationCard
+            v-else
+            ref="accreditationCard"
+            :accommodation-id="id"
+            :status="acc.status"
+            :appeal-used="acc.appealUsed"
+            :accreditation-expires-at="acc.accreditationExpiresAt"
+            :docs="docRows"
+            @changed="refreshAccreditation"
+            @docs-changed="loadDocs"
+            @delete="confirmDeleteAccommodationOpen = true"
+          />
+          <template v-if="acc.status === 'accredited' || acc.status === 'delisted'">
             <h2 class="sec-title">Listing status</h2>
             <div class="status-box">
               <p class="status-text">
@@ -350,15 +372,6 @@
                 @click="acc.status === 'accredited' ? delistAccommodation() : reactivateAccommodation()"
               >
                 {{ acc.status === 'accredited' ? 'Delist this accommodation' : 'Reactivate this accommodation' }}
-              </button>
-            </div>
-          </template>
-          <template v-else-if="acc.status === 'rejected'">
-            <h2 class="sec-title">Listing status</h2>
-            <div class="status-box">
-              <p class="status-text">OSAS rejected this accommodation. It's hidden from students and can't be resubmitted here — delete it and start a new listing if needed.</p>
-              <button type="button" class="status-btn status-btn--danger" @click="confirmDeleteAccommodationOpen = true">
-                Delete this accommodation
               </button>
             </div>
           </template>
@@ -395,7 +408,15 @@
       </q-card>
     </q-dialog>
 
-    <!-- PERMIT FILE PREVIEW (view-only — uploads happen on OSAS) -->
+    <PermitUploadSheet
+      v-model="permitSheetOpen"
+      :accommodation-id="id"
+      :doc-type="permitSheetType"
+      :replacing="docRows.some((d) => d.doc_type === permitSheetType)"
+      @saved="accreditationCard?.permitReplaced(); loadDocs()"
+    />
+
+    <!-- PERMIT FILE PREVIEW -->
     <q-dialog v-model="docPreviewOpen" position="bottom">
       <q-card class="room-sheet">
         <span class="sheet-grip" aria-hidden="true" />
@@ -423,6 +444,11 @@
         </div>
 
         <div class="room-sheet-scroll">
+          <p v-if="editingField && fieldReview(editingField) !== 'free'" class="sec-hint">
+            {{ fieldReview(editingField) === 'request'
+              ? 'OSAS checked this. Your change goes to OSAS, and students keep seeing the current value until it is approved.'
+              : 'OSAS checked this, and it can’t change while OSAS is reviewing the listing or it is not accredited.' }}
+          </p>
           <select v-if="editingField && FIELD_META[editingField].type === 'select'" v-model="fieldDraft" class="field-input app-select">
             <option value="">Select {{ FIELD_META[editingField].label.toLowerCase() }}</option>
             <option v-for="(label, key) in FIELD_META[editingField].options" :key="key" :value="key">{{ label }}</option>
@@ -455,7 +481,17 @@
         </div>
 
         <div class="room-sheet-actions">
-          <q-btn unelevated rounded no-caps color="primary" class="save-btn" :loading="savingField" label="Save" @click="saveField" />
+          <q-btn
+            unelevated
+            rounded
+            no-caps
+            color="primary"
+            class="save-btn"
+            :loading="savingField"
+            :disabled="!!editingField && fieldReview(editingField) === 'locked'"
+            :label="editingField && fieldReview(editingField) === 'request' ? 'Send to OSAS' : 'Save'"
+            @click="saveField"
+          />
         </div>
       </q-card>
     </q-dialog>
@@ -1102,13 +1138,16 @@ import { uploadDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset, isPdf, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import UtilitiesFields from '@/components/manager/UtilitiesFields.vue'
-import { UTILITIES, UTILITY_SELECT, emptyUtilities, utilitiesFromRow, utilityColumns, utilitiesProblem, utilityTermsLabel, type UtilityKey, type UtilityTerms, type UtilityColumns, AMENITY_META, AMENITY_KEYS, FACILITY_META, PRIVATE_ONLY_FACILITY_TYPES, RETIRED_FACILITY_TYPES, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL, roomTypeLabel } from '@/utils/listings'
+import { UTILITIES, UTILITY_SELECT, emptyUtilities, utilitiesFromRow, utilityColumns, utilitiesProblem, utilityTermsLabel, type UtilityKey, type UtilityTerms, type UtilityColumns, AMENITY_META, AMENITY_KEYS, FACILITY_META, PRIVATE_ONLY_FACILITY_TYPES, RETIRED_FACILITY_TYPES, ROOM_TYPE_LABEL, ROOM_TYPE_DEFAULT_CAPACITY, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL, roomTypeLabel, ACCOMMODATION_STATUS_LABEL, ACCOMMODATION_STATUS_TONE } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import type { Database } from '@/types/database.gen'
 import { capturePhoto } from '@/utils/camera'
 import { POLICY_RULES } from '@/api/selects'
 import ConfirmDeleteSheet from '@/components/shared/ConfirmDeleteSheet.vue'
+import AccreditationCard from '@/components/manager/AccreditationCard.vue'
+import PermitUploadSheet from '@/components/manager/PermitUploadSheet.vue'
+import { permitDate, permitReplaceOpen } from '@/utils/permits'
 import {
   CAPACITY_MAX, MONTHS_MAX, RENT_MAX,
   clampNum, clampOptional, partitionFacilities,
@@ -1121,28 +1160,8 @@ const LocationPicker = defineAsyncComponent(() => import('@/components/manager/L
 
 type AmenityKey = Database['public']['Enums']['amenity']
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  pending: 'Pending review',
-  reviewing: 'Reviewing',
-  accredited: 'Accredited',
-  needs_revision: 'Needs revision',
-  rejected: 'Rejected',
-  expired: 'Accreditation expired',
-  suspended: 'Suspended by OSAS',
-  delisted: 'Delisted',
-}
-const STATUS_TONE: Record<string, string> = {
-  draft: 'grey',
-  pending: 'amber',
-  reviewing: 'amber',
-  accredited: 'green',
-  needs_revision: 'amber',
-  rejected: 'red',
-  expired: 'red',
-  suspended: 'red',
-  delisted: 'grey',
-}
+const STATUS_LABEL = ACCOMMODATION_STATUS_LABEL
+const STATUS_TONE = ACCOMMODATION_STATUS_TONE
 const ROOM_STATUS_TONE: Record<string, string> = {
   available: 'green',
   occupied: 'amber',
@@ -1242,6 +1261,8 @@ const acc = reactive({
   status: 'pending',
   lat: null as number | null,
   lng: null as number | null,
+  appealUsed: false,
+  accreditationExpiresAt: null as string | null,
 })
 const rules = reactive({
   amenities: [] as string[],
@@ -1265,10 +1286,6 @@ const coverUrl = computed(() => (images.value[0]?.url ? resolveAsset(images.valu
 const occupiedRoomIds = ref<string[]>([])
 const occupiedRoomCount = computed(() => occupiedRoomIds.value.length)
 const vacantRoomCount = computed(() => Math.max(rooms.value.length - occupiedRoomCount.value, 0))
-// Delisted accommodations are hidden from students — don't let landlords/landladies keep
-// building out inventory (rooms, facilities, floors) behind a dead listing.
-// Two reasons adding can be closed: the accommodation is delisted, or the
-// landlord/landlady is not verified yet (the database refuses the insert then).
 // What a draft still needs before submit_accommodation() will take it — the
 // same list the database checks, worded the way its error reads.
 const draftMissing = computed(() => {
@@ -1281,6 +1298,10 @@ const draftMissing = computed(() => {
   const docs = new Set(docRows.value.map((d) => d.doc_type))
   if (!['sanitary_permit', 'fire_safety', 'business_permit', 'building_permit'].every((t) => docs.has(t))) {
     missing.push('all four permits')
+  } else {
+    if (docRows.value.some((d) => !d.expires_at)) missing.push('an expiry date on every permit')
+    const today = new Date().toISOString().slice(0, 10)
+    if (docRows.value.some((d) => d.expires_at && d.expires_at < today)) missing.push('permits that have not expired')
   }
   return missing
 })
@@ -1300,7 +1321,17 @@ async function submitDraft() {
   }
 }
 
-const canAddInventory = computed(() => acc.status !== 'delisted' && auth.isVerifiedLandlord)
+// Rooms, facilities and floors come after accreditation, and only while the
+// listing is live — the database refuses the insert otherwise
+// (20261003000000), as it does for an unverified landlord/landlady.
+const canAddInventory = computed(() => acc.status === 'accredited' && auth.isVerifiedLandlord)
+const inventoryClosedHint = computed(() => {
+  if (!auth.isVerifiedLandlord) return 'You can add rooms, facilities and floors once OSAS verifies your account.'
+  if (acc.status === 'delisted') return 'This accommodation is delisted — reactivate it to add rooms, facilities, or floors.'
+  if (acc.status === 'expired') return 'Accreditation has ended — renew it to add rooms, facilities, or floors.'
+  if (acc.status === 'suspended') return 'OSAS suspended this accommodation, so rooms, facilities and floors can’t be added.'
+  return 'You can add rooms, facilities and floors once OSAS accredits this accommodation.'
+})
 const distance = computed(() => campusDistanceLabel(acc.lat, acc.lng))
 const mapUrl = computed(() => staticMapUrl(acc.lat, acc.lng))
 const locationPickerOpen = ref(false)
@@ -1311,6 +1342,15 @@ async function onLocationConfirmed(payload: { lat: number; lng: number; barangay
   const fields: Database['public']['Tables']['accommodations']['Update'] = { lat: payload.lat, lng: payload.lng }
   if (!acc.barangay && payload.barangay) fields.barangay = payload.barangay
   if (!acc.city && payload.city) fields.city = payload.city
+  const review = fieldReview('barangay')
+  if (review === 'locked') {
+    notify.error('The location can’t change while OSAS is reviewing the listing or it is not accredited.')
+    return
+  }
+  if (review === 'request') {
+    await requestChange(fields as Record<string, unknown>)
+    return
+  }
   try {
     const { error: updateError } = await supabase.from('accommodations').update(fields).eq('id', id)
     if (updateError) throw updateError
@@ -1571,21 +1611,32 @@ const docs = computed(() =>
   DOC_TYPES.map((type) => {
     const row = docRows.value.find((d) => d.doc_type === type)
     if (!row) {
-      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '' }
+      return { type, statusLabel: 'Not submitted', tone: 'idle', icon: 'lucide:circle-dashed', when: '', fileUrl: '', canReplace: true }
     }
-    if (!row.expires_at) {
-      // Expiry is required on upload now, so a null one only happens on a
-      // legacy row from before that — flag it rather than reading as settled.
-      return { type, statusLabel: 'No expiration set', tone: 'warn', icon: 'lucide:calendar-x', when: `Uploaded ${since(row.uploaded_at)}`, fileUrl: row.file_url }
-    }
-    const now = Date.now()
-    const soon = now + 30 * 24 * 60 * 60 * 1000
-    const t = new Date(row.expires_at).getTime()
-    if (t < now) return { type, statusLabel: 'Expired', tone: 'danger', icon: 'lucide:file-warning', when: `Expired ${since(row.expires_at)}`, fileUrl: row.file_url }
-    if (t < soon) return { type, statusLabel: 'Expiring soon', tone: 'warn', icon: 'lucide:calendar-clock', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url }
-    return { type, statusLabel: 'Valid', tone: 'good', icon: 'lucide:check', when: `Expires ${since(row.expires_at)}`, fileUrl: row.file_url }
+    const flagged = Boolean(accreditationCard.value?.flagged.some((f) => f.type === type && !f.replaced))
+    const canReplace = permitReplaceOpen(acc.status, row.expires_at, flagged)
+    return { ...docStatus(row, flagged), type, fileUrl: row.file_url, canReplace }
   }),
 )
+
+function docStatus(row: { expires_at: string | null; uploaded_at: string }, flagged: boolean) {
+  // OSAS's verdict outranks the date: a flagged permit is not "Valid" just
+  // because it hasn't expired.
+  if (flagged) {
+    return { statusLabel: 'Needs resubmission', tone: 'danger', icon: 'lucide:file-warning', when: 'OSAS asked for a new file' }
+  }
+  if (!row.expires_at) {
+    // Expiry is required on upload now, so a null one only happens on a
+    // legacy row from before that — flag it rather than reading as settled.
+    return { statusLabel: 'No expiration set', tone: 'warn', icon: 'lucide:calendar-x', when: `Uploaded ${since(row.uploaded_at)}` }
+  }
+  const now = Date.now()
+  const soon = now + 30 * 24 * 60 * 60 * 1000
+  const t = new Date(row.expires_at).getTime()
+  if (t < now) return { statusLabel: 'Expired', tone: 'danger', icon: 'lucide:file-warning', when: `Expired ${permitDate(row.expires_at)}` }
+  if (t < soon) return { statusLabel: 'Expiring soon', tone: 'warn', icon: 'lucide:calendar-clock', when: `Expires ${permitDate(row.expires_at)}` }
+  return { statusLabel: 'Valid', tone: 'good', icon: 'lucide:check', when: `Expires ${permitDate(row.expires_at)}` }
+}
 
 /** Cosmetic extension check — good enough to pick "image preview" vs "open file". */
 
@@ -1609,7 +1660,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('accommodations')
       .select(
-        `name,accommodation_type,gender_policy,address,purok,barangay,city,description,status,lat,lng,accommodation_amenities(amenity),accommodation_policies(${POLICY_RULES}),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,status,accommodation_facility_rooms(room_id),accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number,label),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,${UTILITY_SELECT},room_images(id,url,sort_order))`,
+        `name,accommodation_type,gender_policy,address,purok,barangay,city,description,status,lat,lng,appeal_used,accreditation_expires_at,accommodation_amenities(amenity),accommodation_policies(${POLICY_RULES}),accommodation_images(id,url,sort_order),accommodation_facilities(id,facility_type,access_scope,label,description,room_id,floor,status,accommodation_facility_rooms(room_id),accommodation_facility_images(id,url,sort_order)),accommodation_floors(floor_number,label),rooms(id,label,room_number,room_type,custom_room_type,floor,capacity,current_pax,monthly_rent,advance_months,deposit_months,rent_basis,status,${UTILITY_SELECT},room_images(id,url,sort_order))`,
       )
       .eq('id', id)
       .maybeSingle()
@@ -1630,6 +1681,8 @@ async function load() {
     acc.status = data.status
     acc.lat = data.lat
     acc.lng = data.lng
+    acc.appealUsed = data.appeal_used
+    acc.accreditationExpiresAt = data.accreditation_expires_at
 
     rules.amenities = ((data.accommodation_amenities ?? []) as { amenity: string }[]).map((a) => a.amenity).filter((a) => a in AMENITY_META)
 
@@ -1801,6 +1854,58 @@ type FieldKey =
   | 'name' | 'accommodationType' | 'genderPolicy' | 'purok' | 'barangay' | 'city' | 'description'
   | 'curfewTime' | 'quietHours' | 'visitorPolicy'
 
+/**
+ * What OSAS checked when it reviewed the listing. The database locks these
+ * once a listing leaves draft (lock_verification_columns): free while it is a
+ * draft or sent back for changes, a request to OSAS while it is live, and
+ * fixed otherwise. Everything else — rooms, rent, photos, amenities, house
+ * rules, the description — stays the landlord/landlady's to change.
+ */
+const OSAS_CHECKED: ReadonlySet<FieldKey> = new Set(['name', 'accommodationType', 'genderPolicy', 'purok', 'barangay', 'city'])
+function fieldReview(key: FieldKey): 'free' | 'request' | 'locked' {
+  if (!OSAS_CHECKED.has(key)) return 'free'
+  if (acc.status === 'draft' || acc.status === 'needs_revision') return 'free'
+  if (acc.status === 'accredited' || acc.status === 'delisted') return 'request'
+  return 'locked'
+}
+
+const accreditationCard = ref<InstanceType<typeof AccreditationCard> | null>(null)
+
+/** Sends a change to what OSAS checked; the listing keeps its values meanwhile. */
+async function requestChange(changes: Record<string, unknown>): Promise<boolean> {
+  const { error: requestError } = await supabase.rpc('request_details_change', {
+    p_id: id,
+    p_changes: changes as Database['public']['Functions']['request_details_change']['Args']['p_changes'],
+  })
+  if (requestError) {
+    notify.error(errorMessage(requestError, 'Could not send this change to OSAS.'))
+    return false
+  }
+  notify.success('Sent to OSAS. The listing shows the change once it is approved.')
+  void accreditationCard.value?.reload()
+  return true
+}
+
+/** Status and term only, after the card acts — not the whole page. */
+async function refreshAccreditation() {
+  const { data } = await supabase
+    .from('accommodations')
+    .select('status, appeal_used, accreditation_expires_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) return
+  acc.status = data.status
+  acc.appealUsed = data.appeal_used
+  acc.accreditationExpiresAt = data.accreditation_expires_at
+}
+
+const permitSheetOpen = ref(false)
+const permitSheetType = ref('')
+function openPermitSheet(type: string) {
+  permitSheetType.value = type
+  permitSheetOpen.value = true
+}
+
 // `options` is what a 'select' field offers; the sheet renders straight from it,
 // so a second select needs an entry here rather than another branch in the template.
 const FIELD_META: Record<FieldKey, { label: string; type: 'text' | 'select' | 'textarea' | 'time' | 'timerange'; table: 'accommodations' | 'accommodation_policies'; column: string; options?: Record<string, string> }> = {
@@ -1850,6 +1955,13 @@ async function saveField() {
           ? `${to12Hour(fieldDraft.value)} – ${to12Hour(fieldDraftTo.value)}`
           : null
     } else value = fieldDraft.value.trim() || null
+
+    const review = fieldReview(key)
+    if (review === 'locked') return
+    if (review === 'request') {
+      if (await requestChange({ [meta.column]: value })) fieldDialogOpen.value = false
+      return
+    }
 
     if (meta.table === 'accommodations') {
       const payload = { [meta.column]: value } as Database['public']['Tables']['accommodations']['Update']
