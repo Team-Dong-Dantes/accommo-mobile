@@ -50,7 +50,7 @@
         <div v-else class="stay stay--empty">
           <span class="stay-cap">No stay yet</span>
           <p class="stay-name">Find a place to stay</p>
-          <p class="stay-room">Your room, rent and dates land here once a manager accepts you</p>
+          <p class="stay-room">Your room, rent and dates land here once your landlord/landlady accepts you</p>
           <button type="button" class="stay-cta" @click="go('/student/discover')">
             Browse rooms
             <IconifyIcon icon="lucide:arrow-right" width="15" />

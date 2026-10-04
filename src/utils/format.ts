@@ -280,6 +280,18 @@ export const TICKET_STATUS: Record<string, StatusMeta> = {
   closed: { text: 'Closed', color: 'grey' },
 };
 
+/** The TKT-0042 form the OSAS console shows, so either side can quote it. */
+export function ticketLabel(ticketNo: number): string {
+  return 'TKT-' + String(ticketNo).padStart(4, '0');
+}
+
+/** A concern's escalation ticket from a `tickets(ticket_no)` embed. tickets.concern_id
+ *  is unique, but the embed may still arrive as a one-item array. */
+export function ticketNoOf(embed: unknown): number | null {
+  const t = (Array.isArray(embed) ? embed[0] : embed) as { ticket_no?: number } | null | undefined;
+  return t?.ticket_no ?? null;
+}
+
 export const CONCERN_CATEGORY_LABEL: Record<string, string> = {
   maintenance: 'Maintenance',
   safety: 'Safety',

@@ -729,7 +729,7 @@ end $;
 -- landlord/landlady never sees another's history. Setup runs with no signed-in
 -- user; the whole block is rolled back.
 create or replace function pg_temp.accreditation_check() returns table(test text, outcome text)
-language plpgsql as $
+language plpgsql as $$
 declare
   v_acc uuid; v_landlord uuid; v_seen int; v_msg text;
   o1 text; o2 text; o3 text; o4 text; o5 text; o6 text; o7 text; o8 text; o9 text;
@@ -838,7 +838,38 @@ begin
   test := 'AC7: appeal twice'; outcome := coalesce(o7, 'FAIL - not reached'); return next;
   test := 'AC8: replace a current permit while accredited'; outcome := coalesce(o8, 'FAIL - not reached'); return next;
   test := 'AC9: edit a permit while accredited'; outcome := coalesce(o9, 'FAIL - not reached'); return next;
-end $;
+end $$;
+create or replace function pg_temp.rate_limit_check() returns table(test text, outcome text)
+language plpgsql as $$
+declare v_student uuid; v_msg text; v_n int := 0; o1 text; o2 text;
+begin
+  select l.student_id into v_student from public.leases l where l.status = 'active' limit 1;
+  begin
+    -- Rows the database writes itself (no signed-in user) are never capped.
+    for i in 1..8 loop
+      insert into public.tickets (student_id, subject) values (v_student, 'rate test');
+    end loop;
+    o2 := 'PASS';
+    perform set_config('request.jwt.claims', json_build_object('sub', v_student, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    begin
+      for i in 1..6 loop
+        insert into public.tickets (student_id, subject) values (v_student, 'rate test');
+        v_n := i;
+      end loop;
+      o1 := 'FAIL - sixth ticket in an hour was accepted';
+    exception when others then
+      o1 := case when v_n = 5 then 'PASS' else 'FAIL - refused after ' || v_n || ' tickets' end;
+    end;
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> 'rollback' then o2 := coalesce(o2, 'FAIL - ' || v_msg); end if;
+  end;
+  reset role;
+  test := 'RL1: sixth ticket in an hour is refused'; outcome := coalesce(o1, 'FAIL - not reached'); return next;
+  test := 'RL2: database-written rows are not capped'; outcome := coalesce(o2, 'FAIL - not reached'); return next;
+end $$;
 select * from pg_temp.rls_check()
 union all
 select * from pg_temp.added_check()
@@ -861,4 +892,6 @@ select * from pg_temp.ticket_check()
 union all
 select * from pg_temp.policy_check()
 union all
-select * from pg_temp.accreditation_check();
+select * from pg_temp.accreditation_check()
+union all
+select * from pg_temp.rate_limit_check();

@@ -213,6 +213,7 @@ async function load(silent = false) {
       { data: concernRows },
       { data: peopleRows },
       { data: reviewRows },
+      { count: paymentsToVerify },
     ] = await Promise.all([
       supabase.from('users').select('full_name').eq('id', user.id).maybeSingle(),
       supabase
@@ -244,6 +245,12 @@ async function load(silent = false) {
       // Own rating, via the anonymous inbox view — the base table is no longer
       // readable, and the reviewer's identity is not this screen's business.
       supabase.from('review_inbox').select('rating').eq('kind', 'manager'),
+      // Only the number: the list itself lives on Tenants → Payments.
+      supabase
+        .from('payments')
+        .select('id, leases!inner(landlord_id)', { count: 'exact', head: true })
+        .eq('leases.landlord_id', user.id)
+        .eq('status', 'pending_verification'),
     ])
     if (accError) throw accError
     if (leaseError) throw leaseError
@@ -429,6 +436,23 @@ async function load(silent = false) {
         route: '/manager/support',
         tone: 'danger',
         rank: 0,
+      })
+    }
+
+    // One grouped row, like "Set utilities": a busy month would otherwise bury
+    // concerns and applications under a row per payment.
+    if (paymentsToVerify) {
+      items.push({
+        id: 'payments-to-verify',
+        icon: 'lucide:receipt',
+        kind: 'Payments',
+        label: `Verify ${paymentsToVerify} payment${paymentsToVerify === 1 ? '' : 's'}`,
+        hint: 'Students are waiting for these to be marked paid',
+        when: '',
+        action: 'Verify',
+        route: '/manager/tenants?tab=payments',
+        tone: 'warn',
+        rank: 2,
       })
     }
 

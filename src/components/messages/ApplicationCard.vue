@@ -3,6 +3,21 @@
        issues a form → student fills it → manager decides. Extracted from
        ChatThread so the messaging side stays messaging. -->
 
+  <!-- Student: where they are in that handshake. The room page only offers "Ask
+       to apply", so this is the one place the remaining steps are spelled out. -->
+  <ol v-if="studentStep !== null" class="app-steps" aria-label="Application progress">
+    <li
+      v-for="(label, i) in STUDENT_STEPS"
+      :key="label"
+      class="app-step"
+      :class="{ 'app-step--done': i < studentStep, 'app-step--on': i === studentStep }"
+      :aria-current="i === studentStep ? 'step' : undefined"
+    >
+      <IconifyIcon v-if="i < studentStep" icon="lucide:check" width="12" />
+      <span v-else class="app-step-no">{{ i + 1 }}</span>
+      {{ label }}
+    </li>
+  </ol>
   <div v-if="application" class="app-card">
     <div class="app-card-body">
       <IconifyIcon icon="lucide:file-check-2" width="16" />
@@ -136,7 +151,7 @@
         </div>
       </dl>
       <p class="sheet-note">
-        Your manager decides on this application. Nothing is charged through Accommo.
+        Your landlord/landlady decides on this application. Nothing is charged through Accommo.
       </p>
       <div class="sheet-actions">
         <button type="button" class="app-btn app-btn--ghost" @click="reviewOpen = false">Back</button>
@@ -344,6 +359,19 @@ const isMyTenant = computed(
 // RLS would refuse another landlord/landlady's lease anyway, so offering the button would
 // only promise a screen that cannot load.
 const canViewOtherLease = computed(() => props.role === 'student' || isMyTenant.value)
+
+const STUDENT_STEPS = ['Ask', 'Get form', 'Apply', 'Decision'] as const
+/** Index into STUDENT_STEPS, mirroring the card chain below; null hides the strip
+ *  (landlord/landlady side, a stay elsewhere, a taken room, or a declined form —
+ *  that card already says what happened and offers the next step). */
+const studentStep = computed<number | null>(() => {
+  if (props.role !== 'student') return null
+  if (application.value) return 3
+  if (applyRoom.value) return 2
+  if (applyUnavailable.value || otherLease.value || declined.value) return null
+  // Asked about a room (the inquiry is stamped by "Ask to apply"); the form is next.
+  return inquiryRoom.value ? 1 : null
+})
 
 function viewOtherLease() {
   if (!otherLease.value) return
@@ -685,6 +713,48 @@ defineExpose({ refresh })
 </script>
 
 <style scoped>
+/* Sits directly on top of the card below, same tint, so the two read as one banner. */
+.app-steps {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin: 0;
+  padding: 10px var(--m-page-gutter) 0;
+  list-style: none;
+  background: var(--m-primary-soft);
+}
+.app-step {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.app-step-no {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 10px;
+}
+.app-step--done {
+  color: var(--m-primary);
+}
+.app-step--on {
+  color: var(--m-ink);
+}
+.app-step--on .app-step-no {
+  border-color: var(--m-primary);
+  background: var(--m-primary);
+  color: #fff;
+}
 .app-card {
   display: flex;
   flex: 0 0 auto;

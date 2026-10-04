@@ -93,7 +93,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { dayLabel, clockTime, statusText, statusColor, TICKET_STATUS } from '@/utils/format'
+import { dayLabel, clockTime, statusText, statusColor, TICKET_STATUS, ticketLabel } from '@/utils/format'
 import { resolveAsset, isPdf } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 import { openExternal } from '@/utils/openExternal'
@@ -136,10 +136,9 @@ const scroller = useTemplateRef<HTMLElement>('scroller')
 /** Ids the reader has hand-opened; the newest entry is open regardless. */
 const unfolded = ref<string[]>([])
 
-// The same TKT-0042 the OSAS console shows, so either side can quote it.
 const ticketRef = computed(() =>
   props.ticket.ticketNo
-    ? 'TKT-' + String(props.ticket.ticketNo).padStart(4, '0')
+    ? ticketLabel(props.ticket.ticketNo)
     : '#' + props.ticket.id.replace(/-/g, '').slice(0, 6).toUpperCase(),
 )
 

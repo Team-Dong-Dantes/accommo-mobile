@@ -73,7 +73,11 @@
                 <template v-else>
                   <h2 v-if="isDesktop" class="desk-col-title">Support tickets</h2>
                   <div class="sec-head">
-                    <p class="sec-hint">Raise a ticket for anything OSAS needs to look into.</p>
+                    <p class="sec-hint">
+                      For school, account or verification matters, or a problem your landlord/landlady hasn't fixed.
+                      Room, rent or house issues go to
+                      <router-link to="/student/concerns" class="sec-hint-link">your landlord/landlady</router-link> first.
+                    </p>
                     <button v-if="!isDesktop" type="button" class="sec-link" @click="openNewTicket">New ticket</button>
                   </div>
 
@@ -244,6 +248,9 @@ async function load() {
         .from('tickets')
         .select('id, ticket_no, subject, description, category, status, reported_at, photo_urls')
         .eq('student_id', user.id)
+        // A concern the landlord/landlady escalated carries this student's id too, but
+        // it isn't theirs to answer here — it shows on the concern instead.
+        .is('concern_id', null)
         .order('reported_at', { ascending: false }),
       supabase.from('users').select('status').eq('id', user.id).maybeSingle(),
     ])
@@ -511,6 +518,10 @@ function onPull(done: () => void) {
   margin: 0;
   color: var(--m-muted);
   font-size: 12px;
+}
+.sec-hint-link {
+  color: var(--m-primary);
+  font-weight: 600;
 }
 .reject-banner {
   display: flex;

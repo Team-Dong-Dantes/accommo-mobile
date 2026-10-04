@@ -74,7 +74,7 @@
                   <div class="group">
                     <button v-for="r in visibleReviews" :key="r.id" type="button" class="review-row" @click="openReviewDetail(r)">
                       <div class="review-top">
-                        <span class="review-author">A past manager</span>
+                        <span class="review-author">A past landlord/landlady</span>
                         <StarRating :model-value="r.rating" :size="13" />
                         <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
                       </div>

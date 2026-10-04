@@ -1535,6 +1535,24 @@ export type Database = {
           },
         ]
       }
+      rate_limit_hits: {
+        Row: {
+          hits: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          hits?: number
+          key: string
+          window_start: string
+        }
+        Update: {
+          hits?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       report_settings: {
         Row: {
           approved_by_name: string | null
@@ -1849,6 +1867,7 @@ export type Database = {
           accommodation_id: string | null
           assignee_id: string | null
           category: string | null
+          concern_id: string | null
           description: string | null
           id: string
           landlord_id: string | null
@@ -1868,6 +1887,7 @@ export type Database = {
           accommodation_id?: string | null
           assignee_id?: string | null
           category?: string | null
+          concern_id?: string | null
           description?: string | null
           id?: string
           landlord_id?: string | null
@@ -1887,6 +1907,7 @@ export type Database = {
           accommodation_id?: string | null
           assignee_id?: string | null
           category?: string | null
+          concern_id?: string | null
           description?: string | null
           id?: string
           landlord_id?: string | null
@@ -1915,6 +1936,13 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_concern_id_fkey"
+            columns: ["concern_id"]
+            isOneToOne: true
+            referencedRelation: "concerns"
             referencedColumns: ["id"]
           },
           {
@@ -2390,6 +2418,7 @@ export type Database = {
         Args: { p_conversation: string }
         Returns: undefined
       }
+      is_accredited_accommodation: { Args: { p_id: string }; Returns: boolean }
       is_admin: { Args: { p_uid: string }; Returns: boolean }
       is_verified_landlord: { Args: { uid: string }; Returns: boolean }
       lift_expired_suspensions: { Args: never; Returns: number }
@@ -2433,6 +2462,10 @@ export type Database = {
         Returns: string
       }
       permit_label: { Args: { p_type: string }; Returns: string }
+      permit_replacement_open: {
+        Args: { p_acc: string; p_doc: string }
+        Returns: boolean
+      }
       pin_attempt: { Args: { p_pin: string }; Returns: boolean }
       policy_acceptance_stats: {
         Args: never
@@ -2451,9 +2484,14 @@ export type Database = {
           role: string
         }[]
       }
+      purge_rate_limit_hits: { Args: never; Returns: undefined }
       purge_unverified_accounts: {
         Args: { p_older_than?: string }
         Returns: number
+      }
+      rate_limit_hit: {
+        Args: { p_key: string; p_max: number; p_window: number }
+        Returns: boolean
       }
       reap_unverified_signups: {
         Args: { p_older_than?: string }

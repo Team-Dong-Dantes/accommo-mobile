@@ -50,8 +50,8 @@
                     </div>
                     <span v-if="lease.roomLabel" class="head-room">{{ lease.roomLabel }}</span>
                     <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">{{ statusText(LEASE_STATUS, lease.status) }}</span>
-                    <p v-if="lease.status === 'pending'" class="head-note">Application pending — awaiting manager decision.</p>
-                    <p v-else-if="lease.status === 'leave_requested'" class="head-note">Leave requested — awaiting manager decision.</p>
+                    <p v-if="lease.status === 'pending'" class="head-note">Application pending — awaiting your landlord/landlady's decision.</p>
+                    <p v-else-if="lease.status === 'leave_requested'" class="head-note">Leave requested — awaiting your landlord/landlady's decision.</p>
                   </div>
 
                   <!-- Manager contact -->
@@ -275,7 +275,7 @@
       <q-card class="submit-sheet">
         <span class="sheet-grip" aria-hidden="true" />
         <h3 class="submit-title">{{ submitTitle }}</h3>
-        <p class="submit-note">Your manager will verify this before it's marked paid.</p>
+        <p class="submit-note">Your landlord/landlady will verify this before it's marked paid.</p>
 
         <div v-if="form.category === 'rent'" class="submit-field">
           <span class="submit-label">Month</span>

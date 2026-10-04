@@ -25,6 +25,10 @@ Deno.serve(async (req) => {
     if (!email || !origin) return done();
 
     const service = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+    // Anyone can call this, so cap it per address before touching users.
+    // Same silent reply when over the cap, for the same reason as above.
+    const { data: allowed } = await service.rpc('rate_limit_hit', { p_key: `admin-reset:${email}`, p_max: 3, p_window: 3600 });
+    if (allowed === false) return done();
     const { data: admin } = await service
       .from('users')
       .select('id')

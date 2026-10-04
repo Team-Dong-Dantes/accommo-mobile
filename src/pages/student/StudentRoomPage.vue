@@ -188,9 +188,12 @@
       <span v-if="myLease.onThisRoom" class="cta-note">Applied — awaiting response</span>
       <span v-else-if="myLease.hasAny" class="cta-note">You already have a stay</span>
       <span v-else-if="!room.free" class="cta-note">This room is taken</span>
+      <!-- Applying is a handshake in chat (ask → form → apply → decision); say so
+           here, since there is no Apply button to find. -->
+      <span v-else class="cta-note">Chat first — the landlord/landlady sends you an application form</span>
       <button type="button" class="cta-btn cta-btn--ask" @click="goAsk">
         <IconifyIcon icon="lucide:message-circle" width="17" />
-        Ask
+        {{ askable ? 'Ask to apply' : 'Ask' }}
       </button>
     </div>
   </q-page>
@@ -430,10 +433,11 @@ async function load() {
 // inquiry (`?room=`) — that is what the landlord/landlady's "Send application form" button
 // reads. A taken room, or a student who already has a stay, just opens the chat:
 // stamping an inquiry there would only produce a form invite_application() refuses.
+const askable = computed(() => room.free && !myLease.hasAny)
+
 function goAsk() {
-  const askable = room.free && !myLease.hasAny
   void router.push(
-    askable
+    askable.value
       ? `/student/messages?to=${manager.id}&room=${id.value}`
       : `/student/messages?to=${manager.id}`,
   )

@@ -434,8 +434,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
@@ -514,6 +514,16 @@ const error = ref('')
 const myId = ref('')
 const accommodations = ref<Accommodation[]>([])
 const activeTab = ref<'tenants' | 'payments'>('tenants')
+// `?tab=payments` (the dashboard's "Verify payments" item). Watched, not read
+// once: this screen is kept alive, so a later visit reuses the same instance.
+const route = useRoute()
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'payments') activeTab.value = 'payments'
+  },
+  { immediate: true },
+)
 // Desktop has the room for both panels at once (see useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(activeTab)
 const payments = ref<PaymentRow[]>([])

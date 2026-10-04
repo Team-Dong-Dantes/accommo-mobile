@@ -283,8 +283,9 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { name: 'menu', route: '/student/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
     quickActions: [
-      { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
-      { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
+      // Labelled by who answers, so a student picks the right one before opening it.
+      { icon: 'lucide:shield-check', label: 'OSAS support', route: '/student/support' },
+      { icon: 'lucide:triangle-alert', label: 'Landlord/Landlady concerns', route: '/student/concerns' },
     ],
     secondaryPages: [
       { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },

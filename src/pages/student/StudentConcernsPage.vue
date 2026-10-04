@@ -15,6 +15,11 @@
         search-label="Search concerns"
         @open-filters="filtersOpen = true"
       />
+      <!-- Says who answers, and where everything else goes (OSAS support). -->
+      <p class="scope-note">
+        For problems with your room, rent or the house — your landlord/landlady handles these.
+        School or account matters go to <router-link to="/student/support" class="scope-note-link">OSAS support</router-link>.
+      </p>
       <div v-if="loading" class="stack">
         <div class="group">
           <div v-for="n in 3" :key="n" class="row">
@@ -154,6 +159,11 @@
           <p class="detail-text">{{ selected.managerResponse }}</p>
         </template>
 
+        <template v-if="selected.escalatedTicketNo">
+          <p class="detail-label">Escalated to OSAS</p>
+          <p class="detail-text">Your landlord/landlady passed this to OSAS as {{ ticketLabel(selected.escalatedTicketNo) }}. OSAS may contact you about it.</p>
+        </template>
+
         <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="detailOpen = false" />
       </q-card>
     </SplitDetail>
@@ -191,7 +201,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData, type LivePayload } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
+import { CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor, ticketLabel, ticketNoOf } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { createNotification } from '@/boot/notify'
@@ -223,6 +233,7 @@ interface Concern {
   managerResponse: string
   photoUrl: string
   where: string
+  escalatedTicketNo: number | null
 }
 
 const notify = useNotify()
@@ -301,7 +312,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('concerns')
       .select(
-        'id, category, description, status, reported_at, acknowledged_at, in_progress_at, resolved_at, manager_response, photo_url, leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
+        'id, category, description, status, reported_at, acknowledged_at, in_progress_at, resolved_at, manager_response, photo_url, leases!inner(student_id, rooms(room_number, label, accommodations(name))), tickets(ticket_no)',
       )
       .eq('leases.student_id', user.id)
       .order('reported_at', { ascending: false })
@@ -325,6 +336,7 @@ async function load() {
         managerResponse: c.manager_response || '',
         photoUrl: c.photo_url || '',
         where: room?.accommodations?.name || room?.label || 'Your stay',
+        escalatedTicketNo: ticketNoOf(c.tickets),
       }
     })
 
@@ -412,6 +424,7 @@ async function submit() {
         managerResponse: '',
         photoUrl: form.photo ? URL.createObjectURL(form.photo) : '',
         where: 'Your stay',
+        escalatedTicketNo: null,
       },
       ...rows.value,
     ]
@@ -445,6 +458,16 @@ function onPull(done: () => void) {
 <style scoped>
 .cp {
   background: var(--m-bg);
+}
+.scope-note {
+  margin: 0;
+  padding: 12px var(--m-page-gutter) 0;
+  color: var(--m-muted);
+  font-size: 12px;
+}
+.scope-note-link {
+  color: var(--m-primary);
+  font-weight: 600;
 }
 .stack {
   display: flex;

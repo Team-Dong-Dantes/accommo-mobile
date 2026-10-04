@@ -147,7 +147,7 @@
           </button>
         </div>
         <button
-          v-if="selected.status !== 'resolved' && selected.status !== 'rejected'"
+          v-if="selected.status !== 'resolved' && selected.status !== 'rejected' && !selected.escalatedTicketNo"
           type="button"
           class="escalate-btn"
           :disabled="escalating"
@@ -156,6 +156,9 @@
           <IconifyIcon icon="lucide:arrow-up-right" width="14" />
           Escalate to OSAS
         </button>
+        <p v-if="selected.escalatedTicketNo" class="detail-final">
+          Escalated to OSAS as {{ ticketLabel(selected.escalatedTicketNo) }}.
+        </p>
         <p v-if="selected.status === 'resolved' || selected.status === 'rejected'" class="detail-final">
           This concern is closed.
         </p>
@@ -170,7 +173,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData, type LivePayload } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf, CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor } from '@/utils/format'
+import { initialsOf, CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor, ticketLabel, ticketNoOf } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 import { since } from '@/utils/notifications'
@@ -207,6 +210,8 @@ interface Concern {
   studentName: string
   avatarColor: string | null
   avatarUrl: string | null
+  /** Set once this concern has gone to OSAS — one ticket per concern (DB-unique). */
+  escalatedTicketNo: number | null
 }
 
 const notify = useNotify()
@@ -258,7 +263,7 @@ async function load() {
     const { data, error: loadError } = await supabase
       .from('concerns')
       .select(
-        'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(landlord_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
+        'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(landlord_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name))), tickets(ticket_no)',
       )
       .eq('leases.landlord_id', user.id)
       .order('reported_at', { ascending: false })
@@ -287,6 +292,7 @@ async function load() {
         studentName: lease.users?.full_name || 'A student',
         avatarColor: lease.users?.avatar_color ?? null,
         avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url, AVATAR) : null,
+        escalatedTicketNo: ticketNoOf(c.tickets),
       }
     })
 
@@ -309,7 +315,7 @@ async function onConcernInserted(payload: LivePayload) {
   const { data } = await supabase
     .from('concerns')
     .select(
-      'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(landlord_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name)))',
+      'id, lease_id, category, description, status, reported_at, manager_response, photo_url, leases!inner(landlord_id, student_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(accommodation_id, room_number, label, accommodations(name))), tickets(ticket_no)',
     )
     .eq('id', id)
     .maybeSingle()
@@ -337,6 +343,7 @@ async function onConcernInserted(payload: LivePayload) {
       studentName: lease.users?.full_name || 'A student',
       avatarColor: lease.users?.avatar_color ?? null,
       avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url, AVATAR) : null,
+      escalatedTicketNo: ticketNoOf(data.tickets),
     },
     ...rows.value,
   ]
@@ -425,10 +432,11 @@ async function escalate() {
     if (!user) throw new Error('Not signed in.')
 
     const c = selected.value
-    const { error: insertError } = await supabase.from('tickets').insert({
+    const { data: created, error: insertError } = await supabase.from('tickets').insert({
       landlord_id: user.id,
       accommodation_id: c.accommodationId,
       lease_id: c.leaseId,
+      concern_id: c.id,
       student_id: c.studentId,
       reporter_name: c.studentName,
       subject: `Escalated concern: ${CONCERN_CATEGORY_LABEL[c.category] || c.category}`,
@@ -436,8 +444,17 @@ async function escalate() {
       category: 'accommodation',
       status: 'open',
       priority: 'medium',
-    })
-    if (insertError) throw insertError
+    }).select('ticket_no').single()
+    // 23505: this concern already has its OSAS ticket (escalated from another device).
+    if (insertError && insertError.code !== '23505') throw insertError
+    if (!created) {
+      void refresh()
+      notify.info('This concern was already escalated to OSAS.')
+      return
+    }
+    c.escalatedTicketNo = created.ticket_no
+    const row = rows.value.find((r) => r.id === c.id)
+    if (row) row.escalatedTicketNo = created.ticket_no
 
     notify.success('Escalated to OSAS.')
   } catch (e) {
