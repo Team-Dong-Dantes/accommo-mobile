@@ -9,7 +9,9 @@ import routes from './routes';
 import { supabase, storedSession, type StoredSession } from '@/utils/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { markActive } from '@/utils/activity';
-import { resolveDestination, type GuardRole } from './guard';
+import { type GuardRole } from './guard';
+import { createNavGuard, type Account } from './navGuard';
+import { timeoutSignal } from '@/utils/fetchTimeout';
 
 export default defineRouter(() => {
   const createHistory = import.meta.env.QUASAR_SERVER
@@ -22,95 +24,90 @@ export default defineRouter(() => {
     history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE)
   });
 
-  let roleFetchInProgress: Promise<string | null> | null = null;
-  // Account status is checked on every navigation, not just at sign-in: a
-  // session minted before a suspension would otherwise keep working until it
-  // expired. Cached per navigation batch alongside the role lookup.
-  let lastStatus: string | null = null;
-  let lastEmailVerified: boolean | null = null;
-  let lastRegistered: boolean | null = null;
-  // True when the users row could not be READ, as opposed to read and found
-  // wanting. The two used to be the same `null`, and the guard treats an
-  // unreadable role as an invalid account — which signs the session out. On a
-  // cold native launch the first query regularly loses that race (the request
-  // goes out before the restored JWT is reliably attached, so RLS returns no
-  // row), and a transient failure must never be destructive.
-  let lastLookupFailed = false;
+  // How long the guard waits for the users row when it has to wait (a cold
+  // launch, or before redirecting). Shorter than the app-wide read deadline:
+  // a failed read only means falling back to the token's claim, which beats
+  // holding the first screen.
+  const GUARD_LOOKUP_TIMEOUT_MS = 6_000;
 
-  async function fetchUserRole(session: StoredSession): Promise<string | null> {
+  // Reads the users row. Never throws and never evicts on its own: a row that
+  // could not be READ, as opposed to read and found wanting, comes back with
+  // lookupFailed. On a cold native launch the first query regularly loses that
+  // race (the request goes out before the restored JWT is reliably attached, so
+  // RLS returns no row), and a transient failure must never be destructive.
+  async function lookupAccount(session: StoredSession): Promise<Account> {
     const authStore = useAuthStore();
-    // No cached short-circuit here. The old `if (cachedRole && lastStatus)`
-    // meant `status` was read ONCE per app launch, so a suspension mid-session
-    // did not bite until the app was restarted — the opposite of what the
-    // comment above promises. The in-flight promise below still collapses one
-    // navigation's redirect chain into a single query, which is what that
-    // short-circuit was actually earning.
-    if (roleFetchInProgress) return roleFetchInProgress;
 
     // The role the JWT itself carries. Local, so it still answers when the
     // network does not — which is the whole point on a cold launch.
-    const roleFromToken = () => {
+    const roleFromToken = (): GuardRole => {
       const metaRole = session.user.user_metadata?.role;
       if (typeof metaRole !== 'string' || !metaRole) return null;
       const role = metaRole.toLowerCase();
-      return role === 'landlord' ? 'manager' : role;
+      return (role === 'landlord' ? 'manager' : role) as GuardRole;
     };
 
-    roleFetchInProgress = (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('role, status, email_verified_at, registered_at')
-          .eq('id', session.user.id)
-          .maybeSingle();
+    // Unreadable, not invalid. Fall back to the token's own claim and leave
+    // status/verified/registered null, so every check that could evict this
+    // session sits out the navigation instead of firing on an answer nobody
+    // actually got. (A landlord/landlady last read as 'pending' who then lost
+    // the network was once signed out on the strength of a stale value.)
+    const unread = (): Account => {
+      const role = roleFromToken();
+      if (role) authStore.cachedRole = role;
+      return { role, status: null, emailVerified: null, registered: null, lookupFailed: true };
+    };
 
-        if (error || !data) {
-          // Unreadable, not invalid. Fall back to the token's own claim and
-          // leave status/verified/registered null, so every check that could
-          // evict this session sits out the navigation instead of firing on
-          // an answer nobody actually got.
-          //
-          // They have to be CLEARED to be null, which this did not do: they are
-          // module-level and kept whatever the last successful read left behind.
-          // A landlord/landlady last read as 'pending' who then lost the network was
-          // signed out by guard.ts on the next navigation, on the strength of a
-          // stale value and a read that never returned.
-          lastLookupFailed = true;
-          lastStatus = null;
-          lastEmailVerified = null;
-          lastRegistered = null;
-          const role = roleFromToken();
-          if (role) authStore.cachedRole = role;
-          return role;
-        }
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('role, status, email_verified_at, registered_at')
+        .eq('id', session.user.id)
+        .abortSignal(timeoutSignal(GUARD_LOOKUP_TIMEOUT_MS))
+        .maybeSingle();
+      if (error || !data) return unread();
 
-        lastLookupFailed = false;
-        lastStatus = typeof data.status === 'string' ? data.status : null;
-        // Screens gate "add accommodation" on this (isVerifiedLandlord), so an
-        // OSAS decision shows up on the next navigation. A failed read (above)
-        // leaves the store alone rather than flashing a verified account locked.
-        authStore.accountStatus = lastStatus;
-        lastEmailVerified = data.email_verified_at !== null;
-        lastRegistered = data.registered_at !== null;
+      const status = typeof data.status === 'string' ? data.status : null;
+      // Screens gate "add accommodation" on this (isVerifiedLandlord), so an
+      // OSAS decision shows up on the next navigation. A failed read (above)
+      // leaves the store alone rather than flashing a verified account locked.
+      authStore.accountStatus = status;
 
-        let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
-        if (role === 'landlord') role = 'manager';
-        if (!role) role = roleFromToken();
-        authStore.cachedRole = role;
-        return role;
-      } catch {
-        lastLookupFailed = true;
-        lastStatus = null;
-        lastEmailVerified = null;
-        lastRegistered = null;
-        return roleFromToken();
-      } finally {
-        roleFetchInProgress = null;
-      }
-    })();
-
-    return roleFetchInProgress;
+      let role = typeof data.role === 'string' ? data.role.toLowerCase() : null;
+      if (role === 'landlord') role = 'manager';
+      if (!role) role = roleFromToken();
+      authStore.cachedRole = role;
+      return {
+        role: role as GuardRole,
+        status,
+        emailVerified: data.email_verified_at !== null,
+        registered: data.registered_at !== null,
+        lookupFailed: false,
+      };
+    } catch {
+      return unread();
+    }
   }
+
+  const navGuard = createNavGuard<StoredSession>({
+    async session() {
+      const { data: { session } } = await supabase.auth.getSession();
+      // No live session, but storage still holds one: the token expired while
+      // the app was closed and the refresh could not be made yet. Carry on with
+      // the stored identity rather than treating this as a sign-out.
+      const effective = session ?? storedSession();
+      return effective ? { userId: effective.user.id, live: !!session, raw: effective } : null;
+    },
+    lookup: lookupAccount,
+    async signOut() {
+      await supabase.auth.signOut();
+      useAuthStore().clearCachedRole();
+    },
+    // Opening the app counts as being active ("Last active" for OSAS).
+    markActive,
+    currentPath: () => Router.currentRoute.value.path,
+    replace: (to) => Router.replace(to),
+  });
 
   Router.beforeEach(async (to) => {
     // Local demo mode: skip all auth guards so every screen can be previewed.
@@ -120,44 +117,12 @@ export default defineRouter(() => {
     if (import.meta.env.DEV && (import.meta.env.VITE_DEMO_MODE as unknown) === 'true') {
       return true;
     }
+    return (await navGuard.guard(to.path)).to;
+  });
 
-    const { data: { session } } = await supabase.auth.getSession();
-
-    // No live session, but storage still holds one: the token expired while the
-    // app was closed and the refresh could not be made yet. Carry on with the
-    // stored identity rather than treating this as a sign-out — the row lookup
-    // below will fail too, which sets lastLookupFailed and keeps every
-    // session-ending branch of the guard out of it.
-    const effectiveSession = session ?? storedSession();
-
-    // The role fetch also refreshes lastStatus / lastEmailVerified /
-    // lastRegistered / lastLookupFailed, so it has to run before they are read.
-    lastLookupFailed = false;
-    const role = effectiveSession ? await fetchUserRole(effectiveSession) : null;
-    if (!session && effectiveSession) lastLookupFailed = true;
-
-    const decision = resolveDestination({
-      path: to.path,
-      authenticated: !!effectiveSession,
-      role: role as GuardRole,
-      status: lastStatus,
-      emailVerified: lastEmailVerified,
-      registered: lastRegistered,
-      lookupFailed: lastLookupFailed,
-    });
-
-    if (decision.signOut) {
-      await supabase.auth.signOut();
-      useAuthStore().clearCachedRole();
-      lastStatus = null;
-      lastEmailVerified = null;
-      lastRegistered = null;
-    } else if (session) {
-      // Opening the app counts as being active ("Last active" for OSAS).
-      markActive();
-    }
-
-    return decision.to;
+  // Once the new screen is up, check the answer it was let through on.
+  Router.afterEach(() => {
+    void navGuard.revalidate();
   });
 
   return Router;

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.gen';
+import { createTimeoutFetch } from '@/utils/fetchTimeout';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -40,7 +41,11 @@ if (supabaseUrl && supabaseAnonKey) {
   // way. What PKCE *would* change is how Supabase delivers e-mail one-time
   // codes, which is the spine of registration and of the PIN reset — not worth
   // altering on the strength of a change nothing is asking for.
-  _supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey);
+  //
+  // Reads get a deadline (see fetchTimeout.ts); writes and storage do not.
+  _supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    global: { fetch: createTimeoutFetch() },
+  });
 } else {
   console.warn(
     'Supabase environment variables are not set. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local',
