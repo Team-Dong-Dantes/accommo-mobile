@@ -617,7 +617,7 @@ onMounted(async () => {
     // never writes it directly, and a Cloudinary upload's write in
     // uploadAvatar() can't cover a photo change made on Google's side.
     if (picture && row?.avatar_url !== picture) {
-      void supabase.from('users').update({ avatar_url: picture }).eq('id', user.id)
+      void supabase.from('users').update({ avatar_url: picture }).eq('id', user.id).then(() => undefined, () => undefined)
     }
 
     void loadNeedsCheckDots(user.id)

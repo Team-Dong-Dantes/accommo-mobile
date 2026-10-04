@@ -174,7 +174,7 @@ export const useMessagesStore = defineStore('messages', {
             const row = payload.new as { id: string; conversation_id: string; sender_id: string };
             if (row.sender_id === userId) return;
             if (!this.threads.some((t) => t.id === row.conversation_id)) return;
-            void supabase.from('messages').update({ status: 'delivered' }).eq('id', row.id).eq('status', 'sent');
+            void supabase.from('messages').update({ status: 'delivered' }).eq('id', row.id).eq('status', 'sent').then(() => undefined, () => undefined);
           },
         )
         .subscribe();

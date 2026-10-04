@@ -530,7 +530,7 @@ async function listen() {
           if (row.sender_id !== me.value) {
             void supabase.rpc('mark_conversation_read', {
               p_conversation: props.conversationId,
-            })
+            }).then(() => undefined, () => undefined)
             // Every step of the tenancy handshake posts a system message, so an
             // incoming one is the cue that the card above may have changed: the
             // form was issued, an application arrived, or it was decided. Without

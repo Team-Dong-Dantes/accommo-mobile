@@ -19,7 +19,8 @@ export async function startPush(role: Role, router: Router) {
 
   await PushNotifications.addListener('registration', ({ value }) => {
     token = value
-    void supabase.rpc('register_push_token', { p_token: value })
+    // .then() is what sends it: a supabase-js query is lazy, and `void` alone never runs it.
+    void supabase.rpc('register_push_token', { p_token: value }).then(() => undefined, () => undefined)
   })
   await PushNotifications.addListener('registrationError', (e) => {
     console.error('Push registration failed:', e.error)
