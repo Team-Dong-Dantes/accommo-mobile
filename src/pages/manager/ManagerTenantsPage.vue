@@ -58,46 +58,83 @@
               />
               <h2 class="sec-title">By tenant</h2>
             </template>
-            <button type="button" class="top-pay-btn" @click="pickingPayment = !pickingPayment">
-              <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:plus'" width="16" />
-              {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
-            </button>
-            <!-- Walk-in tenants. APK only: accepting them needs the camera. -->
-            <button v-if="isNative && !pickingPayment" type="button" class="top-pay-btn top-pay-btn--ghost" @click="addOpen = true">
-              <IconifyIcon icon="lucide:user-plus" width="16" />
-              Add a student
-            </button>
-            <p v-if="pickingPayment" class="picking-hint">Tap a tenant below to log their payment.</p>
+            <div class="top-actions">
+              <button type="button" class="top-pay-btn" :class="{ 'top-pay-btn--ghost': pickingPayment }" @click="pickingPayment = !pickingPayment">
+                <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:hand-coins'" width="16" />
+                {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
+              </button>
+              <!-- Walk-in tenants. Adding works anywhere; accepting them still
+                   needs the camera, so on the web the row says to scan in the app. -->
+              <button v-if="!pickingPayment" type="button" class="top-pay-btn top-pay-btn--ghost" @click="addOpen = true">
+                <IconifyIcon icon="lucide:user-plus" width="16" />
+                Add a student
+              </button>
+            </div>
+            <p v-if="pickingPayment" class="picking-hint">
+              <IconifyIcon icon="lucide:pointer" width="14" />
+              Tap a tenant below to log their payment.
+            </p>
 
             <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
               <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
                 <span class="acc-thumb" :class="`acc-thumb--${occupancyTone(accSummary.get(acc.id)?.occupancyPct ?? 0)}`">
                   <img v-if="acc.coverUrl" :src="acc.coverUrl" alt="" />
-                  <IconifyIcon v-else icon="lucide:building-2" width="17" />
+                  <IconifyIcon v-else icon="lucide:building-2" width="18" />
                 </span>
                 <span class="acc-head-body">
-                  <h2 class="acc-title">{{ acc.name }}</h2>
-                  <span class="acc-stats">
-                    <span class="acc-stat"><IconifyIcon icon="lucide:door-open" width="11" />{{ accSummary.get(acc.id)?.rooms ?? acc.rooms.length }}</span>
-                    <span class="acc-stat"><IconifyIcon icon="lucide:users" width="11" />{{ accSummary.get(acc.id)?.tenants ?? 0 }}</span>
+                  <span class="acc-title-row">
+                    <h2 class="acc-title">{{ acc.name }}</h2>
+                    <span v-if="accAlertCounts.get(acc.id)" class="acc-badge">{{ accAlertCounts.get(acc.id) }} to review</span>
+                  </span>
+                  <span class="acc-stats-row">
+                    <span class="acc-stats">{{ accStatsLine(acc) }}</span>
+                    <span v-if="accTenants.get(acc.id)?.length" class="acc-faces" aria-hidden="true">
+                      <span
+                        v-for="l in accTenants.get(acc.id)!.slice(0, 4)"
+                        :key="l.id"
+                        class="acc-face"
+                        :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []"
+                      >
+                        <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" @error="l.avatarUrl = null" />
+                        <template v-else>{{ initialsOf(l.studentName) }}</template>
+                      </span>
+                      <span v-if="accTenants.get(acc.id)!.length > 4" class="acc-face acc-face--more">
+                        +{{ accTenants.get(acc.id)!.length - 4 }}
+                      </span>
+                    </span>
+                  </span>
+                  <!-- How full the property is, readable before you expand it. -->
+                  <span class="acc-occ-track">
+                    <span
+                      class="acc-occ-fill"
+                      :style="{ width: (accSummary.get(acc.id)?.occupancyPct ?? 0) + '%' }"
+                    />
                   </span>
                 </span>
-                <span v-if="accAlertCounts.get(acc.id)" class="acc-badge">{{ accAlertCounts.get(acc.id) }}</span>
-                <IconifyIcon :icon="collapsedAccIds.has(acc.id) ? 'lucide:chevron-down' : 'lucide:chevron-up'" width="16" class="acc-chevron" />
+                <IconifyIcon icon="lucide:chevron-down" width="18" class="acc-chevron" :class="{ 'acc-chevron--open': !collapsedAccIds.has(acc.id) }" />
               </button>
-              <div class="acc-occ-track"><span class="acc-occ-fill" :style="{ width: (accSummary.get(acc.id)?.occupancyPct ?? 0) + '%' }" /></div>
               <q-slide-transition>
                 <div v-show="!collapsedAccIds.has(acc.id)">
                   <div v-for="room in acc.rooms" :key="room.id" class="room">
                     <div class="room-head">
                       <span class="room-name">{{ room.label }}</span>
+                      <!-- One dot per bed: filled, applied for, or open. -->
+                      <span v-if="room.capacity" class="room-beds" aria-hidden="true">
+                        <i v-for="l in room.leases" :key="l.id" class="bed" :class="l.status === 'pending' ? 'bed--pending' : 'bed--on'" />
+                        <i v-for="n in Math.max(0, room.capacity - room.leases.length)" :key="`open-${n}`" class="bed" />
+                      </span>
                       <span class="room-occ" :class="{ 'room-occ--full': roomOccupancy(room).full }">
-                        <IconifyIcon icon="lucide:bed" width="12" />
                         {{ roomOccupancy(room).label }}
                       </span>
                     </div>
                     <div v-if="room.leases.length" class="room-list">
-                      <div v-for="l in room.leases" :key="l.id" class="lease-row">
+                      <div
+                        v-for="l in room.leases"
+                        :key="l.id"
+                        class="lease-row"
+                        :class="{ 'lease-row--pending': l.status === 'pending', 'lease-row--leave': l.status === 'leave_requested' }"
+                      >
+                        <div class="lease-line">
                         <button
                           type="button"
                           class="lease-main"
@@ -113,10 +150,21 @@
                             <span class="lease-name">{{ l.studentName }}</span>
                             <span class="lease-sub">{{ leaseSubline(l) }}</span>
                           </span>
-                          <span class="lease-chip" :class="`lease-chip--${statusColor(LEASE_STATUS, l.status)}`">
+                          <!-- Active is the norm here; only the states that need a decision get a chip. -->
+                          <span v-if="l.status !== 'active'" class="lease-chip" :class="`lease-chip--${statusColor(LEASE_STATUS, l.status)}`">
                             {{ statusText(LEASE_STATUS, l.status) }}
                           </span>
                         </button>
+                        <button
+                          v-if="!pickingPayment && l.status !== 'pending'"
+                          type="button"
+                          class="lease-msg"
+                          aria-label="Message tenant"
+                          @click="router.push(`/manager/messages?to=${l.studentId}`)"
+                        >
+                          <IconifyIcon icon="lucide:message-circle" width="15" />
+                        </button>
+                        </div>
                         <div v-if="!pickingPayment && l.status === 'pending'" class="lease-actions">
                           <button
                             type="button"
@@ -149,15 +197,6 @@
                             Accept
                           </button>
                         </div>
-                        <button
-                          v-else-if="!pickingPayment"
-                          type="button"
-                          class="lease-msg"
-                          aria-label="Message tenant"
-                          @click="router.push(`/manager/messages?to=${l.studentId}`)"
-                        >
-                          <IconifyIcon icon="lucide:message-circle" width="15" />
-                        </button>
                       </div>
                     </div>
                     <p v-else class="room-none">No tenants</p>
@@ -169,24 +208,45 @@
 
           <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
             <h2 v-if="split" class="sec-title">Payments</h2>
+            <div class="pay-summary">
+              <div class="pay-stat">
+                <span class="pay-stat-value">{{ formatPeso(receivedThisMonth) }}</span>
+                <span class="pay-stat-label">Received in {{ thisMonthLabel }}</span>
+              </div>
+              <div class="pay-stat" :class="{ 'pay-stat--warn': paymentsNeedingVerification.length }">
+                <span class="pay-stat-value">{{ paymentsNeedingVerification.length }}</span>
+                <span class="pay-stat-label">To verify</span>
+              </div>
+            </div>
+
             <section v-if="paymentsNeedingVerification.length" class="pay-section">
               <h2 class="sec-title">Needs verification</h2>
-              <div class="group">
-                <div v-for="p in paymentsNeedingVerification" :key="p.id" class="pay-row">
-                  <button type="button" class="pay-row-tap" @click="openPaymentDetail(p)">
-                    <div class="pay-row-main">
-                      <span class="pay-row-month">{{ p.studentName }}</span>
+              <div class="group group--warn">
+                <button
+                  v-for="p in paymentsNeedingVerification"
+                  :key="p.id"
+                  type="button"
+                  class="pay-row"
+                  @click="openPaymentDetail(p)"
+                >
+                  <span class="lease-avatar" :class="avatarClass(p)">
+                    <img v-if="avatarOf(p)?.avatarUrl" :src="avatarOf(p)?.avatarUrl ?? ''" alt="" class="lease-avatar-img" />
+                    <template v-else>{{ initialsOf(p.studentName) }}</template>
+                  </span>
+                  <span class="pay-row-body">
+                    <span class="pay-row-main">
+                      <span class="pay-row-name">{{ p.studentName }}</span>
                       <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
-                    </div>
-                    <div class="pay-row-sub">
-                      <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ paymentTitle(p) }}</span>
+                    </span>
+                    <span class="pay-row-sub">
+                      <span class="pay-row-meta">{{ paySubline(p, true) }}</span>
                       <span class="pay-row-review">
-                        Tap to review
+                        Review
                         <IconifyIcon icon="lucide:chevron-right" width="13" />
                       </span>
-                    </div>
-                  </button>
-                </div>
+                    </span>
+                  </span>
+                </button>
               </div>
             </section>
 
@@ -195,24 +255,38 @@
                 <h2 class="sec-title">History</h2>
                 <button type="button" class="sec-link" @click="router.push('/manager/profile/history?tab=payments')">View all</button>
               </div>
-              <div v-if="recentPayments.length" class="group">
-                <button
-                  v-for="p in recentPayments"
-                  :key="p.id"
-                  type="button"
-                  class="pay-row pay-row--tap"
-                  @click="openPaymentDetail(p)"
-                >
-                  <div class="pay-row-main">
-                    <span class="pay-row-month">{{ p.studentName }}</span>
-                    <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
+              <template v-if="historyByMonth.length">
+                <div v-for="g in historyByMonth" :key="g.label" class="pay-month">
+                  <div class="pay-month-head">
+                    <span>{{ g.label }}</span>
+                    <span class="pay-month-total">{{ formatPeso(g.received) }}</span>
                   </div>
-                  <div class="pay-row-sub">
-                    <span class="pay-row-method">{{ p.roomLabel }} · {{ p.accommodationName }} · {{ paymentTitle(p) }} · {{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
-                    <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
+                  <div class="group">
+                    <button
+                      v-for="p in g.rows"
+                      :key="p.id"
+                      type="button"
+                      class="pay-row"
+                      @click="openPaymentDetail(p)"
+                    >
+                      <span class="lease-avatar" :class="avatarClass(p)">
+                        <img v-if="avatarOf(p)?.avatarUrl" :src="avatarOf(p)?.avatarUrl ?? ''" alt="" class="lease-avatar-img" />
+                        <template v-else>{{ initialsOf(p.studentName) }}</template>
+                      </span>
+                      <span class="pay-row-body">
+                        <span class="pay-row-main">
+                          <span class="pay-row-name">{{ p.studentName }}</span>
+                          <span class="pay-row-amount" :class="{ 'pay-row-amount--void': p.status === 'rejected' }">{{ formatPeso(p.amount) }}</span>
+                        </span>
+                        <span class="pay-row-sub">
+                          <span class="pay-row-meta">{{ paySubline(p, false) }}</span>
+                          <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
+                        </span>
+                      </span>
+                    </button>
                   </div>
-                </button>
-              </div>
+                </div>
+              </template>
               <EmptyState
                 v-else
                 variant="compact"
@@ -311,25 +385,46 @@
 
     <q-dialog v-model="paymentOpen" position="bottom">
       <q-card class="pay-sheet">
-        <h3 class="pay-title">Log a payment{{ paymentLease ? ` — ${paymentLease.studentName}` : '' }}</h3>
+        <div class="pay-head">
+          <span v-if="paymentLease" class="lease-avatar" :class="paymentLease.avatarColor ? [`bg-${paymentLease.avatarColor}`, 'text-white'] : []">
+            <img v-if="paymentLease.avatarUrl" :src="paymentLease.avatarUrl" alt="" class="lease-avatar-img" />
+            <template v-else>{{ initialsOf(paymentLease.studentName) }}</template>
+          </span>
+          <span class="pay-head-body">
+            <h3 class="pay-title">Log a payment</h3>
+            <span v-if="paymentLease" class="pay-head-sub">
+              {{ paymentLease.studentName }}{{ paymentLease.monthlyRent ? ` · ${formatPeso(paymentLease.monthlyRent)}/mo` : '' }}
+            </span>
+          </span>
+        </div>
         <label class="pay-field">
           <span class="pay-label">Month</span>
           <input v-model="paymentForm.month" type="month" class="pay-input" />
         </label>
         <label class="pay-field">
           <span class="pay-label">Amount</span>
-          <input v-model.number="paymentForm.amount" type="number" min="0" step="0.01" class="pay-input" />
+          <span class="pay-money">
+            <span class="pay-money-sign">₱</span>
+            <input v-model.number="paymentForm.amount" type="number" min="0" step="0.01" inputmode="decimal" class="pay-input pay-money-input" />
+          </span>
         </label>
-        <label class="pay-field">
+        <div class="pay-field">
           <span class="pay-label">Method</span>
-          <select v-model="paymentForm.method" class="pay-input app-select">
-            <option value="cash">Cash</option>
-            <option value="gcash">GCash</option>
-            <option value="maya">Maya</option>
-            <option value="bank">Bank transfer</option>
-            <option value="others">Other</option>
-          </select>
-        </label>
+          <div class="m-chips" role="radiogroup" aria-label="Payment method">
+            <button
+              v-for="m in PAY_METHODS"
+              :key="m"
+              type="button"
+              role="radio"
+              class="m-chip"
+              :class="{ 'm-chip--on': paymentForm.method === m }"
+              :aria-checked="paymentForm.method === m"
+              @click="paymentForm.method = m"
+            >
+              {{ PAYMENT_METHOD_LABEL[m] }}
+            </button>
+          </div>
+        </div>
         <q-btn
           unelevated
           rounded
@@ -345,16 +440,17 @@
 
     <q-dialog v-model="paymentDetailOpen" position="bottom">
       <q-card v-if="selectedPayment" class="pay-detail-sheet">
-        <h3 class="pay-detail-title">{{ paymentTitle(selectedPayment) }}</h3>
-        <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
-          {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
-        </span>
+        <div class="pay-detail-head">
+          <span class="pay-detail-head-body">
+            <h3 class="pay-detail-title">{{ paymentTitle(selectedPayment) }}</h3>
+            <span class="pay-detail-amount">{{ formatPeso(selectedPayment.amount) }}</span>
+          </span>
+          <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
+            {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
+          </span>
+        </div>
 
         <div class="group">
-          <div class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Amount</span>
-            <span class="pay-detail-rule-value">{{ formatPeso(selectedPayment.amount) }}</span>
-          </div>
           <div class="pay-detail-rule">
             <span class="pay-detail-rule-label">Method</span>
             <span class="pay-detail-rule-value">{{ PAYMENT_METHOD_LABEL[selectedPayment.method] || selectedPayment.method }}</span>
@@ -427,7 +523,7 @@
           </div>
         </template>
 
-        <q-btn unelevated rounded no-caps color="primary" class="pay-detail-close" label="Close" @click="paymentDetailOpen = false" />
+        <button type="button" class="pay-detail-close" @click="paymentDetailOpen = false">Close</button>
       </q-card>
     </q-dialog>
   </q-page>
@@ -441,8 +537,8 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatDate, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
-import { paymentTitle } from '@/utils/payments'
+import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { paymentTitle, manilaToday } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import { respondToApplication } from '@/utils/applications'
@@ -504,6 +600,8 @@ const FILTERS = [
   { key: 'active', label: 'Tenants' },
   { key: 'leave_requested', label: 'Leave requests' },
 ] as const
+
+const PAY_METHODS = ['cash', 'gcash', 'maya', 'bank', 'others'] as const
 
 const router = useRouter()
 const notify = useNotify()
@@ -575,6 +673,16 @@ const accSummary = computed(() => {
   return map
 })
 
+// Who lives in each property, for the stacked faces in its header — unfiltered
+// like the counts above, so searching never makes a property look emptier.
+const accTenants = computed(() => {
+  const map = new Map<string, Lease[]>()
+  for (const acc of accommodations.value) {
+    map.set(acc.id, acc.rooms.flatMap((room) => room.leases.filter(isPayable)))
+  }
+  return map
+})
+
 // Only accredited properties are actually live/rented out to students — one
 // still in review (or delisted) has no real tenants to manage here.
 const accreditedAccommodations = computed(() => accommodations.value.filter((acc) => acc.status === 'accredited'))
@@ -611,6 +719,49 @@ const visiblePayments = computed(() =>
 )
 const paymentsNeedingVerification = computed(() => visiblePayments.value.filter((p) => p.status === 'pending_verification'))
 const recentPayments = computed(() => visiblePayments.value.filter((p) => p.status !== 'pending_verification'))
+
+// The summary strip counts only payments marked paid — a record, never an
+// expectation, for the same sparseness reason as above.
+const thisMonth = computed(() => manilaToday().slice(0, 7))
+const thisMonthLabel = computed(() => formatMonth(`${thisMonth.value}-01`).split(' ')[0])
+const receivedThisMonth = computed(() =>
+  visiblePayments.value.filter((p) => p.status === 'paid' && p.month.startsWith(thisMonth.value)).reduce((sum, p) => sum + p.amount, 0),
+)
+
+// History under a header per month. Rows already arrive newest month first.
+const historyByMonth = computed(() => {
+  const groups: { label: string; received: number; rows: PaymentRow[] }[] = []
+  for (const p of recentPayments.value) {
+    const label = formatMonth(p.month)
+    let g = groups[groups.length - 1]
+    if (g?.label !== label) groups.push((g = { label, received: 0, rows: [] }))
+    g.rows.push(p)
+    if (p.status === 'paid') g.received += p.amount
+  }
+  return groups
+})
+
+// Payments carry no avatar of their own; borrow it from the tenant's lease.
+const leaseByStudent = computed(() => {
+  const map = new Map<string, Lease>()
+  for (const acc of accommodations.value) for (const room of acc.rooms) for (const l of room.leases) map.set(l.studentId, l)
+  return map
+})
+function avatarOf(p: PaymentRow) {
+  return leaseByStudent.value.get(p.studentId)
+}
+function avatarClass(p: PaymentRow) {
+  const color = avatarOf(p)?.avatarColor
+  return color ? [`bg-${color}`, 'text-white'] : []
+}
+
+// Under a month header the rent month is already said, so only a non-rent
+// tag (advance, deposit, a bill) is worth repeating on the row.
+function paySubline(p: PaymentRow, withMonth: boolean): string {
+  const title = paymentTitle(p)
+  const what = withMonth ? title : title !== formatMonth(p.month) ? p.description : ''
+  return [what, PAYMENT_METHOD_LABEL[p.method] || p.method, `${p.roomLabel} · ${p.accommodationName}`].filter(Boolean).join(' · ')
+}
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -799,7 +950,16 @@ function leaseSubline(l: Lease): string {
   if (l.status === 'pending' && l.addedByLandlord) return `Awaiting QR check · move-in ${formatDate(l.startDate)}`
   if (l.status === 'pending') return `Requested move-in ${formatDate(l.startDate)}`
   const rent = l.monthlyRent ? `${formatPeso(l.monthlyRent)}/mo` : 'Rent not set'
-  return l.status === 'leave_requested' ? `Leave requested · ${rent}` : `Since ${formatDate(l.startDate)} · ${rent}`
+  return `Since ${formatDate(l.startDate)} · ${rent}`
+}
+
+function accStatsLine(acc: Accommodation): string {
+  const sum = accSummary.value.get(acc.id)
+  const rooms = sum?.rooms ?? acc.rooms.length
+  const tenants = sum?.tenants ?? 0
+  const parts = [`${rooms} room${rooms === 1 ? '' : 's'}`, `${tenants} tenant${tenants === 1 ? '' : 's'}`]
+  if (sum?.occupancyPct) parts.push(`${Math.round(sum.occupancyPct)}% full`)
+  return parts.join(' · ')
 }
 
 function roomOccupancy(room: { leases: Lease[]; capacity: number | null }) {
@@ -1117,9 +1277,14 @@ async function rejectPayment(paymentId: string) {
 .pay-reject-confirm:disabled {
   opacity: 0.6;
 }
+.top-actions {
+  display: flex;
+  gap: 8px;
+}
 .top-pay-btn {
   display: flex;
-  min-height: 48px;
+  flex: 1;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -1138,7 +1303,11 @@ async function rejectPayment(paymentId: string) {
   color: var(--m-ink);
 }
 .picking-hint {
-  margin: -6px 2px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: -4px 2px 0;
   color: var(--m-muted);
   font-size: 12px;
   text-align: center;
@@ -1157,32 +1326,37 @@ async function rejectPayment(paymentId: string) {
 .acc-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 12px;
+  padding: 12px;
   border: 0;
-  background: var(--m-bg);
+  background: var(--m-surface);
   cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
-/* A real bar sitting below the header card, not folded into it — shows
-   how full the property is before you even expand its rooms. */
+/* Sits under the stats line inside the header, so the property's fullness
+   reads as part of its summary rather than a strip across the card. */
 .acc-occ-track {
-  height: 6px;
+  display: block;
+  height: 4px;
+  margin-top: 7px;
+  border-radius: 999px;
   background: var(--m-border);
   overflow: hidden;
 }
 .acc-occ-fill {
   display: block;
   height: 100%;
+  border-radius: 999px;
   background: var(--m-primary);
+  transition: width 0.3s ease;
 }
 .acc-thumb {
   display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
   place-items: center;
   overflow: hidden;
   border: 2px solid var(--m-border);
@@ -1208,44 +1382,86 @@ async function rejectPayment(paymentId: string) {
   flex-direction: column;
   gap: 0;
 }
+.acc-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
 .acc-title {
+  min-width: 0;
   margin: 0;
+  line-height: 1.3;
   overflow: hidden;
   color: var(--m-ink);
-  font-size: 13.5px;
+  font-family: var(--m-font-display);
+  font-size: 15px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.acc-stats {
+.acc-stats-row {
   display: flex;
+  min-width: 0;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  margin-top: 1px;
 }
-.acc-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
+.acc-stats {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--m-muted);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
+}
+.acc-faces {
+  display: flex;
+  flex: 0 0 auto;
+  padding-left: 6px;
+}
+.acc-face {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  margin-left: -6px;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid var(--m-surface);
+  border-radius: 50%;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 8.5px;
+  font-weight: 800;
+}
+.acc-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.acc-face--more {
+  background: var(--m-bg);
+  color: var(--m-muted);
 }
 .acc-badge {
-  display: grid;
-  min-width: 17px;
-  height: 17px;
   flex: 0 0 auto;
-  place-items: center;
-  padding: 0 4px;
+  padding: 2px 8px;
   border-radius: 999px;
-  background: var(--m-danger);
-  color: #fff;
-  font-size: 10px;
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+  font-size: 10.5px;
   font-weight: 800;
+  white-space: nowrap;
 }
 .acc-chevron {
   flex: 0 0 auto;
   color: var(--m-muted);
+  transition: transform 0.2s ease;
+}
+.acc-chevron--open {
+  transform: rotate(180deg);
 }
 .room {
   display: flex;
@@ -1255,20 +1471,45 @@ async function rejectPayment(paymentId: string) {
 .room-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
+  gap: 10px;
+  padding: 8px 12px;
   background: var(--m-bg);
 }
 .room-name {
   color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.room-beds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.bed {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--m-muted);
+  border-radius: 50%;
+  opacity: 0.55;
+}
+.bed--on {
+  border-color: var(--m-primary);
+  background: var(--m-primary);
+  opacity: 1;
+}
+.bed--pending {
+  border-color: var(--m-warning);
+  background: var(--m-warning-soft);
+  opacity: 1;
 }
 .room-occ {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 3px;
+  margin-left: auto;
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--m-success-soft);
@@ -1293,10 +1534,25 @@ async function rejectPayment(paymentId: string) {
 }
 .lease-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
   padding: 6px 8px 6px 12px;
   border-top: 1px solid var(--m-border);
+}
+.lease-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Rows waiting on a decision carry a warning edge, so they stand out in a
+   room of settled tenants without shouting. */
+.lease-row--pending,
+.lease-row--leave {
+  box-shadow: inset 3px 0 var(--m-warning);
+}
+.lease-row--pending {
+  padding-bottom: 10px;
+  background: var(--m-warning-soft);
 }
 .room-list > .lease-row:first-child {
   border-top: 0;
@@ -1330,8 +1586,14 @@ async function rejectPayment(paymentId: string) {
 }
 .lease-actions {
   display: flex;
-  flex: 0 0 auto;
-  gap: 6px;
+  gap: 8px;
+  /* Lines the buttons up under the name, past the avatar. */
+  padding-left: 46px;
+}
+.lease-actions .lease-act {
+  flex: 1;
+  min-height: 36px;
+  font-size: 12.5px;
 }
 .lease-act {
   flex: 0 0 auto;
@@ -1356,7 +1618,7 @@ async function rejectPayment(paymentId: string) {
   opacity: 0.6;
 }
 .lease-act--ghost {
-  background: var(--m-bg);
+  background: var(--m-surface);
   color: var(--m-text);
   border: 1px solid var(--m-border);
 }
@@ -1444,9 +1706,44 @@ async function rejectPayment(paymentId: string) {
 }
 .pay-title {
   margin: 0;
+  line-height: 1.3;
   color: var(--m-ink);
   font-family: var(--m-font-display);
   font-size: 17px;
+  font-weight: 700;
+}
+.pay-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.pay-head-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.pay-head-sub {
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.pay-money {
+  position: relative;
+  display: block;
+}
+.pay-money-sign {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  color: var(--m-muted);
+  font-weight: 700;
+  transform: translateY(-50%);
+}
+.pay-input.pay-money-input {
+  width: 100%;
+  padding-left: 28px;
+  font-size: 16px;
   font-weight: 700;
 }
 .pay-field {
@@ -1486,15 +1783,35 @@ async function rejectPayment(paymentId: string) {
   padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
   border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
 }
+.pay-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pay-detail-head-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
 .pay-detail-title {
   margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
+  line-height: 1.3;
+  color: var(--m-muted);
+  font-size: 13px;
   font-weight: 700;
 }
+.pay-detail-amount {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
 .pay-detail-chip {
-  align-self: flex-start;
+  flex: 0 0 auto;
+  margin-top: 2px;
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
@@ -1555,11 +1872,21 @@ async function rejectPayment(paymentId: string) {
 }
 .pay-detail-proof-img {
   width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  background: var(--m-bg);
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
 }
 .pay-detail-close {
   min-height: 46px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1621,7 +1948,7 @@ async function rejectPayment(paymentId: string) {
   /* The dock-clearance reserve lives here, not on .stack — this way the
      card's own background still stretches to the true bottom of the page
      instead of stopping short with a gap of plain page background. */
-  padding: 14px 14px 126px;
+  padding: 14px 0 126px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
@@ -1631,14 +1958,88 @@ async function rejectPayment(paymentId: string) {
   flex-direction: column;
   gap: 14px;
 }
+/* The panel has no side padding, so the lists run edge to edge as flat
+   sections; only the loose controls and headings keep an inset. */
+.panel :is(.acc, .group) {
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+/* Flat properties butt together, split by a page-coloured band instead of
+   .tab-panel's 14px gap, which read as an empty white row between borders. */
+.panel .acc + .acc {
+  margin-top: -14px;
+  border-top: 8px solid var(--m-bg);
+}
+.panel :is(.top-actions, .picking-hint, .pay-summary, .sec-title, .sec-head, .pay-month-head) {
+  margin-right: 12px;
+  margin-left: 12px;
+}
+.panel .sec-head .sec-title {
+  margin: 0;
+}
 
 .pay-section {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+.pay-summary {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 8px;
+}
+.pay-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+}
+.pay-stat-value {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pay-stat-label {
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.pay-stat--warn {
+  border-color: transparent;
+  background: var(--m-warning-soft);
+}
+.pay-stat--warn .pay-stat-value,
+.pay-stat--warn .pay-stat-label {
+  color: var(--m-warning);
+}
+.pay-month {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+}
+.pay-month + .pay-month {
+  margin-top: 6px;
+}
+.pay-month-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.pay-month-total {
+  font-variant-numeric: tabular-nums;
 }
 .sec-title {
   margin: 0;
+  line-height: 1.3;
   padding: 0 2px;
   color: var(--m-ink);
   font-size: 12.5px;
@@ -1676,56 +2077,66 @@ async function rejectPayment(paymentId: string) {
 }
 .pay-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 9px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.group > .pay-row:first-child {
-  border-top: 0;
-}
-/* .pay-row-tap: the tappable inner area in "Needs verification" rows, kept
-   separate from the row's own "Mark verified" button (a button can't nest
-   inside another button). .pay-row--tap: the "History" row is its own
-   button since it has no other action to keep separate from. */
-.pay-row-tap,
-.pay-row--tap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
   border: 0;
+  border-top: 1px solid var(--m-border);
   background: transparent;
-  padding: 0;
   cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
-.pay-row--tap {
-  padding: 9px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.group > .pay-row--tap:first-child {
+.group > .pay-row:first-child {
   border-top: 0;
+}
+.group--warn > .pay-row {
+  box-shadow: inset 3px 0 var(--m-warning);
+}
+.pay-row-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
 }
 .pay-row-main,
 .pay-row-sub {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
-.pay-row-month,
-.pay-row-amount {
+.pay-row-name {
+  min-width: 0;
+  overflow: hidden;
   color: var(--m-ink);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.pay-row-method {
+.pay-row-amount {
+  flex: 0 0 auto;
+  color: var(--m-ink);
+  font-size: 13.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.pay-row-amount--void {
+  color: var(--m-muted);
+  text-decoration: line-through;
+}
+.pay-row-meta {
+  min-width: 0;
+  overflow: hidden;
   color: var(--m-muted);
   font-size: 11.5px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pay-chip {
   flex: 0 0 auto;
@@ -1752,6 +2163,9 @@ async function rejectPayment(paymentId: string) {
   flex: 0 0 auto;
   align-items: center;
   gap: 1px;
+  padding: 2px 6px 2px 9px;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   font-size: 11px;
   font-weight: 700;

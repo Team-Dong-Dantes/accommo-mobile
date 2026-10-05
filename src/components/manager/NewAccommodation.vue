@@ -4,7 +4,7 @@
          and the current step's form the right. Elsewhere the .desk-pass
          wrappers are display: contents and the phone wizard is unchanged. -->
     <div v-if="isDesktop" class="desk-back-row">
-      <button type="button" class="desk-panel-back" aria-label="Back to my properties" @click="router.push('/manager/properties')">
+      <button type="button" class="desk-panel-back" aria-label="Back to properties" @click="router.push('/manager/properties')">
         <IconifyIcon icon="lucide:arrow-left" width="20" />
       </button>
       <span class="desk-panel-title">New accommodation</span>

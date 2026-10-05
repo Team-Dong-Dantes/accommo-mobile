@@ -1,6 +1,7 @@
 <template>
   <!-- A walk-in tenant: find the student by ID, pick the room, add. The stay
-       stays pending until the student's QR is scanned (Tenants → Scan to accept). -->
+       stays pending until the student's QR is scanned (Tenants → Scan to accept),
+       which only the app can do — adding itself works on the web too. -->
   <BottomSheet
     :model-value="modelValue"
     title="Add a student"
@@ -56,7 +57,9 @@
         <DateTimeField v-model="startDate" mode="date" :min="today" placeholder="Pick a move-in date" />
       </div>
 
-      <p class="add-note">They join this room once you scan their student QR in person.</p>
+      <p class="add-note">
+        They join this room once you scan their student QR in person{{ isNative ? '' : ' with the Accommo app' }}.
+      </p>
       <button type="button" class="add-btn" :disabled="!roomId || !startDate || adding" @click="add">
         {{ adding ? 'Adding…' : 'Add student' }}
       </button>
@@ -66,6 +69,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { Capacitor } from '@capacitor/core'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useQrStore, type ScannedStudent } from '@/stores/qr'
@@ -81,6 +85,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean]; added: [] }>()
 const qrStore = useQrStore()
 const notify = useNotify()
 
+const isNative = Capacitor.isNativePlatform()
 const today = new Date().toISOString().slice(0, 10)
 const studentNo = ref('')
 const student = ref<ScannedStudent | null>(null)

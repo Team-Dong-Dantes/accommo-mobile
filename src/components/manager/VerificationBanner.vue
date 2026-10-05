@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/auth'
 // what to do about it. Unverified accounts sign in straight after registering;
 // only adding accommodations, rooms and facilities waits for OSAS (the database
 // refuses those inserts until then). Shown on the screens where that matters:
-// the dashboard, My Properties and the profile.
+// the dashboard, Properties and the profile.
 
 const router = useRouter()
 const auth = useAuthStore()

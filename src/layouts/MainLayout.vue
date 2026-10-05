@@ -242,11 +242,11 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     notifications: '/manager/notifications',
     tabs: [
       { name: 'home', route: '/manager/dashboard', icon: 'lucide:house', label: 'Home' },
-      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'Tenants', match: ['/manager/tenant/'] },
+      { name: 'properties', route: '/manager/properties', icon: 'lucide:building-2', label: 'Properties' },
       // Centre of the bar, raised (BottomNav). A tab, not a Menu entry, so it
       // is no longer in quickActions or secondaryPages either: a tab screen has
       // the nav under it and no back arrow.
-      { name: 'properties', route: '/manager/properties', icon: 'lucide:building-2', label: 'My Properties', featured: true },
+      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'My Tenants', match: ['/manager/tenant/'], featured: true },
       { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages' },
       { name: 'menu', route: '/manager/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
@@ -267,9 +267,9 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: /^\/manager\/person\/[^/]+$/, title: 'Profile', back: '/manager/messages', backLabel: 'messages' },
       { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'tenants' },
-      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'my properties' },
-      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'my properties' },
+      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'my tenants' },
+      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'properties' },
+      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'properties' },
     ],
   },
   student: {
@@ -278,7 +278,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     tabs: [
       { name: 'home', route: '/student/home', icon: 'lucide:house', label: 'Home' },
       { name: 'discover', route: '/student/discover', icon: 'lucide:search', label: 'Discover' },
-      // Centre of the bar, raised — see the manager's 'properties' tab.
+      // Centre of the bar, raised — see the manager's 'tenants' tab.
       { name: 'stay', route: '/student/stay', icon: 'lucide:bed-double', label: 'My Stay', featured: true },
       { name: 'messages', route: '/student/messages', icon: 'lucide:message-circle', label: 'Messages' },
       { name: 'menu', route: '/student/profile', icon: 'lucide:menu', label: 'Menu' },

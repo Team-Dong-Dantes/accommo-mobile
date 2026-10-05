@@ -15,13 +15,13 @@
     </div>
 
     <div v-else class="stack">
-      <!-- Desktop keeps the plain app header, so the way back to My Properties
+      <!-- Desktop keeps the plain app header, so the way back to Properties
            sits just above the card's left half. -->
       <div v-if="split" class="desk-back-row">
-        <button type="button" class="desk-panel-back" aria-label="Back to my properties" @click="router.push('/manager/properties')">
+        <button type="button" class="desk-panel-back" aria-label="Back to properties" @click="router.push('/manager/properties')">
           <IconifyIcon icon="lucide:arrow-left" width="20" />
         </button>
-        <span class="desk-panel-title">My Properties</span>
+        <span class="desk-panel-title">Properties</span>
       </div>
       <!-- Desktop: the two halves of a card — the photo, overview and settings
            on the left, rooms on the right, each scrolling on its own. On a phone
