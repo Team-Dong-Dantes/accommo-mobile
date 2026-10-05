@@ -392,7 +392,7 @@ end $$;
 
 -- 6 Lease guards ------------------------------------------------------------------
 
-create function pg_temp.patch_fn(p_fn regproc, p_old text, p_new text)
+create or replace function pg_temp.patch_fn(p_fn regproc, p_old text, p_new text)
 returns void
 language plpgsql
 as $$
