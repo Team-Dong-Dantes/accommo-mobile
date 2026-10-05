@@ -39,10 +39,10 @@ values ('00000000-0000-0000-0000-00000000c001', '00000000-0000-0000-0000-0000000
 insert into public.rooms (id, accommodation_id, status, capacity, monthly_rent)
 values ('00000000-0000-0000-0000-00000000d001', '00000000-0000-0000-0000-00000000c001', 'available', 4, 2500);
 
-insert into public.leases (id, room_id, student_id, landlord_id, start_date, end_date, status)
+insert into public.leases (id, room_id, student_id, landlord_id, start_date, end_date, monthly_rent, status)
 values ('00000000-0000-0000-0000-00000000e001', '00000000-0000-0000-0000-00000000d001',
         '00000000-0000-0000-0000-00000000b001', '00000000-0000-0000-0000-00000000a001',
-        date_trunc('month', now())::date, (date_trunc('month', now()) + interval '10 months')::date, 'active');
+        date_trunc('month', now())::date, (date_trunc('month', now()) + interval '10 months')::date, 2500, 'active');
 
 insert into public.payments (lease_id, month, amount, method)
 values ('00000000-0000-0000-0000-00000000e001', date_trunc('month', now())::date, 2500, 'gcash');

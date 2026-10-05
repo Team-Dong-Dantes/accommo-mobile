@@ -1303,6 +1303,7 @@ export type Database = {
         Row: {
           added_by_landlord: boolean
           advance_paid: number | null
+          allow_partial: boolean
           decision_reason: string | null
           deposit_paid: number | null
           electric_billing:
@@ -1315,6 +1316,7 @@ export type Database = {
           landlord_id: string
           leave_requested_at: string | null
           monthly_rent: number | null
+          partial_min_pct: number
           room_id: string
           start_date: string
           status: Database["public"]["Enums"]["lease_status"]
@@ -1327,6 +1329,7 @@ export type Database = {
         Insert: {
           added_by_landlord?: boolean
           advance_paid?: number | null
+          allow_partial?: boolean
           decision_reason?: string | null
           deposit_paid?: number | null
           electric_billing?:
@@ -1339,6 +1342,7 @@ export type Database = {
           landlord_id: string
           leave_requested_at?: string | null
           monthly_rent?: number | null
+          partial_min_pct?: number
           room_id: string
           start_date: string
           status?: Database["public"]["Enums"]["lease_status"]
@@ -1351,6 +1355,7 @@ export type Database = {
         Update: {
           added_by_landlord?: boolean
           advance_paid?: number | null
+          allow_partial?: boolean
           decision_reason?: string | null
           deposit_paid?: number | null
           electric_billing?:
@@ -1363,6 +1368,7 @@ export type Database = {
           landlord_id?: string
           leave_requested_at?: string | null
           monthly_rent?: number | null
+          partial_min_pct?: number
           room_id?: string
           start_date?: string
           status?: Database["public"]["Enums"]["lease_status"]
@@ -1520,13 +1526,17 @@ export type Database = {
         Row: {
           amount: number
           bill_id: string | null
+          created_at: string
           description: string | null
           id: string
+          kind: string
           lease_id: string
           method: Database["public"]["Enums"]["payment_method"]
           month: string
           paid_at: string | null
+          proof_hash: string | null
           proof_url: string | null
+          receipt_no: string | null
           rejection_reason: string | null
           status: Database["public"]["Enums"]["payment_status"]
           txn_reference: string | null
@@ -1535,13 +1545,17 @@ export type Database = {
         Insert: {
           amount: number
           bill_id?: string | null
+          created_at?: string
           description?: string | null
           id?: string
+          kind?: string
           lease_id: string
           method: Database["public"]["Enums"]["payment_method"]
           month: string
           paid_at?: string | null
+          proof_hash?: string | null
           proof_url?: string | null
+          receipt_no?: string | null
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           txn_reference?: string | null
@@ -1550,13 +1564,17 @@ export type Database = {
         Update: {
           amount?: number
           bill_id?: string | null
+          created_at?: string
           description?: string | null
           id?: string
+          kind?: string
           lease_id?: string
           method?: Database["public"]["Enums"]["payment_method"]
           month?: string
           paid_at?: string | null
+          proof_hash?: string | null
           proof_url?: string | null
+          receipt_no?: string | null
           rejection_reason?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           txn_reference?: string | null
@@ -2950,6 +2968,18 @@ export type Database = {
       is_accredited_accommodation: { Args: { p_id: string }; Returns: boolean }
       is_admin: { Args: { p_uid: string }; Returns: boolean }
       is_verified_landlord: { Args: { uid: string }; Returns: boolean }
+      lease_ledger: {
+        Args: { p_lease: string }
+        Returns: {
+          balance: number
+          confirmed: number
+          due: number
+          kind: string
+          month: string
+          pending: number
+          state: string
+        }[]
+      }
       lift_expired_suspensions: { Args: never; Returns: number }
       mark_conversation_read: {
         Args: { p_conversation: string }
@@ -3013,6 +3043,25 @@ export type Database = {
           p_message?: string
         }
         Returns: string
+      }
+      payment_covered: {
+        Args: {
+          p_bill: string
+          p_except: string
+          p_kind: string
+          p_lease: string
+          p_month: string
+        }
+        Returns: Record<string, unknown>
+      }
+      payment_due: {
+        Args: {
+          p_bill?: string
+          p_kind: string
+          p_lease: string
+          p_month: string
+        }
+        Returns: number
       }
       permit_label: { Args: { p_type: string }; Returns: string }
       permit_replacement_open: {

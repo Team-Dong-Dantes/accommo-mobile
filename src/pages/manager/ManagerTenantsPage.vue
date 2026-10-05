@@ -397,15 +397,38 @@
             </span>
           </span>
         </div>
-        <label class="pay-field">
+        <!-- From the ledger: what this payment is for, and what's left of it. -->
+        <div v-if="payItems.length > 1" class="pay-field">
+          <span class="pay-label">For</span>
+          <div class="m-chips" role="radiogroup" aria-label="What this payment is for">
+            <button
+              v-for="it in payItems"
+              :key="it.kind"
+              type="button"
+              role="radio"
+              class="m-chip"
+              :class="{ 'm-chip--on': paymentForm.kind === it.kind }"
+              :aria-checked="paymentForm.kind === it.kind"
+              @click="pickItem(it.kind)"
+            >
+              {{ it.label }}
+            </button>
+          </div>
+        </div>
+        <div v-if="paymentForm.kind === 'rent'" class="pay-field">
           <span class="pay-label">Month</span>
-          <input v-model="paymentForm.month" type="month" class="pay-input" />
-        </label>
+          <span class="pay-input pay-locked">{{ paymentForm.month ? formatMonth(`${paymentForm.month}-01`) : '—' }}</span>
+          <span class="pay-hint">Months are recorded in order — this is the next one owed.</span>
+        </div>
+        <p v-if="ledgerLoaded && !payItems.length" class="pay-hint">Nothing is owed on this stay right now.</p>
         <label class="pay-field">
           <span class="pay-label">Amount</span>
           <span class="pay-money">
             <span class="pay-money-sign">₱</span>
-            <input v-model.number="paymentForm.amount" type="number" min="0" step="0.01" inputmode="decimal" class="pay-input pay-money-input" />
+            <input v-model.number="paymentForm.amount" type="number" min="0" :max="paymentForm.left" step="0.01" inputmode="decimal" class="pay-input pay-money-input" />
+          </span>
+          <span v-if="paymentForm.left" class="pay-hint">
+            {{ formatPesoExact(paymentForm.left) }} left{{ paymentForm.left + 0.009 < paymentForm.due ? ` of ${formatPesoExact(paymentForm.due)}` : '' }} — you can record part of it.
           </span>
         </label>
         <div class="pay-field">
@@ -537,8 +560,8 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
-import { paymentTitle, manilaToday } from '@/utils/payments'
+import { formatDate, formatMonth, formatPeso, formatPesoExact, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { ADVANCE_TAG, DEPOSIT_TAG, nextLedgerRent, paymentTitle, manilaToday, toLedger, type LedgerRow } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import { respondToApplication } from '@/utils/applications'
@@ -1045,17 +1068,44 @@ const paymentOpen = ref(false)
 const paymentLease = ref<Lease | null>(null)
 const logging = ref(false)
 const paymentForm = reactive({
+  kind: 'rent' as 'rent' | 'advance' | 'deposit',
   month: new Date().toISOString().slice(0, 7),
   amount: 0,
   method: 'cash' as 'cash' | 'gcash' | 'maya' | 'bank' | 'others',
+  due: 0,
+  left: 0,
 })
 
-function openLogPayment(l: Lease) {
+// The stay's ledger (lease_ledger): which items still have something owed. The
+// database enforces the same rules (in order, never more than owed).
+const payLedger = ref<LedgerRow[]>([])
+const ledgerLoaded = ref(false)
+const ITEM_LABEL = { rent: 'Rent', advance: 'Advance', deposit: 'Deposit' } as const
+const payItems = computed(() => {
+  const rent = nextLedgerRent(payLedger.value)
+  const rows = [rent, ...payLedger.value.filter((r) => r.kind !== 'rent' && r.balance > 0.009)].filter((r): r is LedgerRow => !!r)
+  return rows.map((r) => ({ kind: r.kind, label: ITEM_LABEL[r.kind], row: r }))
+})
+function pickItem(kind: 'rent' | 'advance' | 'deposit') {
+  const it = payItems.value.find((i) => i.kind === kind)
+  paymentForm.kind = kind
+  paymentForm.month = it?.row.month?.slice(0, 7) ?? new Date().toISOString().slice(0, 7)
+  paymentForm.due = it?.row.due ?? 0
+  paymentForm.left = it?.row.balance ?? 0
+  paymentForm.amount = paymentForm.left
+}
+
+async function openLogPayment(l: Lease) {
   paymentLease.value = l
-  paymentForm.month = new Date().toISOString().slice(0, 7)
-  paymentForm.amount = l.monthlyRent
   paymentForm.method = 'cash'
+  ledgerLoaded.value = false
+  payLedger.value = []
+  pickItem('rent')
   paymentOpen.value = true
+  const { data } = await supabase.rpc('lease_ledger', { p_lease: l.id })
+  payLedger.value = toLedger(data)
+  ledgerLoaded.value = true
+  pickItem(payItems.value[0]?.kind ?? 'rent')
 }
 
 async function submitPayment() {
@@ -1066,13 +1116,18 @@ async function submitPayment() {
     notify.error('Enter an amount greater than zero.')
     return
   }
+  if (ledgerLoaded.value && paymentForm.amount > paymentForm.left + 0.009) {
+    notify.error(`That is more than is owed — ${formatPesoExact(paymentForm.left)} is left.`)
+    return
+  }
   logging.value = true
   try {
     const { error: insertError } = await supabase.from('payments').insert({
       lease_id: paymentLease.value.id,
       month: `${paymentForm.month}-01`,
-      amount: paymentForm.amount,
+      amount: Math.round(paymentForm.amount * 100) / 100,
       method: paymentForm.method,
+      description: paymentForm.kind === 'advance' ? ADVANCE_TAG : paymentForm.kind === 'deposit' ? DEPOSIT_TAG : null,
       status: 'paid',
       paid_at: new Date().toISOString(),
       verified_by: myId.value,
@@ -1757,6 +1812,17 @@ async function rejectPayment(paymentId: string) {
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+.pay-hint {
+  color: var(--m-muted);
+  font-size: 11.5px;
+}
+.pay-locked {
+  display: flex;
+  align-items: center;
+  background: var(--m-surface-2, var(--m-surface));
+  color: var(--m-ink);
+  font-weight: 600;
 }
 .pay-input {
   min-height: 44px;

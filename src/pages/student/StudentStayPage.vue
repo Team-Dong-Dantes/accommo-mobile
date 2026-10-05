@@ -199,14 +199,14 @@
                     <button v-if="canPayAdvance" type="button" class="pay-due" @click="openSubmit('advance')">
                       <span class="pay-due-body">
                         <span class="pay-due-label">Advance</span>
-                        <span class="pay-due-note">Not yet paid</span>
+                        <span class="pay-due-note">{{ itemNote('advance') }}</span>
                       </span>
                       <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
                     </button>
                     <button v-if="canPayDeposit" type="button" class="pay-due" @click="openSubmit('deposit')">
                       <span class="pay-due-body">
                         <span class="pay-due-label">Deposit</span>
-                        <span class="pay-due-note">Not yet paid</span>
+                        <span class="pay-due-note">{{ itemNote('deposit') }}</span>
                       </span>
                       <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
                     </button>
@@ -283,7 +283,9 @@
             <IconifyIcon icon="lucide:calendar" width="15" />
             {{ formatMonth(`${nextRentMonth}-01`) }}
           </div>
-          <span class="submit-hint">Months are paid in order — this is the next one due.</span>
+          <span class="submit-hint">
+            Months are paid in order — this is the next one due.<template v-if="form.left + 0.009 < form.due"> {{ formatPesoExact(form.due - form.left) }} of {{ formatPesoExact(form.due) }} is already paid.</template>
+          </span>
         </div>
 
         <div v-else-if="form.category === 'bill'" class="submit-field">
@@ -300,11 +302,19 @@
           <input
             v-model.number="form.amount"
             type="number"
-            min="0"
+            :min="form.min"
+            :max="form.left"
             step="0.01"
             class="submit-input"
-            :readonly="form.category === 'bill'"
+            :readonly="form.category === 'bill' || form.min >= form.left"
           />
+          <!-- Partial payments, when the landlord/landlady allows them. -->
+          <span v-if="form.min < form.left" class="amount-chips">
+            <button type="button" class="amount-chip" :class="{ 'is-on': form.amount === form.left }" @click="form.amount = form.left">Full · {{ formatPesoExact(form.left) }}</button>
+            <button type="button" class="amount-chip" :class="{ 'is-on': form.amount === form.min }" @click="form.amount = form.min">Minimum · {{ formatPesoExact(form.min) }}</button>
+          </span>
+          <span v-if="form.min < form.left" class="submit-hint">Partial payments are allowed: at least {{ formatPesoExact(form.min) }}, up to {{ formatPesoExact(form.left) }}.</span>
+          <span v-else-if="form.category !== 'bill'" class="submit-hint">Pay the full amount — {{ formatPesoExact(form.left) }}.</span>
           <span v-if="form.category === 'rent' && rentFees.length" class="submit-hint">
             Rent {{ formatPeso(lease?.monthlyRent ?? 0) }}<template v-for="f in rentFees" :key="f.key"> + {{ f.label.toLowerCase() }} {{ formatPeso(f.amount) }}</template>
           </span>
@@ -321,7 +331,8 @@
         </label>
         <label class="submit-field">
           <span class="submit-label">Reference number{{ isCash ? ' (optional)' : '' }}</span>
-          <input v-model="form.reference" type="text" class="submit-input" placeholder="e.g. GCash ref no." />
+          <input v-model="form.reference" type="text" class="submit-input" :inputmode="form.method === 'gcash' ? 'numeric' : 'text'" :placeholder="form.method === 'gcash' ? '13-digit GCash reference' : 'Reference number'" />
+          <span v-if="referenceProblem(form.method, form.reference)" class="submit-hint submit-hint--warn">{{ referenceProblem(form.method, form.reference) }}</span>
         </label>
         <label class="submit-field">
           <span class="submit-label">Proof of payment{{ isCash ? ' (optional)' : '' }}</span>
@@ -438,6 +449,13 @@ import {
   manilaToday,
   paymentTitle,
   nextRentMonth as computeNextRentMonth,
+  fileFingerprint,
+  minPayment,
+  nextLedgerRent,
+  normalizeReference,
+  referenceProblem,
+  toLedger,
+  type LedgerRow,
 } from '@/utils/payments'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -467,6 +485,9 @@ interface Lease {
   status: 'active' | 'pending' | 'leave_requested'
   monthlyRent: number
   advancePaid: number
+  /** The landlord/landlady's partial-payment terms for this stay. */
+  allowPartial: boolean
+  partialMinPct: number
   depositPaid: number
   startDate: string
   endDate: string
@@ -560,15 +581,45 @@ const form = reactive({
   method: 'gcash' as 'gcash' | 'maya' | 'bank' | 'cash' | 'others',
   reference: '',
   proofUrl: '',
+  /** The receipt's SHA-256, so one image can't pay twice. */
+  proofHash: '' as string,
+  /** Owed for this item, what's left of it, and the least the server takes. */
+  due: 0,
+  left: 0,
+  min: 0,
 })
 
-const canPayAdvance = computed(() => Boolean(lease.value && !lease.value.advancePaid))
-const canPayDeposit = computed(() => Boolean(lease.value && !lease.value.depositPaid))
+// What is owed, from the database (lease_ledger). It refuses anything that
+// breaks its rules; the form only says so first. Empty until loaded, when the
+// older payment-list rules below stand in.
+const ledger = ref<LedgerRow[]>([])
+async function loadLedger() {
+  if (!lease.value || lease.value.status === 'pending') { ledger.value = []; return }
+  const { data } = await supabase.rpc('lease_ledger', { p_lease: lease.value.id })
+  ledger.value = toLedger(data)
+}
+const ledgerItem = (kind: 'advance' | 'deposit') => ledger.value.find((r) => r.kind === kind)
+const canPayItem = (kind: 'advance' | 'deposit', fallback: boolean) => {
+  const row = ledgerItem(kind)
+  return ledger.value.length ? Boolean(row && row.balance > 0.009) : fallback
+}
+/** "₱2,500 · not yet paid", "₱1,250 of ₱2,500 left", or "Awaiting confirmation". */
+function itemNote(kind: 'advance' | 'deposit'): string {
+  const row = ledgerItem(kind)
+  if (!row) return 'Not yet paid'
+  if (row.pending > 0) return 'Awaiting confirmation'
+  return row.balance + 0.009 < row.due ? `${formatPesoExact(row.balance)} of ${formatPesoExact(row.due)} left` : `${formatPesoExact(row.due)} · not yet paid`
+}
+const canPayAdvance = computed(() => canPayItem('advance', Boolean(lease.value && !lease.value.advancePaid)))
+const canPayDeposit = computed(() => canPayItem('deposit', Boolean(lease.value && !lease.value.depositPaid)))
 
-// See computeNextRentMonth() in utils/payments.ts for why this is a single
-// value rather than a month picker.
+// The rent month to pay: the earliest with anything left (a partly paid month
+// stays current until it is covered). Locked, not picked — see utils/payments.ts.
+const rentRow = computed(() => nextLedgerRent(ledger.value))
 const nextRentMonth = computed(() =>
-  lease.value ? computeNextRentMonth(lease.value.startDate, payments.value) : '',
+  ledger.value.length
+    ? (rentRow.value?.month ?? '').slice(0, 7)
+    : lease.value ? computeNextRentMonth(lease.value.startDate, payments.value) : '',
 )
 
 const submitTitle = computed(() => {
@@ -615,7 +666,7 @@ async function load(silent = false) {
       supabase
         .from('leases')
         .select(
-          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
+          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, allow_partial, partial_min_pct, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
         )
         .eq('student_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested'])
@@ -744,6 +795,8 @@ async function load(silent = false) {
       monthlyRent: Number(leaseRow.monthly_rent ?? 0),
       advancePaid: Number(leaseRow.advance_paid ?? 0),
       depositPaid: Number(leaseRow.deposit_paid ?? 0),
+      allowPartial: Boolean(leaseRow.allow_partial),
+      partialMinPct: Number(leaseRow.partial_min_pct ?? 50),
       startDate: leaseRow.start_date,
       endDate: leaseRow.end_date,
       roomType: roomTypeLabel(room?.custom_room_type || room?.room_type),
@@ -756,6 +809,7 @@ async function load(silent = false) {
       rules,
       roommateCount: roommateResult.count,
     }
+    await loadLedger()
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -790,14 +844,23 @@ async function requestLeave() {
 }
 
 function openSubmit(category: typeof form.category, bill: Bill | null = null) {
+  // From the ledger: what's left of this item and the least the server takes.
+  const row = category === 'rent' ? rentRow.value : category === 'bill' ? null : ledgerItem(category) ?? null
+  if (row && row.pending > 0) {
+    notify.info('Your last payment for this is still waiting for your landlord/landlady to confirm.')
+    return
+  }
+  const fallback = category === 'rent'
+    ? (lease.value?.monthlyRent ?? 0) + rentFees.value.reduce((sum, f) => sum + f.amount, 0)
+    : (lease.value?.monthlyRent ?? 0)
   form.category = category
   form.bill = bill
   form.month = bill ? bill.month : nextRentMonth.value
-  form.amount = bill
-    ? bill.amount
-    : category === 'rent'
-      ? (lease.value?.monthlyRent ?? 0) + rentFees.value.reduce((sum, f) => sum + f.amount, 0)
-      : (lease.value?.monthlyRent ?? 0)
+  form.due = bill ? bill.amount : row?.due ?? fallback
+  form.left = bill ? bill.amount : row?.balance ?? fallback
+  form.min = bill || !row ? form.left : minPayment(row, Boolean(lease.value?.allowPartial), lease.value?.partialMinPct ?? 50)
+  form.amount = form.left
+  form.proofHash = ''
   form.method = 'gcash'
   form.reference = ''
   form.proofUrl = ''
@@ -813,7 +876,9 @@ async function onProofSelected(event: Event) {
   try {
     // A receipt is private: signed upload, so form.proofUrl is a cld: ref and the
     // preview comes from the file itself.
-    form.proofUrl = await uploadSecureDocument(file)
+    const [url, hash] = await Promise.all([uploadSecureDocument(file), fileFingerprint(file)])
+    form.proofUrl = url
+    form.proofHash = hash ?? ''
     proofPreview.value = URL.createObjectURL(file)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload the proof image.'))
@@ -846,8 +911,28 @@ async function submitPayment() {
     notify.error('That bill is already paid or awaiting verification.')
     return
   }
+  // The database checks each of these too; saying so here saves a round trip.
+  if (!(form.amount > 0)) {
+    notify.error('Enter an amount.')
+    return
+  }
+  if (form.amount > form.left + 0.009) {
+    notify.error(`That is more than is owed — ${formatPesoExact(form.left)} is left to pay.`)
+    return
+  }
+  if (form.amount + 0.009 < form.min) {
+    notify.error(form.min >= form.left
+      ? `Pay the full ${formatPesoExact(form.left)} — your landlord/landlady hasn't turned on partial payments.`
+      : `A partial payment must be at least ${formatPesoExact(form.min)}.`)
+    return
+  }
   if (!isCash.value && !form.reference.trim()) {
     notify.error('Enter a reference number, or switch the method to Cash.')
+    return
+  }
+  const refProblem = referenceProblem(form.method, form.reference)
+  if (refProblem) {
+    notify.error(refProblem)
     return
   }
   if (!isCash.value && !form.proofUrl) {
@@ -860,7 +945,7 @@ async function submitPayment() {
     : form.category === 'advance' ? ADVANCE_TAG : form.category === 'deposit' ? DEPOSIT_TAG : null
   // A bill is paid against its own month and amount — the database checks both.
   const month = bill ? bill.month : form.category === 'rent' ? `${form.month}-01` : `${new Date().toISOString().slice(0, 7)}-01`
-  const amount = bill ? bill.amount : form.amount
+  const amount = bill ? bill.amount : Math.round(form.amount * 100) / 100
 
   submitting.value = true
   try {
@@ -874,8 +959,9 @@ async function submitPayment() {
         status: 'pending_verification',
         description,
         bill_id: bill?.id ?? null,
-        txn_reference: form.reference.trim() || null,
+        txn_reference: normalizeReference(form.reference) || null,
         proof_url: form.proofUrl || null,
+        proof_hash: form.proofHash || null,
       })
       .select('id, month, amount, status, method')
       .single()
@@ -901,6 +987,7 @@ async function submitPayment() {
       ...payments.value,
     ]
     if (bill) bills.value = bills.value.map((b) => (b.id === bill.id ? { ...b, settled: true } : b))
+    void loadLedger()
 
     submitOpen.value = false
     notify.success('Payment submitted for verification.')
@@ -1663,6 +1750,29 @@ function onPull(done: () => void) {
 .submit-hint {
   color: var(--m-muted);
   font-size: 11.5px;
+}
+.submit-hint--warn {
+  color: var(--m-danger, #c2410c);
+}
+.amount-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.amount-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.amount-chip.is-on {
+  border-color: var(--m-primary);
+  background: var(--m-primary-soft, rgba(18, 194, 153, 0.12));
+  color: var(--m-primary);
 }
 .submit-hint--ok {
   color: var(--m-success);

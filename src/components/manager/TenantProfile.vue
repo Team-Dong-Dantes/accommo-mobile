@@ -186,6 +186,28 @@
                 <span class="rule-label">Monthly rent</span>
                 <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
               </div>
+              <div v-if="ledger.length" class="rule">
+                <span class="rule-label">Balance</span>
+                <span class="rule-value" :class="{ 'rule-value--warn': owed.overdue }">
+                  {{ owed.total > 0.009 ? formatPesoExact(owed.total) : 'Nothing owed' }}<template v-if="owed.overdue"> · {{ owed.overdue }} overdue</template>
+                </span>
+              </div>
+              <div v-if="lease.status === 'active' || lease.status === 'leave_requested'" class="rule">
+                <span class="rule-label">Partial payments</span>
+                <span class="rule-value rule-value--controls">
+                  <select
+                    v-if="lease.allowPartial"
+                    class="pct-select app-select"
+                    :value="lease.partialMinPct"
+                    :disabled="savingPartial"
+                    aria-label="Least a tenant pays at a time"
+                    @change="setPartial(true, Number(($event.target as HTMLSelectElement).value))"
+                  >
+                    <option v-for="p in [25, 50, 75]" :key="p" :value="p">at least {{ p }}%</option>
+                  </select>
+                  <q-toggle :model-value="lease.allowPartial" :disable="savingPartial" color="primary" dense aria-label="Allow partial payments" @update:model-value="(v) => setPartial(v)" />
+                </span>
+              </div>
             </div>
 
             <template v-if="lease.email || lease.phone">
@@ -422,7 +444,7 @@ import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 import StarRating from '@/components/shared/StarRating.vue'
 import PostBillDialog from '@/components/manager/PostBillDialog.vue'
-import { BILL_TAG, isBillSettled, manilaToday, paymentTitle } from '@/utils/payments'
+import { BILL_TAG, isBillSettled, manilaToday, paymentTitle, toLedger, type LedgerRow } from '@/utils/payments'
 import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -463,7 +485,34 @@ const lease = reactive({
   endDate: '',
   monthlyRent: 0,
   addedByLandlord: false,
+  allowPartial: false,
+  partialMinPct: 50,
 })
+
+// What is owed on this stay (lease_ledger): the balance line and the partial-
+// payment terms below read it; the database enforces both.
+const ledger = ref<LedgerRow[]>([])
+async function loadLedger() {
+  if (!leaseId.value || lease.status === 'pending') { ledger.value = []; return }
+  const { data } = await supabase.rpc('lease_ledger', { p_lease: leaseId.value })
+  ledger.value = toLedger(data)
+}
+const owed = computed(() => {
+  const rows = ledger.value.filter((r) => r.balance > 0.009 && (r.kind !== 'rent' || r.state === 'overdue' || r.month === `${manilaToday().slice(0, 7)}-01`))
+  return { total: rows.reduce((s, r) => s + r.balance, 0), overdue: rows.filter((r) => r.state === 'overdue').length }
+})
+
+const savingPartial = ref(false)
+async function setPartial(allow: boolean, pct = lease.partialMinPct) {
+  if (savingPartial.value) return
+  savingPartial.value = true
+  const { error: e } = await supabase.from('leases').update({ allow_partial: allow, partial_min_pct: pct }).eq('id', leaseId.value)
+  savingPartial.value = false
+  if (e) return notify.error(errorMessage(e, 'Could not change partial payments.'))
+  lease.allowPartial = allow
+  lease.partialMinPct = pct
+  notify.success(allow ? `Partial payments on — at least ${pct}% at a time.` : 'Partial payments off.')
+}
 const isNative = Capacitor.isNativePlatform()
 const coverUrl = ref('')
 const payments = ref<
@@ -508,7 +557,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,monthly_rent,allow_partial,partial_min_pct,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -557,6 +606,9 @@ async function load(silent = false) {
     lease.startDate = data.start_date
     lease.endDate = data.end_date
     lease.monthlyRent = Number(data.monthly_rent ?? 0)
+    lease.allowPartial = Boolean(data.allow_partial)
+    lease.partialMinPct = Number(data.partial_min_pct ?? 50)
+    void loadLedger()
 
     const [{ data: paymentRows }, { data: historyRows }, { data: billRows }] = await Promise.all([
       supabase
@@ -1251,6 +1303,17 @@ useLiveData({
   color: var(--m-muted);
   font-size: 12.5px;
   font-weight: 600;
+}
+.rule-value--warn { color: var(--m-danger) !important; }
+.rule-value--controls { display: inline-flex; align-items: center; gap: 10px; }
+.pct-select {
+  padding: 4px 8px;
+  border: 1px solid var(--m-border);
+  border-radius: 8px;
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 12.5px;
 }
 .rule-value {
   color: var(--m-ink);

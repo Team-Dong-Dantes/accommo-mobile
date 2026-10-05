@@ -97,3 +97,73 @@ export function nextRentMonth(leaseStartDate: string, payments: RentPayment[]): 
   }
   return monthKey(cursor)
 }
+
+// ---- The server's ledger (lease_ledger(), 20261006020000) -------------------
+//
+// What is owed comes from the database — rent plus flat fees per month, the
+// advance and deposit — with confirmed and awaiting-confirmation totals. The
+// database refuses any payment that breaks these rules; the helpers below only
+// let the form say so before the round trip.
+
+export type LedgerState = 'paid' | 'pending' | 'partial' | 'unpaid' | 'overdue'
+export interface LedgerRow {
+  kind: 'rent' | 'advance' | 'deposit'
+  /** YYYY-MM-DD for rent, null for advance/deposit. */
+  month: string | null
+  due: number
+  confirmed: number
+  pending: number
+  /** Still to pay: due − confirmed − pending. */
+  balance: number
+  state: LedgerState
+}
+
+export function toLedger(rows: unknown[] | null | undefined): LedgerRow[] {
+  return ((rows ?? []) as Record<string, unknown>[]).map((r) => ({
+    kind: r.kind as LedgerRow['kind'],
+    month: (r.month as string | null) ?? null,
+    due: Number(r.due ?? 0),
+    confirmed: Number(r.confirmed ?? 0),
+    pending: Number(r.pending ?? 0),
+    balance: Number(r.balance ?? 0),
+    state: r.state as LedgerState,
+  }))
+}
+
+/** The rent month to pay next: the earliest one with anything left. */
+export function nextLedgerRent(ledger: LedgerRow[]): LedgerRow | null {
+  return ledger.find((r) => r.kind === 'rent' && r.balance > 0.009) ?? null
+}
+
+/**
+ * The smallest amount the server accepts for an item: everything left, or —
+ * when the landlord/landlady allows partial payments — `pct`% of the amount
+ * owed, rounded up to the peso (never more than what is left).
+ */
+export function minPayment(row: Pick<LedgerRow, 'due' | 'balance'>, allowPartial: boolean, pct: number): number {
+  if (!allowPartial) return row.balance
+  return Math.min(row.balance, Math.ceil((row.due * pct) / 100))
+}
+
+/** A reference as the database stores it: no spaces or dashes, upper case. */
+export function normalizeReference(ref: string): string {
+  return ref.replace(/[\s-]/g, '').toUpperCase()
+}
+
+/** Why a reference would be refused, or null. GCash has 13 digits. */
+export function referenceProblem(method: string, ref: string): string | null {
+  const r = normalizeReference(ref)
+  if (!r) return null
+  if (method === 'gcash') return /^[0-9]{13}$/.test(r) ? null : 'A GCash reference number has 13 digits.'
+  return /^[A-Z0-9]{6,30}$/.test(r) ? null : 'A reference number is 6 to 30 letters or digits.'
+}
+
+/** SHA-256 of a file as hex — the receipt's fingerprint, so one image can't pay twice. */
+export async function fileFingerprint(file: Blob): Promise<string | null> {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null // no WebCrypto (very old WebView): the server simply skips the check
+  }
+}

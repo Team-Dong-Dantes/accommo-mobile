@@ -26,6 +26,7 @@
 --   AC1-AC7  PASS
 --   H1-H22  PASS
 --   AA1-AA8  PASS
+--   PY1-PY14  PASS
 
 create or replace function pg_temp.rls_check() returns table(test text, outcome text)
 language plpgsql as $$
@@ -103,11 +104,20 @@ end $$;
 -- first check above passes while the app is broken.
 create or replace function pg_temp.mgr_check() returns table(test text, outcome text)
 language plpgsql as $$
-declare v_mgr uuid; v_payment uuid; v_msg text;
+declare v_mgr uuid; v_payment uuid; v_msg text; v_lease uuid; v_month date; v_left numeric;
 begin
-  select l.landlord_id, p.id into v_mgr, v_payment
+  select l.landlord_id, p.id, l.id into v_mgr, v_payment, v_lease
     from public.leases l join public.payments p on p.lease_id = l.id
-   where l.status = 'active' limit 1;
+   where l.status = 'active' and p.status <> 'paid' limit 1;
+  -- M2 logs against the first month still owed (20261006020000: months in order,
+  -- never more than owed), worked out before switching roles.
+  select m::date, public.payment_due(v_lease, 'rent', m::date) - c.confirmed - c.pending
+    into v_month, v_left
+    from generate_series((select date_trunc('month', start_date) from public.leases where id = v_lease),
+                         date_trunc('month', now()) + interval '2 months', interval '1 month') m,
+         lateral public.payment_covered(v_lease, 'rent', m::date, null, null) c
+   where public.payment_due(v_lease, 'rent', m::date) - c.confirmed - c.pending > 0.009
+   order by m limit 1;
 
   perform set_config('request.jwt.claims',
                      json_build_object('sub', v_mgr, 'role', 'authenticated')::text, true);
@@ -127,8 +137,7 @@ begin
 
   begin
     insert into public.payments (lease_id, month, amount, method, status, paid_at, verified_by)
-    select p.lease_id, '2027-03-01', 1500, 'cash', 'paid', now(), v_mgr
-      from public.payments p where p.id = v_payment;
+    values (v_lease, v_month, least(v_left, 1500), 'cash', 'paid', now(), v_mgr);
     outcome := 'PASS';
     raise exception 'rollback';
   exception when others then
@@ -1187,6 +1196,148 @@ begin
   end loop;
 end $f$;
 
+-- Payment rules (20261006020000): amounts against what is owed, partial
+-- payments, order of months, evidence. Acts on the fixture lease (2,500 rent).
+create or replace function pg_temp.payment_check() returns table(test text, outcome text)
+language plpgsql as $f$
+declare
+  v_lease uuid := '00000000-0000-0000-0000-00000000e001';
+  v_month date;
+  v_pay uuid; v_msg text; v_state text;
+  names text[] := '{}'; results text[] := '{}';
+  as_student text := json_build_object('sub', '00000000-0000-0000-0000-00000000b001', 'role', 'authenticated')::text;
+  as_landlord text := json_build_object('sub', '00000000-0000-0000-0000-00000000a001', 'role', 'authenticated')::text;
+begin
+  if not exists (select 1 from public.leases where id = v_lease) then
+    test := 'PY: payments'; outcome := 'SKIP - load tests/fixture.sql'; return next; return;
+  end if;
+  select date_trunc('month', start_date)::date into v_month from public.leases where id = v_lease;
+
+  begin
+    delete from public.payments where lease_id = v_lease;  -- a clean ledger for this block
+    perform set_config('request.jwt.claims', as_student, true);
+    set local role authenticated;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status, txn_reference, proof_url)
+      values (v_lease, v_month, 3000, 'gcash', 'pending_verification', '1234567890123', 'cld:x');
+      v_msg := 'FAIL - overpayment accepted';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY1: paying more than owed is refused'::text; results := results || v_msg;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status, txn_reference, proof_url)
+      values (v_lease, v_month, 1250, 'gcash', 'pending_verification', '1234567890123', 'cld:x');
+      v_msg := 'FAIL - partial accepted without allow_partial';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY2: partial needs the landlord to allow it'::text; results := results || v_msg;
+
+    begin
+      update public.leases set allow_partial = true where id = v_lease;
+      v_msg := 'FAIL - student turned on partial payments';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY3: a student cannot allow partial payments'::text; results := results || v_msg;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status, txn_reference, proof_url)
+      values (v_lease, v_month, 2500, 'gcash', 'pending_verification', '12345', 'cld:x');
+      v_msg := 'FAIL - short GCash reference accepted';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY4: GCash reference must be 13 digits'::text; results := results || v_msg;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status)
+      values (v_lease, v_month, 2500, 'gcash', 'pending_verification');
+      v_msg := 'FAIL - non-cash without reference accepted';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY5: non-cash needs a reference and proof'::text; results := results || v_msg;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status)
+      values (v_lease, (v_month + interval '1 month')::date, 2500, 'cash', 'pending_verification');
+      v_msg := 'FAIL - skipped a month';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY6: months are paid in order'::text; results := results || v_msg;
+
+    -- The landlord/landlady allows partial payments (50%).
+    reset role;
+    perform set_config('request.jwt.claims', as_landlord, true);
+    set local role authenticated;
+    update public.leases set allow_partial = true, partial_min_pct = 50 where id = v_lease;
+    reset role;
+    perform set_config('request.jwt.claims', as_student, true);
+    set local role authenticated;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status)
+      values (v_lease, v_month, 1000, 'cash', 'pending_verification');
+      v_msg := 'FAIL - partial below the minimum accepted';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY7: partial below 50% is refused'::text; results := results || v_msg;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status)
+      values (v_lease, v_month, 1250, 'cash', 'pending_verification') returning id into v_pay;
+      v_msg := 'PASS';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg; end;
+    names := names || 'PY8: half is accepted once allowed'::text; results := results || v_msg;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status)
+      values (v_lease, v_month, 1250, 'cash', 'pending_verification');
+      v_msg := 'FAIL - second pending submission accepted';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY9: one submission waits at a time'::text; results := results || v_msg;
+
+    -- The landlord/landlady confirms the half.
+    reset role;
+    perform set_config('request.jwt.claims', as_landlord, true);
+    set local role authenticated;
+    begin
+      update public.payments set status = 'rejected' where id = v_pay;
+      v_msg := 'FAIL - rejected without a reason';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY10: rejecting needs a reason'::text; results := results || v_msg;
+    update public.payments set status = 'paid' where id = v_pay;
+    begin
+      update public.payments set amount = 2500 where id = v_pay;
+      v_msg := 'FAIL - confirmed amount changed';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY11: a confirmed amount cannot change'::text; results := results || v_msg;
+    select l.state into v_state from public.lease_ledger(v_lease) l where l.kind = 'rent' and l.month = v_month;
+    names := names || 'PY12: ledger shows the month as partly paid'::text;
+    results := results || (case when v_state in ('partial', 'overdue') then 'PASS' else 'FAIL - state ' || coalesce(v_state, 'none') end);
+
+    -- The student pays the rest; the month is then covered.
+    reset role;
+    perform set_config('request.jwt.claims', as_student, true);
+    set local role authenticated;
+    begin
+      insert into public.payments (lease_id, month, amount, method, status)
+      values (v_lease, v_month, 1250, 'cash', 'pending_verification');
+      select l.state into v_state from public.lease_ledger(v_lease) l where l.kind = 'rent' and l.month = v_month;
+      v_msg := case when v_state = 'pending' then 'PASS' else 'FAIL - state ' || v_state end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg; end;
+    names := names || 'PY13: the remaining half settles the month'::text; results := results || v_msg;
+
+    begin
+      insert into public.payments (lease_id, month, amount, method, status)
+      values (v_lease, (v_month + interval '3 months')::date, 2500, 'cash', 'pending_verification');
+      v_msg := 'FAIL - paid three months ahead';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY14: at most two months ahead'::text; results := results || v_msg;
+
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> 'rollback' then names := names || 'PY: setup'::text; results := results || ('FAIL - ' || v_msg); end if;
+  end;
+  reset role;
+  for i in 1 .. coalesce(array_length(names, 1), 0) loop
+    test := names[i]; outcome := results[i]; return next;
+  end loop;
+end $f$;
+
 select * from pg_temp.rls_check()
 union all
 select * from pg_temp.added_check()
@@ -1215,4 +1366,6 @@ select * from pg_temp.rate_limit_check()
 union all
 select * from pg_temp.hardening_check()
 union all
-select * from pg_temp.access_check();
+select * from pg_temp.access_check()
+union all
+select * from pg_temp.payment_check();

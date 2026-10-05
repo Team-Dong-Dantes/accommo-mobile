@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, flatFees, isBillSettled, manilaToday, nextRentMonth, paymentTitle, type RentPayment } from './payments'
+import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, flatFees, isBillSettled, manilaToday, minPayment, nextLedgerRent, nextRentMonth, paymentTitle, referenceProblem, toLedger, type RentPayment } from './payments'
 
 const rent = (month: string, status: string): RentPayment => ({ month, status, description: '' })
 
@@ -102,5 +102,31 @@ describe('manilaToday', () => {
   it('rolls over at Manila midnight, not UTC', () => {
     expect(manilaToday(new Date('2026-10-01T17:30:00Z'))).toBe('2026-10-02')
     expect(manilaToday(new Date('2026-10-01T15:30:00Z'))).toBe('2026-10-01')
+  })
+})
+
+describe('ledger helpers', () => {
+  const row = (balance: number, due = 2500) => ({ due, balance })
+  it('minPayment: everything left without partial, pct of due with it', () => {
+    expect(minPayment(row(2500), false, 50)).toBe(2500)
+    expect(minPayment(row(2500), true, 50)).toBe(1250)
+    expect(minPayment(row(800), true, 50)).toBe(800)
+    expect(minPayment(row(733.33, 733.33), true, 50)).toBe(367)
+  })
+  it('referenceProblem: GCash is 13 digits, others 6-30 alphanumerics', () => {
+    expect(referenceProblem('gcash', '1234 567 890 123')).toBeNull()
+    expect(referenceProblem('gcash', '12345')).toMatch(/13 digits/)
+    expect(referenceProblem('bank', 'ab-12 34')).toBeNull()
+    expect(referenceProblem('maya', '123')).toMatch(/6 to 30/)
+    expect(referenceProblem('cash', '')).toBeNull()
+  })
+  it('nextLedgerRent: earliest rent month with a balance', () => {
+    const l = toLedger([
+      { kind: 'advance', month: null, due: 2500, confirmed: 2500, pending: 0, balance: 0, state: 'paid' },
+      { kind: 'rent', month: '2026-09-01', due: 2500, confirmed: 2500, pending: 0, balance: 0, state: 'paid' },
+      { kind: 'rent', month: '2026-10-01', due: 2500, confirmed: 1250, pending: 0, balance: 1250, state: 'partial' },
+      { kind: 'rent', month: '2026-11-01', due: 2500, confirmed: 0, pending: 0, balance: 2500, state: 'unpaid' },
+    ])
+    expect(nextLedgerRent(l)?.month).toBe('2026-10-01')
   })
 })
