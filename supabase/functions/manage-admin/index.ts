@@ -4,15 +4,8 @@
 // Was deployed from outside this repository until 2026-09-26; this is that
 // source, moved onto the shared CORS/reply helpers.
 import { preflight, reply } from '../_shared/http.ts';
+import { generateTempPassword } from '../_shared/password.ts';
 
-function generateTempPassword(): string {
-  // No look-alikes (0/O, 1/l/I), since it is read out or written down. Same as manage-user.
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  let pwd = '';
-  for (const b of bytes) pwd += chars[b % chars.length];
-  return pwd;
-}
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -70,12 +63,16 @@ Deno.serve(async (req) => {
 
     const { data: target, error: tErr } = await serviceClient
       .from('users')
-      .select('id, is_superadmin, onboarding_complete, email')
+      .select('id, role, is_superadmin, onboarding_complete, email')
       .eq('id', target_id)
       .single();
     if (tErr || !target) return json(404, { error: 'Target account not found.' });
     if (target.is_superadmin) return json(403, { error: 'The main admin cannot be modified this way.' });
     if (target.id === callerId) return json(403, { error: 'You cannot modify your own account here.' });
+    // Administrators only. Students and landlords/landladies have manage-user,
+    // which keeps OSAS's own rules (assert_admin_over) and signs them out; this
+    // used to delete, reset or re-password any of them too.
+    if (target.role !== 'admin') return json(403, { error: 'That account is not an administrator.' });
 
     const audit = async (name: string, after: Record<string, unknown>) => {
       const { error } = await serviceClient.from('audit_logs').insert({
@@ -109,10 +106,17 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'revoke_invite') {
-      // Pending invite: delete the account entirely (auth + public row).
-      await serviceClient.from('users').delete().eq('id', target_id);
+      // Pending invite: delete the account entirely (auth + public row). An
+      // admin who has accepted is removed with remove_admin instead, which
+      // keeps their account and its history.
+      if (target.onboarding_complete) {
+        return json(409, { error: 'This administrator already accepted the invite. Remove their access instead.' });
+      }
+      const { error: rowErr } = await serviceClient.from('users').delete().eq('id', target_id);
+      if (rowErr) return json(400, { error: rowErr.message });
       const { error: delErr } = await serviceClient.auth.admin.deleteUser(target_id);
       if (delErr) return json(400, { error: delErr.message });
+      await audit('admin.invite_revoked', { email: target.email });
       return json(200, { action });
     }
 
@@ -122,6 +126,7 @@ Deno.serve(async (req) => {
       .update({ role: 'student', is_superadmin: false })
       .eq('id', target_id);
     if (updErr) return json(400, { error: updErr.message });
+    await audit('admin.removed', { role: 'student' });
     return json(200, { action });
   } catch (e) {
     return json(500, { error: e instanceof Error ? e.message : String(e) });

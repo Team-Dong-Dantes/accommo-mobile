@@ -1,12 +1,5 @@
 import { allowedOrigin, preflight, reply } from '../_shared/http.ts';
-
-function generateTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(14));
-  let pwd = '';
-  for (const b of bytes) pwd += chars[b % chars.length];
-  return pwd + 'A1!';
-}
+import { generateTempPassword } from '../_shared/password.ts';
 
 const FALLBACK_APP_URL = 'https://accommo.vercel.app';
 

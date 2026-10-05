@@ -375,7 +375,7 @@ async function load(silent = false) {
 
     const [{ data: profile, error: profileError }, { data: studentProfile }] = await Promise.all([
       supabase
-        .from('users')
+        .from('users_full')
         .select('full_name, email, phone, initials, status, created_at, updated_at, avatar_url')
         .eq('id', user.id)
         .maybeSingle(),

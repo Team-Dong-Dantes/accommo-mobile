@@ -265,7 +265,8 @@ export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
   form.append('file', file, uniqueUploadName(file));
   form.append('api_key', params.apiKey);
   form.append('timestamp', String(params.timestamp));
-  form.append('folder', params.folder);
+  form.append('public_id', params.publicId);
+  form.append('allowed_formats', params.allowedFormats);
   form.append('type', params.type);
   form.append('signature', params.signature);
 

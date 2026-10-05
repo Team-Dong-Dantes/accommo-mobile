@@ -61,8 +61,18 @@ async function accessToken(): Promise<string> {
   return cached.token;
 }
 
+/** Compares in time that does not depend on where the strings first differ. */
+function sameSecret(given: string | null, expected: string | undefined): boolean {
+  if (!given || !expected) return false;
+  const a = new TextEncoder().encode(given);
+  const b = new TextEncoder().encode(expected);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < b.length; i++) diff |= (a[i] ?? 0) ^ b[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
-  if (req.headers.get('x-push-secret') !== Deno.env.get('PUSH_SECRET') || !Deno.env.get('PUSH_SECRET')) {
+  if (!sameSecret(req.headers.get('x-push-secret'), Deno.env.get('PUSH_SECRET'))) {
     return new Response('Forbidden', { status: 403 });
   }
 

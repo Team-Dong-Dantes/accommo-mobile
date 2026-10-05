@@ -8,18 +8,11 @@
 // acting on a student or landlord/landlady" lives in one place.
 
 import { preflight, reply } from '../_shared/http.ts';
+import { generateTempPassword } from '../_shared/password.ts';
 
 /** The same rule as signup (handle_auth_user_sync). */
 const ALLOWED_DOMAINS = ['gmail.com', 'isu.edu.ph'];
 
-function generateTempPassword(): string {
-  // No look-alikes (0/O, 1/l/I), since it is read out or written down at the desk.
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  let pwd = '';
-  for (const b of bytes) pwd += chars[b % chars.length];
-  return pwd;
-}
 
 Deno.serve(async (req) => {
   const pre = preflight(req);

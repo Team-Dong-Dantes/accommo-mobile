@@ -135,22 +135,23 @@ export const useAuthStore = defineStore('auth', {
       },
       status?: 'pending',
     ) {
-      const { error } = await supabase
+      const fields = {
+        phone: (profileData.phone as string) ?? '+639000000000',
+        role: toDbRole(profileData.role) as any,
+        full_name: profileData.full_name,
+        initials: profileData.initials,
+        ...(profileData.date_of_birth ? { date_of_birth: profileData.date_of_birth } : {}),
+      };
+      // Insert-if-missing, then update — not one upsert. An upsert's DO UPDATE
+      // reads the incoming e-mail and phone, and those columns are not readable
+      // by clients (20261005010000), so it was refused outright. The e-mail is
+      // left to the auth sync either way.
+      const { error: insertError } = await supabase
         .from('users')
-        .upsert(
-          {
-            id: userId,
-            email,
-            phone: (profileData.phone as string) ?? '+639000000000',
-            role: toDbRole(profileData.role) as any,
-            full_name: profileData.full_name,
-            initials: profileData.initials,
-            ...(profileData.date_of_birth ? { date_of_birth: profileData.date_of_birth } : {}),
-            ...(status ? { status } : {}),
-          },
-          { onConflict: 'id' },
-        );
+        .upsert({ id: userId, email, ...fields, ...(status ? { status } : {}) }, { onConflict: 'id', ignoreDuplicates: true });
+      if (insertError) throw sanitizeError(insertError);
 
+      const { error } = await supabase.from('users').update(fields).eq('id', userId);
       if (error) throw sanitizeError(error);
     },
 

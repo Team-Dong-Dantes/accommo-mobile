@@ -24,6 +24,7 @@
 --   T1-T4  PASS
 --   PA1-PA5  PASS
 --   AC1-AC7  PASS
+--   H1-H22  PASS
 
 create or replace function pg_temp.rls_check() returns table(test text, outcome text)
 language plpgsql as $$
@@ -398,7 +399,10 @@ begin
   -- else. The room invite is set up first, as the app does before applying.
   -- Skipped when there is no such student or no available room.
   select u.id into v_student from public.users u join public.student_profiles sp on sp.user_id = u.id
-   where u.role = 'student' and u.status = 'verified' and sp.osas_verified_at is null limit 1;
+   where u.role = 'student' and u.status = 'verified' and sp.osas_verified_at is null
+     and not exists (select 1 from public.leases l where l.student_id = u.id
+                      and l.status in ('pending', 'active', 'leave_requested'))
+   limit 1;
   select r.id, a.landlord_id into v_room, v_landlord
     from public.rooms r join public.accommodations a on a.id = r.accommodation_id
    where r.status = 'available' limit 1;
@@ -460,7 +464,7 @@ begin
     test := 'U5: same student, once verified, may apply'; outcome := o5; return next;
     test := 'U6: landlord/landlady adds an unverified student'; outcome := o6; return next;
   end if;
-end $;
+end $$;
 -- F1-F3 (20260926000000): an admin with an authenticator app enrolled is only an
 -- admin once the session has passed the code (aal2). Uses a throwaway factor
 -- row that is rolled back with the rest of the block.
@@ -627,7 +631,7 @@ end $$;
 -- token must not work. The setup runs with no signed-in user (the lock triggers
 -- let it through), and the whole block is rolled back.
 create or replace function pg_temp.added_check() returns table(test text, outcome text)
-language plpgsql as $
+language plpgsql as $$
 declare
   v_landlord uuid; v_room uuid; v_student uuid; v_other uuid; v_lease uuid; v_status text; v_msg text;
   o1 text; o2 text; o3 text; o4 text; o5 text; o6 text;
@@ -722,7 +726,7 @@ begin
   test := 'L4: accept an added student without a scan'; outcome := coalesce(o4, 'FAIL - not reached'); return next;
   test := 'L5: accept with another student''s QR'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
   test := 'L6: accept with their own QR'; outcome := coalesce(o6, 'FAIL - not reached'); return next;
-end $;
+end $$;
 -- AC1-AC7 (20261002120000): accreditation rounds. What OSAS checked stays put
 -- on a live listing, only OSAS decides, a sent-back listing cannot be
 -- resubmitted with the flagged permit unreplaced, one appeal only, and one
@@ -814,7 +818,7 @@ begin
     set local role authenticated;
     begin
       insert into public.accommodation_documents (accommodation_id, doc_type, file_url, expires_at, version)
-      values (v_acc, 'sanitary_permit', 'rls test 2', current_date + 700, 901);
+      values (v_acc, 'sanitary_permit', 'cld:raw:authenticated:pdf:accommo/docs/' || v_landlord || '/rls2', current_date + 700, 901);
       o8 := 'FAIL - replaced a current permit on an accredited listing';
     exception when others then
       get stacked diagnostics v_msg = message_text; o8 := 'PASS - ' || v_msg;
@@ -839,11 +843,235 @@ begin
   test := 'AC8: replace a current permit while accredited'; outcome := coalesce(o8, 'FAIL - not reached'); return next;
   test := 'AC9: edit a permit while accredited'; outcome := coalesce(o9, 'FAIL - not reached'); return next;
 end $$;
+-- H1-H22 (20261005000000, 20261005010000): the security hardening. Each guard is paired with
+-- the honest write next to it, so a guard that also breaks the app shows up.
+-- Uses the fixture's people by id; skipped on a database without it.
+create or replace function pg_temp.hardening_check() returns table(test text, outcome text)
+language plpgsql as $$
+declare
+  v_landlord uuid := '00000000-0000-0000-0000-00000000a001';
+  v_tenant   uuid := '00000000-0000-0000-0000-00000000b001';
+  v_other    uuid := '00000000-0000-0000-0000-00000000b002';
+  v_acc      uuid := '00000000-0000-0000-0000-00000000c001';
+  v_room     uuid := '00000000-0000-0000-0000-00000000d001';
+  v_lease    uuid := '00000000-0000-0000-0000-00000000e001';
+  v_conv uuid; v_conv2 uuid; v_message uuid;
+  v_msg text; v_n int; v_num numeric; v_ver int; v_at timestamptz;
+  names text[] := '{}'; results text[] := '{}';
+begin
+  if not exists (select 1 from public.leases where id = v_lease) then
+    test := 'H: hardening'; outcome := 'SKIP - load tests/fixture.sql'; return next; return;
+  end if;
+
+  begin
+    -- As the landlord/landlady.
+    perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+
+    begin
+      perform qr_code_token from public.student_profiles where user_id = v_tenant;
+      v_msg := 'FAIL - read a tenant''s QR token';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H1: landlord reads a tenant''s QR token'::text; results := results || v_msg;
+
+    begin
+      select count(user_id) into v_n from public.student_profiles where user_id = v_tenant;
+      v_msg := case when v_n = 1 then 'PASS' else 'FAIL - tenant''s profile not readable' end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg;
+    end;
+    names := names || 'H2: landlord still reads a tenant''s profile'::text; results := results || v_msg;
+
+    begin
+      update public.accommodations set rating_avg = 5, reviews_count = 99 where id = v_acc;
+      v_msg := 'FAIL - set own listing''s rating';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H3: landlord sets own rating'::text; results := results || v_msg;
+
+    begin
+      insert into public.accommodation_documents (accommodation_id, doc_type, file_url, expires_at, version, uploaded_at)
+      values (v_acc, 'fire_safety', 'cld:raw:authenticated:pdf:accommo/docs/' || v_landlord || '/h', current_date + 365, 50, '2000-01-01')
+      returning version, uploaded_at into v_ver, v_at;
+      v_msg := case when v_ver = 1 and v_at > now() - interval '1 minute' then 'PASS'
+                    else 'FAIL - kept version ' || v_ver || ' / ' || v_at end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg;
+    end;
+    names := names || 'H4: permit version and upload time are the database''s'::text; results := results || v_msg;
+
+    -- As a student with no lease.
+    reset role;
+    perform set_config('request.jwt.claims', json_build_object('sub', v_other, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+
+    begin
+      insert into public.tickets (student_id, landlord_id, subject) values (v_other, v_landlord, 'h');
+      v_msg := 'FAIL - filed a ticket against a stranger';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H5: ticket names a landlord/landlady you never leased from'::text; results := results || v_msg;
+
+    begin
+      insert into public.conversations (user_a_id, user_b_id) values (v_other, v_tenant);
+      v_msg := 'FAIL - student opened a conversation with a stranger';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H6: student messages another student cold'::text; results := results || v_msg;
+
+    begin
+      insert into public.conversations (user_a_id, user_b_id) values (v_other, v_landlord) returning id into v_conv;
+      v_msg := 'PASS';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg;
+    end;
+    names := names || 'H7: student asks a listed landlord/landlady'::text; results := results || v_msg;
+
+    begin
+      update public.conversations set invited_room_id = v_room, invited_at = now() where id = v_conv;
+      v_msg := 'FAIL - student issued their own application form';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H8: student invites themselves'::text; results := results || v_msg;
+
+    select count(*) into v_n from public.users_full where id = v_tenant;
+    names := names || 'H18: student sees a stranger''s contact details'::text;
+    results := results || case when v_n = 0 then 'PASS' else 'FAIL - row visible' end;
+
+    delete from public.conversations where id = v_conv;
+    get diagnostics v_n = row_count;
+    names := names || 'H9: participant deletes a conversation'::text;
+    results := results || case when v_n = 0 then 'PASS' else 'FAIL - deleted' end;
+
+    -- Setup as the database: a second thread with a message in the first, the
+    -- form issued, and this student verified so they may apply.
+    reset role;
+    perform set_config('request.jwt.claims', '', true);
+    insert into public.conversations (user_a_id, user_b_id) values (v_other, v_tenant) returning id into v_conv2;
+    insert into public.messages (conversation_id, sender_id, body) values (v_conv, v_other, 'h') returning id into v_message;
+    update public.conversations set invited_room_id = v_room, invited_at = now() where id = v_conv;
+    update public.student_profiles set osas_verified_at = now() where user_id = v_other;
+    perform set_config('request.jwt.claims', json_build_object('sub', v_other, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+
+    begin
+      update public.messages set conversation_id = v_conv2 where id = v_message;
+      v_msg := 'FAIL - moved a message into another conversation';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H10: sender moves a message'::text; results := results || v_msg;
+
+    begin
+      insert into public.leases (room_id, student_id, landlord_id, start_date, end_date, status, monthly_rent)
+      values (v_room, v_other, v_landlord, current_date, current_date + 365, 'pending', 1)
+      returning monthly_rent into v_num;
+      -- Fixture room: 2500 for the whole room, four beds.
+      v_msg := case when v_num = 625 then 'PASS' else 'FAIL - rent ' || v_num end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg;
+    end;
+    names := names || 'H11: application rent comes from the room'::text; results := results || v_msg;
+
+    begin
+      insert into public.tickets (student_id, photo_urls, subject) values (v_other, array['https://example.com/x.html'], 'h');
+      v_msg := 'FAIL - stored a plain URL as a file';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H12: plain URL in a file column'::text; results := results || v_msg;
+
+    -- As the verified tenant.
+    reset role;
+    perform set_config('request.jwt.claims', json_build_object('sub', v_tenant, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+
+    begin
+      update public.student_profiles set student_id = 'h-swapped' where user_id = v_tenant;
+      v_msg := 'FAIL - changed a verified student number';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H13: verified student changes their student number'::text; results := results || v_msg;
+
+    begin
+      update public.student_profiles set program = 'BSIT' where user_id = v_tenant;
+      get diagnostics v_n = row_count;
+      v_msg := case when v_n = 1 then 'PASS' else 'FAIL - no row updated' end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg;
+    end;
+    names := names || 'H14: verified student edits their program'::text; results := results || v_msg;
+
+    begin
+      perform email from public.users where id = v_landlord;
+      v_msg := 'FAIL - read an e-mail straight off users';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H19: e-mail read from users'::text; results := results || v_msg;
+
+    select count(*) into v_n from public.users_full where id = v_landlord and phone is not null;
+    names := names || 'H20: tenant reads their landlord/landlady''s phone'::text;
+    results := results || case when v_n = 1 then 'PASS' else 'FAIL - not visible' end;
+
+    -- Back to the landlord/landlady: a closed lease stays closed, a paid payment stays.
+    reset role;
+    perform set_config('request.jwt.claims', '', true);
+    update public.payments set status = 'paid', paid_at = now() where lease_id = v_lease;
+    perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+
+    delete from public.payments where lease_id = v_lease and status = 'paid';
+    get diagnostics v_n = row_count;
+    names := names || 'H15: landlord deletes a paid payment'::text;
+    results := results || case when v_n = 0 then 'PASS' else 'FAIL - deleted' end;
+
+    begin
+      update public.leases set status = 'ended', ended_reason = 'h' where id = v_lease;
+      v_msg := 'PASS';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg;
+    end;
+    names := names || 'H16: landlord ends a lease'::text; results := results || v_msg;
+
+    begin
+      update public.leases set status = 'active' where id = v_lease;
+      v_msg := 'FAIL - reopened an ended lease';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H17: landlord reopens an ended lease'::text; results := results || v_msg;
+
+    reset role;
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', v_landlord, 'role', 'authenticated', 'session_id', gen_random_uuid())::text, true);
+    begin
+      perform public.check_session();
+      v_msg := 'FAIL - a session that does not exist was let through';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H21: token for an ended session'::text; results := results || v_msg;
+
+    perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+    set local role anon;
+    begin
+      perform public.is_admin(v_landlord);
+      v_msg := 'FAIL - anon asked whether an id is an admin';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'H22: anon calls is_admin()'::text; results := results || v_msg;
+
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    reset role;
+    if v_msg <> 'rollback' then
+      names := names || 'H: hardening'::text; results := results || ('FAIL - ' || v_msg);
+    end if;
+  end;
+
+  for i in 1 .. coalesce(array_length(names, 1), 0) loop
+    test := names[i]; outcome := results[i]; return next;
+  end loop;
+end $$;
 create or replace function pg_temp.rate_limit_check() returns table(test text, outcome text)
 language plpgsql as $$
 declare v_student uuid; v_msg text; v_n int := 0; o1 text; o2 text;
 begin
   select l.student_id into v_student from public.leases l where l.status = 'active' limit 1;
+  -- The checks before this one leave a signed-in user in the claims.
+  perform set_config('request.jwt.claims', '', true);
   begin
     -- Rows the database writes itself (no signed-in user) are never capped.
     for i in 1..8 loop
@@ -894,4 +1122,6 @@ select * from pg_temp.policy_check()
 union all
 select * from pg_temp.accreditation_check()
 union all
-select * from pg_temp.rate_limit_check();
+select * from pg_temp.rate_limit_check()
+union all
+select * from pg_temp.hardening_check();

@@ -47,7 +47,7 @@ async function load() {
     userId.value = user.id
 
     const { data: profile, error: profileError } = await supabase
-      .from('users')
+      .from('users_full')
       .select('email, notification_prefs')
       .eq('id', user.id)
       .maybeSingle()

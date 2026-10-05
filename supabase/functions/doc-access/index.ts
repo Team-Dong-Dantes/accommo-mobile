@@ -115,12 +115,19 @@ Deno.serve(async (req) => {
 
   // Params for a signed, type=authenticated upload straight to Cloudinary. The
   // client never sees the secret, only a one-shot signature.
+  //
+  // The signature names the exact public_id and the formats allowed. It used to
+  // sign only the folder, so one signature uploaded any number of files of any
+  // type (an .html page as `raw` included) for the hour Cloudinary honours it.
+  // Pinned to one id, a reused signature can only overwrite that same file.
+  // PDFs go up as `raw`, whose public_id carries the extension.
   if (body.action === 'upload-params') {
     const resourceType = body.resourceType === 'raw' ? 'raw' : 'image'
     const timestamp = Math.floor(Date.now() / 1000)
-    const folder = `${UPLOAD_FOLDER}/${auth.user.id}`
-    const signature = await signParams({ folder, timestamp, type: 'authenticated' })
-    return reply(req, 200, { cloudName: CLOUD, apiKey: KEY, timestamp, folder, type: 'authenticated', resourceType, signature })
+    const publicId = `${UPLOAD_FOLDER}/${auth.user.id}/${crypto.randomUUID()}${resourceType === 'raw' ? '.pdf' : ''}`
+    const allowedFormats = resourceType === 'raw' ? 'pdf' : 'jpg,jpeg,png,webp'
+    const signature = await signParams({ allowed_formats: allowedFormats, public_id: publicId, timestamp, type: 'authenticated' })
+    return reply(req, 200, { cloudName: CLOUD, apiKey: KEY, timestamp, publicId, allowedFormats, type: 'authenticated', resourceType, signature })
   }
 
   // A short-lived URL for one file on one row the caller is allowed to read.
@@ -159,8 +166,12 @@ Deno.serve(async (req) => {
     }
 
     // Rows written before files moved to authenticated delivery hold a plain
-    // URL. Nothing to sign — hand it back so old records still open.
-    if (!ref.startsWith(CLD_PREFIX)) return reply(req, 200, { url: ref, legacy: true })
+    // URL. Nothing to sign — hand it back so old records still open. Only an
+    // https link, though: the value is whatever the row's author wrote, and the
+    // console puts it behind an "Open document" button.
+    if (!ref.startsWith(CLD_PREFIX)) {
+      return /^https:\/\//i.test(ref) ? reply(req, 200, { url: ref, legacy: true }) : reply(req, 404, { error: 'Not found.' })
+    }
     return reply(req, 200, { url: await privateDownloadUrl(ref), expiresIn: VIEW_TTL_SECONDS })
   }
 

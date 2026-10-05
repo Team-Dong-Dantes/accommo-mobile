@@ -508,7 +508,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,email,phone,avatar_url),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,monthly_rent,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -518,7 +518,11 @@ async function load(silent = false) {
       return
     }
 
-    const student = data.users as unknown as { full_name: string | null; initials: string | null; email: string | null; phone: string | null; avatar_url: string | null } | null
+    // E-mail and phone come from users_full, which answers only while the lease
+    // is current; a past tenant keeps their name here but not their contacts.
+    const contact = data.contact as unknown as { email: string | null; phone: string | null } | null
+    const person = data.users as unknown as { full_name: string | null; initials: string | null; avatar_url: string | null } | null
+    const student = person ? { ...person, email: contact?.email ?? null, phone: contact?.phone ?? null } : null
     const room = data.rooms as unknown as {
       label: string | null
       room_number: string | null
