@@ -72,6 +72,29 @@ Deno.serve(async (req) => {
       return fail('A valid email is required.');
     }
 
+    // What the new admin may do (admin_access). Validated again by the table's
+    // check constraint; anything missing means no access to that area.
+    const AREAS = ['accounts', 'verification', 'accreditation', 'accommodations', 'support', 'announcements', 'reports', 'activity'];
+    const rawLevels = (body.access?.levels ?? {}) as Record<string, unknown>;
+    const levels: Record<string, string> = {};
+    for (const a of AREAS) {
+      const v = rawLevels[a];
+      levels[a] = v === 'view' || v === 'edit' ? v : 'none';
+    }
+    const preset = String(body.access?.preset ?? 'custom').slice(0, 40);
+    const expiresAt = body.access?.expires_at ? new Date(String(body.access.expires_at)) : null;
+    if (expiresAt && (isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) {
+      return fail('The access end date must be in the future.');
+    }
+    // Written as the system admin, so the audit log names who granted it.
+    const grantAccess = async (id: string) => {
+      const { error } = await userClient.from('admin_access').upsert({
+        user_id: id, preset, levels, expires_at: expiresAt?.toISOString() ?? null,
+        granted_by: userId, updated_at: new Date().toISOString(),
+      });
+      return error;
+    };
+
     // The invited admin sets their real display name during onboarding, so we
     // only use a placeholder here to satisfy the NOT NULL column.
     const full_name = String(body.full_name ?? '').trim() || email;
@@ -103,6 +126,8 @@ Deno.serve(async (req) => {
             { data: { full_name }, redirectTo },
           );
           if (!resendErr) {
+            const accessErr = await grantAccess(existing.id);
+            if (accessErr) return fail(accessErr.message);
             return json({ id: existing.id, resent: true, message: 'Invitation resent to ' + email });
           }
         }
@@ -114,6 +139,8 @@ Deno.serve(async (req) => {
         .update({ role: 'admin', is_superadmin: false, onboarding_complete: true })
         .eq('id', existing.id);
       if (updErr) return fail(updErr.message);
+      const accessErr = await grantAccess(existing.id);
+      if (accessErr) return fail(accessErr.message);
       return json({ promoted: true, id: existing.id, message: 'Added as administrator.' });
     }
 
@@ -170,6 +197,8 @@ Deno.serve(async (req) => {
       await new Promise((r) => setTimeout(r, 300));
     }
     if (updErr) return fail(updErr.message);
+    const accessErr = await grantAccess(newId);
+    if (accessErr) return fail(accessErr.message);
 
     return json({ id: newId, invite_link: null, temporary_password });
   } catch (e) {

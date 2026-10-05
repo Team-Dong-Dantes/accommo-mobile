@@ -25,6 +25,7 @@
 --   PA1-PA5  PASS
 --   AC1-AC7  PASS
 --   H1-H22  PASS
+--   AA1-AA8  PASS
 
 create or replace function pg_temp.rls_check() returns table(test text, outcome text)
 language plpgsql as $$
@@ -1098,6 +1099,94 @@ begin
   test := 'RL1: sixth ticket in an hour is refused'; outcome := coalesce(o1, 'FAIL - not reached'); return next;
   test := 'RL2: database-written rows are not capped'; outcome := coalesce(o2, 'FAIL - not reached'); return next;
 end $$;
+-- Invited-admin access (20261006000000): a level per area, enforced in the
+-- database. Student two is made a limited admin for the length of the block.
+create or replace function pg_temp.access_check() returns table(test text, outcome text)
+language plpgsql as $f$
+declare
+  v_admin  uuid := '00000000-0000-0000-0000-00000000b002';
+  v_target uuid := '00000000-0000-0000-0000-00000000b001';
+  v_super  uuid := '00000000-0000-0000-0000-00000000f001';
+  v_msg text; v_n int; v_ip text;
+  names text[] := '{}'; results text[] := '{}';
+  claims text := json_build_object('sub', '00000000-0000-0000-0000-00000000b002', 'role', 'authenticated')::text;
+begin
+  if not exists (select 1 from public.users where id = v_admin) then
+    test := 'AA: admin access'; outcome := 'SKIP - load tests/fixture.sql'; return next; return;
+  end if;
+
+  begin
+    set local session_replication_role = replica;
+    update public.users set role = 'admin' where id = v_admin;
+    set local session_replication_role = origin;
+    insert into public.admin_access (user_id, preset, levels)
+    values (v_admin, 'custom', '{"support":"view","accounts":"view","activity":"view"}');
+    insert into public.audit_logs (actor_id, action, entity_type, entity_id, ip_address, user_agent)
+    values (v_super, 'UPDATE', 'users', v_target::text, '1.2.3.4', 'TestUA');
+
+    perform set_config('request.jwt.claims', claims, true);
+    set local role authenticated;
+
+    v_msg := case when public.can_view('support') and not public.can_edit('support') and not public.can_view('verification')
+                  then 'PASS' else 'FAIL - levels not applied' end;
+    names := names || 'AA1: view-only area reads but cannot edit'::text; results := results || v_msg;
+
+    begin
+      insert into public.account_notes (user_id, author_id, body) values (v_target, v_admin, 'x');
+      v_msg := 'FAIL - view-only admin wrote a note';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'AA2: Accounts view cannot add notes'::text; results := results || v_msg;
+
+    select count(*) into v_n from public.audit_logs where actor_id is distinct from v_admin;
+    v_msg := case when v_n = 0 then 'PASS' else 'FAIL - read ' || v_n || ' audit rows' end;
+    names := names || 'AA3: audit log is system-admin only'::text; results := results || v_msg;
+
+    begin
+      perform public.admin_set_account_status(v_target, 'suspended', 'test');
+      v_msg := 'FAIL - suspended an account without Accounts edit';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'AA4: suspend needs Accounts edit'::text; results := results || v_msg;
+
+    select x ->> 'ip_address' into v_ip from public.record_activity(array['users'], v_target::text) x
+     where x ->> 'action' = 'UPDATE' and x -> 'actor' ->> 'full_name' is not null limit 1;
+    select count(*) into v_n from public.record_activity(array['users'], v_target::text);
+    v_msg := case when v_n > 0 and v_ip is null then 'PASS' when v_n = 0 then 'FAIL - no activity' else 'FAIL - device shown' end;
+    names := names || 'AA5: Changes only hides the device'::text; results := results || v_msg;
+
+    begin
+      update public.admin_access set levels = '{"accounts":"edit"}' where user_id = v_admin;
+      get diagnostics v_n = row_count;
+      v_msg := case when v_n = 0 then 'PASS' else 'FAIL - changed own access' end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'AA6: an admin cannot raise their own access'::text; results := results || v_msg;
+
+    reset role;
+    update public.admin_access set expires_at = now() - interval '1 minute' where user_id = v_admin;
+    set local role authenticated;
+    v_msg := case when not public.is_admin(v_admin) and not public.can_view('support') then 'PASS' else 'FAIL - expired admin still an admin' end;
+    names := names || 'AA7: expired access locks the admin out'::text; results := results || v_msg;
+
+    begin
+      perform public.check_session();
+      v_msg := 'FAIL - expired admin passed check_session';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg;
+    end;
+    names := names || 'AA8: check_session refuses an expired admin'::text; results := results || v_msg;
+
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> 'rollback' then names := names || 'AA: setup'::text; results := results || ('FAIL - ' || v_msg); end if;
+  end;
+  reset role;
+  for i in 1 .. coalesce(array_length(names, 1), 0) loop
+    test := names[i]; outcome := results[i]; return next;
+  end loop;
+end $f$;
+
 select * from pg_temp.rls_check()
 union all
 select * from pg_temp.added_check()
@@ -1124,4 +1213,6 @@ select * from pg_temp.accreditation_check()
 union all
 select * from pg_temp.rate_limit_check()
 union all
-select * from pg_temp.hardening_check();
+select * from pg_temp.hardening_check()
+union all
+select * from pg_temp.access_check();

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       accommodation_amenities: {
@@ -705,6 +680,62 @@ export type Database = {
             foreignKeyName: "accreditation_rounds_submitted_by_fkey"
             columns: ["submitted_by"]
             isOneToOne: false
+            referencedRelation: "users_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_access: {
+        Row: {
+          expires_at: string | null
+          granted_by: string | null
+          levels: Json
+          preset: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          expires_at?: string | null
+          granted_by?: string | null
+          levels?: Json
+          preset?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          expires_at?: string | null
+          granted_by?: string | null
+          levels?: Json
+          preset?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users_full"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "users_full"
             referencedColumns: ["id"]
           },
@@ -1964,6 +1995,48 @@ export type Database = {
           },
         ]
       }
+      sign_in_history: {
+        Row: {
+          created_at: string
+          id: number
+          ip: unknown
+          session_id: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          ip?: unknown
+          session_id: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          ip?: unknown
+          session_id?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sign_in_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sign_in_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_profiles: {
         Row: {
           assessment_of_fees_url: string | null
@@ -2768,6 +2841,9 @@ export type Database = {
         Returns: undefined
       }
       admin_disconnect_google: { Args: { p_user: string }; Returns: undefined }
+      admin_expired: { Args: { p_uid: string }; Returns: boolean }
+      admin_level: { Args: { p_area: string }; Returns: string }
+      admin_levels_valid: { Args: { p: Json }; Returns: boolean }
       admin_set_account_status: {
         Args: {
           p_reason?: string
@@ -2809,7 +2885,15 @@ export type Database = {
       }
       archive_expired_announcements: { Args: never; Returns: number }
       assert_admin_over: { Args: { p_user: string }; Returns: undefined }
+      audit_entry: { Args: { p_id: string }; Returns: Json }
+      audit_json: {
+        Args: { a: Database["public"]["Tables"]["audit_logs"]["Row"] }
+        Returns: Json
+      }
+      audit_visible: { Args: { p_type: string }; Returns: boolean }
+      can_edit: { Args: { p_area: string }; Returns: boolean }
       can_notify: { Args: { target: string }; Returns: boolean }
+      can_view: { Args: { p_area: string }; Returns: boolean }
       check_session: { Args: never; Returns: undefined }
       check_student_id_exists: {
         Args: { p_student_id: string }
@@ -2877,6 +2961,18 @@ export type Database = {
         Args: never
         Returns: {
           id: string
+        }[]
+      }
+      my_sign_ins: {
+        Args: never
+        Returns: {
+          active: boolean
+          current: boolean
+          ip: string
+          last_active_at: string
+          session_id: string
+          signed_in_at: string
+          user_agent: string
         }[]
       }
       notify_admins: {
@@ -2959,6 +3055,10 @@ export type Database = {
         Args: { p_room_id: string }
         Returns: undefined
       }
+      record_activity: {
+        Args: { p_entity: string; p_limit?: number; p_types: string[] }
+        Returns: Json[]
+      }
       record_consent: { Args: { p_documents: string[] }; Returns: undefined }
       register_push_token: { Args: { p_token: string }; Returns: undefined }
       remind_accreditation_expiry: { Args: never; Returns: undefined }
@@ -2985,6 +3085,7 @@ export type Database = {
         Returns: undefined
       }
       set_pin: { Args: { p_pin: string }; Returns: boolean }
+      sign_out_session: { Args: { p_session: string }; Returns: boolean }
       student_may_lease: { Args: { p_student: string }; Returns: boolean }
       submit_accommodation: { Args: { p_id: string }; Returns: undefined }
       submit_student_review: {
@@ -3189,9 +3290,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       accommodation_status: [
