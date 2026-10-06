@@ -19,18 +19,21 @@ export interface Presentation {
   icon: string;
 }
 
-/** doc_status: pending | approved | rejected */
+/** doc_status: pending | approved | rejected — plus `resubmit`, a document OSAS asked for again. */
 export function docPresentation(status: string | null | undefined): Presentation {
   if (status === 'approved') return { label: 'Approved', tone: 'good', icon: 'lucide:check' };
   if (status === 'rejected') return { label: 'Rejected', tone: 'danger', icon: 'lucide:x' };
+  if (status === 'resubmit') return { label: 'Upload again', tone: 'warn', icon: 'lucide:file-warning' };
   return { label: 'In review', tone: 'warn', icon: 'lucide:hourglass' };
 }
 
-/** user_status: unverified | pending | reviewing | verified | rejected | suspended */
+/** user_status: unverified | pending | reviewing | verified | needs_resubmission | rejected | suspended */
 export function statusPresentation(status: string | null | undefined): Presentation {
   switch (status) {
     case 'verified':
       return { label: 'Verified', tone: 'good', icon: 'lucide:badge-check' };
+    case 'needs_resubmission':
+      return { label: 'Needs resubmission', tone: 'warn', icon: 'lucide:file-warning' };
     case 'rejected':
       return { label: 'Rejected', tone: 'danger', icon: 'lucide:file-x' };
     case 'suspended':

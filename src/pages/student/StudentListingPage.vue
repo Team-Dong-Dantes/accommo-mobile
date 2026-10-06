@@ -141,7 +141,7 @@
 
         <!-- Manager -->
         <section v-if="manager.id" class="block">
-          <h2 class="block-title">Managed by</h2>
+          <h2 class="block-title">{{ manager.title }}</h2>
           <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
             <span class="mgr-avatar">
               <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="mgr-avatar-img" @error="manager.avatarUrl = null" />
@@ -150,7 +150,7 @@
             <span class="mgr-body">
               <span class="mgr-name">{{ manager.name }}</span>
               <span class="mgr-sub">
-                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Landlord/Landlady' }}
+                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : manager.title }}
               </span>
             </span>
             <IconifyIcon icon="lucide:chevron-right" width="16" class="mgr-chevron" />
@@ -170,7 +170,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso, initialsOf } from '@/utils/format'
+import { formatPeso, initialsOf, landlordTitle } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, FACILITY_META, utilitiesFromRow, utilitiesHint, type UtilityColumns, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
@@ -215,7 +215,7 @@ const amenities = ref<string[]>([])
 const sharedFacilities = ref<{ type: string; label: string | null }[]>([])
 const privateFacilityTypes = ref<string[]>([])
 const rules = ref<{ label: string; value: string }[]>([])
-const manager = reactive({ id: '', name: '', initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
+const manager = reactive({ id: '', name: '', title: landlordTitle(null), initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
 
 const id = computed(() => String(route.params.id || ''))
 const monogram = computed(() => listingMonogram(listing.name))
@@ -362,7 +362,7 @@ async function load() {
       const [{ data: person }, { data: profile }] = await Promise.all([
         supabase
           .from('users')
-          .select('full_name,initials,avatar_url')
+          .select('full_name,initials,avatar_url,sex')
           .eq('id', data.landlord_id)
           .maybeSingle(),
         supabase
@@ -373,6 +373,7 @@ async function load() {
       ])
       manager.id = data.landlord_id
       manager.name = person?.full_name || 'Landlord/Landlady'
+      manager.title = landlordTitle(person?.sex)
       manager.initials = person?.initials || initialsOf(manager.name)
       manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null
       manager.replyMinutes = profile?.avg_response_minutes ?? null

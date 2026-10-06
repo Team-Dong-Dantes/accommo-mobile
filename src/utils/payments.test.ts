@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, flatFees, isBillSettled, manilaToday, minPayment, nextLedgerRent, nextRentMonth, paymentTitle, referenceProblem, toLedger, type RentPayment } from './payments'
+import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, flatFees, isBillSettled, manilaToday, minPayment, nextLedgerRent, nextRentMonth, paymentTitle, referenceProblem, tenantMonthlyRent, toLedger, type RentPayment } from './payments'
 
 const rent = (month: string, status: string): RentPayment => ({ month, status, description: '' })
 
@@ -128,5 +128,17 @@ describe('ledger helpers', () => {
       { kind: 'rent', month: '2026-11-01', due: 2500, confirmed: 0, pending: 0, balance: 2500, state: 'unpaid' },
     ])
     expect(nextLedgerRent(l)?.month).toBe('2026-10-01')
+  })
+})
+
+describe('tenantMonthlyRent', () => {
+  it('splits a whole-room rate across capacity, to the centavo', () => {
+    expect(tenantMonthlyRent(2800, 'room', 2)).toBe(1400)
+    expect(tenantMonthlyRent(2200, 'room', 3)).toBe(733.33)
+  })
+  it('leaves per-person and single rooms alone', () => {
+    expect(tenantMonthlyRent(1500, 'person', 4)).toBe(1500)
+    expect(tenantMonthlyRent(3500, 'room', 1)).toBe(3500)
+    expect(tenantMonthlyRent(3500, 'room', null)).toBe(3500)
   })
 })

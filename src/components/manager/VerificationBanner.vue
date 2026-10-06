@@ -38,7 +38,7 @@ const state = computed(() => {
       to: '/manager/osas',
     }
   }
-  if (status === 'rejected' || status === 'reviewing') {
+  if (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing') {
     return {
       tone: 'warn',
       icon: 'lucide:triangle-alert',

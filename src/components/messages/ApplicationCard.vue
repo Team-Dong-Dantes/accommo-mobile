@@ -33,7 +33,7 @@
     <div class="app-card-body">
       <IconifyIcon icon="lucide:file-check-2" width="16" />
       <span class="app-card-text">
-        {{ applyRoom.label }} · {{ formatPeso(applyRoom.rent) }}/mo{{ applyRoom.rentBasis === 'person' && applyRoom.capacity > 1 ? ' per person' : '' }}
+        {{ applyRoom.label }} · {{ formatPeso(monthlyDue) }}/mo{{ applyRoom.capacity > 1 ? (applyRoom.rentBasis === 'person' ? ' per person' : ' your share') : '' }}
       </span>
     </div>
     <label class="app-field">
@@ -244,6 +244,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatDate, formatPeso } from '@/utils/format'
+import { tenantMonthlyRent } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import {
@@ -336,7 +337,7 @@ const applyEndDate = computed(() => addMonths(applyForm.startDate || todayStr(),
 const monthlyDue = computed(() => {
   const room = applyRoom.value
   if (!room) return 0
-  return room.rentBasis === 'person' ? room.rent : room.rent / (room.capacity || 1)
+  return tenantMonthlyRent(room.rent, room.rentBasis, room.capacity)
 })
 
 const upfrontTotal = computed(() => {
@@ -483,10 +484,10 @@ async function runRefresh() {
     // the same room every time it refreshed.
     announcedRoom = props.roomId
     const label = await fetchRoomLabel(props.roomId)
-    await stampInquiryRoom(props.conversationId, props.roomId)
+    const changed = await stampInquiryRoom(props.conversationId, props.roomId)
     inquiryId = props.roomId
     inquiryRoom.value = { id: inquiryId, label }
-    emit('system', `Asking about ${label}.`)
+    if (changed) emit('system', `Asking about ${label}.`)
   } else {
     inquiryRoom.value = inquiryId ? { id: inquiryId, label: await fetchRoomLabel(inquiryId) } : null
   }

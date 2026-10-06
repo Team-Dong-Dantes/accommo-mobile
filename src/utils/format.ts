@@ -219,7 +219,11 @@ export function clockTime(iso: string): string {
 
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  const d = new Date(dateStr);
+  // The year is shown once it isn't this one: a lease "Until Oct 5" that starts
+  // Oct 5 reads as zero days unless it says 2027.
+  const year = d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined;
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year });
 }
 
 export function formatMonth(dateStr: string | null | undefined): string {

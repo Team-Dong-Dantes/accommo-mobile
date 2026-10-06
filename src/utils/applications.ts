@@ -9,13 +9,20 @@ import { createNotification } from '@/boot/notify'
  * Unvalidated on purpose: this is a hint, not a grant. invite_application() re-checks
  * ownership and availability at the moment a form is issued, and the room is frozen
  * onto the invite there.
+ *
+ * Returns whether this call changed it. The condition makes the claim atomic: when
+ * two calls race (a remounted thread, a second tab), only one row update matches,
+ * so only one caller goes on to post "Asking about …".
  */
-export async function stampInquiryRoom(conversationId: string, roomId: string): Promise<void> {
-  const { error } = await supabase
+export async function stampInquiryRoom(conversationId: string, roomId: string): Promise<boolean> {
+  const { data, error } = await supabase
     .from('conversations')
     .update({ inquiry_room_id: roomId })
     .eq('id', conversationId)
+    .or(`inquiry_room_id.is.null,inquiry_room_id.neq.${roomId}`)
+    .select('id')
   if (error) throw error
+  return (data?.length ?? 0) > 0
 }
 
 /**

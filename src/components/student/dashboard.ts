@@ -26,4 +26,6 @@ export interface Manager {
   initials: string
   avatarUrl: string | null
   replyMinutes: number | null
+  /** Landlord, Landlady, or Landlord/Landlady when sex is unknown. */
+  title?: string
 }

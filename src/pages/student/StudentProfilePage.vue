@@ -45,6 +45,7 @@
         :subtitle="courseLine || 'Student'"
         :status-tone="status.tone || 'warn'"
         :status-label="status.label || 'Unverified'"
+        :status-icon-name="status.icon"
         action-icon="lucide:qr-code"
         action-label="My QR"
         @action="go('/student/profile/qr')"

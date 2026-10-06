@@ -904,7 +904,7 @@ onMounted(async () => {
     session &&
     profile &&
     registered &&
-    (status === 'rejected' || status === 'reviewing')
+    (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing')
   ) {
     isResubmit.value = true;
     fillFromGoogleSession(session.user);
@@ -933,7 +933,7 @@ async function routeAfterGoogle() {
   const role = profile?.role;
   // Same exemption as resolveDestination(): a landlord/landlady OSAS sent back is
   // registered but still has to reach this screen to correct the application.
-  const resubmitting = role === 'manager' && (status === 'rejected' || status === 'reviewing');
+  const resubmitting = role === 'manager' && (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing');
 
   // A finished account cannot register again. Signing out first is what makes
   // the next screen honest — left signed in, /login would bounce them into the

@@ -35,10 +35,10 @@
                 <h2 v-if="isDesktop" class="desk-col-title">Requirements</h2>
                 <!-- 'reviewing' is a soft reject: OSAS wants a better document and
                      the account can still be verified once it arrives. -->
-                <div v-if="myStatus === 'rejected' || myStatus === 'reviewing'" class="reject-banner">
+                <div v-if="myStatus === 'rejected' || myStatus === 'needs_resubmission' || myStatus === 'reviewing'" class="reject-banner">
                   <IconifyIcon icon="lucide:triangle-alert" width="16" />
                   <div>
-                    <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : 'Verification rejected' }}</p>
+                    <p class="reject-title">{{ myStatus === 'reviewing' ? 'More information needed' : myStatus === 'needs_resubmission' ? 'OSAS asked for new requirements' : 'Verification rejected' }}</p>
                     <p class="reject-text">{{ rejectionReason || 'OSAS needs a clearer copy — please re-upload below.' }}</p>
                   </div>
                 </div>
@@ -208,9 +208,10 @@ const docs = computed<RequirementItem[]>(() =>
     const label = DOC_LABEL[type] ?? type
     const row = docRows.value.find((d) => d.doc_type === type)
     if (!row) return { type, label, statusLabel: 'Not submitted', tone: 'idle', when: '', fileUrl: '', verified: false }
-    // The account is the unit OSAS actually reviews — once it's verified (or
-    // rejected), that decision overrides this row's own stale 'pending'.
-    const effectiveStatus = myStatus.value === 'verified' ? 'approved' : myStatus.value === 'rejected' ? 'rejected' : row.status
+    // Once the account is verified that overrides an old row stuck at 'pending'.
+    // Otherwise the row speaks for itself: OSAS marks only the documents it
+    // wants again, so a sent-back account can still have an approved one.
+    const effectiveStatus = myStatus.value === 'verified' ? 'approved' : row.status === 'rejected' && myStatus.value === 'needs_resubmission' ? 'resubmit' : row.status
     const presentation = docPresentation(effectiveStatus)
     const when = row.verified_at ? `Reviewed ${since(row.verified_at)}` : `Sent ${since(row.uploaded_at)}`
     return { type, label, statusLabel: presentation.label, tone: presentation.tone, when, fileUrl: row.file_url, verified: effectiveStatus === 'approved' }
@@ -259,7 +260,7 @@ async function load() {
     await signRows('tickets', ticketData, 'photo_urls')
     if (userError) throw userError
     myStatus.value = userData?.status || ''
-    if (myStatus.value === 'rejected' || myStatus.value === 'reviewing') {
+    if (myStatus.value === 'rejected' || myStatus.value === 'needs_resubmission' || myStatus.value === 'reviewing') {
       // verification_requests is the decision trail. This used to string-match a
       // notification *title*, so renaming that copy silently lost every reason.
       const { data: decision } = await supabase
@@ -345,7 +346,7 @@ async function onDocSelected(event: Event) {
     // never looked at. No-ops for any other status.
     const { error: resubmitError } = await supabase.rpc('resubmit_verification')
     if (resubmitError) throw resubmitError
-    myStatus.value = myStatus.value === 'rejected' ? 'pending' : myStatus.value
+    myStatus.value = myStatus.value === 'rejected' || myStatus.value === 'needs_resubmission' ? 'pending' : myStatus.value
 
     notify.success('Uploaded — awaiting review.')
   } catch (e) {

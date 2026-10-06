@@ -73,6 +73,7 @@
         :subtitle="landlordTitle(me.sex)"
         :status-tone="status.tone || 'warn'"
         :status-label="status.label || 'Unverified'"
+        :status-icon-name="status.icon"
         action-icon="lucide:scan"
         action-label="Scan QR"
         @action="go('/manager/profile/qr-scanner')"

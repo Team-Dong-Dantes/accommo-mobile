@@ -42,6 +42,8 @@ const props = withDefaults(
     subtitle: string
     statusTone: string
     statusLabel: string
+    /** The status's own icon; without one the tone picks a generic one. */
+    statusIconName?: string
     /** Omit to show no corner action. */
     actionIcon?: string
     actionLabel?: string
@@ -49,6 +51,7 @@ const props = withDefaults(
   {
     actionIcon: '',
     actionLabel: '',
+    statusIconName: '',
     initials: '?',
     avatarSize: 56,
     avatarBackground: 'var(--m-primary)',
@@ -59,6 +62,7 @@ const props = withDefaults(
 const emit = defineEmits<{ action: [] }>()
 
 const statusIcon = computed(() => {
+  if (props.statusIconName) return props.statusIconName
   if (props.statusTone === 'good') return 'lucide:check-circle'
   if (props.statusTone === 'warn') return 'lucide:clock'
   return 'lucide:alert-circle'
@@ -125,6 +129,7 @@ const statusIcon = computed(() => {
   gap: 4px;
   padding: 2px 10px;
   border-radius: 999px;
+  white-space: nowrap;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;

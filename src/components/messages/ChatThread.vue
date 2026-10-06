@@ -140,7 +140,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf, dayLabel, clockTime } from '@/utils/format'
+import { initialsOf, dayLabel, clockTime, landlordTitle } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { useMessagesStore } from '@/stores/messages'
 import { useNotify } from '@/utils/notify'
@@ -370,7 +370,7 @@ async function load() {
       .from('conversations')
       // Must stay one literal for postgrest-js to type the result.
       // eslint-disable-next-line max-len
-      .select('user_a_id,user_b_id,a:users!conversations_user_a_id_fkey(full_name,initials,role,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,role,avatar_color,avatar_url)')
+      .select('user_a_id,user_b_id,a:users!conversations_user_a_id_fkey(full_name,initials,role,sex,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,role,sex,avatar_color,avatar_url)')
       .eq('id', props.conversationId)
       .maybeSingle()
     if (convoError) throw convoError
@@ -382,12 +382,13 @@ async function load() {
         full_name: string | null
         initials: string | null
         role: string | null
+        sex: string | null
         avatar_color: string | null
         avatar_url: string | null
       } | null
       other.name = person?.full_name || 'Conversation'
       other.initials = person?.initials || initialsOf(other.name)
-      other.role = person?.role === 'landlord' ? 'Landlord/Landlady' : 'Student'
+      other.role = person?.role === 'landlord' ? landlordTitle(person.sex) : 'Student'
       other.color = person?.avatar_color ?? null
       other.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null
     }

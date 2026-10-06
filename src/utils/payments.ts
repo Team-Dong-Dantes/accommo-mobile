@@ -167,3 +167,13 @@ export async function fileFingerprint(file: Blob): Promise<string | null> {
     return null // no WebCrypto (very old WebView): the server simply skips the check
   }
 }
+
+/**
+ * What one tenant pays each month. A "whole room" rate is split evenly across the
+ * room's capacity and rounded to the centavo — the same expression guard_lease_writes
+ * applies when the lease is written, so a quote can never differ from the lease.
+ */
+export function tenantMonthlyRent(rent: number, basis: string | null | undefined, capacity: number | null | undefined): number {
+  if (basis === 'person') return rent
+  return Math.round((rent / Math.max(capacity || 1, 1)) * 100) / 100
+}

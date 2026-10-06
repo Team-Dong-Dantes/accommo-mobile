@@ -20,7 +20,7 @@
           <template v-else>{{ manager.initials }}</template>
         </span>
         <span class="head-name">{{ manager.name }}</span>
-        <span class="head-sub">Landlord/Landlady</span>
+        <span class="head-sub">{{ manager.title }}</span>
         <span v-if="manager.verified" class="badge">
           <IconifyIcon icon="lucide:shield-check" width="11" />ID Verified
         </span>
@@ -33,7 +33,7 @@
             <IconifyIcon icon="lucide:check-check" width="11" />{{ manager.responseRate }}% response rate
           </span>
           <span v-if="manager.memberSince" class="tag">
-            <IconifyIcon icon="lucide:calendar" width="11" />Managing since {{ manager.memberSince }}
+            <IconifyIcon icon="lucide:calendar" width="11" />Member since {{ manager.memberSince }}
           </span>
         </div>
       </div>
@@ -72,7 +72,7 @@
     <div v-if="!loading && !error" class="cta">
       <button type="button" class="cta-btn" @click="router.push(`/student/messages?to=${id}`)">
         <IconifyIcon icon="lucide:message-circle" width="17" />
-        Message manager
+        Message {{ manager.title.toLowerCase() }}
       </button>
     </div>
   </q-page>
@@ -85,7 +85,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { initialsOf, parseServerTime } from '@/utils/format'
+import { initialsOf, parseServerTime, landlordTitle } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
 import { listingMonogram } from '@/utils/listings'
@@ -111,6 +111,7 @@ const loading = ref(true)
 const error = ref('')
 const manager = reactive({
   name: '',
+  title: landlordTitle(null),
   initials: '?',
   replyMinutes: null as number | null,
   responseRate: null as number | null,
@@ -137,7 +138,7 @@ async function load(silent = false) {
     const [{ data: person }, { data: profile }, { data: props, error: propsError }] = await Promise.all([
       supabase
         .from('users')
-        .select('id,full_name,initials,avatar_color,avatar_url,created_at,status')
+        .select('id,full_name,initials,avatar_color,avatar_url,created_at,status,sex')
         .eq('id', id.value)
         .eq('role', 'landlord')
         .maybeSingle(),
@@ -160,6 +161,7 @@ async function load(silent = false) {
     if (propsError) throw propsError
 
     manager.name = person.full_name?.trim() || 'Landlord/Landlady'
+    manager.title = landlordTitle(person.sex)
     manager.initials = person.initials || initialsOf(manager.name)
     manager.avatarColor = person.avatar_color
     manager.avatarUrl = person.avatar_url ? resolveAsset(person.avatar_url) : null

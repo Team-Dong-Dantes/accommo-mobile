@@ -706,9 +706,12 @@ const accTenants = computed(() => {
   return map
 })
 
-// Only accredited properties are actually live/rented out to students — one
-// still in review (or delisted) has no real tenants to manage here.
-const accreditedAccommodations = computed(() => accommodations.value.filter((acc) => acc.status === 'accredited'))
+// Accredited properties are the live ones. One whose accreditation lapsed
+// (expired permit, suspension) still has the tenants who moved in before, and
+// their stays and payments still need managing, so it stays while anyone lives there.
+const accreditedAccommodations = computed(() => accommodations.value.filter(
+  (acc) => acc.status === 'accredited' || acc.rooms.some((room) => room.leases.length > 0),
+))
 
 const visibleAccommodations = computed(() => {
   const q = query.value.trim().toLowerCase()

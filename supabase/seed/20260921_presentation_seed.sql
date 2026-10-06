@@ -144,15 +144,17 @@ on conflict (user_id) do update set response_rate=excluded.response_rate,
   avg_response_minutes=excluded.avg_response_minutes, extracted_name=excluded.extracted_name;
 
 -- 1c. 31 more students (the 14 Google ones are enriched in place below).
-with n(idx, fname) as (values
- (1,'Andrea Bautista'),(2,'Joshua Ramirez'),(3,'Kristine Manalo'),(4,'Paulo Gaffud'),
- (5,'Bianca Tolentino'),(6,'Miguel Cabanilla'),(7,'Trisha Domingo'),(8,'Rafael Bulusan'),
- (9,'Angelica Ramos'),(10,'Nathaniel Soriano'),(11,'Camille Ordonez'),(12,'Dominic Pagaduan'),
- (13,'Hazel Guzman'),(14,'Lorenzo Baccay'),(15,'Faith Alvarez'),(16,'Sergio Mabborang'),
- (17,'Jasmine Corpuz'),(18,'Elijah Tumamao'),(19,'Patricia Lazaro'),(20,'Kenneth Urbano'),
- (21,'Micaela Fontanilla'),(22,'Adrian Calubaquib'),(23,'Erika Sabado'),(24,'Vincent Malana'),
- (25,'Nicole Battung'),(26,'Jerome Quilang'),(27,'Sheila Rapanut'),(28,'Marlon Addun'),
- (29,'Precious Layugan'),(30,'Carlo Bunagan'),(31,'Diana Cauilan')
+-- sex rides in the sign-up metadata so the auth trigger stores it; left out,
+-- the trigger defaulted it to 'M' and 1d's coalesce kept that for everyone.
+with n(idx, fname, sex) as (values
+ (1,'Andrea Bautista','F'),(2,'Joshua Ramirez','M'),(3,'Kristine Manalo','F'),(4,'Paulo Gaffud','M'),
+ (5,'Bianca Tolentino','F'),(6,'Miguel Cabanilla','M'),(7,'Trisha Domingo','F'),(8,'Rafael Bulusan','M'),
+ (9,'Angelica Ramos','F'),(10,'Nathaniel Soriano','M'),(11,'Camille Ordonez','F'),(12,'Dominic Pagaduan','M'),
+ (13,'Hazel Guzman','F'),(14,'Lorenzo Baccay','M'),(15,'Faith Alvarez','F'),(16,'Sergio Mabborang','M'),
+ (17,'Jasmine Corpuz','F'),(18,'Elijah Tumamao','M'),(19,'Patricia Lazaro','F'),(20,'Kenneth Urbano','M'),
+ (21,'Micaela Fontanilla','F'),(22,'Adrian Calubaquib','M'),(23,'Erika Sabado','F'),(24,'Vincent Malana','M'),
+ (25,'Nicole Battung','F'),(26,'Jerome Quilang','M'),(27,'Sheila Rapanut','F'),(28,'Marlon Addun','M'),
+ (29,'Precious Layugan','F'),(30,'Carlo Bunagan','M'),(31,'Diana Cauilan','F')
 )
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
@@ -165,7 +167,7 @@ select '00000000-0000-0000-0000-000000000000',
        (date '2025-10-01' + (idx*11 % 350))::timestamptz,
        (date '2025-10-01' + (idx*11 % 350))::timestamptz,
        '{"provider":"email","providers":["email"]}'::jsonb,
-       jsonb_build_object('full_name', fname), false, false
+       jsonb_build_object('full_name', fname, 'sex', sex), false, false
 from n;
 
 -- 1d. Every student, new and Google, gets a backdated registration and a status.

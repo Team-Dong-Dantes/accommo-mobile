@@ -67,7 +67,7 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
-import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf } from '@/utils/format'
+import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, landlordTitle, LANDLORD_ROLE_LABEL } from '@/utils/format'
 import { BILL_TAG, isBillSettled, manilaToday } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
 import { ago } from '@/utils/profile'
@@ -234,7 +234,7 @@ async function load(silent = false) {
       // with; the card is name, response time and the actions.
       if (managerId) {
         const [{ data: mgr }, { data: mgrProfile }] = await Promise.all([
-          supabase.from('users').select('full_name, initials, avatar_url').eq('id', managerId).maybeSingle(),
+          supabase.from('users').select('full_name, initials, avatar_url, sex').eq('id', managerId).maybeSingle(),
           supabase
             .from('landlord_profiles')
             .select('avg_response_minutes')
@@ -248,12 +248,15 @@ async function load(silent = false) {
             initials: mgr.initials || initialsOf(mgr.full_name),
             avatarUrl: mgr.avatar_url ? resolveAsset(mgr.avatar_url, AVATAR) : null,
             replyMinutes: mgrProfile?.avg_response_minutes ?? null,
+            title: landlordTitle(mgr.sex),
           }
         }
       }
     }
 
     const list: Task[] = []
+    // The student's own landlord or landlady once known, else the neutral compound.
+    const who = (manager.value?.title ?? LANDLORD_ROLE_LABEL).toLowerCase()
 
     if (standing?.restrictions?.includes('apply')) {
       list.push({
@@ -279,15 +282,16 @@ async function load(silent = false) {
         .eq('user_id', user.id)
         .eq('status', 'pending')
 
-      if (verification === 'rejected' || verification === 'suspended') {
+      if (verification === 'rejected' || verification === 'needs_resubmission' || verification === 'suspended') {
+        const sentBack = verification === 'needs_resubmission'
         list.push({
           id: 'verify',
           icon: 'lucide:file-x',
           kind: 'OSAS',
-          label: verification === 'rejected' ? 'Your requirements were rejected' : 'Your account is suspended',
-          hint: standing?.reason || (verification === 'rejected' ? 'Upload clearer copies to get verified' : 'Contact OSAS to sort this out'),
+          label: sentBack ? 'OSAS asked for new requirements' : verification === 'rejected' ? 'Your requirements were rejected' : 'Your account is suspended',
+          hint: standing?.reason || (sentBack ? 'Upload them again to stay verified' : verification === 'rejected' ? 'Upload clearer copies to get verified' : 'Contact OSAS to sort this out'),
           when: '',
-          action: verification === 'rejected' ? 'Re-upload requirements' : 'Open OSAS',
+          action: verification === 'suspended' ? 'Open OSAS' : 'Re-upload requirements',
           route: '/student/support',
           tone: 'danger',
           rank: 1,
@@ -339,7 +343,7 @@ async function load(silent = false) {
         id: 'application',
         icon: 'lucide:file-clock',
         kind: 'Application',
-        label: 'Your landlord/landlady is reviewing your application',
+        label: `Your ${who} is reviewing your application`,
         hint: 'You will be told as soon as they decide',
         when: '',
         action: '',
@@ -378,9 +382,9 @@ async function load(silent = false) {
           icon: 'lucide:calendar-clock',
           kind: 'Lease',
           label: `Your lease ends in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}`,
-          hint: 'Talk to your landlord/landlady if you want to renew',
+          hint: `Talk to your ${who} if you want to renew`,
           when: '',
-          action: 'Message landlord/landlady',
+          action: `Message ${who}`,
           route: '/student/messages',
           tone: 'warn',
           rank: 5,
@@ -405,9 +409,9 @@ async function load(silent = false) {
           icon: answered ? 'lucide:message-square-reply' : 'lucide:triangle-alert',
           kind: 'Your report',
           label: answered
-            ? `Your landlord/landlady replied about ${(titleCase(c.category) || 'your report').toLowerCase()}`
+            ? `Your ${who} replied about ${(titleCase(c.category) || 'your report').toLowerCase()}`
             : `${titleCase(c.category) || 'Concern'} still open`,
-          hint: answered ? 'Read the reply and close it off' : 'Waiting on your landlord/landlady',
+          hint: answered ? 'Read the reply and close it off' : `Waiting on your ${who}`,
           when: ago(c.reported_at),
           action: answered ? 'Read reply' : '',
           route: '/student/concerns',
@@ -486,7 +490,7 @@ async function load(silent = false) {
         icon: 'lucide:message-circle',
         kind: 'Messages',
         label: `${unread} unread ${unread === 1 ? 'message' : 'messages'}`,
-        hint: 'From your landlord/landlady',
+        hint: `From your ${who}`,
         when: '',
         action: 'Open messages',
         route: '/student/messages',

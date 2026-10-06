@@ -182,7 +182,7 @@ async function handleOAuthReturn() {
   if (role === 'manager') {
     // Unverified landlords/landladies come in too; the dashboard banner says
     // what is still waiting on OSAS and links to the resubmission form.
-    if (status === 'rejected' || status === 'reviewing') {
+    if (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing') {
       notify.warning('OSAS needs changes to your application.');
     }
     // Offered once per account, skippable, and settable later in Settings.
@@ -195,7 +195,7 @@ async function handleOAuthReturn() {
     return;
   }
   if (role === 'student') {
-    void router.push(status === 'rejected' || status === 'reviewing' ? '/student/support' : '/student/home');
+    void router.push(status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing' ? '/student/support' : '/student/home');
   }
 }
 
@@ -273,10 +273,12 @@ async function handleLogin() {
       return;
     }
 
-    if (role === 'manager' && (status === 'rejected' || status === 'reviewing')) {
+    if (role === 'manager' && (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing')) {
       notify.warning('OSAS needs changes to your application.');
     } else if (role === 'manager' && status === 'pending') {
       notify.info('Signed in. OSAS is still verifying your account.');
+    } else if (status === 'needs_resubmission') {
+      notify.warning('OSAS asked for new requirements — upload them again.');
     } else if (status === 'rejected') {
       notify.warning('OSAS rejected your requirements — re-upload them to try again.');
     } else if (status === 'pending' || status === 'reviewing') {
@@ -288,7 +290,7 @@ async function handleLogin() {
     // Students are sent straight to the screen where they can act on their
     // status. Landlords and landladies land on the dashboard whatever their
     // status; its banner says what is still waiting on OSAS.
-    const studentNeedsOsas = status === 'rejected' || status === 'reviewing';
+    const studentNeedsOsas = status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing';
     if (role === 'student') void router.push(studentNeedsOsas ? '/student/support' : '/student/home');
     else if (role === 'manager') void router.push('/manager/dashboard');
     else {

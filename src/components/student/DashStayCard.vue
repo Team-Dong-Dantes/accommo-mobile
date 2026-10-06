@@ -35,11 +35,11 @@
         <span class="person-body">
           <span class="person-name">{{ manager.name }}</span>
           <span class="person-role">
-            Your landlord/landlady<template v-if="manager.replyMinutes"> · replies in ~{{ manager.replyMinutes }} min</template>
+            Your {{ (manager.title ?? LANDLORD_ROLE_LABEL).toLowerCase() }}<template v-if="manager.replyMinutes">{{ ` · replies in ~${manager.replyMinutes} min` }}</template>
           </span>
         </span>
         <span class="person-actions">
-          <button type="button" class="icon-btn" aria-label="Message landlord/landlady" @click.stop="emit('message')">
+          <button type="button" class="icon-btn" :aria-label="`Message ${(manager.title ?? LANDLORD_ROLE_LABEL).toLowerCase()}`" @click.stop="emit('message')">
             <IconifyIcon icon="lucide:message-circle" width="17" />
           </button>
         </span>
@@ -56,7 +56,7 @@
 <script setup lang="ts">
 import { reactive, computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { formatDate, initialsOf } from '@/utils/format'
+import { formatDate, initialsOf, LANDLORD_ROLE_LABEL } from '@/utils/format'
 import { campusDistanceLabel } from '@/utils/geo'
 import { openExternal } from '@/utils/openExternal'
 import type { Manager, Stay } from './dashboard'
@@ -80,7 +80,9 @@ const monogram = computed(() => initialsOf(props.stay.accommodationName))
 
 const roomLabel = computed(() => {
   const { roomNumber, roomLabel: label } = props.stay
-  if (roomNumber && label) return `Room ${roomNumber} · ${label}`
+  // A label that only restates the number ("Room 303" for room 303) is not shown twice.
+  const sameAsNumber = !!label && label.trim().replace(/^room\s*/i, '') === String(roomNumber)
+  if (roomNumber && label && !sameAsNumber) return `Room ${roomNumber} · ${label}`
   if (roomNumber) return `Room ${roomNumber}`
   return label || 'Room'
 })

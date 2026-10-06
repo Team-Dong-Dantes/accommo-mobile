@@ -88,7 +88,7 @@ export function resolveDestination(s: GuardState): GuardDecision {
     // screen to correct the application, or the eviction below would sign them
     // out before the resubmission redirect could run.
     const resubmitting =
-      s.role === 'manager' && (s.status === 'rejected' || s.status === 'reviewing')
+      s.role === 'manager' && (s.status === 'rejected' || s.status === 'needs_resubmission' || s.status === 'reviewing')
     if (s.role !== null && s.registered === true && !resubmitting) {
       return go('/login?accountExists=true', true)
     }

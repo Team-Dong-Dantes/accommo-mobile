@@ -72,6 +72,10 @@
         <section v-if="moveIn || policy.contractType" class="block">
           <h2 class="block-title">Move-in cost</h2>
           <div class="rule-list">
+            <div v-if="moveIn && shared && room.rentBasis !== 'person'" class="rule-row">
+              <span class="rule-label">Your share of the rent</span>
+              <span class="rule-value">{{ formatPeso(share) }}/mo</span>
+            </div>
             <div v-if="moveIn?.advance" class="rule-row">
               <span class="rule-label">Advance ({{ moveIn.advanceMonths }} mo)</span>
               <span class="rule-value">{{ formatPeso(moveIn.advance) }}</span>
@@ -166,7 +170,7 @@
 
         <!-- The person to ask -->
         <section v-if="manager.id" class="block">
-          <h2 class="block-title">Managed by</h2>
+          <h2 class="block-title">{{ manager.title }}</h2>
           <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
             <span class="mgr-avatar">
               <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="mgr-avatar-img" @error="manager.avatarUrl = null" />
@@ -175,7 +179,7 @@
             <span class="mgr-body">
               <span class="mgr-name">{{ manager.name }}</span>
               <span class="mgr-sub">
-                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : 'Landlord/Landlady' }}
+                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : manager.title }}
               </span>
             </span>
             <IconifyIcon icon="lucide:chevron-right" width="16" class="mgr-chevron" />
@@ -190,7 +194,7 @@
       <span v-else-if="!room.free" class="cta-note">This room is taken</span>
       <!-- Applying is a handshake in chat (ask → form → apply → decision); say so
            here, since there is no Apply button to find. -->
-      <span v-else class="cta-note">Chat first — the landlord/landlady sends you an application form</span>
+      <span v-else class="cta-note">Chat first — the {{ manager.title.toLowerCase() }} sends you an application form</span>
       <button type="button" class="cta-btn cta-btn--ask" @click="goAsk">
         <IconifyIcon icon="lucide:message-circle" width="17" />
         {{ askable ? 'Ask to apply' : 'Ask' }}
@@ -205,7 +209,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso, initialsOf } from '@/utils/format'
+import { formatPeso, initialsOf, landlordTitle } from '@/utils/format'
+import { tenantMonthlyRent } from '@/utils/payments'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
 import { AMENITY_META, FACILITY_META, UTILITIES, roomTypeLabel, listingMonogram, utilitiesFromRow, utilityTermsLabel } from '@/utils/listings'
@@ -237,7 +242,7 @@ const images = ref<string[]>([])
 const amenities = ref<string[]>([])
 const facilities = ref<{ type: string; label: string | null }[]>([])
 const policy = reactive({ advanceMonths: 0, depositMonths: 0, contractType: '' })
-const manager = reactive({ id: '', name: '', initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
+const manager = reactive({ id: '', name: '', title: landlordTitle(null), initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
 const myLease = reactive({ hasAny: false, onThisRoom: false })
 const listingDescription = ref('')
 interface SiblingRoom {
@@ -257,11 +262,14 @@ const id = computed(() => String(route.params.id || ''))
 const monogram = computed(() => listingMonogram(room.propertyName))
 const typeLabel = computed(() => (room.type ? roomTypeLabel(room.type) : ''))
 const distance = computed(() => campusDistanceLabel(room.lat, room.lng))
-const perPersonSuffix = computed(() => (room.rentBasis === 'person' && (room.capacity ?? 0) > 1 ? ' per person' : ''))
+const shared = computed(() => (room.capacity ?? 0) > 1)
+const perPersonSuffix = computed(() => (!shared.value ? '' : room.rentBasis === 'person' ? ' per person' : ' for the room'))
+/** What one tenant pays: a whole-room rate is split across its beds, as the lease will be. */
+const share = computed(() => tenantMonthlyRent(room.rent, room.rentBasis, room.capacity))
 const moveIn = computed(() => {
   if (!room.rent || (!policy.advanceMonths && !policy.depositMonths)) return null
-  const advance = policy.advanceMonths * room.rent
-  const deposit = policy.depositMonths * room.rent
+  const advance = policy.advanceMonths * share.value
+  const deposit = policy.depositMonths * share.value
   return {
     advanceMonths: policy.advanceMonths,
     depositMonths: policy.depositMonths,
@@ -394,7 +402,7 @@ async function load() {
       const [{ data: person }, { data: profile }] = await Promise.all([
         supabase
           .from('users')
-          .select('full_name,initials,avatar_url')
+          .select('full_name,initials,avatar_url,sex')
           .eq('id', property.landlord_id)
           .maybeSingle(),
         supabase
@@ -405,6 +413,7 @@ async function load() {
       ])
       manager.id = property.landlord_id
       manager.name = person?.full_name || 'Landlord/Landlady'
+      manager.title = landlordTitle(person?.sex)
       manager.initials = person?.initials || initialsOf(manager.name)
       manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null
       manager.replyMinutes = profile?.avg_response_minutes ?? null

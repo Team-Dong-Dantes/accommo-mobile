@@ -2864,6 +2864,7 @@ export type Database = {
       admin_levels_valid: { Args: { p: Json }; Returns: boolean }
       admin_set_account_status: {
         Args: {
+          p_docs?: string[]
           p_reason?: string
           p_restrictions?: string[]
           p_status: Database["public"]["Enums"]["user_status"]
@@ -3206,6 +3207,7 @@ export type Database = {
         | "pending"
         | "reviewing"
         | "verified"
+        | "needs_resubmission"
         | "rejected"
         | "suspended"
       utility_billing:
@@ -3393,6 +3395,7 @@ export const Constants = {
         "pending",
         "reviewing",
         "verified",
+        "needs_resubmission",
         "rejected",
         "suspended",
       ],

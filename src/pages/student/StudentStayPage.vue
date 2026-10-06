@@ -56,7 +56,7 @@
 
                   <!-- Manager contact -->
                   <section class="sec">
-                    <h2 class="sec-title">Managed by</h2>
+                    <h2 class="sec-title">Your {{ lease.managerTitle.toLowerCase() }}</h2>
                     <div class="mgr">
                       <span class="mgr-avatar">
                         <img v-if="lease.managerAvatarUrl" :src="lease.managerAvatarUrl" alt="" class="mgr-avatar-img" @error="lease.managerAvatarUrl = null" />
@@ -64,7 +64,7 @@
                       </span>
                       <span class="mgr-body">
                         <span class="mgr-name">{{ lease.managerName }}</span>
-                        <span class="mgr-sub">{{ lease.replyMinutes ? `Replies in ~${lease.replyMinutes} min` : 'Landlord/Landlady' }}</span>
+                        <span class="mgr-sub">{{ lease.replyMinutes ? `Replies in ~${lease.replyMinutes} min` : lease.managerTitle }}</span>
                       </span>
                       <button type="button" class="mgr-msg" @click="router.push(`/student/messages?to=${lease.managerId}`)">
                         <IconifyIcon icon="lucide:message-circle" width="15" />
@@ -284,7 +284,7 @@
             {{ formatMonth(`${nextRentMonth}-01`) }}
           </div>
           <span class="submit-hint">
-            Months are paid in order — this is the next one due.<template v-if="form.left + 0.009 < form.due"> {{ formatPesoExact(form.due - form.left) }} of {{ formatPesoExact(form.due) }} is already paid.</template>
+            Months are paid in order — this is the next one due.<template v-if="form.left + 0.009 < form.due">{{ ' ' + formatPesoExact(form.due - form.left) }} of {{ formatPesoExact(form.due) }} is already paid.</template>
           </span>
         </div>
 
@@ -429,6 +429,7 @@ import {
   formatDate,
   formatMonth,
   initialsOf,
+  landlordTitle,
   LEASE_STATUS,
   PAYMENT_STATUS,
   PAYMENT_METHOD_LABEL,
@@ -477,6 +478,7 @@ interface Lease {
   id: string
   managerId: string
   managerName: string
+  managerTitle: string
   managerInitials: string
   managerAvatarUrl: string | null
   replyMinutes: number | null
@@ -766,7 +768,7 @@ async function load(silent = false) {
       : []
 
     const [{ data: manager }, { data: profile }, roommateResult] = await Promise.all([
-      supabase.from('users').select('full_name, initials, avatar_url').eq('id', leaseRow.landlord_id).maybeSingle(),
+      supabase.from('users').select('full_name, initials, avatar_url, sex').eq('id', leaseRow.landlord_id).maybeSingle(),
       supabase
         .from('landlord_profiles')
         .select('avg_response_minutes')
@@ -786,6 +788,7 @@ async function load(silent = false) {
       id: leaseRow.id,
       managerId: leaseRow.landlord_id,
       managerName: manager?.full_name || 'Landlord/Landlady',
+      managerTitle: landlordTitle(manager?.sex),
       managerInitials: manager?.initials || initialsOf(manager?.full_name || '?'),
       managerAvatarUrl: manager?.avatar_url ? resolveAsset(manager.avatar_url) : null,
       replyMinutes: profile?.avg_response_minutes ?? null,
