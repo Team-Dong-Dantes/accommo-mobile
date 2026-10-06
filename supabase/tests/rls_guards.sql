@@ -26,7 +26,7 @@
 --   AC1-AC7  PASS
 --   H1-H22  PASS
 --   AA1-AA8  PASS
---   PY1-PY14  PASS
+--   PY1-PY18  PASS
 
 create or replace function pg_temp.rls_check() returns table(test text, outcome text)
 language plpgsql as $$
@@ -1215,6 +1215,7 @@ begin
 
   begin
     delete from public.payments where lease_id = v_lease;  -- a clean ledger for this block
+    update public.leases set allow_partial = false where id = v_lease;
     perform set_config('request.jwt.claims', as_student, true);
     set local role authenticated;
 
@@ -1282,12 +1283,15 @@ begin
     exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg; end;
     names := names || 'PY8: half is accepted once allowed'::text; results := results || v_msg;
 
+    -- 20261006070000: the rest can be paid while the first part waits (rolled
+    -- back here so the steps below still see one half pending).
     begin
       insert into public.payments (lease_id, month, amount, method, status)
       values (v_lease, v_month, 1250, 'cash', 'pending_verification');
-      v_msg := 'FAIL - second pending submission accepted';
-    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
-    names := names || 'PY9: one submission waits at a time'::text; results := results || v_msg;
+      raise exception 'ok';
+    exception when others then get stacked diagnostics v_msg = message_text;
+      v_msg := case when v_msg = 'ok' then 'PASS' else 'FAIL - ' || v_msg end; end;
+    names := names || 'PY9: the rest can be paid while the first part waits'::text; results := results || v_msg;
 
     -- The landlord/landlady confirms the half.
     reset role;
@@ -1322,10 +1326,41 @@ begin
 
     begin
       insert into public.payments (lease_id, month, amount, method, status)
-      values (v_lease, (v_month + interval '3 months')::date, 2500, 'cash', 'pending_verification');
-      v_msg := 'FAIL - paid three months ahead';
+      values (v_lease, (date_trunc('month', now()) + interval '7 months')::date, 2500, 'cash', 'pending_verification');
+      v_msg := 'FAIL - paid seven months ahead';
     exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
-    names := names || 'PY14: at most two months ahead'::text; results := results || v_msg;
+    names := names || 'PY14: at most six months ahead'::text; results := results || v_msg;
+
+    -- PY13 left a half awaiting confirmation: the student takes it back.
+    begin
+      select id into v_pay from public.payments where lease_id = v_lease and status = 'pending_verification' limit 1;
+      perform public.review_payment(v_pay, 'withdraw');
+      v_msg := case when (select status::text from public.payments where id = v_pay) = 'withdrawn' then 'PASS' else 'FAIL - not withdrawn' end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg; end;
+    names := names || 'PY15: a student can withdraw a pending payment'::text; results := results || v_msg;
+
+    begin
+      perform public.waive_balance(v_lease, 'rent', v_month, null, 'test');
+      v_msg := 'FAIL - student forgave a balance';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY16: a student cannot forgive a balance'::text; results := results || v_msg;
+
+    begin
+      update public.leases set grace_days = 15 where id = v_lease;
+      v_msg := 'FAIL - student changed the grace period';
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'PASS - ' || v_msg; end;
+    names := names || 'PY17: a student cannot change when rent is due'::text; results := results || v_msg;
+
+    -- The landlord/landlady forgives the rest of the month.
+    reset role;
+    perform set_config('request.jwt.claims', as_landlord, true);
+    set local role authenticated;
+    begin
+      perform public.waive_balance(v_lease, 'rent', v_month, null, 'Hardship');
+      select l.state into v_state from public.lease_ledger(v_lease) l where l.kind = 'rent' and l.month = v_month;
+      v_msg := case when v_state = 'paid' then 'PASS' else 'FAIL - state ' || coalesce(v_state, 'none') end;
+    exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg; end;
+    names := names || 'PY18: forgiving the rest settles the month'::text; results := results || v_msg;
 
     raise exception 'rollback';
   exception when others then

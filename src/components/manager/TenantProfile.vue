@@ -203,9 +203,33 @@
                     aria-label="Least a tenant pays at a time"
                     @change="setPartial(true, Number(($event.target as HTMLSelectElement).value))"
                   >
-                    <option v-for="p in [25, 50, 75]" :key="p" :value="p">at least {{ p }}%</option>
+                    <option v-for="p in [10, 25, 50, 75]" :key="p" :value="p">at least {{ p }}%</option>
                   </select>
                   <q-toggle :model-value="lease.allowPartial" :disable="savingPartial" color="primary" dense aria-label="Allow partial payments" @update:model-value="(v) => setPartial(v)" />
+                </span>
+              </div>
+              <div v-if="lease.status === 'active' || lease.status === 'leave_requested'" class="rule">
+                <span class="rule-label">Rent due</span>
+                <span class="rule-value rule-value--controls">
+                  <select
+                    class="pct-select app-select"
+                    :value="lease.rentDueDay ?? 0"
+                    :disabled="savingTerms"
+                    aria-label="Day of the month rent is due"
+                    @change="setDueTerms(Number(($event.target as HTMLSelectElement).value) || null, lease.graceDays)"
+                  >
+                    <option :value="0">move-in day ({{ ordinal(moveInDay) }})</option>
+                    <option v-for="d in 28" :key="d" :value="d">every {{ ordinal(d) }}</option>
+                  </select>
+                  <select
+                    class="pct-select app-select"
+                    :value="lease.graceDays"
+                    :disabled="savingTerms"
+                    aria-label="Days of grace before rent is overdue"
+                    @change="setDueTerms(lease.rentDueDay, Number(($event.target as HTMLSelectElement).value))"
+                  >
+                    <option v-for="g in [0, 3, 5, 7, 15]" :key="g" :value="g">{{ g ? `+${g} days grace` : 'no grace' }}</option>
+                  </select>
                 </span>
               </div>
             </div>
@@ -241,6 +265,29 @@
               </button>
             </div>
 
+            <template v-if="owedItems.length">
+              <div class="owed-head">
+                <p class="pay-label bills-head">Owed</p>
+                <button type="button" class="sec-link" @click="logOpen = true">Log payment</button>
+              </div>
+              <div class="group">
+                <div v-for="r in owedItems" :key="`${r.kind}-${r.month}`" class="pay-row">
+                  <div class="pay-row-main">
+                    <span class="pay-row-month">{{ ledgerLabel(r) }}</span>
+                    <span class="pay-row-amount">{{ formatPesoExact(r.balance) }}</span>
+                  </div>
+                  <div class="pay-row-sub">
+                    <span class="pay-row-method" :class="{ 'bill-overdue': r.state === 'overdue' }">
+                      {{ r.balance + 0.009 < r.due ? `left of ${formatPesoExact(r.due)}` : r.state === 'overdue' ? 'Overdue' : 'Due' }}{{ r.dueDate && r.kind === 'rent' ? ` · due ${formatDate(r.dueDate)}` : '' }}
+                    </span>
+                    <span class="bill-actions">
+                      <button type="button" class="bill-remove" @click="openForgive(r)">Forgive</button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
             <div v-if="payments.length" class="group">
               <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row pay-row--tap" @click="openPaymentDetail(p)">
                 <div class="pay-row-main">
@@ -265,7 +312,7 @@
                 <div v-for="b in unpaidBills" :key="b.id" class="pay-row">
                   <div class="pay-row-main">
                     <span class="pay-row-month">{{ BILL_TAG[b.utility] }} · {{ formatMonth(b.month) }}</span>
-                    <span class="pay-row-amount">{{ formatPesoExact(b.amount) }}</span>
+                    <span class="pay-row-amount">{{ formatPesoExact(billLeft(b)) }}</span>
                   </div>
                   <div class="pay-row-sub">
                     <span class="pay-row-method" :class="{ 'bill-overdue': b.dueDate < today }">
@@ -273,7 +320,8 @@
                     </span>
                     <span class="bill-actions">
                       <button type="button" class="bill-cash" :disabled="!!billBusy" @click="recordBillCash(b)">Record cash</button>
-                      <button type="button" class="bill-remove" :disabled="!!billBusy" @click="removeBill(b.id)">Remove</button>
+                      <button v-if="billLeft(b) + 0.009 < b.amount" type="button" class="bill-remove" :disabled="!!billBusy" @click="openForgiveBill(b)">Forgive</button>
+                      <button v-else type="button" class="bill-remove" :disabled="!!billBusy" @click="removeBill(b.id)">Remove</button>
                     </span>
                   </div>
                 </div>
@@ -344,85 +392,30 @@
 
     <!-- Payment review — verifying only ever happens from here, never
          straight off the row, so a proof/reference actually gets looked at. -->
-    <q-dialog v-model="paymentDetailOpen" position="bottom">
-      <q-card v-if="selectedPayment" class="pay-sheet">
-        <h3 class="pay-title">{{ paymentTitle(selectedPayment) }}</h3>
-        <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
-          {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
-        </span>
+    <PaymentReviewSheet v-model="paymentDetailOpen" :payment="selectedPayment" @changed="load(true)" />
+    <PaySheet
+      v-model="logOpen"
+      :lease-id="leaseId"
+      role="landlord"
+      :subtitle="lease.studentName"
+      :settle-only="lease.status === 'ended' || lease.status === 'terminated'"
+      @submitted="load(true)"
+    />
 
-        <div class="group">
-          <div class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Amount</span>
-            <span class="pay-detail-rule-value">{{ formatPesoExact(selectedPayment.amount) }}</span>
-          </div>
-          <div class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Method</span>
-            <span class="pay-detail-rule-value">{{ PAYMENT_METHOD_LABEL[selectedPayment.method] || selectedPayment.method }}</span>
-          </div>
-          <div v-if="selectedPayment.txnReference" class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Reference number</span>
-            <span class="pay-detail-rule-value">{{ selectedPayment.txnReference }}</span>
-          </div>
-          <div v-if="selectedPayment.verifiedByName" class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Reviewed by</span>
-            <span class="pay-detail-rule-value">
-              {{ selectedPayment.verifiedByName }}{{ selectedPayment.paidAt ? ` · ${formatDate(selectedPayment.paidAt)}` : '' }}
-            </span>
-          </div>
+    <q-dialog v-model="forgiveOpen" position="bottom">
+      <q-card v-if="forgiveTarget" class="forgive-sheet">
+        <h3 class="forgive-title">Forgive {{ formatPesoExact(forgiveTarget.balance) }}?</h3>
+        <p class="forgive-note">
+          What's left of {{ forgiveTarget.label }} is settled without payment. It isn't counted as money received, and
+          the tenant sees your reason.
+        </p>
+        <textarea v-model="forgiveReason" class="forgive-input" rows="2" maxlength="300" placeholder="e.g. Away for the semestral break, as we agreed" />
+        <div class="forgive-actions">
+          <button type="button" class="forgive-cancel" @click="forgiveOpen = false">Cancel</button>
+          <button type="button" class="forgive-confirm" :disabled="forgiving || !forgiveReason.trim()" @click="forgive">
+            {{ forgiving ? 'Forgiving…' : 'Forgive' }}
+          </button>
         </div>
-
-        <template v-if="selectedPayment.status === 'rejected' && selectedPayment.rejectionReason">
-          <p class="pay-detail-label">Rejection reason</p>
-          <p class="pay-detail-text">{{ selectedPayment.rejectionReason }}</p>
-        </template>
-
-        <template v-if="selectedPayment.description">
-          <p class="pay-detail-label">Note</p>
-          <p class="pay-detail-text">{{ selectedPayment.description }}</p>
-        </template>
-
-        <template v-if="selectedPayment.proofUrl">
-          <p class="pay-detail-label">Proof of payment</p>
-          <img :src="resolveAsset(selectedPayment.proofUrl)" alt="Proof of payment" class="pay-detail-proof-img" />
-        </template>
-
-        <template v-if="selectedPayment.status === 'pending_verification'">
-          <div v-if="rejectingId === selectedPayment.id" class="pay-reject-form">
-            <label class="pay-detail-label">
-              Reason
-              <textarea v-model="rejectReason" class="pay-reject-textarea" rows="2" placeholder="Why is this being rejected?" />
-            </label>
-            <div class="pay-reject-actions">
-              <button type="button" class="pay-reject-cancel" @click="rejectingId = ''">Cancel</button>
-              <button
-                type="button"
-                class="pay-reject-confirm"
-                :disabled="verifying === selectedPayment.id || !rejectReason.trim()"
-                @click="rejectPayment(selectedPayment.id)"
-              >
-                {{ verifying === selectedPayment.id ? 'Rejecting…' : 'Confirm reject' }}
-              </button>
-            </div>
-          </div>
-          <div v-else class="pay-detail-actions">
-            <q-btn
-              unelevated
-              rounded
-              no-caps
-              color="primary"
-              class="pay-submit"
-              :loading="verifying === selectedPayment.id"
-              label="Mark verified"
-              @click="verifyPayment(selectedPayment.id); paymentDetailOpen = false"
-            />
-            <button type="button" class="pay-reject-btn" @click="rejectingId = selectedPayment.id; rejectReason = ''">
-              Reject
-            </button>
-          </div>
-        </template>
-
-        <q-btn flat rounded no-caps color="grey-7" label="Close" @click="paymentDetailOpen = false" />
       </q-card>
     </q-dialog>
   </q-page>
@@ -444,6 +437,8 @@ import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
 import StarRating from '@/components/shared/StarRating.vue'
 import PostBillDialog from '@/components/manager/PostBillDialog.vue'
+import PaymentReviewSheet from '@/components/manager/PaymentReviewSheet.vue'
+import PaySheet from '@/components/shared/PaySheet.vue'
 import { BILL_TAG, isBillSettled, manilaToday, paymentTitle, toLedger, type LedgerRow } from '@/utils/payments'
 import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -486,7 +481,9 @@ const lease = reactive({
   monthlyRent: 0,
   addedByLandlord: false,
   allowPartial: false,
-  partialMinPct: 50,
+  partialMinPct: 10,
+  rentDueDay: null as number | null,
+  graceDays: 3,
 })
 
 // What is owed on this stay (lease_ledger): the balance line and the partial-
@@ -513,6 +510,77 @@ async function setPartial(allow: boolean, pct = lease.partialMinPct) {
   lease.partialMinPct = pct
   notify.success(allow ? `Partial payments on — at least ${pct}% at a time.` : 'Partial payments off.')
 }
+// When rent falls due each month, and how long before it counts as overdue.
+const moveInDay = computed(() => Math.min(Number(lease.startDate.slice(8, 10)) || 1, 28))
+function ordinal(n: number): string {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+  return `${n}${s}`
+}
+const savingTerms = ref(false)
+async function setDueTerms(day: number | null, grace: number) {
+  if (savingTerms.value) return
+  savingTerms.value = true
+  const { error: e } = await supabase.from('leases').update({ rent_due_day: day, grace_days: grace }).eq('id', leaseId.value)
+  savingTerms.value = false
+  if (e) return notify.error(errorMessage(e, 'Could not change when rent is due.'))
+  lease.rentDueDay = day
+  lease.graceDays = grace
+  notify.success(`Rent is due every ${ordinal(day ?? moveInDay.value)}${grace ? `, overdue ${grace} days later` : ''}.`)
+  void loadLedger()
+}
+
+// Rent, advance and deposit still owed today (bills have their own list).
+const owedItems = computed(() =>
+  ledger.value.filter((r) => r.kind !== 'bill' && r.balance > 0.009 && (r.kind !== 'rent' || (r.dueDate ?? '') <= today || r.state === 'overdue')),
+)
+function ledgerLabel(r: LedgerRow): string {
+  return r.kind === 'advance' ? 'Advance' : r.kind === 'deposit' ? 'Deposit' : formatMonth(r.month)
+}
+function billLeft(b: Bill): number {
+  return ledger.value.find((r) => r.billId === b.id)?.balance ?? b.amount
+}
+
+// Forgiving what's left of an item (waive_balance): settles it without counting
+// it as money received.
+const logOpen = ref(false)
+const forgiveOpen = ref(false)
+const forgiveTarget = ref<{ kind: LedgerRow['kind']; month: string | null; billId: string | null; balance: number; label: string } | null>(null)
+const forgiveReason = ref('')
+const forgiving = ref(false)
+function openForgive(r: LedgerRow) {
+  forgiveTarget.value = { kind: r.kind, month: r.month, billId: null, balance: r.balance, label: r.kind === 'rent' ? `${ledgerLabel(r)} rent` : `the ${ledgerLabel(r).toLowerCase()}` }
+  forgiveReason.value = ''
+  forgiveOpen.value = true
+}
+function openForgiveBill(b: Bill) {
+  forgiveTarget.value = { kind: 'bill', month: b.month, billId: b.id, balance: billLeft(b), label: `the ${BILL_TAG[b.utility].toLowerCase()} for ${formatMonth(b.month)}` }
+  forgiveReason.value = ''
+  forgiveOpen.value = true
+}
+async function forgive() {
+  const t = forgiveTarget.value
+  if (!t || forgiving.value) return
+  if (!(await requirePin({ confirm: true, title: `Forgive ${formatPesoExact(t.balance)}?` }))) return
+  forgiving.value = true
+  try {
+    const { error: e } = await supabase.rpc('waive_balance', {
+      p_lease: leaseId.value,
+      p_kind: t.kind,
+      p_month: t.month ?? today,
+      p_bill: t.billId as string,
+      p_reason: forgiveReason.value.trim(),
+    })
+    if (e) throw e
+    forgiveOpen.value = false
+    notify.success('Balance forgiven.')
+    void load(true)
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not forgive this balance.'))
+  } finally {
+    forgiving.value = false
+  }
+}
+
 const isNative = Capacitor.isNativePlatform()
 const coverUrl = ref('')
 const payments = ref<
@@ -528,6 +596,11 @@ const payments = ref<
     paidAt: string | null
     verifiedByName: string
     rejectionReason: string
+    note: string
+    promiseDate: string | null
+    claimedAmount: number | null
+    undoReason: string
+    receiptNo: string
   }[]
 >([])
 const paymentsExpanded = ref(false)
@@ -557,7 +630,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,allow_partial,partial_min_pct,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,monthly_rent,allow_partial,partial_min_pct,rent_due_day,grace_days,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -607,14 +680,16 @@ async function load(silent = false) {
     lease.endDate = data.end_date
     lease.monthlyRent = Number(data.monthly_rent ?? 0)
     lease.allowPartial = Boolean(data.allow_partial)
-    lease.partialMinPct = Number(data.partial_min_pct ?? 50)
+    lease.partialMinPct = Number(data.partial_min_pct ?? 10)
+    lease.rentDueDay = data.rent_due_day
+    lease.graceDays = data.grace_days
     void loadLedger()
 
     const [{ data: paymentRows }, { data: historyRows }, { data: billRows }] = await Promise.all([
       supabase
         .from('payments')
         .select(
-          'id,month,amount,status,method,description,txn_reference,proof_url,paid_at,rejection_reason,verified_by_user:users!payments_verified_by_fkey(full_name)',
+          'id,month,amount,status,method,description,txn_reference,proof_url,paid_at,rejection_reason,note,promise_date,claimed_amount,undo_reason,receipt_no,verified_by_user:users!payments_verified_by_fkey(full_name)',
         )
         .eq('lease_id', leaseId.value)
         .order('month', { ascending: false }),
@@ -625,7 +700,7 @@ async function load(silent = false) {
         .order('period_start', { ascending: false }),
       supabase
         .from('utility_bills')
-        .select('id,utility,month,amount,note,due_date,payments(status)')
+        .select('id,utility,month,amount,note,due_date,payments(status, amount)')
         .eq('lease_id', leaseId.value)
         .order('month', { ascending: true }),
     ])
@@ -636,7 +711,7 @@ async function load(silent = false) {
       amount: Number(b.amount),
       note: b.note || '',
       dueDate: b.due_date,
-      settled: isBillSettled(b.payments),
+      settled: isBillSettled(b.payments, Number(b.amount)),
     }))
     await signRows('payments', paymentRows, 'proof_url')
     payments.value = (paymentRows ?? []).map((p) => ({
@@ -651,6 +726,11 @@ async function load(silent = false) {
       paidAt: p.paid_at,
       verifiedByName: (p.verified_by_user as { full_name: string | null } | null)?.full_name || '',
       rejectionReason: p.rejection_reason || '',
+      note: p.note || '',
+      promiseDate: p.promise_date,
+      claimedAmount: p.claimed_amount == null ? null : Number(p.claimed_amount),
+      undoReason: p.undo_reason || '',
+      receiptNo: p.receipt_no || '',
     }))
     history.value = (historyRows ?? []).map((h) => ({
       id: h.id,
@@ -778,22 +858,18 @@ async function removeBill(billId: string) {
 // The tenant paid this bill in cash, in person: log it already verified, the
 // way a cash rent payment is logged from the tenants list.
 async function recordBillCash(b: Bill) {
-  if (!(await requirePin({ confirm: true, title: `Record ${formatPesoExact(b.amount)} in cash?`, message: `${BILL_TAG[b.utility]} for ${formatMonth(b.month)}.` }))) return
+  const left = billLeft(b)
+  if (!(await requirePin({ confirm: true, title: `Record ${formatPesoExact(left)} in cash?`, message: `${BILL_TAG[b.utility]} for ${formatMonth(b.month)}.` }))) return
   billBusy.value = b.id
   try {
-    const { data: authData } = await authUser()
-    const { error: insertError } = await supabase.from('payments').insert({
-      lease_id: leaseId.value,
-      bill_id: b.id,
-      month: b.month,
-      amount: b.amount,
-      method: 'cash',
-      status: 'paid',
-      description: BILL_TAG[b.utility],
-      paid_at: new Date().toISOString(),
-      verified_by: authData?.user?.id || null,
+    const { error: rpcError } = await supabase.rpc('record_payment', {
+      p_lease: leaseId.value,
+      p_kind: 'bill',
+      p_bill: b.id,
+      p_amount: left,
+      p_method: 'cash',
     })
-    if (insertError) throw insertError
+    if (rpcError) throw rpcError
     void load(true)
     notify.success('Cash payment recorded.')
   } catch (e) {
@@ -803,7 +879,6 @@ async function recordBillCash(b: Bill) {
   }
 }
 
-const verifying = ref('')
 const paymentDetailOpen = ref(false)
 const selectedPayment = ref<(typeof payments.value)[number] | null>(null)
 function openPaymentDetail(p: (typeof payments.value)[number]) {
@@ -811,66 +886,6 @@ function openPaymentDetail(p: (typeof payments.value)[number]) {
   paymentDetailOpen.value = true
 }
 
-async function verifyPayment(paymentId: string) {
-  if (!(await requirePin({ confirm: true, title: 'Verify this payment?' }))) return
-  if (verifying.value) return
-  verifying.value = paymentId
-  try {
-    const { data: authData } = await authUser()
-    const paidAt = new Date().toISOString()
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({ status: 'paid', paid_at: paidAt, verified_by: authData?.user?.id || null })
-      .eq('id', paymentId)
-    if (updateError) throw updateError
-
-    const row = payments.value.find((p) => p.id === paymentId)
-    if (row) {
-      row.status = 'paid'
-      row.paidAt = paidAt
-      row.verifiedByName = 'You'
-    }
-
-    notify.success('Payment verified.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not verify this payment.'))
-  } finally {
-    verifying.value = ''
-  }
-}
-
-const rejectingId = ref('')
-const rejectReason = ref('')
-
-async function rejectPayment(paymentId: string) {
-  if (!(await requirePin({ title: 'Reject this payment?' }))) return
-  const reason = rejectReason.value.trim()
-  if (verifying.value || !reason) return
-  verifying.value = paymentId
-  try {
-    const { data: authData } = await authUser()
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({ status: 'rejected', rejection_reason: reason, verified_by: authData?.user?.id || null })
-      .eq('id', paymentId)
-    if (updateError) throw updateError
-
-    const row = payments.value.find((p) => p.id === paymentId)
-    if (row) {
-      row.status = 'rejected'
-      row.rejectionReason = reason
-      row.verifiedByName = 'You'
-    }
-
-    notify.success('Payment rejected.')
-    rejectingId.value = ''
-    paymentDetailOpen.value = false
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not reject this payment.'))
-  } finally {
-    verifying.value = ''
-  }
-}
 
 const reviewOpen = ref(false)
 const submittingReview = ref(false)
@@ -1457,6 +1472,11 @@ useLiveData({
 .bills-head {
   margin: 12px 0 6px;
 }
+.owed-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
 .bill-actions {
   display: inline-flex;
   gap: 12px;
@@ -1487,147 +1507,76 @@ useLiveData({
   min-height: 48px;
   font-weight: 700;
 }
-.pay-detail-actions {
-  display: flex;
-  gap: 8px;
-}
-.pay-detail-actions .pay-submit {
-  flex: 1;
-  margin: 0;
-}
-.pay-reject-btn {
-  flex: 0 0 auto;
-  min-height: 48px;
-  padding: 0 18px;
-  border: 1px solid var(--m-danger);
-  border-radius: 999px;
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-reject-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pay-reject-textarea {
-  display: block;
-  width: 100%;
-  min-height: 60px;
-  margin-top: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13.5px;
-  resize: vertical;
-}
-.pay-reject-actions {
-  display: flex;
-  gap: 8px;
-}
-.pay-reject-cancel {
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-reject-confirm {
-  flex: 1;
-  min-height: 44px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-danger);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-reject-confirm:disabled {
-  opacity: 0.6;
-}
 .review-textarea {
   min-height: 70px;
   padding: 10px 12px;
   resize: vertical;
 }
 
-.pay-detail-chip {
-  align-self: flex-start;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.pay-detail-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.pay-detail-chip--amber,
-.pay-detail-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.pay-detail-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.pay-detail-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-.pay-detail-rule {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px;
-  border-top: 1px solid var(--m-border);
-}
 .group > .pay-detail-rule:first-child {
   border-top: 0;
 }
-.pay-detail-rule-label {
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
+.forgive-sheet {
+  display: flex;
+  width: 100%;
+  max-width: 480px;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 auto;
+  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
+  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
 }
-.pay-detail-rule-value {
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: right;
-}
-.pay-detail-label {
-  margin: 4px 0 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.pay-detail-text {
+.forgive-title {
   margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.forgive-note {
+  margin: 0;
+  color: var(--m-muted);
+  font-size: 13px;
   line-height: 1.5;
 }
-.pay-detail-proof-img {
+.forgive-input {
   width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
+  background: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.forgive-actions {
+  display: flex;
+  gap: 8px;
+}
+.forgive-cancel,
+.forgive-confirm {
+  min-height: 46px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.forgive-cancel {
+  padding: 0 18px;
+  border: 1px solid var(--m-border);
+  background: var(--m-surface);
+  color: var(--m-text);
+}
+.forgive-confirm {
+  flex: 1;
+  border: 0;
+  background: var(--m-primary);
+  color: #fff;
+}
+.forgive-confirm:disabled {
+  opacity: 0.6;
 }
 </style>

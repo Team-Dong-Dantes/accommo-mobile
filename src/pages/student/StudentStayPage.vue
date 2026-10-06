@@ -176,41 +176,48 @@
 
               <div v-show="isTablet || activeTab === 'payments'" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isTablet" class="split-head">Payments</h2>
+                <div v-for="o in pastOwed" :key="o.leaseId" class="past-owed">
+                  <span class="past-owed-body">
+                    <span class="past-owed-title">{{ formatPesoExact(o.balance) }} owed on a past stay</span>
+                    <span class="past-owed-sub">{{ o.place }} · settle it to be able to apply for rooms again</span>
+                  </span>
+                  <button type="button" class="past-owed-btn" @click="pastPay = o">Pay</button>
+                </div>
                 <div v-if="lease" class="pay-head">
                   <span class="pay-head-label">Expected rent</span>
                   <span class="pay-head-rent">{{ formatPeso(lease.monthlyRent) }}<span class="pay-head-per">/mo</span></span>
                   <span class="pay-head-sub">{{ lease.roomLabel || 'Your room' }} · {{ lease.accommodationName }}</span>
-                  <button v-if="canPay" type="button" class="pay-head-btn" @click="openSubmit('rent')">
-                    <IconifyIcon icon="lucide:circle-plus" width="16" />
-                    Submit a payment
-                  </button>
-                  <p v-else class="pay-head-note">You'll be able to submit payments once your application is accepted.</p>
-
+                  <p v-if="owedNow > 0.009" class="pay-head-owed" :class="{ 'pay-head-owed--overdue': hasOverdue }">
+                    {{ formatPesoExact(owedNow) }} owed now{{ hasOverdue ? ' · overdue' : '' }}
+                  </p>
+                  <p v-if="leaseClosed" class="pay-head-note">This stay has ended. Settle what's left to be able to apply for a new room.</p>
                   <div v-if="canPay && (canPayAdvance || canPayDeposit || unpaidBills.length)" class="pay-dues">
-                    <button v-for="b in unpaidBills" :key="b.id" type="button" class="pay-due" @click="openSubmit('bill', b)">
+                    <div v-for="b in unpaidBills" :key="b.id" class="pay-due">
                       <span class="pay-due-body">
                         <span class="pay-due-label">{{ BILL_TAG[b.utility] }} · {{ formatMonth(b.month) }}</span>
                         <span class="pay-due-note" :class="{ 'pay-due-note--overdue': b.overdue }">
-                          {{ formatPesoExact(b.amount) }} · {{ b.overdue ? 'overdue since' : 'due' }} {{ formatDate(b.dueDate) }}{{ b.note ? ` · ${b.note}` : '' }}
+                          {{ billNote(b) }} · {{ b.overdue ? 'overdue since' : 'due' }} {{ formatDate(b.dueDate) }}{{ b.note ? ` · ${b.note}` : '' }}
                         </span>
                       </span>
-                      <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
-                    </button>
-                    <button v-if="canPayAdvance" type="button" class="pay-due" @click="openSubmit('advance')">
+                    </div>
+                    <div v-if="canPayAdvance && !leaseClosed" class="pay-due">
                       <span class="pay-due-body">
                         <span class="pay-due-label">Advance</span>
                         <span class="pay-due-note">{{ itemNote('advance') }}</span>
                       </span>
-                      <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
-                    </button>
-                    <button v-if="canPayDeposit" type="button" class="pay-due" @click="openSubmit('deposit')">
+                    </div>
+                    <div v-if="canPayDeposit && !leaseClosed" class="pay-due">
                       <span class="pay-due-body">
                         <span class="pay-due-label">Deposit</span>
                         <span class="pay-due-note">{{ itemNote('deposit') }}</span>
                       </span>
-                      <span class="pay-due-action">Pay <IconifyIcon icon="lucide:chevron-right" width="14" /></span>
-                    </button>
+                    </div>
                   </div>
+                  <button v-if="canPay && (!leaseClosed || owedNow > 0.009)" type="button" class="pay-head-btn" @click="payOpen = true">
+                    <IconifyIcon icon="lucide:wallet" width="16" />
+                    Pay
+                  </button>
+                  <p v-else-if="!canPay" class="pay-head-note">You'll be able to pay once your application is accepted.</p>
                 </div>
 
                 <section class="sec">
@@ -271,100 +278,40 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="submitOpen" position="bottom">
-      <q-card class="submit-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <h3 class="submit-title">{{ submitTitle }}</h3>
-        <p class="submit-note">Your landlord/landlady will verify this before it's marked paid.</p>
-
-        <div v-if="form.category === 'rent'" class="submit-field">
-          <span class="submit-label">Month</span>
-          <div class="submit-locked-month">
-            <IconifyIcon icon="lucide:calendar" width="15" />
-            {{ formatMonth(`${nextRentMonth}-01`) }}
-          </div>
-          <span class="submit-hint">
-            Months are paid in order — this is the next one due.<template v-if="form.left + 0.009 < form.due">{{ ' ' + formatPesoExact(form.due - form.left) }} of {{ formatPesoExact(form.due) }} is already paid.</template>
-          </span>
-        </div>
-
-        <div v-else-if="form.category === 'bill'" class="submit-field">
-          <span class="submit-label">Bill</span>
-          <div class="submit-locked-month">
-            <IconifyIcon icon="lucide:receipt" width="15" />
-            {{ submitTitle }} · {{ formatMonth(form.month) }}
-          </div>
-          <span class="submit-hint">Posted by your landlord/landlady — pay the full amount.</span>
-        </div>
-
-        <label class="submit-field">
-          <span class="submit-label">Amount</span>
-          <input
-            v-model.number="form.amount"
-            type="number"
-            :min="form.min"
-            :max="form.left"
-            step="0.01"
-            class="submit-input"
-            :readonly="form.category === 'bill' || form.min >= form.left"
-          />
-          <!-- Partial payments, when the landlord/landlady allows them. -->
-          <span v-if="form.min < form.left" class="amount-chips">
-            <button type="button" class="amount-chip" :class="{ 'is-on': form.amount === form.left }" @click="form.amount = form.left">Full · {{ formatPesoExact(form.left) }}</button>
-            <button type="button" class="amount-chip" :class="{ 'is-on': form.amount === form.min }" @click="form.amount = form.min">Minimum · {{ formatPesoExact(form.min) }}</button>
-          </span>
-          <span v-if="form.min < form.left" class="submit-hint">Partial payments are allowed: at least {{ formatPesoExact(form.min) }}, up to {{ formatPesoExact(form.left) }}.</span>
-          <span v-else-if="form.category !== 'bill'" class="submit-hint">Pay the full amount — {{ formatPesoExact(form.left) }}.</span>
-          <span v-if="form.category === 'rent' && rentFees.length" class="submit-hint">
-            Rent {{ formatPeso(lease?.monthlyRent ?? 0) }}<template v-for="f in rentFees" :key="f.key"> + {{ f.label.toLowerCase() }} {{ formatPeso(f.amount) }}</template>
-          </span>
-        </label>
-        <label class="submit-field">
-          <span class="submit-label">Method</span>
-          <select v-model="form.method" class="submit-input app-select">
-            <option value="gcash">GCash</option>
-            <option value="maya">Maya</option>
-            <option value="bank">Bank transfer</option>
-            <option value="cash">Cash</option>
-            <option value="others">Other</option>
-          </select>
-        </label>
-        <label class="submit-field">
-          <span class="submit-label">Reference number{{ isCash ? ' (optional)' : '' }}</span>
-          <input v-model="form.reference" type="text" class="submit-input" :inputmode="form.method === 'gcash' ? 'numeric' : 'text'" :placeholder="form.method === 'gcash' ? '13-digit GCash reference' : 'Reference number'" />
-          <span v-if="referenceProblem(form.method, form.reference)" class="submit-hint submit-hint--warn">{{ referenceProblem(form.method, form.reference) }}</span>
-        </label>
-        <label class="submit-field">
-          <span class="submit-label">Proof of payment{{ isCash ? ' (optional)' : '' }}</span>
-          <span class="file-picker" :class="{ 'file-picker--chosen': form.proofUrl }">
-            <IconifyIcon :icon="form.proofUrl ? 'lucide:file-check' : 'lucide:upload'" width="16" />
-            <span class="file-picker-text">{{ uploadingProof ? 'Uploading…' : form.proofUrl ? 'Replace file' : 'Choose file' }}</span>
-            <input type="file" accept="image/*" class="file-picker-input" :disabled="uploadingProof" @change="onProofSelected" />
-          </span>
-          <img v-if="proofPreview" :src="proofPreview" alt="Proof of payment" class="submit-proof-preview" />
-          <span v-if="!isCash" class="submit-hint">Required for non-cash payments, so there's something to verify against.</span>
-        </label>
-
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          color="primary"
-          class="submit-btn"
-          :loading="submitting"
-          :disable="uploadingProof"
-          label="Submit"
-          @click="submitPayment"
-        />
-      </q-card>
-    </q-dialog>
+    <PaySheet
+      v-if="lease"
+      v-model="payOpen"
+      :lease-id="lease.id"
+      role="student"
+      :landlord-id="lease.managerId"
+      :allow-partial="lease.allowPartial"
+      :partial-min-pct="lease.partialMinPct"
+      :settle-only="leaseClosed"
+      @submitted="load(true)"
+    />
+    <PaySheet
+      v-if="pastPay"
+      :model-value="true"
+      :lease-id="pastPay.leaseId"
+      role="student"
+      settle-only
+      :landlord-id="pastPay.landlordId"
+      :allow-partial="pastPay.allowPartial"
+      :partial-min-pct="pastPay.partialMinPct"
+      :subtitle="pastPay.place"
+      @update:model-value="(v) => { if (!v) pastPay = null }"
+      @submitted="load(true)"
+    />
 
     <q-dialog v-model="paymentDetailOpen" position="bottom">
       <q-card v-if="selectedPayment" class="detail-sheet">
         <span class="sheet-grip" aria-hidden="true" />
-        <h3 class="detail-title">
-          {{ paymentTitle(selectedPayment) }}
-        </h3>
+        <div class="detail-head">
+          <h3 class="detail-title">{{ paymentTitle(selectedPayment) }}</h3>
+          <button type="button" class="sheet-x" aria-label="Close" @click="paymentDetailOpen = false">
+            <IconifyIcon icon="lucide:x" width="20" />
+          </button>
+        </div>
         <span class="detail-chip" :class="`detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
           {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
         </span>
@@ -373,6 +320,18 @@
           <div class="rule">
             <span class="rule-label">Amount</span>
             <span class="rule-value">{{ formatPesoExact(selectedPayment.amount) }}</span>
+          </div>
+          <div v-if="selectedPayment.claimedAmount" class="rule">
+            <span class="rule-label">You submitted</span>
+            <span class="rule-value">{{ formatPesoExact(selectedPayment.claimedAmount) }} — only {{ formatPesoExact(selectedPayment.amount) }} arrived</span>
+          </div>
+          <div v-if="selectedPayment.receiptNo" class="rule">
+            <span class="rule-label">Receipt no.</span>
+            <span class="rule-value">{{ selectedPayment.receiptNo }}</span>
+          </div>
+          <div v-if="selectedPayment.promiseDate" class="rule">
+            <span class="rule-label">Rest promised by</span>
+            <span class="rule-value">{{ formatDate(selectedPayment.promiseDate) }}</span>
           </div>
           <div class="rule">
             <span class="rule-label">Method</span>
@@ -399,9 +358,14 @@
           <p class="detail-text">{{ selectedPayment.rejectionReason }}</p>
         </template>
 
-        <template v-if="selectedPayment.description">
-          <p class="detail-label">Note</p>
-          <p class="detail-text">{{ selectedPayment.description }}</p>
+        <template v-if="selectedPayment.undoReason && selectedPayment.status === 'pending_verification'">
+          <p class="detail-label detail-label--danger">Confirmation undone</p>
+          <p class="detail-text">{{ selectedPayment.undoReason }}</p>
+        </template>
+
+        <template v-if="selectedPayment.note">
+          <p class="detail-label">{{ selectedPayment.status === 'waived' ? 'Why it was forgiven' : 'Note' }}</p>
+          <p class="detail-text">{{ selectedPayment.note }}</p>
         </template>
 
         <template v-if="selectedPayment.proofUrl">
@@ -409,14 +373,22 @@
           <img :src="resolveAsset(selectedPayment.proofUrl)" alt="Proof of payment" class="proof-img" />
         </template>
 
-        <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="paymentDetailOpen = false" />
+        <button
+          v-if="selectedPayment.status === 'pending_verification'"
+          type="button"
+          class="detail-withdraw"
+          :disabled="withdrawing"
+          @click="withdrawPayment(selectedPayment)"
+        >
+          {{ withdrawing ? 'Withdrawing…' : 'Withdraw this payment' }}
+        </button>
       </q-card>
     </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { useRouter, useRoute } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -438,27 +410,19 @@ import {
 } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
-import { uploadSecureDocument, signRows } from '@/utils/upload'
+import { signRows } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { AMENITY_META, UTILITIES, UTILITY_SELECT, roomTypeLabel, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
 import {
-  ADVANCE_TAG,
-  DEPOSIT_TAG,
   BILL_TAG,
-  flatFees,
   isBillSettled,
   manilaToday,
   paymentTitle,
-  nextRentMonth as computeNextRentMonth,
-  fileFingerprint,
-  minPayment,
-  nextLedgerRent,
-  normalizeReference,
-  referenceProblem,
   toLedger,
   type LedgerRow,
 } from '@/utils/payments'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import PaySheet from '@/components/shared/PaySheet.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { POLICY_FULL } from '@/api/selects'
 
@@ -484,7 +448,7 @@ interface Lease {
   replyMinutes: number | null
   accommodationName: string
   roomLabel: string
-  status: 'active' | 'pending' | 'leave_requested'
+  status: 'active' | 'pending' | 'leave_requested' | 'ended' | 'terminated'
   monthlyRent: number
   advancePaid: number
   /** The landlord/landlady's partial-payment terms for this stay. */
@@ -529,6 +493,12 @@ interface Payment {
   paidAt: string | null
   verifiedByName: string
   rejectionReason: string
+  note: string
+  promiseDate: string | null
+  /** What the student said they sent, when less arrived. */
+  claimedAmount: number | null
+  undoReason: string
+  receiptNo: string
 }
 
 const router = useRouter()
@@ -544,8 +514,6 @@ const bills = ref<Bill[]>([])
 const unpaidBills = computed(() =>
   bills.value.filter((b) => !b.settled && b.leaseId === lease.value?.id).sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
 )
-// Flat utility fees ride on every rent payment.
-const rentFees = computed(() => (lease.value ? flatFees(lease.value.utilities) : []))
 const showAllPayments = ref(false)
 
 // Payment history defaults to the current room only — a student who's moved
@@ -570,27 +538,11 @@ function onTabSwipe({ direction }: { direction: string }) {
 const leaveDialog = ref(false)
 const leaving = ref(false)
 
-const submitOpen = ref(false)
-const submitting = ref(false)
-const uploadingProof = ref(false)
-// Local preview of the chosen receipt; the stored value is a private ref.
-const proofPreview = ref('')
-const form = reactive({
-  category: 'rent' as 'rent' | 'advance' | 'deposit' | 'bill',
-  bill: null as Bill | null,
-  month: new Date().toISOString().slice(0, 7),
-  amount: 0,
-  method: 'gcash' as 'gcash' | 'maya' | 'bank' | 'cash' | 'others',
-  reference: '',
-  proofUrl: '',
-  /** The receipt's SHA-256, so one image can't pay twice. */
-  proofHash: '' as string,
-  /** Owed for this item, what's left of it, and the least the server takes. */
-  due: 0,
-  left: 0,
-  min: 0,
-})
-
+const payOpen = ref(false)
+// Balances on ended stays other than the one shown (student_past_balance).
+interface PastOwed { leaseId: string; landlordId: string; place: string; balance: number; allowPartial: boolean; partialMinPct: number }
+const pastOwed = ref<PastOwed[]>([])
+const pastPay = ref<PastOwed | null>(null)
 // What is owed, from the database (lease_ledger). It refuses anything that
 // breaks its rules; the form only says so first. Empty until loaded, when the
 // older payment-list rules below stand in.
@@ -600,6 +552,24 @@ async function loadLedger() {
   const { data } = await supabase.rpc('lease_ledger', { p_lease: lease.value.id })
   ledger.value = toLedger(data)
 }
+// A stay that ended with something still owed: shown so it can be settled.
+const leaseClosed = computed(() => lease.value?.status === 'ended' || lease.value?.status === 'terminated')
+// What is owed today — rent up to this month, bills, advance and deposit.
+const owedNow = computed(() => {
+  const today = manilaToday()
+  return ledger.value
+    // Once a stay has ended, everything left on it is owed now — the same sum
+    // past_stay_balance() blocks applying on — not only what is past due.
+    .filter((r) => r.kind !== 'rent' || leaseClosed.value || (r.dueDate ?? '') <= today || r.state === 'overdue')
+    .filter((r) => !leaseClosed.value || r.kind === 'rent' || r.kind === 'bill')
+    .reduce((sum, r) => sum + r.balance, 0)
+})
+const hasOverdue = computed(() => ledger.value.some((r) => r.state === 'overdue'))
+function billNote(b: Bill): string {
+  const row = ledger.value.find((r) => r.billId === b.id)
+  return row && row.balance + 0.009 < row.due ? `${formatPesoExact(row.balance)} of ${formatPesoExact(row.due)} left` : formatPesoExact(b.amount)
+}
+
 const ledgerItem = (kind: 'advance' | 'deposit') => ledger.value.find((r) => r.kind === kind)
 const canPayItem = (kind: 'advance' | 'deposit', fallback: boolean) => {
   const row = ledgerItem(kind)
@@ -615,25 +585,7 @@ function itemNote(kind: 'advance' | 'deposit'): string {
 const canPayAdvance = computed(() => canPayItem('advance', Boolean(lease.value && !lease.value.advancePaid)))
 const canPayDeposit = computed(() => canPayItem('deposit', Boolean(lease.value && !lease.value.depositPaid)))
 
-// The rent month to pay: the earliest with anything left (a partly paid month
-// stays current until it is covered). Locked, not picked — see utils/payments.ts.
-const rentRow = computed(() => nextLedgerRent(ledger.value))
-const nextRentMonth = computed(() =>
-  ledger.value.length
-    ? (rentRow.value?.month ?? '').slice(0, 7)
-    : lease.value ? computeNextRentMonth(lease.value.startDate, payments.value) : '',
-)
 
-const submitTitle = computed(() => {
-  if (form.category === 'advance') return 'Pay your advance'
-  if (form.category === 'deposit') return 'Pay your deposit'
-  if (form.category === 'bill' && form.bill) return BILL_TAG[form.bill.utility]
-  return 'Submit a payment'
-})
-
-// Cash has nothing to reference or photograph — every other method leaves a
-// trail, and the landlord/landlady needs it to actually verify against.
-const isCash = computed(() => form.method === 'cash')
 
 const paymentDetailOpen = ref(false)
 const selectedPayment = ref<Payment | null>(null)
@@ -644,6 +596,8 @@ function openPaymentDetail(p: Payment) {
 
 // A pending application isn't an accepted lease yet, so there's nothing to pay.
 const canPay = computed(() => lease.value?.status !== 'pending')
+
+const LEASE_SELECT = `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, allow_partial, partial_min_pct, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -661,15 +615,13 @@ async function load(silent = false) {
     // still have real payments on file from a past stay, so the Payments tab
     // must not be gated on there being a lease right now.
     const [
-      { data: leaseRow, error: leaseError },
+      { data: currentLease, error: leaseError },
       { data: paymentRows, error: paymentsError },
       { data: billRows, error: billsError },
     ] = await Promise.all([
       supabase
         .from('leases')
-        .select(
-          `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, allow_partial, partial_min_pct, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`,
-        )
+        .select(LEASE_SELECT)
         .eq('student_id', user.id)
         .in('status', ['active', 'pending', 'leave_requested'])
         .order('start_date', { ascending: false })
@@ -678,13 +630,13 @@ async function load(silent = false) {
       supabase
         .from('payments')
         .select(
-          'id, lease_id, month, amount, status, method, description, txn_reference, proof_url, paid_at, rejection_reason, verified_by_user:users!payments_verified_by_fkey(full_name), leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
+          'id, lease_id, month, amount, status, method, description, txn_reference, proof_url, paid_at, rejection_reason, note, promise_date, claimed_amount, undo_reason, receipt_no, verified_by_user:users!payments_verified_by_fkey(full_name), leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
         )
         .eq('leases.student_id', user.id)
         .order('month', { ascending: false }),
       supabase
         .from('utility_bills')
-        .select('id, lease_id, utility, month, amount, note, due_date, payments(status), leases!inner(student_id)')
+        .select('id, lease_id, utility, month, amount, note, due_date, payments(status, amount), leases!inner(student_id)')
         .eq('leases.student_id', user.id),
     ])
     if (leaseError) throw leaseError
@@ -700,7 +652,7 @@ async function load(silent = false) {
       note: b.note || '',
       dueDate: b.due_date,
       overdue: b.due_date < manilaToday(),
-      settled: isBillSettled(b.payments),
+      settled: isBillSettled(b.payments, Number(b.amount)),
     }))
 
     await signRows('payments', paymentRows, 'proof_url')
@@ -725,9 +677,37 @@ async function load(silent = false) {
         paidAt: p.paid_at,
         verifiedByName: verifier?.full_name || '',
         rejectionReason: p.rejection_reason || '',
+        note: p.note || '',
+        promiseDate: p.promise_date,
+        claimedAmount: p.claimed_amount == null ? null : Number(p.claimed_amount),
+        undoReason: p.undo_reason || '',
+        receiptNo: p.receipt_no || '',
       }
     })
 
+    // Ended stays with something still owed: it blocks applying elsewhere, so
+    // it stays on this screen until settled. With no current stay, the latest
+    // of them takes the main card; any others get a "Pay" row of their own.
+    const { data: owed } = await supabase.rpc('student_past_balance', { p_student: user.id })
+    let leaseRow = currentLease
+    if (!leaseRow && owed?.[0]) {
+      leaseRow = (await supabase.from('leases').select(LEASE_SELECT).eq('id', owed[0].lease_id).maybeSingle()).data
+    }
+    const others = (owed ?? []).filter((o) => o.lease_id !== leaseRow?.id)
+    const { data: otherLeases } = others.length
+      ? await supabase.from('leases').select('id, landlord_id, allow_partial, partial_min_pct').in('id', others.map((o) => o.lease_id))
+      : { data: [] }
+    pastOwed.value = others.map((o) => {
+      const l = otherLeases?.find((x) => x.id === o.lease_id)
+      return {
+        leaseId: o.lease_id,
+        landlordId: l?.landlord_id ?? '',
+        place: `${o.accommodation} · ${o.room}`,
+        balance: Number(o.balance),
+        allowPartial: Boolean(l?.allow_partial),
+        partialMinPct: Number(l?.partial_min_pct ?? 10),
+      }
+    })
     if (!leaseRow) {
       lease.value = null
       return
@@ -846,158 +826,21 @@ async function requestLeave() {
   }
 }
 
-function openSubmit(category: typeof form.category, bill: Bill | null = null) {
-  // From the ledger: what's left of this item and the least the server takes.
-  const row = category === 'rent' ? rentRow.value : category === 'bill' ? null : ledgerItem(category) ?? null
-  if (row && row.pending > 0) {
-    notify.info('Your last payment for this is still waiting for your landlord/landlady to confirm.')
-    return
-  }
-  const fallback = category === 'rent'
-    ? (lease.value?.monthlyRent ?? 0) + rentFees.value.reduce((sum, f) => sum + f.amount, 0)
-    : (lease.value?.monthlyRent ?? 0)
-  form.category = category
-  form.bill = bill
-  form.month = bill ? bill.month : nextRentMonth.value
-  form.due = bill ? bill.amount : row?.due ?? fallback
-  form.left = bill ? bill.amount : row?.balance ?? fallback
-  form.min = bill || !row ? form.left : minPayment(row, Boolean(lease.value?.allowPartial), lease.value?.partialMinPct ?? 50)
-  form.amount = form.left
-  form.proofHash = ''
-  form.method = 'gcash'
-  form.reference = ''
-  form.proofUrl = ''
-  proofPreview.value = ''
-  submitOpen.value = true
-}
-
-async function onProofSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  uploadingProof.value = true
+const withdrawing = ref(false)
+async function withdrawPayment(p: Payment) {
+  if (withdrawing.value) return
+  if (!(await requirePin({ confirm: true, title: 'Withdraw this payment?', message: 'It is taken back before your landlord/landlady reviews it. You can submit a new one.' }))) return
+  withdrawing.value = true
   try {
-    // A receipt is private: signed upload, so form.proofUrl is a cld: ref and the
-    // preview comes from the file itself.
-    const [url, hash] = await Promise.all([uploadSecureDocument(file), fileFingerprint(file)])
-    form.proofUrl = url
-    form.proofHash = hash ?? ''
-    proofPreview.value = URL.createObjectURL(file)
+    const { error: rpcError } = await supabase.rpc('review_payment', { p_payment: p.id, p_action: 'withdraw' })
+    if (rpcError) throw rpcError
+    paymentDetailOpen.value = false
+    notify.success('Payment withdrawn.')
+    void load(true)
   } catch (e) {
-    notify.error(errorMessage(e, 'Could not upload the proof image.'))
+    notify.error(errorMessage(e, 'Could not withdraw this payment.'))
   } finally {
-    uploadingProof.value = false
-    input.value = ''
-  }
-}
-
-async function submitPayment() {
-  if (submitting.value || uploadingProof.value || !lease.value) return
-
-  // Re-validate against current state rather than trusting the form — the
-  // UI already locks these, but a stale dialog (left open while something
-  // changed) shouldn't be able to slip a payment through anyway.
-  if (form.category === 'rent' && form.month !== nextRentMonth.value) {
-    notify.error(`Pay ${formatMonth(`${nextRentMonth.value}-01`)} first — months are paid in order.`)
-    return
-  }
-  if (form.category === 'advance' && !canPayAdvance.value) {
-    notify.error('Advance is already on file.')
-    return
-  }
-  if (form.category === 'deposit' && !canPayDeposit.value) {
-    notify.error('Deposit is already on file.')
-    return
-  }
-  const bill = form.category === 'bill' ? form.bill : null
-  if (form.category === 'bill' && !unpaidBills.value.some((b) => b.id === bill?.id)) {
-    notify.error('That bill is already paid or awaiting verification.')
-    return
-  }
-  // The database checks each of these too; saying so here saves a round trip.
-  if (!(form.amount > 0)) {
-    notify.error('Enter an amount.')
-    return
-  }
-  if (form.amount > form.left + 0.009) {
-    notify.error(`That is more than is owed — ${formatPesoExact(form.left)} is left to pay.`)
-    return
-  }
-  if (form.amount + 0.009 < form.min) {
-    notify.error(form.min >= form.left
-      ? `Pay the full ${formatPesoExact(form.left)} — your landlord/landlady hasn't turned on partial payments.`
-      : `A partial payment must be at least ${formatPesoExact(form.min)}.`)
-    return
-  }
-  if (!isCash.value && !form.reference.trim()) {
-    notify.error('Enter a reference number, or switch the method to Cash.')
-    return
-  }
-  const refProblem = referenceProblem(form.method, form.reference)
-  if (refProblem) {
-    notify.error(refProblem)
-    return
-  }
-  if (!isCash.value && !form.proofUrl) {
-    notify.error('Attach proof of payment, or switch the method to Cash.')
-    return
-  }
-
-  const description = bill
-    ? BILL_TAG[bill.utility]
-    : form.category === 'advance' ? ADVANCE_TAG : form.category === 'deposit' ? DEPOSIT_TAG : null
-  // A bill is paid against its own month and amount — the database checks both.
-  const month = bill ? bill.month : form.category === 'rent' ? `${form.month}-01` : `${new Date().toISOString().slice(0, 7)}-01`
-  const amount = bill ? bill.amount : Math.round(form.amount * 100) / 100
-
-  submitting.value = true
-  try {
-    const { data: created, error: insertError } = await supabase
-      .from('payments')
-      .insert({
-        lease_id: lease.value.id,
-        month,
-        amount,
-        method: form.method,
-        status: 'pending_verification',
-        description,
-        bill_id: bill?.id ?? null,
-        txn_reference: normalizeReference(form.reference) || null,
-        proof_url: form.proofUrl || null,
-        proof_hash: form.proofHash || null,
-      })
-      .select('id, month, amount, status, method')
-      .single()
-    if (insertError) throw insertError
-
-    payments.value = [
-      {
-        id: created.id,
-        leaseId: lease.value.id,
-        month: created.month,
-        amount: Number(created.amount),
-        status: created.status,
-        method: created.method,
-        roomLabel: lease.value.roomLabel || 'Your room',
-        accommodationName: lease.value.accommodationName,
-        description: description || '',
-        txnReference: form.reference.trim(),
-        proofUrl: proofPreview.value,
-        paidAt: null,
-        verifiedByName: '',
-        rejectionReason: '',
-      },
-      ...payments.value,
-    ]
-    if (bill) bills.value = bills.value.map((b) => (b.id === bill.id ? { ...b, settled: true } : b))
-    void loadLedger()
-
-    submitOpen.value = false
-    notify.success('Payment submitted for verification.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not submit your payment.'))
-  } finally {
-    submitting.value = false
+    withdrawing.value = false
   }
 }
 
@@ -1008,7 +851,12 @@ async function submitPayment() {
 const { refresh } = useLiveData({
   key: 'student-stay',
   load,
-  watch: (uid) => [{ table: 'leases', filter: `student_id=eq.${uid}` }],
+  // leases/payments are not in the realtime publication; confirmations and
+  // rejections notify the student, so their notifications are the signal.
+  watch: (uid) => [
+    { table: 'leases', filter: `student_id=eq.${uid}` },
+    { table: 'notifications', filter: `user_id=eq.${uid}` },
+  ],
 })
 
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it
@@ -1363,6 +1211,26 @@ function onPull(done: () => void) {
   padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
   border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
 }
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sheet-x {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin: -6px -8px 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--m-muted);
+  cursor: pointer;
+}
 .detail-title {
   margin: 0;
   color: var(--m-ink);
@@ -1415,11 +1283,6 @@ function onPull(done: () => void) {
   width: 100%;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
-}
-.detail-close {
-  min-height: 46px;
-  margin-top: 6px;
-  font-weight: 700;
 }
 .leave-title {
   margin: 0;
@@ -1510,6 +1373,63 @@ function onPull(done: () => void) {
   color: var(--m-muted);
   font-size: 12.5px;
 }
+.past-owed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--m-danger);
+  border-radius: var(--m-radius);
+  background: var(--m-danger-soft);
+}
+.past-owed-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.past-owed-title {
+  color: var(--m-danger);
+  font-size: 14px;
+  font-weight: 700;
+}
+.past-owed-sub {
+  color: var(--m-text);
+  font-size: 12.5px;
+}
+.past-owed-btn {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-danger);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.pay-head-owed {
+  margin: 8px 0 0;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.pay-head-owed--overdue {
+  color: var(--m-danger);
+}
+.detail-withdraw {
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--m-danger);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+}
 .pay-dues {
   display: flex;
   flex-direction: column;
@@ -1526,7 +1446,6 @@ function onPull(done: () => void) {
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
   background: var(--m-surface);
-  cursor: pointer;
   font: inherit;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
@@ -1650,141 +1569,6 @@ function onPull(done: () => void) {
   color: var(--m-muted);
 }
 
-.submit-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.submit-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.submit-note {
-  margin: -6px 0 0;
-  color: var(--m-muted);
-  font-size: 12.5px;
-}
-.submit-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.submit-label {
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.submit-input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background-color: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 14px;
-}
-.submit-locked-month {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-bg);
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.submit-proof-preview {
-  width: 100%;
-  max-height: 200px;
-  margin-top: 8px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  object-fit: contain;
-}
-.file-picker {
-  position: relative;
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px dashed var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-muted);
-  cursor: pointer;
-}
-.file-picker--chosen {
-  border-style: solid;
-  border-color: var(--m-primary);
-  color: var(--m-primary-dark);
-}
-.file-picker-text {
-  flex: 1;
-  overflow: hidden;
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.file-picker-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-.submit-hint {
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.submit-hint--warn {
-  color: var(--m-danger, #c2410c);
-}
-.amount-chips {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.amount-chip {
-  padding: 6px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.amount-chip.is-on {
-  border-color: var(--m-primary);
-  background: var(--m-primary-soft, rgba(18, 194, 153, 0.12));
-  color: var(--m-primary);
-}
-.submit-hint--ok {
-  color: var(--m-success);
-  font-weight: 600;
-}
-.submit-btn {
-  min-height: 48px;
-  font-weight: 700;
-}
 
 /* Both panels at once on a landscape tablet. The tab strip is gone, so the panel
    squares off the top corners it was using to fuse into it, and each half names

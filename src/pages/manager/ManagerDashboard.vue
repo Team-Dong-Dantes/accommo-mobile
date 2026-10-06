@@ -549,7 +549,12 @@ type DashboardCache = {
 const { refresh } = useLiveData({
   key: 'manager-dashboard',
   load,
-  watch: (uid) => [{ table: 'leases', filter: `landlord_id=eq.${uid}` }],
+  // leases/payments are not in the realtime publication; every payment and
+  // lease event notifies this user, so their notifications are the signal.
+  watch: (uid) => [
+    { table: 'leases', filter: `landlord_id=eq.${uid}` },
+    { table: 'notifications', filter: `user_id=eq.${uid}` },
+  ],
   cache: {
     get: (): DashboardCache => ({
       firstName: firstName.value,

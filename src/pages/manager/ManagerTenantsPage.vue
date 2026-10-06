@@ -383,185 +383,28 @@
 
     <AddStudentSheet v-model="addOpen" @added="refresh" />
 
-    <q-dialog v-model="paymentOpen" position="bottom">
-      <q-card class="pay-sheet">
-        <div class="pay-head">
-          <span v-if="paymentLease" class="lease-avatar" :class="paymentLease.avatarColor ? [`bg-${paymentLease.avatarColor}`, 'text-white'] : []">
-            <img v-if="paymentLease.avatarUrl" :src="paymentLease.avatarUrl" alt="" class="lease-avatar-img" />
-            <template v-else>{{ initialsOf(paymentLease.studentName) }}</template>
-          </span>
-          <span class="pay-head-body">
-            <h3 class="pay-title">Log a payment</h3>
-            <span v-if="paymentLease" class="pay-head-sub">
-              {{ paymentLease.studentName }}{{ paymentLease.monthlyRent ? ` · ${formatPeso(paymentLease.monthlyRent)}/mo` : '' }}
-            </span>
-          </span>
-        </div>
-        <!-- From the ledger: what this payment is for, and what's left of it. -->
-        <div v-if="payItems.length > 1" class="pay-field">
-          <span class="pay-label">For</span>
-          <div class="m-chips" role="radiogroup" aria-label="What this payment is for">
-            <button
-              v-for="it in payItems"
-              :key="it.kind"
-              type="button"
-              role="radio"
-              class="m-chip"
-              :class="{ 'm-chip--on': paymentForm.kind === it.kind }"
-              :aria-checked="paymentForm.kind === it.kind"
-              @click="pickItem(it.kind)"
-            >
-              {{ it.label }}
-            </button>
-          </div>
-        </div>
-        <div v-if="paymentForm.kind === 'rent'" class="pay-field">
-          <span class="pay-label">Month</span>
-          <span class="pay-input pay-locked">{{ paymentForm.month ? formatMonth(`${paymentForm.month}-01`) : '—' }}</span>
-          <span class="pay-hint">Months are recorded in order — this is the next one owed.</span>
-        </div>
-        <p v-if="ledgerLoaded && !payItems.length" class="pay-hint">Nothing is owed on this stay right now.</p>
-        <label class="pay-field">
-          <span class="pay-label">Amount</span>
-          <span class="pay-money">
-            <span class="pay-money-sign">₱</span>
-            <input v-model.number="paymentForm.amount" type="number" min="0" :max="paymentForm.left" step="0.01" inputmode="decimal" class="pay-input pay-money-input" />
-          </span>
-          <span v-if="paymentForm.left" class="pay-hint">
-            {{ formatPesoExact(paymentForm.left) }} left{{ paymentForm.left + 0.009 < paymentForm.due ? ` of ${formatPesoExact(paymentForm.due)}` : '' }} — you can record part of it.
-          </span>
-        </label>
-        <div class="pay-field">
-          <span class="pay-label">Method</span>
-          <div class="m-chips" role="radiogroup" aria-label="Payment method">
-            <button
-              v-for="m in PAY_METHODS"
-              :key="m"
-              type="button"
-              role="radio"
-              class="m-chip"
-              :class="{ 'm-chip--on': paymentForm.method === m }"
-              :aria-checked="paymentForm.method === m"
-              @click="paymentForm.method = m"
-            >
-              {{ PAYMENT_METHOD_LABEL[m] }}
-            </button>
-          </div>
-        </div>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          color="primary"
-          class="pay-submit"
-          :loading="logging"
-          label="Log payment"
-          @click="submitPayment"
-        />
-      </q-card>
-    </q-dialog>
+    <PaySheet
+      v-model="paymentOpen"
+      :lease-id="paymentLease?.id ?? ''"
+      role="landlord"
+      :subtitle="paymentLease ? `${paymentLease.studentName}${paymentLease.monthlyRent ? ` · ${formatPeso(paymentLease.monthlyRent)}/mo` : ''}` : ''"
+      @submitted="load(true)"
+    />
 
-    <q-dialog v-model="paymentDetailOpen" position="bottom">
-      <q-card v-if="selectedPayment" class="pay-detail-sheet">
-        <div class="pay-detail-head">
-          <span class="pay-detail-head-body">
-            <h3 class="pay-detail-title">{{ paymentTitle(selectedPayment) }}</h3>
-            <span class="pay-detail-amount">{{ formatPeso(selectedPayment.amount) }}</span>
-          </span>
-          <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
-            {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
-          </span>
-        </div>
-
-        <div class="group">
-          <div class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Method</span>
-            <span class="pay-detail-rule-value">{{ PAYMENT_METHOD_LABEL[selectedPayment.method] || selectedPayment.method }}</span>
-          </div>
-          <div class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Tenant</span>
-            <span class="pay-detail-rule-value">{{ selectedPayment.studentName }}</span>
-          </div>
-          <div class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Stay</span>
-            <span class="pay-detail-rule-value">{{ selectedPayment.roomLabel }} · {{ selectedPayment.accommodationName }}</span>
-          </div>
-          <div v-if="selectedPayment.txnReference" class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Reference number</span>
-            <span class="pay-detail-rule-value">{{ selectedPayment.txnReference }}</span>
-          </div>
-          <div v-if="selectedPayment.verifiedByName" class="pay-detail-rule">
-            <span class="pay-detail-rule-label">Reviewed by</span>
-            <span class="pay-detail-rule-value">
-              {{ selectedPayment.verifiedByName }}{{ selectedPayment.paidAt ? ` · ${formatDate(selectedPayment.paidAt)}` : '' }}
-            </span>
-          </div>
-        </div>
-
-        <template v-if="selectedPayment.status === 'rejected' && selectedPayment.rejectionReason">
-          <p class="pay-detail-label">Rejection reason</p>
-          <p class="pay-detail-text">{{ selectedPayment.rejectionReason }}</p>
-        </template>
-
-        <template v-if="selectedPayment.description">
-          <p class="pay-detail-label">Note</p>
-          <p class="pay-detail-text">{{ selectedPayment.description }}</p>
-        </template>
-
-        <template v-if="selectedPayment.proofUrl">
-          <p class="pay-detail-label">Proof of payment</p>
-          <img :src="resolveAsset(selectedPayment.proofUrl)" alt="Proof of payment" class="pay-detail-proof-img" />
-        </template>
-
-        <template v-if="selectedPayment.status === 'pending_verification'">
-          <div v-if="rejectingId === selectedPayment.id" class="pay-reject-form">
-            <label class="pay-detail-label">
-              Reason
-              <textarea v-model="rejectReason" class="pay-reject-textarea" rows="2" placeholder="Why is this being rejected?" />
-            </label>
-            <div class="pay-reject-actions">
-              <button type="button" class="pay-reject-cancel" @click="rejectingId = ''">Cancel</button>
-              <button
-                type="button"
-                class="pay-reject-confirm"
-                :disabled="verifying === selectedPayment.id || !rejectReason.trim()"
-                @click="rejectPayment(selectedPayment.id)"
-              >
-                {{ verifying === selectedPayment.id ? 'Rejecting…' : 'Confirm reject' }}
-              </button>
-            </div>
-          </div>
-          <div v-else class="pay-detail-actions">
-            <button
-              type="button"
-              class="pay-verify-btn"
-              :disabled="verifying === selectedPayment.id"
-              @click="verifyPayment(selectedPayment.id); paymentDetailOpen = false"
-            >
-              {{ verifying === selectedPayment.id ? 'Verifying…' : 'Mark verified' }}
-            </button>
-            <button type="button" class="pay-reject-btn" @click="rejectingId = selectedPayment.id; rejectReason = ''">
-              Reject
-            </button>
-          </div>
-        </template>
-
-        <button type="button" class="pay-detail-close" @click="paymentDetailOpen = false">Close</button>
-      </q-card>
-    </q-dialog>
+    <PaymentReviewSheet v-model="paymentDetailOpen" :payment="selectedPayment" @changed="load(true)" />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatDate, formatMonth, formatPeso, formatPesoExact, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
-import { ADVANCE_TAG, DEPOSIT_TAG, nextLedgerRent, paymentTitle, manilaToday, toLedger, type LedgerRow } from '@/utils/payments'
+import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { paymentTitle, manilaToday } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
 import { respondToApplication } from '@/utils/applications'
@@ -572,6 +415,8 @@ import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import AddStudentSheet from '@/components/manager/AddStudentSheet.vue'
+import PaymentReviewSheet from '@/components/manager/PaymentReviewSheet.vue'
+import PaySheet from '@/components/shared/PaySheet.vue'
 import { Capacitor } from '@capacitor/core'
 
 interface Lease {
@@ -615,6 +460,11 @@ interface PaymentRow {
   paidAt: string | null
   verifiedByName: string
   rejectionReason: string
+  note: string
+  promiseDate: string | null
+  claimedAmount: number | null
+  undoReason: string
+  receiptNo: string
 }
 
 const FILTERS = [
@@ -624,7 +474,6 @@ const FILTERS = [
   { key: 'leave_requested', label: 'Leave requests' },
 ] as const
 
-const PAY_METHODS = ['cash', 'gcash', 'maya', 'bank', 'others'] as const
 
 const router = useRouter()
 const notify = useNotify()
@@ -647,7 +496,6 @@ watch(
 // Desktop has the room for both panels at once (see useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(activeTab)
 const payments = ref<PaymentRow[]>([])
-const verifying = ref('')
 const query = ref('')
 const filter = ref<(typeof FILTERS)[number]['key']>('all')
 const filtersOpen = ref(false)
@@ -816,13 +664,17 @@ async function load(silent = false) {
         .from('leases')
         .select('id,status,room_id,student_id,start_date,monthly_rent,added_by_landlord,users!leases_student_id_fkey(full_name,avatar_color,avatar_url)')
         .eq('landlord_id', user.id)
-        .in('status', ['active', 'pending', 'leave_requested']),
+        .neq('status', 'rejected'),
     ])
     if (accError) throw accError
     if (leaseError) throw leaseError
 
     const accIds = (accRows ?? []).map((a) => a.id)
+    // Every stay, ended ones included: a former tenant can still pay what they
+    // owe, and that payment has to show up (and be confirmable) here. Only
+    // current stays go on the room grid.
     const leaseIds = (leaseRows ?? []).map((l) => l.id)
+    const currentLeases = (leaseRows ?? []).filter((l) => ['active', 'pending', 'leave_requested'].includes(l.status))
 
     // Second wave: rooms key off the accommodation ids, payments off the lease
     // ids. Both id lists are known now, so the two go out together instead of
@@ -841,6 +693,11 @@ async function load(silent = false) {
       proof_url: string | null
       paid_at: string | null
       rejection_reason: string | null
+      note: string | null
+      promise_date: string | null
+      claimed_amount: number | null
+      undo_reason: string | null
+      receipt_no: string | null
       verified_by_user: { full_name: string | null } | null
     }[] = []
     const [roomsResult, paymentsResult] = await Promise.all([
@@ -854,7 +711,7 @@ async function load(silent = false) {
         ? supabase
             .from('payments')
             .select(
-              'id,month,amount,method,status,lease_id,description,txn_reference,proof_url,paid_at,rejection_reason,verified_by_user:users!payments_verified_by_fkey(full_name)',
+              'id,month,amount,method,status,lease_id,description,txn_reference,proof_url,paid_at,rejection_reason,note,promise_date,claimed_amount,undo_reason,receipt_no,verified_by_user:users!payments_verified_by_fkey(full_name)',
             )
             .in('lease_id', leaseIds)
             .order('month', { ascending: false })
@@ -867,7 +724,7 @@ async function load(silent = false) {
     await signRows('payments', paymentRows, 'proof_url')
 
     const leasesByRoom = new Map<string, Lease[]>()
-    for (const l of leaseRows ?? []) {
+    for (const l of currentLeases) {
       const student = l.users as unknown as { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
       const list = leasesByRoom.get(l.room_id) ?? []
       list.push({
@@ -944,6 +801,11 @@ async function load(silent = false) {
         paidAt: p.paid_at,
         verifiedByName: p.verified_by_user?.full_name || '',
         rejectionReason: p.rejection_reason || '',
+        note: p.note || '',
+        promiseDate: p.promise_date,
+        claimedAmount: p.claimed_amount == null ? null : Number(p.claimed_amount),
+        undoReason: p.undo_reason || '',
+        receiptNo: p.receipt_no || '',
       }
     })
   } catch (e) {
@@ -960,7 +822,12 @@ async function load(silent = false) {
 const { refresh } = useLiveData({
   key: 'manager-tenants',
   load,
-  watch: (uid) => [{ table: 'leases', filter: `landlord_id=eq.${uid}` }],
+  // leases/payments are not in the realtime publication; every payment and
+  // lease event notifies this user, so their notifications are the signal.
+  watch: (uid) => [
+    { table: 'leases', filter: `landlord_id=eq.${uid}` },
+    { table: 'notifications', filter: `user_id=eq.${uid}` },
+  ],
 })
 
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it
@@ -1069,141 +936,11 @@ function handlePick(l: Lease) {
 
 const paymentOpen = ref(false)
 const paymentLease = ref<Lease | null>(null)
-const logging = ref(false)
-const paymentForm = reactive({
-  kind: 'rent' as 'rent' | 'advance' | 'deposit',
-  month: new Date().toISOString().slice(0, 7),
-  amount: 0,
-  method: 'cash' as 'cash' | 'gcash' | 'maya' | 'bank' | 'others',
-  due: 0,
-  left: 0,
-})
-
-// The stay's ledger (lease_ledger): which items still have something owed. The
-// database enforces the same rules (in order, never more than owed).
-const payLedger = ref<LedgerRow[]>([])
-const ledgerLoaded = ref(false)
-const ITEM_LABEL = { rent: 'Rent', advance: 'Advance', deposit: 'Deposit' } as const
-const payItems = computed(() => {
-  const rent = nextLedgerRent(payLedger.value)
-  const rows = [rent, ...payLedger.value.filter((r) => r.kind !== 'rent' && r.balance > 0.009)].filter((r): r is LedgerRow => !!r)
-  return rows.map((r) => ({ kind: r.kind, label: ITEM_LABEL[r.kind], row: r }))
-})
-function pickItem(kind: 'rent' | 'advance' | 'deposit') {
-  const it = payItems.value.find((i) => i.kind === kind)
-  paymentForm.kind = kind
-  paymentForm.month = it?.row.month?.slice(0, 7) ?? new Date().toISOString().slice(0, 7)
-  paymentForm.due = it?.row.due ?? 0
-  paymentForm.left = it?.row.balance ?? 0
-  paymentForm.amount = paymentForm.left
-}
-
-async function openLogPayment(l: Lease) {
+function openLogPayment(l: Lease) {
   paymentLease.value = l
-  paymentForm.method = 'cash'
-  ledgerLoaded.value = false
-  payLedger.value = []
-  pickItem('rent')
   paymentOpen.value = true
-  const { data } = await supabase.rpc('lease_ledger', { p_lease: l.id })
-  payLedger.value = toLedger(data)
-  ledgerLoaded.value = true
-  pickItem(payItems.value[0]?.kind ?? 'rent')
 }
 
-async function submitPayment() {
-  if (logging.value || !paymentLease.value) return
-  // The database refuses this too (payments_amount_positive), but saying so here
-  // costs a round trip less and reads better than a constraint-violation toast.
-  if (!(paymentForm.amount > 0)) {
-    notify.error('Enter an amount greater than zero.')
-    return
-  }
-  if (ledgerLoaded.value && paymentForm.amount > paymentForm.left + 0.009) {
-    notify.error(`That is more than is owed — ${formatPesoExact(paymentForm.left)} is left.`)
-    return
-  }
-  logging.value = true
-  try {
-    const { error: insertError } = await supabase.from('payments').insert({
-      lease_id: paymentLease.value.id,
-      month: `${paymentForm.month}-01`,
-      amount: Math.round(paymentForm.amount * 100) / 100,
-      method: paymentForm.method,
-      description: paymentForm.kind === 'advance' ? ADVANCE_TAG : paymentForm.kind === 'deposit' ? DEPOSIT_TAG : null,
-      status: 'paid',
-      paid_at: new Date().toISOString(),
-      verified_by: myId.value,
-    })
-    if (insertError) throw insertError
-    paymentOpen.value = false
-    // verifyPayment() patches its row in place; a fresh insert has no row to
-    // patch, and without this the new payment stayed invisible until reload.
-    void load(true)
-    notify.success('Payment logged.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not log this payment.'))
-  } finally {
-    logging.value = false
-  }
-}
-
-async function verifyPayment(paymentId: string) {
-  if (!(await requirePin({ confirm: true, title: 'Verify this payment?' }))) return
-  if (verifying.value) return
-  verifying.value = paymentId
-  try {
-    const paidAt = new Date().toISOString()
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({ status: 'paid', paid_at: paidAt, verified_by: myId.value })
-      .eq('id', paymentId)
-    if (updateError) throw updateError
-    const row = payments.value.find((p) => p.id === paymentId)
-    if (row) {
-      row.status = 'paid'
-      row.paidAt = paidAt
-      row.verifiedByName = 'You'
-    }
-    notify.success('Payment verified.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not verify this payment.'))
-  } finally {
-    verifying.value = ''
-  }
-}
-
-const rejectingId = ref('')
-const rejectReason = ref('')
-
-async function rejectPayment(paymentId: string) {
-  // Checked BEFORE the PIN prompt: asking someone to authenticate and then
-  // silently doing nothing because the reason box was empty is a dead end.
-  const reason = rejectReason.value.trim()
-  if (verifying.value || !reason) return
-  if (!(await requirePin({ title: 'Reject this payment?' }))) return
-  verifying.value = paymentId
-  try {
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({ status: 'rejected', rejection_reason: reason, verified_by: myId.value })
-      .eq('id', paymentId)
-    if (updateError) throw updateError
-    const row = payments.value.find((p) => p.id === paymentId)
-    if (row) {
-      row.status = 'rejected'
-      row.rejectionReason = reason
-      row.verifiedByName = 'You'
-    }
-    notify.success('Payment rejected.')
-    rejectingId.value = ''
-    paymentDetailOpen.value = false
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not reject this payment.'))
-  } finally {
-    verifying.value = ''
-  }
-}
 
 </script>
 
@@ -1252,88 +989,6 @@ async function rejectPayment(paymentId: string) {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-.pay-detail-actions {
-  display: flex;
-  gap: 8px;
-}
-/* Same pill as the filter sheet's confirm button, which this used to borrow by
-   reusing its class — it now has its own, so BottomSheet owns `.sheet-done`. */
-.pay-verify-btn {
-  flex: 1;
-  min-height: 48px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-reject-btn {
-  flex: 0 0 auto;
-  min-height: 48px;
-  padding: 0 18px;
-  border: 1px solid var(--m-danger);
-  border-radius: 999px;
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-reject-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pay-reject-textarea {
-  display: block;
-  width: 100%;
-  min-height: 60px;
-  margin-top: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13.5px;
-  resize: vertical;
-}
-.pay-reject-actions {
-  display: flex;
-  gap: 8px;
-}
-.pay-reject-cancel {
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-reject-confirm {
-  flex: 1;
-  min-height: 44px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-danger);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-reject-confirm:disabled {
-  opacity: 0.6;
 }
 .top-actions {
   display: flex;
@@ -1752,212 +1407,7 @@ async function rejectPayment(paymentId: string) {
   color: var(--m-danger);
 }
 
-.pay-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.pay-title {
-  margin: 0;
-  line-height: 1.3;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.pay-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 2px;
-}
-.pay-head-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-.pay-head-sub {
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.pay-money {
-  position: relative;
-  display: block;
-}
-.pay-money-sign {
-  position: absolute;
-  top: 50%;
-  left: 12px;
-  color: var(--m-muted);
-  font-weight: 700;
-  transform: translateY(-50%);
-}
-.pay-input.pay-money-input {
-  width: 100%;
-  padding-left: 28px;
-  font-size: 16px;
-  font-weight: 700;
-}
-.pay-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.pay-label {
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.pay-hint {
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.pay-locked {
-  display: flex;
-  align-items: center;
-  background: var(--m-surface-2, var(--m-surface));
-  color: var(--m-ink);
-  font-weight: 600;
-}
-.pay-input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background-color: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 14px;
-}
-.pay-submit {
-  min-height: 48px;
-  font-weight: 700;
-}
 
-.pay-detail-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.pay-detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.pay-detail-head-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-.pay-detail-title {
-  margin: 0;
-  line-height: 1.3;
-  color: var(--m-muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-.pay-detail-amount {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 28px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-}
-.pay-detail-chip {
-  flex: 0 0 auto;
-  margin-top: 2px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.pay-detail-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.pay-detail-chip--amber,
-.pay-detail-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.pay-detail-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.pay-detail-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-.pay-detail-rule {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.group > .pay-detail-rule:first-child {
-  border-top: 0;
-}
-.pay-detail-rule-label {
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.pay-detail-rule-value {
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: right;
-}
-.pay-detail-label {
-  margin: 4px 0 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.pay-detail-text {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.pay-detail-proof-img {
-  width: 100%;
-  max-height: 360px;
-  object-fit: contain;
-  background: var(--m-bg);
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-}
-.pay-detail-close {
-  min-height: 46px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
 
 /* Same underline-tab convention used elsewhere in the app (e.g. the tenant
    profile's Overview/Payments/History tabs) — reused here, not reinvented. */

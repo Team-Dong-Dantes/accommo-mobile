@@ -438,10 +438,10 @@ async function load(silent = false) {
       // Utility bills the landlord/landlady posted and nobody has paid yet.
       const { data: billRows } = await supabase
         .from('utility_bills')
-        .select('id, utility, month, amount, due_date, payments(status)')
+        .select('id, utility, month, amount, due_date, payments(status, amount)')
         .eq('lease_id', leaseRow.id)
       for (const b of billRows ?? []) {
-        if (isBillSettled(b.payments)) continue
+        if (isBillSettled(b.payments, Number(b.amount))) continue
         const overdue = b.due_date < manilaToday()
         list.push({
           id: `bill-${b.id}`,

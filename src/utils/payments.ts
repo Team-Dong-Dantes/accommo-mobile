@@ -33,11 +33,15 @@ export function paymentTitle(p: { description?: string | null; month: string }):
 }
 
 /**
- * A bill is settled by a payment that is paid or awaiting verification — the
- * same rule a rent month follows, so a rejected payment leaves it due again.
+ * A bill is settled once what is paid, awaiting verification or forgiven adds
+ * up to it — the same rule a rent month follows, so a rejected or withdrawn
+ * payment leaves it due again, and a part payment leaves the rest due.
  */
-export function isBillSettled(payments: { status: string }[] | null | undefined): boolean {
-  return (payments ?? []).some((p) => p.status === 'paid' || p.status === 'pending_verification')
+export function isBillSettled(payments: { status: string; amount: number | string }[] | null | undefined, amount: number): boolean {
+  const covered = (payments ?? [])
+    .filter((p) => p.status === 'paid' || p.status === 'pending_verification' || p.status === 'waived')
+    .reduce((sum, p) => sum + Number(p.amount), 0)
+  return covered + 0.009 >= amount
 }
 
 /** Today in Manila as YYYY-MM-DD — what a bill's due_date is compared with. */
@@ -98,7 +102,7 @@ export function nextRentMonth(leaseStartDate: string, payments: RentPayment[]): 
   return monthKey(cursor)
 }
 
-// ---- The server's ledger (lease_ledger(), 20261006020000) -------------------
+// ---- The server's ledger (lease_ledger(), 20261006070000) -------------------
 //
 // What is owed comes from the database — rent plus flat fees per month, the
 // advance and deposit — with confirmed and awaiting-confirmation totals. The
@@ -107,11 +111,16 @@ export function nextRentMonth(leaseStartDate: string, payments: RentPayment[]): 
 
 export type LedgerState = 'paid' | 'pending' | 'partial' | 'unpaid' | 'overdue'
 export interface LedgerRow {
-  kind: 'rent' | 'advance' | 'deposit'
-  /** YYYY-MM-DD for rent, null for advance/deposit. */
+  kind: 'rent' | 'advance' | 'deposit' | 'bill'
+  /** YYYY-MM-DD for rent and bills, null for advance/deposit. */
   month: string | null
+  billId: string | null
+  /** When it falls due (rent: the stay's due day; a bill: its own due date). */
+  dueDate: string | null
   due: number
   confirmed: number
+  /** Forgiven by the landlord/landlady — settles the item, never counted as received. */
+  waived: number
   pending: number
   /** Still to pay: due − confirmed − pending. */
   balance: number
@@ -122,8 +131,11 @@ export function toLedger(rows: unknown[] | null | undefined): LedgerRow[] {
   return ((rows ?? []) as Record<string, unknown>[]).map((r) => ({
     kind: r.kind as LedgerRow['kind'],
     month: (r.month as string | null) ?? null,
+    billId: (r.bill_id as string | null) ?? null,
+    dueDate: (r.due_date as string | null) ?? null,
     due: Number(r.due ?? 0),
     confirmed: Number(r.confirmed ?? 0),
+    waived: Number(r.waived ?? 0),
     pending: Number(r.pending ?? 0),
     balance: Number(r.balance ?? 0),
     state: r.state as LedgerState,

@@ -113,7 +113,10 @@
     <!-- An unverified student cannot be issued a form, so they are not offered
          the request at all — the reason stands in for the button. -->
     <p v-if="applyBlocked" class="app-card-reason">{{ applyBlocked }}</p>
-    <div v-else class="app-card-actions">
+    <div v-if="applyBlocked && owesPast" class="app-card-actions">
+      <button type="button" class="app-btn" @click="router.push('/student/payments')">Pay the balance</button>
+    </div>
+    <div v-else-if="!applyBlocked" class="app-card-actions">
       <button type="button" class="app-btn app-btn--ghost" :disabled="requesting" @click="requestForm">
         {{ requesting ? 'Requested' : declined ? 'Ask for another form' : 'Request application form' }}
       </button>
@@ -136,6 +139,14 @@
         <div class="sum-row">
           <dt>Monthly rent</dt>
           <dd>{{ formatPeso(monthlyDue) }}</dd>
+        </div>
+        <div v-for="u in UTILITIES" :key="u.key" class="sum-row">
+          <dt>{{ u.label }}</dt>
+          <dd>{{ utilityTermsLabel(applyRoom.utilities[u.key]) }}</dd>
+        </div>
+        <div v-if="monthlyFees" class="sum-row">
+          <dt>Monthly total</dt>
+          <dd>{{ formatPeso(monthlyDue + monthlyFees) }} <span class="sum-sub">rent + flat fees</span></dd>
         </div>
         <div v-if="applyRoom.advanceMonths" class="sum-row">
           <dt>Advance</dt>
@@ -199,6 +210,10 @@
           <dt>Until</dt>
           <dd>{{ formatDate(application.endDate) }}</dd>
         </div>
+        <div v-for="u in UTILITIES" :key="u.key" class="sum-row">
+          <dt>{{ u.label }}</dt>
+          <dd>{{ utilityTermsLabel(application.utilities[u.key]) }}</dd>
+        </div>
         <div class="sum-row sum-row--total">
           <dt>Monthly rent</dt>
           <dd>{{ formatPeso(application.monthlyRent) }}</dd>
@@ -255,6 +270,7 @@ import {
   clearApplicationInvite,
 } from '@/utils/applications'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
+import { UTILITIES, UTILITY_SELECT, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
 
 const props = defineProps<{
   conversationId: string
@@ -280,6 +296,8 @@ interface RoomBrief {
   rentBasis: 'room' | 'person'
   advanceMonths: number
   depositMonths: number
+  /** Copied onto the lease when it is written (tg_lease_utility_terms). */
+  utilities: Record<UtilityKey, UtilityTerms>
 }
 
 const application = ref<{
@@ -288,6 +306,7 @@ const application = ref<{
   startDate: string
   endDate: string
   monthlyRent: number
+  utilities: Record<UtilityKey, UtilityTerms>
 } | null>(null)
 const applyRoom = ref<RoomBrief | null>(null)
 const applyUnavailable = ref(false)
@@ -306,6 +325,8 @@ const issuing = ref(false)
 const requesting = ref(false)
 /** Why this student may not apply right now; null when they may. */
 const applyBlocked = ref<string | null>(null)
+/** Blocked by money still owed on an ended stay — the card offers a way to pay. */
+const owesPast = ref(false)
 const reviewOpen = ref(false)
 const declineOpen = ref(false)
 const declineReason = ref('')
@@ -339,6 +360,14 @@ const monthlyDue = computed(() => {
   if (!room) return 0
   return tenantMonthlyRent(room.rent, room.rentBasis, room.capacity)
 })
+
+// Flat utility fees are paid with each month's rent.
+const monthlyFees = computed(() =>
+  applyRoom.value ? UTILITIES.reduce((sum, u) => {
+    const t = applyRoom.value!.utilities[u.key]
+    return sum + (t.billing === 'flat_fee' ? Number(t.flatFee ?? 0) : 0)
+  }, 0) : 0,
+)
 
 const upfrontTotal = computed(() => {
   const room = applyRoom.value
@@ -410,7 +439,7 @@ async function runRefresh() {
   // fail on the index, as a raw 409 after they have filled the form in.
   const { data: current } = await supabase
     .from('leases')
-    .select('id,status,start_date,end_date,monthly_rent,landlord_id,rooms(label,room_number)')
+    .select(`id,status,start_date,end_date,monthly_rent,landlord_id,${UTILITY_SELECT},rooms(label,room_number)`)
     .eq('student_id', studentId)
     .in('status', ['pending', 'active', 'leave_requested'])
     .maybeSingle()
@@ -424,6 +453,7 @@ async function runRefresh() {
       startDate: current.start_date,
       endDate: current.end_date,
       monthlyRent: Number(current.monthly_rent ?? 0),
+      utilities: utilitiesFromRow(current),
     }
     otherLease.value = null
     declined.value = null
@@ -545,7 +575,7 @@ async function loadApplyRoom(roomId: string) {
   const { data } = await supabase
     .from('rooms')
     .select(
-      'id,label,room_number,monthly_rent,capacity,rent_basis,status,advance_months,deposit_months,accommodations(name,landlord_id)',
+      `id,label,room_number,monthly_rent,capacity,rent_basis,status,advance_months,deposit_months,${UTILITY_SELECT},accommodations(name,landlord_id)`,
     )
     .eq('id', roomId)
     .maybeSingle()
@@ -571,6 +601,7 @@ async function loadApplyRoom(roomId: string) {
     rentBasis: data.rent_basis === 'person' ? 'person' : 'room',
     advanceMonths: Number(data.advance_months ?? 0),
     depositMonths: Number(data.deposit_months ?? 0),
+    utilities: utilitiesFromRow(data),
   }
 }
 
@@ -599,6 +630,11 @@ async function openReview() {
  * applications"; only the second has a reason worth reading out.
  */
 async function whyApplyBlocked(): Promise<string | null> {
+  // Owing on a past stay blocks a new one (guard_lease_writes); say so before
+  // a form is asked for, not after it has been filled in.
+  const { data: owed } = await supabase.rpc('past_stay_balance', { p_student: props.me })
+  owesPast.value = Number(owed ?? 0) > 0.009
+  if (owesPast.value) return `You still owe ${formatPeso(Number(owed))} on a past stay. Pay it first, then you can apply for a room.`
   const { data: mayLease } = await supabase.rpc('student_may_lease', { p_student: props.me })
   if (mayLease === true) return null
   const { data: standing } = await supabase
@@ -654,6 +690,7 @@ async function submitApplication() {
       startDate: applyForm.startDate,
       endDate: applyEndDate.value,
       monthlyRent: monthlyDue.value,
+      utilities: room.utilities,
     }
     applyRoom.value = null
     reviewOpen.value = false
@@ -921,5 +958,10 @@ defineExpose({ refresh })
   color: var(--m-ink);
   font-size: 14.5px;
   font-weight: 700;
+}
+.sum-sub {
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 500;
 }
 </style>

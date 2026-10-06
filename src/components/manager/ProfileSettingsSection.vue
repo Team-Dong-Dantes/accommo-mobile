@@ -23,6 +23,10 @@
       <SettingsRow v-if="pin.hasPin" icon="lucide:lock-open" label="Turn off PIN" @click="openPinSetup('off')" />
     </div>
     <div class="settings-group">
+      <p class="settings-group-label">Payments</p>
+      <SettingsRow icon="lucide:wallet" label="Payment details" @click="payoutOpen = true" />
+    </div>
+    <div class="settings-group">
       <p class="settings-group-label">Activity</p>
       <SettingsRow icon="lucide:clock" label="History" @click="go('/manager/profile/history')" />
     </div>
@@ -72,6 +76,7 @@
 
     <ChangePasswordDialog v-model="passwordOpen" />
     <ChangeEmailDialog v-model="emailOpen" />
+    <PayoutDialog v-model="payoutOpen" />
     <PinSetupDialog v-model="pinSetupOpen" :mode="pinSetupMode" :email="email" />
   </section>
 </template>
@@ -90,6 +95,7 @@ import { APP_VERSION, getAppVersion } from '@/utils/config'
 import SettingsRow from '@/components/shared/SettingsRow.vue'
 import ChangePasswordDialog from '@/components/shared/ChangePasswordDialog.vue'
 import ChangeEmailDialog from '@/components/shared/ChangeEmailDialog.vue'
+import PayoutDialog from '@/components/manager/PayoutDialog.vue'
 
 const props = defineProps<{
   userId: string
@@ -103,6 +109,7 @@ const notify = useNotify()
 const appVersion = ref(APP_VERSION)
 const passwordOpen = ref(false)
 const emailOpen = ref(false)
+const payoutOpen = ref(false)
 const googleLinked = ref(false)
 const darkMode = ref(getStoredTheme() === 'dark')
 const prefs = reactive({ ...props.notificationPrefs })

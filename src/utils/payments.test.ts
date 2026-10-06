@@ -66,15 +66,15 @@ describe('nextRentMonth', () => {
 })
 
 describe('isBillSettled', () => {
-  it('is due with no payment, or only rejected ones', () => {
-    expect(isBillSettled([])).toBe(false)
-    expect(isBillSettled(null)).toBe(false)
-    expect(isBillSettled([{ status: 'rejected' }])).toBe(false)
+  it('is due with no payment, or only rejected/withdrawn ones', () => {
+    expect(isBillSettled([], 500)).toBe(false)
+    expect(isBillSettled(null, 500)).toBe(false)
+    expect(isBillSettled([{ status: 'rejected', amount: 500 }, { status: 'withdrawn', amount: 500 }], 500)).toBe(false)
   })
 
-  it('is settled once a payment is paid or awaiting verification', () => {
-    expect(isBillSettled([{ status: 'rejected' }, { status: 'pending_verification' }])).toBe(true)
-    expect(isBillSettled([{ status: 'paid' }])).toBe(true)
+  it('is settled once paid, awaiting and forgiven parts cover it', () => {
+    expect(isBillSettled([{ status: 'paid', amount: 200 }], 500)).toBe(false)
+    expect(isBillSettled([{ status: 'paid', amount: 200 }, { status: 'pending_verification', amount: '100' }, { status: 'waived', amount: 200 }], 500)).toBe(true)
   })
 })
 

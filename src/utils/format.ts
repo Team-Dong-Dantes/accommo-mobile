@@ -253,6 +253,8 @@ export const PAYMENT_STATUS: Record<string, StatusMeta> = {
   overdue: { text: 'Overdue', color: 'red' },
   pending_verification: { text: 'Pending Verification', color: 'orange' },
   rejected: { text: 'Rejected', color: 'red' },
+  withdrawn: { text: 'Withdrawn', color: 'grey' },
+  waived: { text: 'Forgiven', color: 'green' },
 };
 
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
