@@ -1,6 +1,6 @@
 {
   "name": "accommo-mobile",
-  "version": "1.73.1",
+  "version": "1.73.2",
   "description": "Accommo",
   "productName": "Accommo",
   "type": "module",
@@ -74,5 +74,10 @@
   ],
   "engines": {
     "node": ">= 26 || ^24 || ^22.12"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.1"
+    }
   }
 }
