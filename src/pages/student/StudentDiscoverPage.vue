@@ -327,7 +327,7 @@ import { supabase } from '@/utils/supabase'
 import { isDesktop } from '@/utils/useTabletMode'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso } from '@/utils/format'
+import { formatPeso, landlordTitle } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, kmBetween, geolocationErrorMessage, CAMPUS } from '@/utils/geo'
 import { SEARCH_FEATURES, isUtilityAvailable, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
@@ -986,7 +986,7 @@ async function loadManagers() {
       // an ambiguous embed outright — so this query threw on every load and the
       // Landlords/Landladies tab was permanently empty.
       .select(
-        'id,full_name,avatar_url,accommodations!accommodations_landlord_id_fkey(id,name,status)',
+        'id,full_name,avatar_url,sex,accommodations!accommodations_landlord_id_fkey(id,name,status)',
       )
       .eq('role', 'landlord')
     if (loadError) throw loadError
@@ -996,7 +996,7 @@ async function loadManagers() {
         const accredited = ((row.accommodations ?? []) as { id: string; name: string; status: string }[]).filter(
           (a) => a.status === 'accredited',
         )
-        const name = row.full_name?.trim() || 'Landlord/Landlady'
+        const name = row.full_name?.trim() || landlordTitle(row.sex)
         return {
           id: row.id,
           name,

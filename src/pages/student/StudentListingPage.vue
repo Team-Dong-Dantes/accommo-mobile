@@ -160,7 +160,7 @@
     </div>
 
     <!-- Enquiry hand-off: the conversation is where applying happens -->
-    <MessageManagerCta v-if="!loading && !error && manager.id" :manager-id="manager.id" />
+    <MessageManagerCta v-if="!loading && !error && manager.id" :manager-id="manager.id" :title="manager.title" />
   </q-page>
 </template>
 
@@ -372,7 +372,7 @@ async function load() {
           .maybeSingle(),
       ])
       manager.id = data.landlord_id
-      manager.name = person?.full_name || 'Landlord/Landlady'
+      manager.name = person?.full_name || landlordTitle(person?.sex)
       manager.title = landlordTitle(person?.sex)
       manager.initials = person?.initials || initialsOf(manager.name)
       manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null

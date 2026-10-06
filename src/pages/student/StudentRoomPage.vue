@@ -412,7 +412,7 @@ async function load() {
           .maybeSingle(),
       ])
       manager.id = property.landlord_id
-      manager.name = person?.full_name || 'Landlord/Landlady'
+      manager.name = person?.full_name || landlordTitle(person?.sex)
       manager.title = landlordTitle(person?.sex)
       manager.initials = person?.initials || initialsOf(manager.name)
       manager.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url) : null

@@ -137,7 +137,7 @@
             <template v-if="method === 'cash'">
               <p class="ps-panel-text">
                 <IconifyIcon icon="lucide:hand-coins" width="18" />
-                Hand it over in person. Your landlord/landlady confirms it once received.
+                Hand it over in person. Your {{ who }} confirms it once received.
               </p>
             </template>
             <template v-else>
@@ -151,7 +151,7 @@
                   <IconifyIcon icon="lucide:copy" width="14" /> Copy
                 </button>
               </div>
-              <p v-else-if="!payout" class="ps-hint ps-panel-row">Your landlord/landlady hasn't added payment details yet — ask them where to send it.</p>
+              <p v-else-if="!payout" class="ps-hint ps-panel-row">Your {{ who }} hasn't added payment details yet — ask them where to send it.</p>
               <p v-if="payout?.note" class="ps-hint ps-panel-row">{{ payout.note }}</p>
 
               <label class="ps-field ps-panel-row">
@@ -188,7 +188,7 @@
             :label="`${landlord ? 'Log' : 'Submit'} ${formatPesoExact(payAmount)}`"
             @click="submit"
           />
-          <p v-if="!landlord" class="ps-foot-note">Your landlord/landlady confirms it once the money arrives.</p>
+          <p v-if="!landlord" class="ps-foot-note">Your {{ who }} confirms it once the money arrives.</p>
         </div>
       </template>
     </q-card>
@@ -202,7 +202,7 @@ import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument } from '@/utils/upload'
-import { formatDate, formatPesoExact, PAYMENT_METHOD_LABEL } from '@/utils/format'
+import { formatDate, formatPesoExact, landlordTitle, PAYMENT_METHOD_LABEL } from '@/utils/format'
 import { BILL_TAG, fileFingerprint, manilaToday, minPayment, normalizeReference, referenceProblem, toLedger, type LedgerRow } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
 
@@ -240,6 +240,10 @@ const loading = ref(false)
 const ledger = ref<LedgerRow[]>([])
 const billMeta = ref<Record<string, { utility: UtilityKey }>>({})
 const payout = ref<{ gcash_number: string | null; gcash_name: string | null; maya_number: string | null; maya_name: string | null; bank_name: string | null; bank_account_number: string | null; bank_account_name: string | null; note: string | null } | null>(null)
+
+// The student's landlord/landlady, titled by their sex ("your landlady").
+const landlordSex = ref<string | null>(null)
+const who = computed(() => landlordTitle(landlordSex.value).toLowerCase())
 
 const months = ref(0)
 const billIds = ref<string[]>([])
@@ -387,6 +391,10 @@ watch(
       ledger.value = toLedger(rows)
       billMeta.value = Object.fromEntries((billRows ?? []).map((b) => [b.id, { utility: b.utility as UtilityKey }]))
       payout.value = payoutResult.data
+      if (!landlord.value && props.landlordId) {
+        const { data: person } = await supabase.from('users').select('sex').eq('id', props.landlordId).maybeSingle()
+        landlordSex.value = person?.sex ?? null
+      }
       // Rent due by today (at least the oldest month), overdue bills, and an
       // unpaid advance/deposit start picked.
       const due = rentRows.value.filter((r) => (r.dueDate ?? '') <= today() || r.state === 'overdue').length
@@ -430,7 +438,7 @@ function amountProblem(): string | null {
   if (pay > total.value + 0.009) return `That is more than what you picked (${formatPesoExact(total.value)}).`
   if (pay + 0.009 < minAmount.value) {
     return minAmount.value >= total.value
-      ? `Pay the full ${formatPesoExact(total.value)} — your landlord/landlady hasn't turned on partial payments.`
+      ? `Pay the full ${formatPesoExact(total.value)} — your ${who.value} hasn't turned on partial payments.`
       : `Pay at least ${formatPesoExact(minAmount.value)}.`
   }
   return null

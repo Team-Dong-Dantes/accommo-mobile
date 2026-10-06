@@ -21,7 +21,7 @@
           >
             <IconifyIcon icon="lucide:arrow-left" width="20" />
           </q-btn>
-          <h1 class="setup-page-title text-weight-bold">{{ subPage.title }}</h1>
+          <h1 class="setup-page-title text-weight-bold">{{ pageTitleOverride ?? subPage.title }}</h1>
           <span class="header-balance" aria-hidden="true" />
         </template>
 
@@ -82,7 +82,7 @@
             <button type="button" class="desk-panel-back" aria-label="Back" @click="backInPane">
               <IconifyIcon icon="lucide:arrow-left" width="20" />
             </button>
-            <span class="desk-panel-title">{{ matchSecondary(route.path, config)?.title }}</span>
+            <span class="desk-panel-title">{{ pageTitleOverride ?? matchSecondary(route.path, config)?.title }}</span>
           </header>
           <router-view v-slot="{ Component }">
             <transition name="page">
@@ -180,6 +180,7 @@ import { usePinStore, RESUME_LOCK_MS } from '@/stores/pin'
 import { lockApp, settlePin } from '@/utils/requirePin'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
 import { countLeasesAwaitingManager } from '@/api/leases';
+import { pageTitleOverride } from '@/utils/pageTitle'
 
 const router = useRouter()
 const route = useRoute()

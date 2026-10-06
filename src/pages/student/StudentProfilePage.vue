@@ -176,6 +176,7 @@ import EditButton from '@/components/shared/EditButton.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
 import { fetchCurrentLease } from '@/api/leases';
+import { useMyLandlordTitle } from '@/utils/myLandlordTitle'
 import {
   collegeOptions,
   collegePrograms,
@@ -246,12 +247,13 @@ const draft = reactive({
 const createdAt = ref<string | null>(null)
 const updatedAt = ref<string | null>(null)
 const stay = ref<Stay | null>(null)
+const myLandlord = useMyLandlordTitle()
 const documents = ref<DocRow[]>([])
 
 const status = computed(() => statusPresentation(me.status))
 const stayStatusNote = computed(() => {
-  if (stay.value?.status === 'pending') return 'Application pending — awaiting landlord/landlady decision'
-  if (stay.value?.status === 'leave_requested') return 'Leave requested — awaiting landlord/landlady decision'
+  if (stay.value?.status === 'pending') return `Application pending — awaiting your ${myLandlord.value}'s decision`
+  if (stay.value?.status === 'leave_requested') return `Leave requested — awaiting your ${myLandlord.value}'s decision`
   return ''
 })
 const memberSinceLabel = computed(() => memberSince(createdAt.value))

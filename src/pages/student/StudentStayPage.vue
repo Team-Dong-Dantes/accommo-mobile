@@ -50,8 +50,8 @@
                     </div>
                     <span v-if="lease.roomLabel" class="head-room">{{ lease.roomLabel }}</span>
                     <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">{{ statusText(LEASE_STATUS, lease.status) }}</span>
-                    <p v-if="lease.status === 'pending'" class="head-note">Application pending — awaiting your landlord/landlady's decision.</p>
-                    <p v-else-if="lease.status === 'leave_requested'" class="head-note">Leave requested — awaiting your landlord/landlady's decision.</p>
+                    <p v-if="lease.status === 'pending'" class="head-note">Application pending — awaiting your {{ myLandlord }}'s decision.</p>
+                    <p v-else-if="lease.status === 'leave_requested'" class="head-note">Leave requested — awaiting your {{ myLandlord }}'s decision.</p>
                   </div>
 
                   <!-- Manager contact -->
@@ -264,7 +264,7 @@
         <span class="sheet-grip" aria-hidden="true" />
         <h3 class="leave-title">Request to leave?</h3>
         <p class="leave-body">
-          Your landlord/landlady will be notified and needs to approve this before your stay ends. You'll stay on your
+          Your {{ myLandlord }} will be notified and needs to approve this before your stay ends. You'll stay on your
           current lease until then.
         </p>
         <div class="leave-actions">
@@ -504,6 +504,8 @@ interface Payment {
 const router = useRouter()
 const route = useRoute()
 const notify = useNotify()
+// The student's landlord/landlady, titled by their sex, for running text.
+const myLandlord = computed(() => (lease.value?.managerTitle ?? landlordTitle(null)).toLowerCase())
 
 const loading = ref(true)
 const error = ref('')
@@ -767,7 +769,7 @@ async function load(silent = false) {
     lease.value = {
       id: leaseRow.id,
       managerId: leaseRow.landlord_id,
-      managerName: manager?.full_name || 'Landlord/Landlady',
+      managerName: manager?.full_name || landlordTitle(manager?.sex),
       managerTitle: landlordTitle(manager?.sex),
       managerInitials: manager?.initials || initialsOf(manager?.full_name || '?'),
       managerAvatarUrl: manager?.avatar_url ? resolveAsset(manager.avatar_url) : null,
@@ -801,7 +803,7 @@ async function load(silent = false) {
 }
 
 async function requestLeave() {
-  if (!(await requirePin({ confirm: true, title: 'Request to leave?', message: 'Your landlord/landlady will be asked to approve it.' }))) return
+  if (!(await requirePin({ confirm: true, title: 'Request to leave?', message: `Your ${myLandlord.value} will be asked to approve it.` }))) return
   if (leaving.value || !lease.value) return
   leaving.value = true
   try {
@@ -829,7 +831,7 @@ async function requestLeave() {
 const withdrawing = ref(false)
 async function withdrawPayment(p: Payment) {
   if (withdrawing.value) return
-  if (!(await requirePin({ confirm: true, title: 'Withdraw this payment?', message: 'It is taken back before your landlord/landlady reviews it. You can submit a new one.' }))) return
+  if (!(await requirePin({ confirm: true, title: 'Withdraw this payment?', message: `It is taken back before your ${myLandlord.value} reviews it. You can submit a new one.` }))) return
   withdrawing.value = true
   try {
     const { error: rpcError } = await supabase.rpc('review_payment', { p_payment: p.id, p_action: 'withdraw' })

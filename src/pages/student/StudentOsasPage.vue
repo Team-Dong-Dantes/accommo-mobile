@@ -74,9 +74,9 @@
                   <h2 v-if="isDesktop" class="desk-col-title">Support tickets</h2>
                   <div class="sec-head">
                     <p class="sec-hint">
-                      For school, account or verification matters, or a problem your landlord/landlady hasn't fixed.
+                      For school, account or verification matters, or a problem your {{ myLandlord }} hasn't fixed.
                       Room, rent or house issues go to
-                      <router-link to="/student/concerns" class="sec-hint-link">your landlord/landlady</router-link> first.
+                      <router-link to="/student/concerns" class="sec-hint-link">your {{ myLandlord }}</router-link> first.
                     </p>
                     <button v-if="!isDesktop" type="button" class="sec-link" @click="openNewTicket">New ticket</button>
                   </div>
@@ -135,6 +135,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useMyLandlordTitle } from '@/utils/myLandlordTitle'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -182,6 +183,7 @@ interface Ticket {
 const notify = useNotify()
 const route = useRoute()
 const router = useRouter()
+const myLandlord = useMyLandlordTitle()
 
 const loading = ref(true)
 const error = ref('')

@@ -162,7 +162,7 @@
         </div>
       </dl>
       <p class="sheet-note">
-        Your landlord/landlady decides on this application. Nothing is charged through Accommo.
+        Your {{ otherTitle }} decides on this application. Nothing is charged through Accommo.
       </p>
       <div class="sheet-actions">
         <button type="button" class="app-btn app-btn--ghost" @click="reviewOpen = false">Back</button>
@@ -258,7 +258,7 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { formatDate, formatPeso } from '@/utils/format'
+import { formatDate, formatPeso, landlordTitle } from '@/utils/format'
 import { tenantMonthlyRent } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { requirePin } from '@/utils/requirePin'
@@ -309,6 +309,8 @@ const application = ref<{
   utilities: Record<UtilityKey, UtilityTerms>
 } | null>(null)
 const applyRoom = ref<RoomBrief | null>(null)
+/** The landlord/landlady in this thread, titled by their sex (student side). */
+const otherTitle = ref(landlordTitle(null).toLowerCase())
 const applyUnavailable = ref(false)
 const applyForm = reactive({ startDate: todayStr() })
 const applying = ref(false)
@@ -592,6 +594,8 @@ async function loadApplyRoom(roomId: string) {
   }
 
   applyForm.startDate = todayStr()
+  const { data: other } = await supabase.from('users').select('sex').eq('id', props.otherId).maybeSingle()
+  otherTitle.value = landlordTitle(other?.sex).toLowerCase()
   applyRoom.value = {
     id: data.id,
     label: data.label || (data.room_number ? `Room ${data.room_number}` : 'Room'),

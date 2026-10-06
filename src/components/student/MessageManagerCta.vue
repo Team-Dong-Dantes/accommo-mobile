@@ -17,13 +17,15 @@ const props = withDefaults(
     managerId: string
     mode?: 'profile' | 'message'
     label?: string
+    /** This person's own title (landlordTitle(sex)). */
+    title?: string
   }>(),
   { mode: 'profile' },
 )
 
 const router = useRouter()
 
-const label = computed(() => props.label ?? (props.mode === 'message' ? 'Message Landlord/Landlady' : 'View Landlord/Landlady'))
+const label = computed(() => props.label ?? (props.mode === 'message' ? `Message ${props.title ?? 'Landlord/Landlady'}` : `View ${props.title ?? 'Landlord/Landlady'}`))
 const icon = computed(() => (props.mode === 'message' ? 'lucide:message-circle' : 'lucide:user-round'))
 
 function go() {

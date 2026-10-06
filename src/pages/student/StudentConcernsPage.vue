@@ -17,7 +17,7 @@
       />
       <!-- Says who answers, and where everything else goes (OSAS support). -->
       <p class="scope-note">
-        For problems with your room, rent or the house — your landlord/landlady handles these.
+        For problems with your room, rent or the house — your {{ myLandlord }} handles these.
         School or account matters go to <router-link to="/student/support" class="scope-note-link">OSAS support</router-link>.
       </p>
       <div v-if="loading" class="stack">
@@ -43,7 +43,7 @@
         v-else-if="!rows.length"
         icon="lucide:message-square-warning"
         title="No concerns yet"
-        message="Maintenance, safety and billing issues you raise will show up here, with each one's status and your landlord/landlady's response."
+        :message="`Maintenance, safety and billing issues you raise will show up here, with each one's status and your ${myLandlord}'s response.`"
       />
 
       <EmptyState
@@ -126,7 +126,7 @@
     <SplitDetail
       v-model:open="detailOpen"
       icon="lucide:message-square-warning"
-      hint="Pick a concern to see its progress and your landlord/landlady’s reply"
+      :hint="`Pick a concern to see its progress and your ${myLandlord}’s reply`"
     >
       <q-card v-if="selected" class="detail-sheet">
         <div class="detail-head">
@@ -155,13 +155,13 @@
         <img v-if="selected.photoUrl" :src="selected.photoUrl" alt="" class="detail-photo" />
 
         <template v-if="selected.managerResponse">
-          <p class="detail-label">Landlord/Landlady's response</p>
+          <p class="detail-label">{{ myLandlord }}'s response</p>
           <p class="detail-text">{{ selected.managerResponse }}</p>
         </template>
 
         <template v-if="selected.escalatedTicketNo">
           <p class="detail-label">Escalated to OSAS</p>
-          <p class="detail-text">Your landlord/landlady passed this to OSAS as {{ ticketLabel(selected.escalatedTicketNo) }}. OSAS may contact you about it.</p>
+          <p class="detail-text">Your {{ myLandlord }} passed this to OSAS as {{ ticketLabel(selected.escalatedTicketNo) }}. OSAS may contact you about it.</p>
         </template>
 
         <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="detailOpen = false" />
@@ -212,6 +212,7 @@ import BottomSheet from '@/components/shared/BottomSheet.vue'
 import SplitDetail from '@/components/shared/SplitDetail.vue'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { fetchCurrentLease } from '@/api/leases';
+import { useMyLandlordTitle } from '@/utils/myLandlordTitle'
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -236,6 +237,7 @@ interface Concern {
 }
 
 const notify = useNotify()
+const myLandlord = useMyLandlordTitle()
 
 const loading = ref(true)
 const error = ref('')
