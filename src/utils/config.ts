@@ -1,5 +1,6 @@
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
 export const EXTERNAL_URLS = {
   GOOGLE_ICON: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
@@ -52,13 +53,17 @@ export function isAllowedEmailDomain(email: string | null | undefined): boolean 
 export const APP_VERSION: string = import.meta.env.VITE_APP_VERSION || '0.0.0';
 
 /**
- * The version actually running. Reads the installed Android versionName on a
- * device, so the Settings row can never drift from what the user has; falls
- * back to the constant in the browser and on any failure.
+ * The version actually running. On a device that is the installed Android
+ * versionName, unless an over-the-air bundle has replaced the web code: then it
+ * is this bundle's own major.minor (from package.json) plus its release number,
+ * the same shape CI gives the APK. Falls back to the constant in the browser
+ * and on any failure.
  */
 export async function getAppVersion(): Promise<string> {
   if (!Capacitor.isNativePlatform()) return APP_VERSION;
   try {
+    const { bundle } = await CapacitorUpdater.current();
+    if (bundle.id !== 'builtin') return `${APP_VERSION.split('.').slice(0, 2).join('.')}.${bundle.version}`;
     return (await App.getInfo()).version || APP_VERSION;
   } catch {
     return APP_VERSION;
