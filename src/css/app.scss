@@ -276,7 +276,7 @@ body {
    `transform` is the load-bearing declaration, not a paint hint. A transformed
    element becomes the containing block for `position: fixed` descendants, so
    the twenty-odd fixed overlays in this app — the bottom nav, the chat thread,
-   the PIN gate, the search dock, the map float, the quick-actions layer — land
+   the confirm card, the search dock, the map float, the quick-actions layer — land
    inside the column without one of them being edited. They all pin themselves
    with `inset: 0` or `left/right: 0`, which now means the column's edges.
 
@@ -324,9 +324,9 @@ body {
   /* The rail's width, and therefore the inset of everything beside it. */
   --m-rail: 88px;
 }
-/* Desktop narrows it to the admin console's collapsed width (DesktopRail.vue).
-   The rail opens over the page on hover; the inset stays at this width. */
-@media (min-width: 1200px) {
+/* Tablet landscape uses the admin console's collapsed width (DesktopRail.vue).
+   The rail opens over the page on mouse hover; the inset stays at this width. */
+@media (min-width: 900px) and (orientation: landscape) {
   :root {
     --m-rail: 68px;
   }
@@ -580,12 +580,11 @@ body {
   min-height: 0 !important;
 }
 
-/* Desktop — the web build in a browser window. It already passes the tablet
-   query, so it is the tablet shell with one change: past 1200px an even split
-   stops meaning "two views of equal standing" and starts meaning a 960px list
-   of cards drawn for a 400px phone. The list goes back to a column; the detail
-   takes the rest. Tablets (900–1199px) keep half and half. */
-@media (min-width: 1200px) {
+/* Desktop — the web build's layout, which every landscape tablet gets too, so
+   a real tablet looks exactly like the web build on one. Same query as
+   useTabletMode.ts. An even split would be a wide list of cards drawn for a
+   400px phone, so the list goes back to a column and the detail takes the rest. */
+@media (min-width: 900px) and (orientation: landscape) {
   .shell-tablet .page-stage--split,
   .shell-tablet .page-split {
     grid-template-columns: minmax(360px, 420px) 1fr;
@@ -605,15 +604,14 @@ body {
   /* ---- Bottom sheets float ----
      Every `position="bottom"` q-dialog is a phone sheet: pinned to the bottom
      edge, 480px or less. In a desktop browser that is a strip along the bottom
-     of a wide window, so here it becomes a centred, wider card. `body.desktop`
-     (Quasar's platform class) keeps a native tablet past 1200px on real sheets.
+     of a wide window, so here it becomes a centred, wider card, on a tablet too.
      !important because each sheet's scoped max-width/radius outranks this. */
-  body.desktop .q-dialog__inner--bottom {
+  body .q-dialog__inner--bottom {
     top: 0;
     align-items: center;
     padding: 32px !important;
   }
-  body.desktop .q-dialog__inner--bottom > div {
+  body .q-dialog__inner--bottom > div {
     width: 640px !important;
     max-width: 100% !important;
     max-height: calc(100vh - 64px) !important;

@@ -99,10 +99,6 @@ onMounted(() => {
     notify.error('This account has been suspended. Contact OSAS if you think this is a mistake.');
     void router.replace('/login');
   }
-  if (route.query.awaitingApproval) {
-    notify.info('Your application is still being reviewed by OSAS. You can sign in once it is approved.');
-    void router.replace('/login');
-  }
   if (route.query.applicationRejected) {
     notify.error('OSAS did not approve this application. Contact OSAS to reapply.');
     void router.replace('/login');
@@ -123,7 +119,7 @@ onMounted(() => {
  * "Continue with Google" returns to this screen, and signInWithOAuth provisions
  * the account whether or not the person had ever registered. Nothing was reading
  * that outcome, so a brand-new Google user just landed back on a login form with
- * no message, and a landlord/landlady still awaiting OSAS got no explanation either.
+ * no message.
  */
 /**
  * Turns a raw Google failure into something worth showing.
@@ -132,8 +128,9 @@ onMounted(() => {
  * throws them instead. Same failures either way, so the wording lives here.
  */
 function googleFailureMessage(failure: string): string {
+  // Only a suspension bans an account; unverified landlords/landladies sign in.
   if (/banned|blocked/i.test(failure)) {
-    return 'Your application is still being reviewed by OSAS. You can sign in once it is approved.';
+    return 'This account has been suspended. Contact OSAS if you think this is a mistake.';
   }
   if (isSignupDatabaseError(failure)) {
     // Almost always the domain rule on auth.users turning away a new Google

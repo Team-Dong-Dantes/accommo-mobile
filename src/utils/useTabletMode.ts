@@ -1,4 +1,4 @@
-import { computed, readonly, ref } from 'vue'
+import { readonly, ref } from 'vue'
 
 /**
  * Which of the app's two shells is on screen.
@@ -31,16 +31,12 @@ mql?.addEventListener('change', (e) => {
 export const isTablet = readonly(state)
 
 /**
- * Desktop: tablet mode on a screen wide enough to be a computer. Here the rail
- * narrows to the admin console's width, opens on hover, and carries the
- * hamburger's items itself. Must match the 1200px breakpoints in app.scss.
+ * The web build's layout: the admin console's 68px rail carrying the hamburger's
+ * items, and two-half desk cards. Every landscape tablet gets it, not only a
+ * 1200px browser window, so a real tablet looks exactly like the web build on
+ * one. Must match the tablet media queries in app.scss.
  */
-const desktopMql = typeof window !== 'undefined' ? window.matchMedia('(min-width: 1200px)') : null
-const desktopState = ref(desktopMql?.matches ?? false)
-desktopMql?.addEventListener('change', (e) => {
-  desktopState.value = e.matches
-})
-export const isDesktop = computed(() => state.value && desktopState.value)
+export const isDesktop = isTablet
 
 export function useTabletMode() {
   return { isTablet }
