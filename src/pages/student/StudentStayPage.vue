@@ -532,7 +532,7 @@ const activeTab = ref<'stay' | 'payments'>(route.path === '/student/payments' ? 
 
 // Replaces QTabPanels' `swipeable`. Inert on a tablet, where both panels are
 // already on screen and activeTab is not driving anything.
-function onTabSwipe({ direction }: { direction: string }) {
+function onTabSwipe({ direction }: { direction?: string }) {
   if (isTablet.value) return
   activeTab.value = direction === 'left' ? 'payments' : 'stay'
 }

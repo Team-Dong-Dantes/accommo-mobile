@@ -1,6 +1,6 @@
 {
   "name": "accommo-mobile",
-  "version": "1.78.0",
+  "version": "1.78.1",
   "description": "Accommo",
   "productName": "Accommo",
   "type": "module",
@@ -50,7 +50,7 @@
   "devDependencies": {
     "@capacitor/cli": "^8.4.2",
     "@eslint/js": "^9.39.0",
-    "@quasar/app-vite": "^3.2.0",
+    "@quasar/app-vite": "^3.10.2",
     "@types/node": "^22.19.11",
     "@types/qrcode": "^1.5.6",
     "autoprefixer": "^10.4.27",

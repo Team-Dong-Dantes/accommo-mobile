@@ -635,7 +635,8 @@ create or replace function pg_temp.added_check() returns table(test text, outcom
 language plpgsql as $$
 declare
   v_landlord uuid; v_room uuid; v_student uuid; v_other uuid; v_lease uuid; v_status text; v_msg text;
-  o1 text; o2 text; o3 text; o4 text; o5 text; o6 text;
+  v_code_a text; v_code_b text; v_slot bigint := floor(extract(epoch from now()) / 5);
+  o1 text; o2 text; o3 text; o4 text; o5 text; o6 text; o7 text;
 begin
   select r.id, a.landlord_id into v_room, v_landlord
     from public.rooms r join public.accommodations a on a.id = r.accommodation_id
@@ -658,6 +659,10 @@ begin
     update public.student_profiles
        set qr_code_token = 'rls-tok-b', qr_token_expires_at = now() + interval '1 hour'
      where user_id = v_other;
+    -- What each student's QR screen shows right now (20261008000000): a
+    -- 5-second code signed with the stored key, never the key itself.
+    v_code_a := 'a1.' || v_student || '.' || v_slot || '.' || public.qr_mac(v_student, 'rls-tok-a', v_slot);
+    v_code_b := 'a1.' || v_other || '.' || v_slot || '.' || public.qr_mac(v_other, 'rls-tok-b', v_slot);
 
     perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
     set local role authenticated;
@@ -699,7 +704,7 @@ begin
         o4 := 'PASS - ' || v_msg;
       end;
       begin
-        perform public.accept_added_student(v_lease, 'rls-tok-b');
+        perform public.accept_added_student(v_lease, v_code_b);
         o5 := 'FAIL - accepted with another student''s QR';
       exception when others then
         get stacked diagnostics v_msg = message_text;
@@ -707,6 +712,13 @@ begin
       end;
       begin
         perform public.accept_added_student(v_lease, 'rls-tok-a');
+        o7 := 'FAIL - the stored key worked as a QR code';
+      exception when others then
+        get stacked diagnostics v_msg = message_text;
+        o7 := 'PASS - ' || v_msg;
+      end;
+      begin
+        perform public.accept_added_student(v_lease, v_code_a);
         select status::text into v_status from public.leases where id = v_lease;
         o6 := case when v_status = 'active' then 'PASS' else 'FAIL - status is ' || v_status end;
       exception when others then
@@ -727,6 +739,7 @@ begin
   test := 'L4: accept an added student without a scan'; outcome := coalesce(o4, 'FAIL - not reached'); return next;
   test := 'L5: accept with another student''s QR'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
   test := 'L6: accept with their own QR'; outcome := coalesce(o6, 'FAIL - not reached'); return next;
+  test := 'L7: accept with the raw stored QR key'; outcome := coalesce(o7, 'FAIL - not reached'); return next;
 end $$;
 -- AC1-AC7 (20261002120000): accreditation rounds. The location OSAS checked stays put
 -- on a live listing, only OSAS decides, a sent-back listing cannot be
