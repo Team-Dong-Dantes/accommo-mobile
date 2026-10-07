@@ -41,7 +41,7 @@ const TERMS: LegalDocument = {
   id: 'terms',
   title: 'Terms of Service',
   acceptedColumn: 'terms_accepted_at',
-  effectiveDate: '2026-09-14',
+  effectiveDate: '2026-10-07',
   body: `1. About these terms
 
 Accommo is a student accommodation platform operated for the Isabela State University community through the Office of Student Affairs and Services (OSAS). By ticking the box on the registration screen you agree to these terms. If you do not agree, do not create an account.
@@ -62,7 +62,7 @@ The university and OSAS do not own, operate, inspect for habitability, insure, o
 
 4. Your account
 
-You are responsible for what happens under your account. Keep your password and your app PIN to yourself. Tell us immediately if you believe someone else has access to your account. Gaining access to another person's account without permission is an offence under the Cybercrime Prevention Act of 2012 (Republic Act No. 10175).
+You are responsible for what happens under your account. Keep your password to yourself. Tell us immediately if you believe someone else has access to your account. Gaining access to another person's account without permission is an offence under the Cybercrime Prevention Act of 2012 (Republic Act No. 10175).
 
 5. Verification
 
@@ -111,7 +111,7 @@ const PRIVACY: LegalDocument = {
   id: 'privacy',
   title: 'Privacy Notice',
   acceptedColumn: 'privacy_accepted_at',
-  effectiveDate: '2026-09-14',
+  effectiveDate: '2026-10-07',
   body: `This notice explains what personal information Accommo collects, why, who can see it, and what you can do about it. It is written to meet the Data Privacy Act of 2012 (Republic Act No. 10173), its Implementing Rules and Regulations, and the issuances of the National Privacy Commission.
 
 You are asked to consent to this notice separately from accepting the Terms of Service, because consent to the processing of your personal information is its own decision and you are entitled to make it on its own.
@@ -170,7 +170,7 @@ To exercise any of these, contact OSAS through the support section of the app. I
 
 7. Keeping it safe
 
-Access is restricted by role, so people see only the records their role requires. Data is transmitted over encrypted connections. You can add a PIN to protect sensitive screens on your device. Unauthorised access to this data is an offence under the Cybercrime Prevention Act of 2012 (Republic Act No. 10175).
+Access is restricted by role, so people see only the records their role requires. Data is transmitted over encrypted connections. Unauthorised access to this data is an offence under the Cybercrime Prevention Act of 2012 (Republic Act No. 10175).
 
 No system is perfectly secure. If a breach is likely to give rise to a real risk to your rights, we will notify you and the National Privacy Commission within the period required by Republic Act No. 10173 and its Implementing Rules.
 

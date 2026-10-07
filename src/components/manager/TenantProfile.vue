@@ -431,7 +431,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
-import { requirePin } from '@/utils/requirePin'
+import { confirmAction } from '@/utils/confirmAction'
 import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
@@ -560,7 +560,7 @@ function openForgiveBill(b: Bill) {
 async function forgive() {
   const t = forgiveTarget.value
   if (!t || forgiving.value) return
-  if (!(await requirePin({ confirm: true, title: `Forgive ${formatPesoExact(t.balance)}?` }))) return
+  if (!(await confirmAction({ title: `Forgive ${formatPesoExact(t.balance)}?` }))) return
   forgiving.value = true
   try {
     const { error: e } = await supabase.rpc('waive_balance', {
@@ -779,7 +779,7 @@ async function decide(next: 'active' | 'rejected') {
 }
 
 async function approveLeave() {
-  if (!(await requirePin({ confirm: true, title: 'Approve this leave request?', message: 'Their stay ends today and the room is freed.' }))) return
+  if (!(await confirmAction({ title: 'Approve this leave request?', message: 'Their stay ends today and the room is freed.' }))) return
   if (deciding.value) return
   deciding.value = true
   try {
@@ -820,7 +820,6 @@ async function approveLeave() {
 }
 
 async function declineLeave() {
-  if (!(await requirePin({ title: 'Refuse this leave request?' }))) return
   const reason = decisionReason.value.trim()
   if (deciding.value || !reason) return
   deciding.value = true
@@ -842,7 +841,7 @@ async function declineLeave() {
 
 // Only an unpaid bill can be removed — e.g. one posted with the wrong amount.
 async function removeBill(billId: string) {
-  if (!(await requirePin({ confirm: true, title: 'Remove this bill?', message: 'The tenant will no longer see it as due.' }))) return
+  if (!(await confirmAction({ title: 'Remove this bill?', message: 'The tenant will no longer see it as due.' }))) return
   billBusy.value = billId
   try {
     const { error: deleteError } = await supabase.from('utility_bills').delete().eq('id', billId)
@@ -859,7 +858,7 @@ async function removeBill(billId: string) {
 // way a cash rent payment is logged from the tenants list.
 async function recordBillCash(b: Bill) {
   const left = billLeft(b)
-  if (!(await requirePin({ confirm: true, title: `Record ${formatPesoExact(left)} in cash?`, message: `${BILL_TAG[b.utility]} for ${formatMonth(b.month)}.` }))) return
+  if (!(await confirmAction({ title: `Record ${formatPesoExact(left)} in cash?`, message: `${BILL_TAG[b.utility]} for ${formatMonth(b.month)}.` }))) return
   billBusy.value = b.id
   try {
     const { error: rpcError } = await supabase.rpc('record_payment', {

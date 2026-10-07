@@ -39,7 +39,7 @@ if (supabaseUrl && supabaseAnonKey) {
   // and the deep-link handler already refuses everything except a PKCE code (see
   // src/boot/deeplink.ts), so the token-in-the-URL shape has no way in either
   // way. What PKCE *would* change is how Supabase delivers e-mail one-time
-  // codes, which is the spine of registration and of the PIN reset — not worth
+  // codes, which is the spine of registration — not worth
   // altering on the strength of a change nothing is asking for.
   //
   // Reads get a deadline (see fetchTimeout.ts); writes and storage do not.

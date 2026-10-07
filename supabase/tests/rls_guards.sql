@@ -183,15 +183,6 @@ begin
   end;
   test := 'R1: notify_admins from a student'; return next;
 
-  begin
-    perform public.has_pin();
-    outcome := 'PASS';
-  exception when others then
-    get stacked diagnostics v_msg = message_text;
-    outcome := 'FAIL - an RPC the app needs was revoked: ' || v_msg;
-  end;
-  test := 'R2: has_pin still callable'; return next;
-
   reset role;
 end $$;
 

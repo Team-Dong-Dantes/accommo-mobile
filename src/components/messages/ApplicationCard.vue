@@ -261,7 +261,7 @@ import { errorMessage } from '@/utils/errors'
 import { formatDate, formatPeso, landlordTitle } from '@/utils/format'
 import { tenantMonthlyRent } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
-import { requirePin } from '@/utils/requirePin'
+import { confirmAction } from '@/utils/confirmAction'
 import {
   respondToApplication,
   stampInquiryRoom,
@@ -716,7 +716,7 @@ async function submitApplication() {
 }
 
 async function decideApplication(next: 'active' | 'rejected') {
-  if (!(await requirePin({ confirm: next === 'active', title: next === 'active' ? 'Accept this application?' : 'Decline this application?', ...(next === 'active' ? { message: 'They become the tenant of this room.' } : {}) }))) return
+  if (next === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the tenant of this room.' }))) return
   if (deciding.value || !application.value) return
   deciding.value = true
   try {

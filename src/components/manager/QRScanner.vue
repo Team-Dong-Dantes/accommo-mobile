@@ -62,7 +62,6 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/utils/supabase'
 import { acceptAddedStudent } from '@/utils/applications'
-import { requirePin } from '@/utils/requirePin'
 import { useQuasar } from 'quasar'
 import { useQrStore } from '@/stores/qr'
 import { Html5Qrcode } from 'html5-qrcode'
@@ -205,14 +204,7 @@ function stopScanner() {
   }
 }
 
-// Scanning is not a write, but it reveals a student's name, number, course and
-// verification status — a PII leak on a borrowed phone rather than a destructive
-// act. Gated before the camera starts.
-onMounted(async () => {
-  if (!(await requirePin({ title: 'Open the QR scanner?' }))) {
-    void router.back()
-    return
-  }
+onMounted(() => {
   if (acceptLeaseId.value) void loadAcceptLease()
   void startScanner()
 })

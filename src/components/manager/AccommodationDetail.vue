@@ -1133,7 +1133,6 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
-import { requirePin } from '@/utils/requirePin'
 import { uploadDocument, secureDocUrl } from '@/utils/upload'
 import { resolveAsset, isPdf, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
@@ -1855,13 +1854,15 @@ type FieldKey =
   | 'curfewTime' | 'quietHours' | 'visitorPolicy'
 
 /**
- * What OSAS checked when it reviewed the listing. The database locks these
- * once a listing leaves draft (lock_verification_columns): free while it is a
- * draft or sent back for changes, a request to OSAS while it is live, and
- * fixed otherwise. Everything else — rooms, rent, photos, amenities, house
- * rules, the description — stays the landlord/landlady's to change.
+ * The location OSAS checked when it reviewed the listing (the map pin and the
+ * address it fills). The database locks these once a listing leaves draft
+ * (lock_verification_columns): free while it is a draft or sent back for
+ * changes, a request to OSAS while it is live, and fixed otherwise. Everything
+ * else — name, type, who it accepts, rooms, rent, photos, amenities, house
+ * rules, the description — stays the landlord/landlady's to change. Permits go
+ * through their own replacement rule (utils/permits.ts).
  */
-const OSAS_CHECKED: ReadonlySet<FieldKey> = new Set(['name', 'accommodationType', 'genderPolicy', 'purok', 'barangay', 'city'])
+const OSAS_CHECKED: ReadonlySet<FieldKey> = new Set(['purok', 'barangay', 'city'])
 function fieldReview(key: FieldKey): 'free' | 'request' | 'locked' {
   if (!OSAS_CHECKED.has(key)) return 'free'
   if (acc.status === 'draft' || acc.status === 'needs_revision') return 'free'
@@ -2031,7 +2032,6 @@ const confirmDeleteAccommodationOpen = ref(false)
 const deletingAccommodation = ref(false)
 
 async function deleteAccommodation() {
-  if (!(await requirePin({ title: 'Delete this accommodation?' }))) return
   if (deletingAccommodation.value) return
   deletingAccommodation.value = true
   try {
@@ -2118,8 +2118,6 @@ const roomViewMode = ref<'view' | 'edit'>('view')
 const roomStep = ref(1)
 const savingRoom = ref(false)
 const editingRoomId = ref('')
-/** The rent an existing room had when its editor opened, to spot a re-price. */
-let rentBeforeEdit = 0
 const activeRoomNumber = ref('')
 const activeRoomStatus = ref<'available' | 'occupied' | 'maintenance'>('available')
 const togglingRoomStatus = ref(false)
@@ -2340,7 +2338,6 @@ function openRoomDialog(room: Room | null, floor?: number) {
     roomForm.floor = room.floor
     roomForm.capacity = room.capacity ?? 1
     roomForm.monthlyRent = room.monthlyRent
-    rentBeforeEdit = room.monthlyRent
     roomForm.advanceMonths = room.advanceMonths
     roomForm.depositMonths = room.depositMonths
     roomForm.rentBasis = room.rentBasis
@@ -2456,12 +2453,6 @@ async function confirmRoomBasics() {
   if (problem) {
     notify.error(problem)
     return
-  }
-  // Only an actual re-price of an existing room asks: adding rooms during
-  // setup is frequent and harmless, while quietly changing what a room costs
-  // flows into every future application quote and nobody is notified.
-  if (editingRoomId.value && roomForm.monthlyRent !== rentBeforeEdit) {
-    if (!(await requirePin({ title: 'Change this room’s rent?' }))) return
   }
   savingRoom.value = true
   try {
@@ -2727,7 +2718,6 @@ function isLeaseRestrictError(e: unknown): boolean {
 }
 
 async function deleteRoom() {
-  if (!(await requirePin({ title: 'Delete this room?' }))) return
   if (savingRoom.value || !editingRoomId.value) return
   savingRoom.value = true
   try {
@@ -2799,7 +2789,6 @@ async function promptDeleteFloor(floor: number) {
 }
 
 async function confirmDeleteFloor() {
-  if (!(await requirePin({ title: 'Delete this floor?' }))) return
   const floor = floorPendingDelete.value
   if (floor === null || deletingFloor.value !== null) return
   const roomIds = rooms.value.filter((r) => r.floor === floor).map((r) => r.id)

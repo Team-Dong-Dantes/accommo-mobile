@@ -31,8 +31,7 @@
 // bottom-anchored panel with a title, a reset link, the screen's own controls,
 // and a full-width confirm button that just closes it.
 //
-// Bespoke sheets elsewhere (the QR scanner, the PIN dialog, the application
-// review) share the `.sheet` prefix but not this structure, and are left alone —
+// Bespoke sheets elsewhere (the QR scanner, the application review) share the `.sheet` prefix but not this structure, and are left alone —
 // they are different panels, not copies of this one.
 withDefaults(
   defineProps<{

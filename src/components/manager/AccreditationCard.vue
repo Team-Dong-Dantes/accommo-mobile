@@ -12,7 +12,7 @@
         {{ openRound ? `${KIND_LABEL[openRound.kind]} sent ${since(openRound.submitted_at)} ago.` : 'Sent to OSAS.' }}
         {{ waitLine }}
       </p>
-      <p class="box-text">OSAS checked details (name, type, who it accepts, location) are locked until it decides.</p>
+      <p class="box-text">The location is locked until OSAS decides.</p>
     </div>
 
     <!-- Sent back: exactly what to fix, and the way back in. -->

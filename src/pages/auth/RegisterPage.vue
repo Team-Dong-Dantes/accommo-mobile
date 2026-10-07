@@ -400,47 +400,6 @@
             />
           </template>
 
-          <!-- App PIN (student, optional, last).
-               Plain fields rather than PinSetupDialog's keypad: that component
-               is right for an interruption — Settings, the forgot-PIN path, the
-               offer after signing in — but this is a question in a form, and it
-               should look like the eight before it. -->
-          <!-- Two separate blocks, not two rows of one group: a PIN and its
-               confirmation are the same secret typed twice, and fusing them
-               behind a hairline made the second read as another field to fill
-               rather than a check on the first. Six cells apiece, because the
-               PIN is exactly six digits and the boxes say so without a rule
-               having to. -->
-          <template v-else-if="current === 'pin'">
-            <q-field
-              ref="pinFieldRef"
-              :model-value="form.pin + form.pinConfirm"
-              :rules="[pinPairRule]"
-              lazy-rules="ondemand"
-              borderless
-              hide-bottom-space
-              class="pin-field"
-            >
-              <template #control>
-                <div class="pin-blocks">
-                  <div class="pin-block">
-                    <span class="pin-label">Choose a PIN</span>
-                    <PinCells ref="pinCellsRef" v-model="form.pin" aria-label="PIN" />
-                  </div>
-
-                  <div class="pin-block">
-                    <span class="pin-label">Type it again</span>
-                    <PinCells
-                      v-model="form.pinConfirm"
-                      aria-label="Confirm PIN"
-                      :invalid="pinMismatch"
-                    />
-                  </div>
-                </div>
-              </template>
-            </q-field>
-          </template>
-
           <!-- Documents (manager) -->
           <template v-else-if="current === 'documents'">
             <div class="doc-count">{{ documentsAdded }} of 2 added · both required</div>
@@ -495,25 +454,11 @@
             <IconifyIcon :icon="isManager ? 'lucide:check' : 'lucide:user-plus'" width="18" class="q-ml-sm" />
           </AuthButton>
 
-          <!-- The PIN screen is the student's last, and finishing without one is
-               a real choice: forcing a secret chosen in a hurry at the end of a
-               nine-screen form is how people end up locked out of a brand-new
-               account. It can be set any time from Settings. -->
-          <q-btn
-            v-if="current === 'pin'"
-            flat
-            no-caps
-            class="actions-secondary"
-            label="Set one up later"
-            :disable="loading"
-            @click="finishWithoutPin"
-          />
-
           <!-- Two skips that carry on rather than end the flow: the ID nobody
                has to hand, and the documents OSAS can wait for. Both leave their
                fields empty and advance; neither submits. -->
           <q-btn
-            v-else-if="current === 'studentId'"
+            v-if="current === 'studentId'"
             flat
             no-caps
             class="actions-secondary"
@@ -543,7 +488,7 @@
 <script setup lang="ts">
 import { reactive, ref, computed, nextTick, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import type { QField, QForm } from 'quasar';
+import type { QForm } from 'quasar';
 import { Icon as IconifyIcon } from '@iconify/vue';
 import { useAuthStore } from '@/stores/auth';
 import { supabase, readOAuthError, isSignupDatabaseError } from '@/utils/supabase';
@@ -560,8 +505,6 @@ import AuthDivider from '@/components/auth/AuthDivider.vue';
 import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
 import ConnectedGoogleBox from '@/components/auth/ConnectedGoogleBox.vue';
 import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue';
-import PinCells from '@/components/shared/PinCells.vue';
-import { usePinStore } from '@/stores/pin';
 import { capitalizeName, composeStudentId, isPhMobile, normalizePhPhone, phNationalDigits } from '@/utils/format';
 import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAIL_DOMAINS_TEXT, isAllowedEmailDomain } from '@/utils/config';
 import { yearOptions, collegePrograms } from '@/constants/academics';
@@ -571,7 +514,6 @@ const router = useRouter();
 const route = useRoute();
 const notify = useNotify();
 const authStore = useAuthStore();
-const pinStore = usePinStore();
 
 /** The path is the role. Routes are unchanged, so every existing redirect still lands correctly. */
 const isManager = computed(() => route.path.startsWith('/register/manager'));
@@ -586,7 +528,6 @@ type StepKey =
   | 'studies'
   | 'studentId'
   | 'proof'
-  | 'pin'
   | 'documents';
 
 /** The short name in the step header — what this screen is, for the progress row. */
@@ -599,7 +540,6 @@ const STEP_TITLE: Record<StepKey, string> = {
   studies: 'Studies',
   studentId: 'Student ID',
   proof: 'Enrolment',
-  pin: 'App PIN',
   documents: 'Requirements',
 };
 
@@ -631,13 +571,6 @@ const STEP_QUESTION: Record<StepKey, { title: string; note?: string }> = {
     title: 'Verify your property',
     note: 'Only OSAS sees these. They cannot accredit a property without both.',
   },
-  // Last, because it is the only screen about what happens *after* registration
-  // rather than part of it. It used to be a dialog thrown over the finished
-  // form once the progress bar had already run out.
-  pin: {
-    title: 'Protect your account with a PIN',
-    note: 'Optional — six digits, asked whenever you reopen Accommo. You can set one later from Settings.',
-  },
 };
 
 const stepIndex = ref(0);
@@ -653,8 +586,6 @@ const emailVerified = ref(false);
 const creatingAccount = ref(false);
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
-const pinCellsRef = ref<InstanceType<typeof PinCells> | null>(null);
-const pinFieldRef = ref<QField | null>(null);
 const loading = ref(false);
 // OSAS sent a landlord/landlady's application back: sign-in is allowed again so it can be
 // corrected, and only the documents step is relevant.
@@ -706,24 +637,6 @@ const middleInitialRules = [
   (val: string) => /^\p{L}$/u.test(val) || 'One letter only',
 ];
 
-/**
- * The PIN is optional, so an empty pair passes — but a half-entered one must
- * not. One rule over both cells rather than one each: the only thing worth
- * saying is about the pair, and a message under the first block would be
- * pointing at the wrong one.
- */
-function pinPairRule(): boolean | string {
-  if (!form.pin && !form.pinConfirm) return true;
-  if (form.pin.length !== 6) return 'A PIN is six digits';
-  if (form.pin !== form.pinConfirm) return 'The two PINs do not match';
-  return true;
-}
-
-/** Shakes the second row once both are full and they disagree. */
-const pinMismatch = computed(
-  () => form.pinConfirm.length === 6 && form.pin.length === 6 && form.pin !== form.pinConfirm,
-);
-
 /** Keeps a numeric field numeric while it is being typed into. */
 function digitsOnly(value: string | number | null | undefined, max: number): string {
   return String(value ?? '').replace(/\D/g, '').slice(0, max);
@@ -749,7 +662,7 @@ const steps = computed<StepKey[]>(() => {
     : ['name', 'phone', 'email', 'password', 'verify'];
   return isManager.value
     ? [...head, 'documents']
-    : [...head, 'studies', 'studentId', 'proof', 'pin'];
+    : [...head, 'studies', 'studentId', 'proof'];
 });
 
 const current = computed<StepKey>(() => steps.value[stepIndex.value] ?? 'name');
@@ -805,8 +718,6 @@ const form = reactive({
   studentIdYear: '',
   studentIdNumber: '',
   studentId: '',
-  pin: '',
-  pinConfirm: '',
   schoolIdFile: null as File | null,
   assessmentFile: null as File | null,
   schoolIdText: null as string | null,
@@ -1076,10 +987,6 @@ function goToStep(index: number) {
   stepIndex.value = index;
   void nextTick(() => {
     stepsEl.value?.scrollTo({ top: 0 });
-    // The PIN cells are a label over a hidden input, so `autofocus` has nothing
-    // obvious to attach to — the screen focuses them itself, as the text
-    // screens do with their first field.
-    if (current.value === 'pin') pinCellsRef.value?.focus();
   });
 }
 
@@ -1127,21 +1034,10 @@ const documentExpected = computed<DocExpected>(() => ({
   college: form.college,
 }));
 
-/**
- * Carry on without the enrolment documents. This used to end registration on
- * the spot, because `proof` was the last screen; now the PIN follows it, so
- * skipping means skipping these two files and nothing else.
- */
+/** Finish without the enrolment documents; `proof` is the student's last screen. */
 function skipProof() {
   form.schoolIdFile = null;
   form.assessmentFile = null;
-  goToStep(stepIndex.value + 1);
-}
-
-/** Finish with no PIN set. Clears the fields so a half-typed one is not used. */
-function finishWithoutPin() {
-  form.pin = '';
-  form.pinConfirm = '';
   void handleRegister(true);
 }
 
@@ -1282,23 +1178,6 @@ async function handleRegister(skipVerification = false) {
         await authStore.register(form); // safety fallback (no early account)
       }
       notify.success('Account created successfully!');
-    }
-
-    // The PIN is the last screen's answer, so it is set here rather than by a
-    // dialog thrown over the finished form. Set before navigating, so the app
-    // is already protected the first time it is backgrounded.
-    if (form.pin) {
-      const { error: pinError } = await supabase.rpc('set_pin', { p_pin: form.pin });
-      if (pinError) {
-        // The account is made and registered by this point; only the PIN failed.
-        // Say so rather than implying the whole registration did, and let them
-        // set one from Settings.
-        notify.warning('Your account is ready, but the PIN could not be set. You can add one from Settings.');
-      } else {
-        // Through the store, not a direct assignment: setHasPin also writes the
-        // per-account cache the lock screen falls back on when it is offline.
-        await pinStore.setHasPin(true);
-      }
     }
 
     void router.push('/student/home');
@@ -1443,35 +1322,6 @@ function onEmailVerified() {
 }
 
 /* Says what the step expects of you before the upload boxes do. */
-/* The PIN pair. Two blocks with air between them rather than two rows sharing a
-   hairline: the second is a check on the first, not another thing to fill in. */
-.pin-field :deep(.q-field__control) {
-  min-height: 0;
-  padding: 0;
-}
-.pin-field :deep(.q-field__native) {
-  padding: 0;
-}
-.pin-blocks {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 18px;
-}
-.pin-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pin-label {
-  margin-left: 2px;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
 /* Visible progress on a screen whose two cards are meant to look alike. */
 .doc-count {
   margin: 0 12px 10px;

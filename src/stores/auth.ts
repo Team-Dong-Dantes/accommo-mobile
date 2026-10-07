@@ -700,8 +700,8 @@ export const useAuthStore = defineStore('auth', {
       //   - e-mail NOT yet confirmed -> a signup code in `confirmation_token`,
       //     which is type 'email'  (registration)
       //   - e-mail already confirmed -> /otp sends a MAGIC LINK instead, landing
-      //     in `recovery_token`, which is type 'magiclink'  (PIN reset, and any
-      //     other re-confirmation of an established account)
+      //     in `recovery_token`, which is type 'magiclink'  (any re-confirmation of
+      //     an established account)
       // Asking for the wrong one answers 'token has expired or is invalid' on a
       // code sent seconds earlier, so try the second shape before giving up.
       const attempt = (type: 'email' | 'magiclink') =>

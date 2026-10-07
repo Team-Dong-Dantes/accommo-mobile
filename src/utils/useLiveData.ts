@@ -53,7 +53,7 @@ export interface LiveDataOptions {
    * every successful load, `set` is called with whatever was last saved
    * (if anything) before the first fetch even starts, so the screen paints
    * yesterday's data instead of a blank skeleton. Off by default — only
-   * screens with nothing PIN-gated behind them should turn this on; see
+   * screens with nothing private on them should turn this on; see
    * persistCache.ts.
    */
   cache?: {

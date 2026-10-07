@@ -151,8 +151,8 @@
       @navigate="navigateMenuAction"
     />
 
-    <!-- One PIN pad for the whole app. Renders nothing until something asks. -->
-    <PinGate @forgot="goToSecuritySettings" />
+    <!-- One confirmation card for the whole app. Renders nothing until something asks. -->
+    <ConfirmGate />
 
   </q-layout>
 </template>
@@ -175,9 +175,7 @@ import SideRail from '@/components/layout/SideRail.vue'
 import TermsGate from '@/components/shared/TermsGate.vue'
 import BroadcastBanner from '@/components/shared/BroadcastBanner.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
-import PinGate from '@/components/shared/PinGate.vue'
-import { usePinStore, RESUME_LOCK_MS } from '@/stores/pin'
-import { lockApp, settlePin } from '@/utils/requirePin'
+import ConfirmGate from '@/components/shared/ConfirmGate.vue'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
 import { countLeasesAwaitingManager } from '@/api/leases';
 import { pageTitleOverride } from '@/utils/pageTitle'
@@ -186,54 +184,6 @@ const router = useRouter()
 const route = useRoute()
 const notifications = useNotificationsStore()
 const messagesStore = useMessagesStore()
-const pin = usePinStore()
-
-/**
- * Lock the app when it comes back after sitting in the background. This is the
- * half of the PIN feature that covers *reads* — private messages, tenant phone
- * numbers, a student's uploaded school ID — none of which any per-action gate
- * can protect, because none of them are actions.
- *
- * `visibilitychange` is the cross-platform signal and works in the browser
- * during development; the Capacitor App plugin adds the native foreground
- * event, which fires in cases the web event misses.
- */
-function onHidden() {
-  pin.backgroundedAt = Date.now()
-}
-
-function onVisible() {
-  const away = pin.backgroundedAt ? Date.now() - pin.backgroundedAt : 0
-  pin.backgroundedAt = 0
-  if (away > RESUME_LOCK_MS) void lockApp()
-}
-
-/**
- * The other half of the resume lock: the app being closed outright.
- *
- * `backgroundedAt` lives in memory, and `visibilitychange` does not fire on a
- * first paint, so a cold launch measured no time away and never locked —
- * swiping the app out of recents and reopening it walked straight into messages
- * and tenant records with the PIN never asked for. That is the easiest phone-in-
- * hand bypass there was, and it is the exact threat the PIN exists for.
- *
- * A launch is treated as "away long enough" unconditionally. The one case that
- * must not lock is having just signed in, which AuthLayout marks as it goes.
- */
-function lockIfColdLaunch() {
-  let authedHere = false
-  try {
-    authedHere = sessionStorage.getItem('accommo.authed.here') === '1'
-  } catch {
-    // Unreadable storage: fall through and ask for the PIN.
-  }
-  if (!authedHere) void lockApp()
-}
-
-function onVisibilityChange() {
-  if (document.visibilityState === 'hidden') onHidden()
-  else onVisible()
-}
 
 // One shell, two configurations. The role is read from the path so the chrome
 // renders correctly on first paint, with no async role lookup flicker.
@@ -575,14 +525,8 @@ watch(
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, true)
   window.addEventListener('accommo:avatar-change', onAvatarChange)
-  document.addEventListener('visibilitychange', onVisibilityChange)
   document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
   onScroll()
-  // Answers "does this account have a PIN at all" once. Gates no longer race
-  // it: requirePin() and lockApp() both await pin.ensureReady(), which joins
-  // this same call rather than issuing a second one.
-  void pin.refresh()
-  lockIfColdLaunch()
   try {
     const { data } = await authUser()
     const user = data?.user
@@ -643,20 +587,8 @@ onUnmounted(() => {
   messagesStore.stop()
   window.removeEventListener('scroll', onScroll, true)
   window.removeEventListener('accommo:avatar-change', onAvatarChange)
-  document.removeEventListener('visibilitychange', onVisibilityChange)
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
 })
-
-/**
- * "Forgot PIN?" from an ACTION prompt: the user is already inside and unlocked,
- * so send them to Settings where the reset lives. The resume lock never reaches
- * here — it cannot navigate out of the cover it is showing, so PinGate runs the
- * reset in place instead.
- */
-function goToSecuritySettings() {
-  settlePin(false)
-  void router.push(`/${role.value}/settings`)
-}
 
 // One existence-check query per dot, run once on shell mount. Deliberately
 // not realtime: these are low-frequency "does something need a look" flags,

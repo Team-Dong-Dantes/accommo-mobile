@@ -406,7 +406,7 @@ import { errorMessage } from '@/utils/errors'
 import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { paymentTitle, manilaToday } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
-import { requirePin } from '@/utils/requirePin'
+import { confirmAction } from '@/utils/confirmAction'
 import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { signRows } from '@/utils/upload'
@@ -893,7 +893,7 @@ async function confirmDecline() {
 }
 
 async function decideApplication(l: Lease, decision: 'active' | 'rejected', reason?: string) {
-  if (!(await requirePin({ confirm: decision === 'active', title: decision === 'active' ? 'Accept this application?' : 'Decline this application?', ...(decision === 'active' ? { message: 'They become the tenant of this room.' } : {}) }))) return
+  if (decision === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the tenant of this room.' }))) return
   if (decidingId.value) return
   decidingId.value = l.id
   try {

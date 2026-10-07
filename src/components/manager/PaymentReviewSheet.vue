@@ -116,7 +116,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
-import { requirePin } from '@/utils/requirePin'
+import { confirmAction } from '@/utils/confirmAction'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { formatDate, formatPesoExact, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { paymentTitle } from '@/utils/payments'
@@ -168,7 +168,7 @@ const DONE = { confirm: 'Payment confirmed.', reject: 'Payment rejected.', undo:
 async function act(action: 'confirm' | 'reject' | 'undo') {
   const p = props.payment
   if (!p || busy.value) return
-  if (!(await requirePin({ confirm: true, title: TITLES[action] }))) return
+  if (!(await confirmAction({ title: TITLES[action] }))) return
   busy.value = true
   try {
     const { error } = await supabase.rpc('review_payment', {

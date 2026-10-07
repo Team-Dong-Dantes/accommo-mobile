@@ -4,8 +4,8 @@ import { Capacitor } from '@capacitor/core';
 export const EXTERNAL_URLS = {
   GOOGLE_ICON: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
   // Bundled in public/, not hotlinked from isu.edu.ph: the campus site goes
-  // down (ERR_CONNECTION_REFUSED), and it backs the splash, the PIN lock and
-  // the update wall — three screens with no way past them. accommo-web already
+  // down (ERR_CONNECTION_REFUSED), and it backs the splash and the update
+  // wall — screens with no way past them. accommo-web already
   // ships the same file at the same path.
   ISU_BACKGROUND: '/isu-aerial.jpg',
 } as const;

@@ -9,10 +9,9 @@
 // only if a cached payload gets large enough to threaten its ~5MB ceiling.
 //
 // Deliberately opt-in per screen, not a blanket cache-everything: some tables
-// (messages, tenant phone numbers, uploaded IDs) are gated behind PinGate
-// specifically so they don't sit around outside an active session — writing
-// them to disk here would undo that. Only cache screens that show nothing a
-// PIN would otherwise cover.
+// (messages, tenant phone numbers, uploaded IDs) must not sit around outside
+// an active session — writing them to disk here would do exactly that. Only
+// cache screens that show nothing private.
 import { storedUserId } from '@/utils/supabase'
 
 const PREFIX = 'accommo:cache:'

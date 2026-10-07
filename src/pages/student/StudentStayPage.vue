@@ -409,7 +409,7 @@ import {
   statusColor,
 } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
-import { requirePin } from '@/utils/requirePin'
+import { confirmAction } from '@/utils/confirmAction'
 import { signRows } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { AMENITY_META, UTILITIES, UTILITY_SELECT, roomTypeLabel, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
@@ -803,7 +803,7 @@ async function load(silent = false) {
 }
 
 async function requestLeave() {
-  if (!(await requirePin({ confirm: true, title: 'Request to leave?', message: `Your ${myLandlord.value} will be asked to approve it.` }))) return
+  if (!(await confirmAction({ title: 'Request to leave?', message: `Your ${myLandlord.value} will be asked to approve it.` }))) return
   if (leaving.value || !lease.value) return
   leaving.value = true
   try {
@@ -831,7 +831,7 @@ async function requestLeave() {
 const withdrawing = ref(false)
 async function withdrawPayment(p: Payment) {
   if (withdrawing.value) return
-  if (!(await requirePin({ confirm: true, title: 'Withdraw this payment?', message: `It is taken back before your ${myLandlord.value} reviews it. You can submit a new one.` }))) return
+  if (!(await confirmAction({ title: 'Withdraw this payment?', message: `It is taken back before your ${myLandlord.value} reviews it. You can submit a new one.` }))) return
   withdrawing.value = true
   try {
     const { error: rpcError } = await supabase.rpc('review_payment', { p_payment: p.id, p_action: 'withdraw' })

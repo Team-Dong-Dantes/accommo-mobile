@@ -17,12 +17,6 @@
     </div>
 
     <div class="settings-group">
-      <p class="settings-group-label">Security</p>
-      <SettingsRow v-if="!pin.hasPin" icon="lucide:shield" label="Set a PIN" @click="openPinSetup('set')" />
-      <SettingsRow v-else icon="lucide:help-circle" label="Forgot your PIN?" @click="openPinSetup('forgot')" />
-      <SettingsRow v-if="pin.hasPin" icon="lucide:lock-open" label="Turn off PIN" @click="openPinSetup('off')" />
-    </div>
-    <div class="settings-group">
       <p class="settings-group-label">Payments</p>
       <SettingsRow icon="lucide:wallet" label="Payment details" @click="payoutOpen = true" />
     </div>
@@ -77,7 +71,6 @@
     <ChangePasswordDialog v-model="passwordOpen" />
     <ChangeEmailDialog v-model="emailOpen" />
     <PayoutDialog v-model="payoutOpen" />
-    <PinSetupDialog v-model="pinSetupOpen" :mode="pinSetupMode" :email="email" />
   </section>
 </template>
 
@@ -87,9 +80,6 @@ import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
-import { requirePin } from '@/utils/requirePin'
-import PinSetupDialog from '@/components/shared/PinSetupDialog.vue'
-import { usePinStore } from '@/stores/pin'
 import { getStoredTheme, setStoredTheme } from '@/utils/theme'
 import { APP_VERSION, getAppVersion } from '@/utils/config'
 import SettingsRow from '@/components/shared/SettingsRow.vue'
@@ -143,23 +133,9 @@ onMounted(async () => {
   googleLinked.value = identities.some((i) => i.provider === 'google')
 })
 
-// Changing an e-mail or password is the only thing here nobody can undo, so
-// it always asks: the 'always' option skips the grace window even if the PIN
-// was entered a minute ago for something else.
-async function openAccountChange(which: 'email' | 'password') {
-  const label = which === 'email' ? 'Change your e-mail?' : 'Change your password?'
-  if (!(await requirePin({ always: true, title: label }))) return
+function openAccountChange(which: 'email' | 'password') {
   if (which === 'email') emailOpen.value = true
   else passwordOpen.value = true
-}
-
-const pin = usePinStore()
-const pinSetupOpen = ref(false)
-const pinSetupMode = ref<'set' | 'forgot' | 'off'>('set')
-
-function openPinSetup(mode: 'set' | 'forgot' | 'off') {
-  pinSetupMode.value = mode
-  pinSetupOpen.value = true
 }
 
 </script>
