@@ -196,7 +196,17 @@ h4 {
   border: 1px solid var(--m-border);
   border-bottom: none;
   border-radius: 10px 10px 0 0;
-  background: var(--m-bg);
+  /* Unselected tabs are frosted glass, same recipe as accommo-web's TabNav. */
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--m-surface) 92%, transparent),
+    color-mix(in srgb, var(--m-bg) 70%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent),
+    0 1px 2px color-mix(in srgb, #000 6%, transparent);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
   color: var(--m-muted);
   cursor: pointer;
   font: inherit;
@@ -205,11 +215,20 @@ h4 {
   transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.m-tab--on {
+:root.dark .m-tab {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+    0 1px 2px color-mix(in srgb, #000 28%, transparent);
+}
+.m-tab--on,
+:root.dark .m-tab--on {
   /* The selected tab fuses flat into the panel below, matching the folder tabs
      in accommo-web — it no longer grows over its neighbours or casts a shadow. */
   z-index: 1;
   background: var(--m-surface);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: var(--m-primary-dark);
 }
 .m-sk-tab {
