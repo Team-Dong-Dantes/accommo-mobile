@@ -728,7 +728,7 @@ begin
   test := 'L5: accept with another student''s QR'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
   test := 'L6: accept with their own QR'; outcome := coalesce(o6, 'FAIL - not reached'); return next;
 end $$;
--- AC1-AC7 (20261002120000): accreditation rounds. What OSAS checked stays put
+-- AC1-AC7 (20261002120000): accreditation rounds. The location OSAS checked stays put
 -- on a live listing, only OSAS decides, a sent-back listing cannot be
 -- resubmitted with the flagged permit unreplaced, one appeal only, and one
 -- landlord/landlady never sees another's history. Setup runs with no signed-in
@@ -748,8 +748,8 @@ begin
     set local role authenticated;
 
     begin
-      update public.accommodations set name = name || ' (renamed)' where id = v_acc;
-      o1 := 'FAIL - renamed an accredited listing directly';
+      update public.accommodations set lat = coalesce(lat, 0) + 0.01 where id = v_acc;
+      o1 := 'FAIL - moved an accredited listing directly';
     exception when others then
       get stacked diagnostics v_msg = message_text; o1 := 'PASS - ' || v_msg;
     end;
@@ -834,7 +834,7 @@ begin
     reset role;
     if v_msg <> 'rollback' then o1 := coalesce(o1, 'FAIL - ' || v_msg); end if;
   end;
-  test := 'AC1: rename an accredited listing directly'; outcome := o1; return next;
+  test := 'AC1: move an accredited listing directly'; outcome := o1; return next;
   test := 'AC2: extend own accreditation'; outcome := coalesce(o2, 'FAIL - not reached'); return next;
   test := 'AC3: landlord/landlady decides'; outcome := coalesce(o3, 'FAIL - not reached'); return next;
   test := 'AC4: open a round directly'; outcome := coalesce(o4, 'FAIL - not reached'); return next;
