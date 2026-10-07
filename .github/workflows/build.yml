@@ -21,6 +21,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      # @quasar/app-vite 3.10 resolves @capacitor/* from src-capacitor/node_modules
+      # in every build mode, so the web build needs that folder installed too.
+      - name: Install Capacitor dependencies
+        run: npm ci --prefix src-capacitor
       - name: Type-check
         run: npm run typecheck
       - name: Lint
@@ -93,6 +97,10 @@ jobs:
           java-version: '21'   # Android compileSdk 36 / capacitor needs Java 21 (not 17)
       - name: Install dependencies
         run: npm ci
+      # @quasar/app-vite 3.10 resolves @capacitor/* from src-capacitor/node_modules
+      # in every build mode, so the web build needs that folder installed too.
+      - name: Install Capacitor dependencies
+        run: npm ci --prefix src-capacitor
       # major.minor is whatever package.json says — bump it there when you ship
       # a change (patch for a fix, minor for a feature). The run number is
       # appended so two builds can never carry the same name even if the bump
