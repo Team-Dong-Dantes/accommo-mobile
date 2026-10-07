@@ -2965,6 +2965,7 @@ export type Database = {
         Returns: {
           expires_at: string
           token: string
+          ttl_ms: number
         }[]
       }
       decide_accreditation: {
@@ -3150,6 +3151,17 @@ export type Database = {
         Args: { p_older_than?: string }
         Returns: number
       }
+      qr_mac: {
+        Args: { p_secret: string; p_slot: number; p_user: string }
+        Returns: string
+      }
+      qr_resolve: {
+        Args: { p_code: string }
+        Returns: {
+          status: string
+          user_id: string
+        }[]
+      }
       rate_limit_hit: {
         Args: { p_key: string; p_max: number; p_window: number }
         Returns: boolean
@@ -3228,6 +3240,7 @@ export type Database = {
       }
       room_display: { Args: { p_room: string }; Returns: string }
       rotate_qr_token: { Args: never; Returns: string }
+      scanned_student_docs: { Args: { p_student: string }; Returns: Json }
       send_push: {
         Args: { p_payload: Json; p_user: string }
         Returns: undefined

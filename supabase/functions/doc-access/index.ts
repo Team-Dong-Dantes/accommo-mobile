@@ -175,5 +175,28 @@ Deno.serve(async (req) => {
     return reply(req, 200, { url: await privateDownloadUrl(ref), expiresIn: VIEW_TTL_SECONDS })
   }
 
+  // A landlord/landlady who just scanned a student's QR sees that student's
+  // school ID and assessment of fees. scanned_student_docs() decides, as the
+  // caller: it returns null unless they QR-scanned this student in the last
+  // 30 minutes.
+  if (body.action === 'scan-docs') {
+    if (!body.id) return reply(req, 400, { error: 'Missing student id.' })
+    const { data, error } = await supabase.rpc('scanned_student_docs', { p_student: body.id })
+    if (error) return reply(req, 400, { error: error.message })
+    if (!data) return reply(req, 403, { error: 'Scan this student’s QR to see their documents.' })
+
+    const sign = async (ref: unknown) => {
+      if (typeof ref !== 'string' || !ref) return null
+      if (ref.startsWith(CLD_PREFIX)) return { url: await privateDownloadUrl(ref), pdf: parseRef(ref).resourceType === 'raw' }
+      return /^https:\/\//i.test(ref) ? { url: ref, pdf: /\.pdf(\?|$)/i.test(ref) } : null
+    }
+    const refs = data as Record<string, unknown>
+    return reply(req, 200, {
+      schoolId: await sign(refs.school_id),
+      assessmentOfFees: await sign(refs.assessment_of_fees),
+      expiresIn: VIEW_TTL_SECONDS,
+    })
+  }
+
   return reply(req, 400, { error: 'Unknown action.' })
 })

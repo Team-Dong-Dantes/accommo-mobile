@@ -54,6 +54,29 @@
           <p class="scan-note">
             Checked just now by {{ scan.method === 'manual' ? 'typed code' : 'QR scan' }}
           </p>
+
+          <!-- Only a QR scan opens these: a typed number proves nobody is there. -->
+          <div v-if="scan.method === 'qr'" class="docs">
+            <span class="docs-label">Documents</span>
+            <div class="docs-grid">
+              <button
+                v-for="d in scanDocList"
+                :key="d.label"
+                type="button"
+                class="doc"
+                :disabled="!d.file"
+                @click="d.file && openDoc(d.file)"
+              >
+                <span class="doc-thumb" :class="{ 'doc-thumb--empty': !d.file }">
+                  <q-spinner v-if="docsLoading" size="20px" />
+                  <img v-else-if="d.file && !d.file.pdf" :src="d.file.url" alt="" />
+                  <IconifyIcon v-else :icon="d.file ? 'lucide:file-text' : 'lucide:file-x'" width="24" />
+                </span>
+                <span class="doc-name">{{ d.label }}</span>
+                <span v-if="!docsLoading && !d.file" class="doc-none">Not on file</span>
+              </button>
+            </div>
+          </div>
         </template>
 
         <dl class="rows">
@@ -103,6 +126,7 @@
       </div>
       </template>
     </PersonProfile>
+    <PhotoViewer v-model="viewerUrl" />
   </q-page>
 </template>
 
@@ -118,6 +142,9 @@ import { initialsOf, formatPeso, landlordTitle } from '@/utils/format'
 import { period } from '@/utils/profile'
 import PersonProfile from '@/components/shared/PersonProfile.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import PhotoViewer from '@/components/shared/PhotoViewer.vue'
+import { scannedStudentDocs, type ScanDoc } from '@/utils/upload'
+import { openExternal } from '@/utils/openExternal'
 import { fetchSharedLeaseHistory } from '@/api/leases';
 
 // One profile screen for "the other person", reached from a conversation or
@@ -173,6 +200,27 @@ const scan = computed(() =>
   qrStore.scannedStudent?.userId === targetId.value ? qrStore.scannedStudent : null,
 )
 
+// The scanned student's ID and assessment of fees, signed for 5 minutes.
+const scanDocs = ref<{ schoolId: ScanDoc | null; assessmentOfFees: ScanDoc | null } | null>(null)
+const docsLoading = ref(false)
+const scanDocList = computed(() => [
+  { label: 'School ID', file: scanDocs.value?.schoolId ?? null },
+  { label: 'Assessment of fees', file: scanDocs.value?.assessmentOfFees ?? null },
+])
+const viewerUrl = ref('')
+function openDoc(d: ScanDoc) {
+  if (d.pdf) openExternal(d.url)
+  else viewerUrl.value = d.url
+}
+async function loadScanDocs() {
+  docsLoading.value = true
+  try {
+    scanDocs.value = await scannedStudentDocs(targetId.value)
+  } finally {
+    docsLoading.value = false
+  }
+}
+
 const chip = computed<{ label: string; tone: 'good' | 'warn' | 'idle' }>(() => {
   if (person.role !== 'student') return { label: landlordTitle(person.sex), tone: 'idle' }
   return person.osasVerified
@@ -190,6 +238,7 @@ function message() {
 }
 
 onMounted(async () => {
+  if (scan.value?.method === 'qr') void loadScanDocs()
   try {
     const { data: auth } = await authUser()
     const me = auth?.user?.id
@@ -300,6 +349,47 @@ onMounted(async () => {
 .verdict-copy strong { font-size: 13.5px; font-weight: 750; }
 .verdict-copy span { color: var(--m-text); font-size: 11.5px; line-height: 1.4; }
 .scan-note { margin: -6px 0 0; color: var(--m-muted); font-size: 11px; font-weight: 600; }
+
+.docs { display: flex; flex-direction: column; gap: 8px; }
+.docs-label {
+  color: var(--m-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.docs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.doc {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 9px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  overflow: hidden;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.doc:disabled { cursor: default; }
+.doc-thumb {
+  display: grid;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 6px;
+  place-items: center;
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-surface);
+  color: var(--m-primary-dark);
+  overflow: hidden;
+}
+.doc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.doc-thumb--empty { color: var(--m-muted); }
+.doc-name { padding: 0 10px; color: var(--m-ink); font-size: 12.5px; font-weight: 700; }
+.doc-none { padding: 0 10px; color: var(--m-muted); font-size: 11px; font-weight: 600; }
 
 .rows { margin: 0; }
 .rows > div {

@@ -297,6 +297,23 @@ export async function secureDocUrl(
   return (data?.url as string) || '';
 }
 
+export interface ScanDoc { url: string; pdf: boolean }
+
+/**
+ * The school ID and assessment of fees of a student this landlord/landlady
+ * just QR-scanned. The server only answers within 30 minutes of the scan; a
+ * missing file, or no recent scan, comes back as null.
+ */
+export async function scannedStudentDocs(
+  studentId: string,
+): Promise<{ schoolId: ScanDoc | null; assessmentOfFees: ScanDoc | null } | null> {
+  const { data, error } = await supabase.functions.invoke('doc-access', {
+    body: { action: 'scan-docs', id: studentId },
+  });
+  if (error || !data) return null;
+  return { schoolId: data.schoolId ?? null, assessmentOfFees: data.assessmentOfFees ?? null };
+}
+
 /** One stored value: a private ref gets signed, anything else passes through. */
 export async function signRef(table: PrivateFileTable, id: string, value: string | null | undefined): Promise<string> {
   if (!value) return '';
