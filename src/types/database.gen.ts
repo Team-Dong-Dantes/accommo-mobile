@@ -2447,45 +2447,6 @@ export type Database = {
           },
         ]
       }
-      user_pins: {
-        Row: {
-          attempts: number
-          locked_until: string | null
-          pin_hash: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          attempts?: number
-          locked_until?: string | null
-          pin_hash: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          attempts?: number
-          locked_until?: string | null
-          pin_hash?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_pins_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_pins_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users_full"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       users: {
         Row: {
           avatar_color: string | null
@@ -2996,7 +2957,6 @@ export type Database = {
         Args: { p_student_id: string }
         Returns: boolean
       }
-      clear_pin: { Args: { p_current: string }; Returns: boolean }
       complete_registration: { Args: never; Returns: undefined }
       confirm_email_ownership: { Args: never; Returns: boolean }
       current_is_superadmin: { Args: never; Returns: boolean }
@@ -3039,7 +2999,6 @@ export type Database = {
           user_status: string
         }[]
       }
-      has_pin: { Args: never; Returns: boolean }
       initials_from_name: { Args: { p_name: string }; Returns: string }
       invite_application: {
         Args: { p_conversation: string }
@@ -3169,7 +3128,6 @@ export type Database = {
         Returns: boolean
       }
       peso: { Args: { p: number }; Returns: string }
-      pin_attempt: { Args: { p_pin: string }; Returns: boolean }
       policy_acceptance_stats: {
         Args: never
         Returns: {
@@ -3278,7 +3236,6 @@ export type Database = {
         Args: { p_ip_address?: string; p_user_agent?: string }
         Returns: undefined
       }
-      set_pin: { Args: { p_pin: string }; Returns: boolean }
       sign_out_session: { Args: { p_session: string }; Returns: boolean }
       student_may_lease: { Args: { p_student: string }; Returns: boolean }
       student_past_balance: {
@@ -3308,7 +3265,6 @@ export type Database = {
       sweep_expired_permits: { Args: never; Returns: undefined }
       sync_accommodation_totals: { Args: { p_id: string }; Returns: undefined }
       touch_last_active: { Args: never; Returns: undefined }
-      verify_pin: { Args: { p_pin: string }; Returns: boolean }
       verify_student_qr: { Args: { p_code: string }; Returns: Json }
       waive_balance: {
         Args: {
