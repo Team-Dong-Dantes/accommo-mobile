@@ -149,6 +149,8 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl, signRows } from '@/utils/upload'
+import type { DocReadings } from '@/utils/docReading'
+import type { Json } from '@/types/database.gen'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompose.vue'
@@ -309,6 +311,22 @@ async function load() {
   }
 }
 
+/**
+ * Drop the text registration read off the document just replaced, so OSAS is
+ * not shown a check of the old file. The console reads the new one itself.
+ */
+async function forgetReading(docType: string) {
+  if (docType !== 'school_id' && docType !== 'assessment_of_fees') return
+  const { data } = await supabase.from('student_profiles').select('document_text').eq('user_id', myId.value!).maybeSingle()
+  const readings = (data?.document_text ?? null) as DocReadings | null
+  if (!readings?.[docType]) return
+  delete readings[docType]
+  await supabase
+    .from('student_profiles')
+    .update({ document_text: Object.keys(readings).length ? (readings as Json) : null })
+    .eq('user_id', myId.value!)
+}
+
 async function onDocSelected(event: Event) {
   const docType = pickingType.value
   const input = event.target as HTMLInputElement
@@ -344,6 +362,7 @@ async function onDocSelected(event: Event) {
         ...docRows.value,
       ]
     }
+    await forgetReading(docType)
     // A rejected account has to be put back in the queue, or the re-upload is
     // never looked at. No-ops for any other status.
     const { error: resubmitError } = await supabase.rpc('resubmit_verification')

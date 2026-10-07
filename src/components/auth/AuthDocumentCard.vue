@@ -34,16 +34,40 @@
           <span v-if="!model" class="doc-add"><IconifyIcon icon="lucide:plus" width="18" /></span>
         </button>
 
+        <!-- What the phone read off a scan, so a blurred ID or last term's
+             assessment is caught now rather than by OSAS days later. A hint,
+             never a gate: it can misread, and OSAS decides. -->
+        <div v-if="model && (checking || findings.length)" class="doc-check" aria-live="polite">
+          <span v-if="checking" class="doc-check-row">
+            <q-spinner size="14px" class="doc-check-icon" />Checking your document…
+          </span>
+          <span v-else-if="issues.length === 0" class="doc-check-row doc-check-row--ok">
+            <IconifyIcon icon="lucide:circle-check" width="15" class="doc-check-icon" />
+            {{ okSummary }}
+          </span>
+          <template v-else>
+            <span v-for="f in issues" :key="f.label" class="doc-check-row doc-check-row--warn">
+              <IconifyIcon icon="lucide:circle-alert" width="15" class="doc-check-icon" />
+              <span><b>{{ f.label }}:</b> {{ f.detail }}</span>
+            </span>
+            <span class="doc-check-note">Retake it if it's unclear. You can still send it as it is; OSAS checks it either way.</span>
+          </template>
+        </div>
+
         <div class="doc-actions">
           <template v-if="model">
+            <q-btn flat dense no-caps class="doc-action" @click="openCamera">
+              <IconifyIcon icon="lucide:scan-line" width="15" class="q-mr-xs" />
+              Retake
+            </q-btn>
             <q-btn flat dense no-caps class="doc-action" label="Replace" @click="pick" />
             <q-btn flat dense no-caps class="doc-action doc-action--quiet" label="Remove" @click="clear" />
           </template>
           <!-- The icon goes in the slot, not the `icon` prop: that prop feeds
                Quasar's QIcon, which renders an Iconify name as literal text. -->
           <q-btn v-else flat dense no-caps class="doc-action" @click="openCamera">
-            <IconifyIcon icon="lucide:camera" width="15" class="q-mr-xs" />
-            Take a photo
+            <IconifyIcon icon="lucide:scan-line" width="15" class="q-mr-xs" />
+            Scan it
           </q-btn>
         </div>
       </div>
@@ -54,9 +78,10 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { format, type QField } from 'quasar'
-import { capturePhoto } from '@/utils/camera'
+import { readDocumentText, scanDocument } from '@/utils/camera'
+import type { DocFinding } from '@/utils/docReading'
 import { useNotify } from '@/utils/notify'
 
 // One card per document, used by the student's proof-of-enrolment screen and by
@@ -72,8 +97,10 @@ import { useNotify } from '@/utils/notify'
 const { humanStorageSize } = format
 
 const model = defineModel<File | null>()
+/** The text read off the current scan; null for a picked file or nothing read. */
+const text = defineModel<string | null>('text', { default: null })
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** What the document is, e.g. "School ID". */
     title: string
@@ -83,6 +110,8 @@ withDefaults(
     accept?: string
     /** Passed to the QField, so a required document blocks the form. */
     rules?: Array<(val: File | null) => boolean | string>
+    /** Checks what a scan says. Without it nothing is read. */
+    check?: (text: string) => DocFinding[]
   }>(),
   {
     hint: '',
@@ -96,6 +125,21 @@ const notify = useNotify()
 const inputEl = ref<HTMLInputElement | null>(null)
 const fieldEl = ref<QField | null>(null)
 const previewUrl = ref<string | null>(null)
+const checking = ref(false)
+const findings = ref<DocFinding[]>([])
+const issues = computed(() => findings.value.filter((f) => !f.ok))
+/** 'Name, student number and school match.' */
+const okSummary = computed(() => {
+  const parts = findings.value.map((f, i) => (i ? f.label.toLowerCase() : f.label))
+  const last = parts.pop()
+  return (parts.length ? `${parts.join(', ')} and ${last}` : last) + ' match.'
+})
+
+/** Forget the last reading: the file it came from is gone. */
+function forgetReading() {
+  text.value = null
+  findings.value = []
+}
 
 /**
  * A thumbnail for an image, nothing for a PDF — which gets the file icon
@@ -125,19 +169,34 @@ function pick() {
 
 function onPicked(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0] ?? null
-  if (file) model.value = file
+  if (file) {
+    model.value = file
+    forgetReading()
+  }
   // Cleared so picking the same file twice in a row still fires a change.
   if (inputEl.value) inputEl.value.value = ''
 }
 
 function clear() {
   model.value = null
+  forgetReading()
 }
 
 async function openCamera() {
-  const { file, error } = await capturePhoto()
+  const { file, error, path } = await scanDocument()
   if (error) notify.error(error)
-  if (file) model.value = file
+  if (!file) return
+  model.value = file
+  forgetReading()
+  if (!path || !props.check) return
+  checking.value = true
+  const read = await readDocumentText(path)
+  checking.value = false
+  // Replaced or removed while it was reading: that answer is for another file.
+  if (model.value !== file) return
+  text.value = read
+  // Nothing read at all checks as empty text, which says it was unreadable.
+  findings.value = props.check(read ?? '')
 }
 
 </script>
@@ -251,6 +310,37 @@ async function openCamera() {
   color: var(--m-primary);
   font-size: 12.5px;
   font-weight: 700;
+}
+.doc-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.doc-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--m-muted);
+}
+.doc-check-row--ok {
+  color: var(--m-success);
+}
+.doc-check-row--warn {
+  color: var(--m-ink);
+}
+.doc-check-row--warn .doc-check-icon {
+  color: var(--m-warning);
+}
+.doc-check-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.doc-check-note {
+  color: var(--m-muted);
+  font-size: 11.5px;
 }
 .doc-action--quiet {
   color: var(--m-muted);

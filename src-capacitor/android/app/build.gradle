@@ -35,6 +35,12 @@ android {
         versionCode accommoVersionCode
         versionName accommoVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // Phones only. ML Kit's text reader is ~11 MB of native code per CPU
+        // type, and x86/x86_64 exist only in PC emulators — shipping them
+        // nearly doubled the APK. Add them back here to run on an emulator.
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -90,4 +96,16 @@ try {
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// @capacitor-mlkit/text-recognition ships a bundled model for every script it
+// supports; accommo only reads Latin text (school IDs, assessments). The
+// plugin touches the other recognisers only when asked for that script, which
+// nothing here does, and release builds are not minified, so dropping them is
+// safe and keeps a few tens of MB out of the APK.
+configurations.configureEach {
+    exclude group: 'com.google.mlkit', module: 'text-recognition-chinese'
+    exclude group: 'com.google.mlkit', module: 'text-recognition-devanagari'
+    exclude group: 'com.google.mlkit', module: 'text-recognition-japanese'
+    exclude group: 'com.google.mlkit', module: 'text-recognition-korean'
 }

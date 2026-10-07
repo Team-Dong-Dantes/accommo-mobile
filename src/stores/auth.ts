@@ -4,7 +4,9 @@ import { SocialLogin } from '@capgo/capacitor-social-login';
 import { supabase } from '@/utils/supabase';
 import { uploadSecureDocument } from '@/utils/upload';
 import { initialsOf, isPhMobile } from '@/utils/format';
-import type { RegisterForm } from '@/types/forms';
+import type { RegisterForm, StudentRegisterForm } from '@/types/forms';
+import type { DocReadings } from '@/utils/docReading';
+import type { Json } from '@/types/database.gen';
 
 // The database role enum says 'landlord'; this app's routes and folders say
 // 'manager' (`/manager/*`, `pages/manager/`). That split is deliberate and
@@ -12,6 +14,19 @@ import type { RegisterForm } from '@/types/forms';
 // internal paths were left alone rather than churn 150+ references for
 // something no user reads. Map between the two at the DB boundary so routing
 // keeps working off 'manager' while everything stored stays 'landlord'.
+/**
+ * The text the phone read off each proof-of-enrolment document, for
+ * student_profiles.document_text. Only for a file that is being sent, and capped
+ * well under the column's size check.
+ */
+function documentText(form: StudentRegisterForm): Json | null {
+  const readAt = new Date().toISOString();
+  const readings: DocReadings = {};
+  if (form.schoolIdFile && form.schoolIdText) readings.school_id = { text: form.schoolIdText.slice(0, 20000), read_at: readAt };
+  if (form.assessmentFile && form.assessmentText) readings.assessment_of_fees = { text: form.assessmentText.slice(0, 20000), read_at: readAt };
+  return Object.keys(readings).length ? (readings as Json) : null;
+}
+
 const APP_ROLE_TO_DB: Record<string, string> = { manager: 'landlord' };
 const DB_ROLE_TO_APP: Record<string, string> = { landlord: 'manager' };
 
@@ -191,7 +206,7 @@ export const useAuthStore = defineStore('auth', {
     // (no academic/docs yet). Called when the student leaves the Account step so
     // an e-mail OTP can be sent, then Academy/Docs attach later on the SAME user.
     async createStudentAccount(
-      form: RegisterForm & { schoolIdFile?: File | null; assessmentFile?: File | null },
+      form: StudentRegisterForm,
     ) {
       const profileData = this.formatProfileData(form, 'student');
       const response = await supabase.auth.signUp({
@@ -225,7 +240,7 @@ export const useAuthStore = defineStore('auth', {
     // the academic fields onto that existing profile (never re-signUp).
     async finalizeStudentAccount(
       userId: string,
-      form: RegisterForm & { schoolIdFile?: File | null; assessmentFile?: File | null },
+      form: StudentRegisterForm,
     ) {
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
@@ -245,6 +260,7 @@ export const useAuthStore = defineStore('auth', {
           year_level: parseInt(form.yearLevel.charAt(0)) || 1,
           school_id_url: schoolIdUrl,
           assessment_of_fees_url: assessmentUrl,
+          document_text: documentText(form),
         })
         .eq('user_id', userId);
       if (profileError) throw sanitizeError(profileError);
@@ -253,7 +269,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async register(
-      form: RegisterForm & { schoolIdFile?: File | null; assessmentFile?: File | null },
+      form: StudentRegisterForm,
     ) {
       const profileData = this.formatProfileData(form, 'student');
 
@@ -287,6 +303,7 @@ export const useAuthStore = defineStore('auth', {
           year_level: parseInt(form.yearLevel.charAt(0)) || 1,
           school_id_url: schoolIdUrl,
           assessment_of_fees_url: assessmentUrl,
+          document_text: documentText(form),
         });
 
       if (profileError) throw sanitizeError(profileError);
@@ -305,7 +322,7 @@ export const useAuthStore = defineStore('auth', {
 
     async completeGoogleProfile(
       userId: string,
-      form: RegisterForm & { schoolIdFile?: File | null; assessmentFile?: File | null },
+      form: StudentRegisterForm,
     ) {
       const profileData = this.formatProfileData(form, 'student');
 
@@ -346,6 +363,7 @@ export const useAuthStore = defineStore('auth', {
           year_level: parseInt(form.yearLevel.charAt(0)) || 1,
           school_id_url: schoolIdUrl,
           assessment_of_fees_url: assessmentUrl,
+          document_text: documentText(form),
         });
 
       if (profileError) throw sanitizeError(profileError);

@@ -1,11 +1,15 @@
 import { Camera } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { DocumentScanner } from '@capacitor-mlkit/document-scanner';
+import { TextRecognition } from '@capacitor-mlkit/text-recognition';
 
 export interface CaptureOutcome {
   /** The captured photo, or null when nothing was taken. */
   file: File | null;
   /** A message worth showing the user. Null for a plain cancel. */
   error: string | null;
+  /** Where the image sits on the device, for readDocumentText. Scans only. */
+  path?: string;
 }
 
 const INSECURE =
@@ -102,5 +106,47 @@ export async function capturePhoto(): Promise<CaptureOutcome> {
     }
 
     return { file: null, error: message || 'Could not open the camera.' };
+  }
+}
+
+/**
+ * Google's document scanner: finds the edges of an ID or a printed form, takes
+ * the shot once it is steady, and hands back a flat, cropped page. Android
+ * only, through Play services; anywhere else, or while Play services is still
+ * fetching the scanner, it falls back to the plain camera.
+ */
+export async function scanDocument(): Promise<CaptureOutcome> {
+  if (Capacitor.getPlatform() !== 'android') return capturePhoto();
+  try {
+    const { available } = await DocumentScanner.isGoogleDocumentScannerModuleAvailable();
+    if (!available) {
+      // Ready by the next tap; this one takes an ordinary photo.
+      void DocumentScanner.installGoogleDocumentScannerModule().catch(() => undefined);
+      return capturePhoto();
+    }
+    const { scannedImages } = await DocumentScanner.scanDocument({
+      pageLimit: 1,
+      resultFormats: 'JPEG',
+      galleryImportAllowed: true,
+      scannerMode: 'FULL',
+    });
+    const path = scannedImages?.[0];
+    if (!path) return { file: null, error: null };
+    const blob = await (await fetch(Capacitor.convertFileSrc(path))).blob();
+    return { file: new File([blob], 'scan.jpg', { type: 'image/jpeg' }), error: null, path };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (/cancel/i.test(message)) return { file: null, error: null };
+    return capturePhoto();
+  }
+}
+
+/** The text on a scanned page, read on the device. Null when it cannot be read. */
+export async function readDocumentText(path: string): Promise<string | null> {
+  try {
+    const { text } = await TextRecognition.processImage({ path });
+    return text;
+  } catch {
+    return null;
   }
 }

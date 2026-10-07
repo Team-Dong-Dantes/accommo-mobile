@@ -382,6 +382,8 @@
 
             <AuthDocumentCard
               v-model="form.schoolIdFile"
+              v-model:text="form.schoolIdText"
+              :check="(text: string) => checkDocument('school_id', text, documentExpected)"
               title="School ID"
               hint="The front, with all four corners in the frame."
               icon="lucide:id-card"
@@ -389,6 +391,8 @@
 
             <AuthDocumentCard
               v-model="form.assessmentFile"
+              v-model:text="form.assessmentText"
+              :check="(text: string) => checkDocument('assessment_of_fees', text, documentExpected)"
               title="Assessment of Fees"
               hint="This term's copy, showing your name."
               icon="lucide:receipt-text"
@@ -561,6 +565,7 @@ import { usePinStore } from '@/stores/pin';
 import { capitalizeName, composeStudentId, isPhMobile, normalizePhPhone, phNationalDigits } from '@/utils/format';
 import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAIL_DOMAINS_TEXT, isAllowedEmailDomain } from '@/utils/config';
 import { yearOptions, collegePrograms } from '@/constants/academics';
+import { checkDocument, type DocExpected } from '@/utils/docReading';
 
 const router = useRouter();
 const route = useRoute();
@@ -804,6 +809,8 @@ const form = reactive({
   pinConfirm: '',
   schoolIdFile: null as File | null,
   assessmentFile: null as File | null,
+  schoolIdText: null as string | null,
+  assessmentText: null as string | null,
   governmentIdFile: null as File | null,
   governmentIdExpiresAt: '',
   businessPermitFile: null as File | null,
@@ -1109,6 +1116,16 @@ function skipStudentId() {
   form.studentId = '';
   goToStep(stepIndex.value + 1);
 }
+
+/**
+ * What a scanned school ID or assessment is checked against. Middle initial and
+ * suffix are left out: the check skips them anyway.
+ */
+const documentExpected = computed<DocExpected>(() => ({
+  fullName: `${form.firstName} ${form.lastName}`,
+  studentId: composeStudentId(form.studentIdYear, form.studentIdNumber),
+  college: form.college,
+}));
 
 /**
  * Carry on without the enrolment documents. This used to end registration on

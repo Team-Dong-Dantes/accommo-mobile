@@ -13,3 +13,11 @@ export interface RegisterForm {
   yearLevel: string;
   studentId: string;
 }
+
+/** A student's registration, with the proof-of-enrolment files and the text the phone read off them. */
+export interface StudentRegisterForm extends RegisterForm {
+  schoolIdFile?: File | null;
+  assessmentFile?: File | null;
+  schoolIdText?: string | null;
+  assessmentText?: string | null;
+}

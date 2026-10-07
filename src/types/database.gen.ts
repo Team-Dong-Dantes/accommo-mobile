@@ -2134,6 +2134,7 @@ export type Database = {
         Row: {
           assessment_of_fees_url: string | null
           college: string | null
+          document_text: Json | null
           emergency_contact_json: Json | null
           extracted_name: string | null
           extracted_school_id: string | null
@@ -2150,6 +2151,7 @@ export type Database = {
         Insert: {
           assessment_of_fees_url?: string | null
           college?: string | null
+          document_text?: Json | null
           emergency_contact_json?: Json | null
           extracted_name?: string | null
           extracted_school_id?: string | null
@@ -2166,6 +2168,7 @@ export type Database = {
         Update: {
           assessment_of_fees_url?: string | null
           college?: string | null
+          document_text?: Json | null
           emergency_contact_json?: Json | null
           extracted_name?: string | null
           extracted_school_id?: string | null
@@ -3045,6 +3048,7 @@ export type Database = {
       is_accredited_accommodation: { Args: { p_id: string }; Returns: boolean }
       is_admin: { Args: { p_uid: string }; Returns: boolean }
       is_verified_landlord: { Args: { uid: string }; Returns: boolean }
+      landlord_title: { Args: { p_user: string }; Returns: string }
       lease_ledger: {
         Args: { p_lease: string }
         Returns: {

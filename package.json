@@ -1,6 +1,6 @@
 {
   "name": "accommo-mobile",
-  "version": "1.75.1",
+  "version": "1.76.0",
   "description": "Accommo",
   "productName": "Accommo",
   "type": "module",
@@ -17,6 +17,8 @@
     "dev:android": "node node_modules/@quasar/app-vite/bin/quasar dev -m capacitor -T android -H 192.168.1.7 -p 9500"
   },
   "dependencies": {
+    "@capacitor-mlkit/document-scanner": "^8.2.1",
+    "@capacitor-mlkit/text-recognition": "^8.2.1",
     "@capacitor/android": "^8.4.2",
     "@capacitor/app": "^8.0.0",
     "@capacitor/browser": "^8.0.4",
