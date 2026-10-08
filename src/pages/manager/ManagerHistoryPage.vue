@@ -34,6 +34,14 @@
           </div>
 
           <div :class="split ? 'desk-card' : 'panel'">
+            <!-- Desktop: the way back sits on the card, not in the app header,
+                 which stays the plain one (see OWN_BACK in MainLayout). -->
+            <header v-if="split" class="desk-panel-bar desk-card-bar">
+              <button type="button" class="desk-panel-back" aria-label="Back" @click="goBack">
+                <IconifyIcon icon="lucide:arrow-left" width="20" />
+              </button>
+              <span class="desk-panel-title">History</span>
+            </header>
             <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
               <component :is="panelIs" name="reviews" :class="split ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="split" class="desk-col-title">Ratings</h2>
@@ -240,6 +248,12 @@ interface PaymentRow {
 
 const route = useRoute()
 const router = useRouter()
+// Back to wherever History was opened from (Settings, or a View-all link);
+// Settings on a fresh load with nothing behind it.
+function goBack() {
+  if (window.history.state?.back) router.back()
+  else void router.push('/manager/settings')
+}
 
 const loading = ref(true)
 const error = ref('')

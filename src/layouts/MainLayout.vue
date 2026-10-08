@@ -27,6 +27,7 @@
 
         <template v-else>
           <div class="app-title text-weight-bold">accommo</div>
+          <h1 v-if="isDesktop" class="desk-page-title">{{ deskTitle }}</h1>
           <q-btn
             flat
             round
@@ -398,8 +399,8 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
 // Notifications), or a back button on the card itself (TenantProfile,
 // AccommodationDetail) — so the header stays the plain one, not a back bar.
 // Includes /manager/properties/new: the add-property form carries its own back
-// button above its card.
-const OWN_BACK = /^\/manager\/(tenant\/[^/]+|properties\/[^/]+)$/
+// button above its card. Both History pages carry theirs across the card's top.
+const OWN_BACK = /^\/(manager\/(tenant\/[^/]+|properties\/[^/]+)|(manager|student)\/profile\/history)$/
 // Everything the desktop rail links to straight (OSAS, Concerns, Announce,
 // Profile, Settings, My QR — and the tabs) is a destination there, not a
 // step down from somewhere, so it gets no back button either.
@@ -414,6 +415,17 @@ const subPage = computed(() =>
     : matchSecondary(route.path, config.value),
 )
 const isSubPage = computed(() => Boolean(subPage.value))
+
+// Desktop names the screen in the header, since the rail's icons don't. In a
+// split it is the card's name (Discover, Notifications), not the item open in
+// it — the detail pane carries its own title where it needs one.
+const deskTitle = computed(() => {
+  const split = panes.value.mode === 'split'
+  const path = split ? panes.value.listPath : route.path
+  return (split ? null : pageTitleOverride.value)
+    ?? matchSecondary(path, config.value)?.title
+    ?? config.value.tabs.find((t) => t.name === activeBottomTab.value)?.label
+})
 
 // Discover runs its map full-bleed behind this header instead of below it,
 // so the header needs its scrolled-state card background always — a plain
@@ -728,6 +740,14 @@ function onScroll() {
   font-weight: 700;
   letter-spacing: -0.04em;
   text-transform: lowercase;
+  color: var(--m-ink);
+}
+.desk-page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
   color: var(--m-ink);
 }
 .setup-page-title {

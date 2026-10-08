@@ -735,7 +735,10 @@ body {
 .shell-tablet .desk-col > * {
   flex-shrink: 0;
 }
-.shell-tablet .desk-col + .desk-col {
+/* The second form skips an emptied tab shell (.desk-hidden) left between the
+   halves, as on student History. */
+.shell-tablet .desk-col + .desk-col,
+.shell-tablet .desk-col + .desk-hidden + .desk-col {
   border-left: 1px solid var(--m-border);
 }
 
@@ -804,6 +807,14 @@ body {
   color: var(--m-ink);
   font-size: 16px;
   font-weight: 700;
+}
+/* The same bar across the top of a whole desk card, over both halves. The rows
+   are set so the halves, not the bar, take the card's spare height. */
+.shell-tablet .desk-card:has(> .desk-card-bar) {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.shell-tablet .desk-card-bar {
+  grid-column: 1 / -1;
 }
 
 /* ---- Pages that split themselves (.page-split): the card on their columns --
