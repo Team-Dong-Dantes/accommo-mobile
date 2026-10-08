@@ -42,8 +42,8 @@ const studentRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/student/StudentSettingsPage.vue'),
   },
   {
-    path: '/student/settings/policies',
-    component: () => import('@/pages/student/StudentPoliciesPage.vue'),
+    path: '/student/settings/terms',
+    component: () => import('@/pages/student/StudentTermsPage.vue'),
   },
   {
     path: '/student/profile/qr',

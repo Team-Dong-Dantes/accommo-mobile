@@ -63,8 +63,6 @@ import { LEGAL_DOCUMENTS, type LegalDocument, type LegalDocumentId } from '@/con
 // Per-document on purpose. The Terms and the Privacy Notice have their own
 // effective dates and their own columns on `users`, so revising one never
 // re-asks for the other, and accepting one never silently restamps the other.
-// OSAS publishing or editing a guideline can never trigger this at all:
-// guidelines are not part of the agreement.
 //
 // The comparison is against constants from the bundle, so the common case costs
 // one small query and renders nothing.

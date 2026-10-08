@@ -34,8 +34,8 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/manager/ManagerHistoryPage.vue'),
   },
   {
-    path: '/manager/settings/policies',
-    component: () => import('@/pages/manager/ManagerPoliciesPage.vue'),
+    path: '/manager/settings/terms',
+    component: () => import('@/pages/manager/ManagerTermsPage.vue'),
   },
   {
     path: '/manager/announcements',

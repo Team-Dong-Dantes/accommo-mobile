@@ -118,7 +118,9 @@ import { LEGAL_DOCUMENTS, type LegalDocumentId } from '@/constants/legal'
 // trustworthy: it cannot render empty because a row is missing, and it cannot
 // fail because the network dropped at the one moment consent is being given.
 // OSAS guidelines are a different thing entirely — regulations that apply rather
-// than a contract anyone signs — and live on the Policies screen under Settings.
+// than a contract anyone signs. They had their own section under Settings until
+// the feature was removed (20261008020000_drop_osas_policies.sql); that screen is
+// now Settings → Terms & Privacy and shows only these two documents.
 
 /** The consent each box gives; the document's own title completes the sentence. */
 const CONSENT_TEXT: Record<LegalDocumentId, string> = {

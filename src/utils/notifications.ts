@@ -31,7 +31,6 @@ const LOOK: Record<string, NotifLook> = {
   concern: { icon: 'lucide:wrench', tone: 'warn' },
   review: { icon: 'lucide:star', tone: 'good' },
   announcement: { icon: 'lucide:megaphone', tone: 'info' },
-  policy: { icon: 'lucide:scroll-text', tone: 'warn' },
 };
 
 export function notifLook(type: string | null | undefined): NotifLook {
@@ -52,13 +51,13 @@ const ROUTES = new Set([
   // there. Missing from this set, a link silently degrades to the BY_TYPE
   // fallback below and drops the reader somewhere unrelated.
   '/manager/profile/history',
-  '/manager/settings/policies',
+  '/manager/settings/terms',
   '/student/home',
   '/student/discover',
   '/student/messages',
   '/student/profile',
   '/student/profile/history',
-  '/student/settings/policies',
+  '/student/settings/terms',
   '/student/notifications',
   '/student/support',
   '/student/concerns',
@@ -87,7 +86,6 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/manager/osas',
     concern: '/manager/support',
     review: '/manager/profile',
-    policy: '/manager/settings/policies',
   },
   student: {
     message: '/student/messages',
@@ -100,7 +98,6 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/student/support',
     concern: '/student/concerns',
     review: '/student/profile',
-    policy: '/student/settings/policies',
   },
 };
 

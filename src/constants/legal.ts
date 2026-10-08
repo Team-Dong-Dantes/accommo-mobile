@@ -1,11 +1,11 @@
 // The Terms of Service and Privacy Notice, shipped with the app.
 //
-// These are NOT OSAS content and deliberately do not live in the `policies`
-// table: they are the agreement between a user and Accommo, so an administrator
-// must not be able to rewrite what people have already accepted, and the
-// register screen must never be able to render an empty consent dialog because a
-// row is missing, archived, or unreachable. OSAS policies, guidelines and house
-// rules are the editable ones and stay in the database.
+// These are NOT OSAS content and deliberately do not live in the database: they
+// are the agreement between a user and Accommo, so an administrator must not be
+// able to rewrite what people have already accepted, and the register screen
+// must never be able to render an empty consent dialog because a row is
+// missing, archived, or unreachable. (OSAS's own editable policies table was
+// removed in 20261008020000_drop_osas_policies.sql.)
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // DRAFT — must be reviewed by OSAS and by the university's legal counsel or Data

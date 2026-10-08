@@ -16,7 +16,7 @@ import { formatMonth } from '@/utils/format'
 import { LEGAL_DOCUMENTS, type LegalDocumentId } from '@/constants/legal'
 
 // The Terms of Service and Privacy Notice, straight from the bundle. Shared by
-// the register screen's consent dialog, the re-consent gate, and the Policies
+// the register screen's consent dialog, the re-consent gate, and the Terms & Privacy
 // screen — the last of which is the only place a signed-in user can go back and
 // re-read what they agreed to.
 //

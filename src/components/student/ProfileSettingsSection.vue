@@ -53,7 +53,7 @@
 
     <div class="settings-group">
       <p class="settings-group-label">About</p>
-      <SettingsRow icon="lucide:scroll-text" label="Policies &amp; guidelines" @click="go('/student/settings/policies')" />
+      <SettingsRow icon="lucide:scroll-text" label="Terms &amp; privacy" @click="go('/student/settings/terms')" />
       <SettingsRow icon="lucide:info" label="App version">
         <template #trailing>
           <span class="settings-static">{{ appVersion }}</span>
