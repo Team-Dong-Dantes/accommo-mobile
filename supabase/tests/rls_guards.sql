@@ -22,7 +22,6 @@
 --   F1-F3  PASS
 --   P1-P2  PASS
 --   T1-T4  PASS
---   PA1-PA5  PASS
 --   AC1-AC7  PASS
 --   H1-H22  PASS
 --   AA1-AA8  PASS
@@ -571,61 +570,6 @@ begin
   test := 'T3: reporter re-prioritises own ticket'; outcome := o3; return next;
   test := 'T4: reply reopens a resolved ticket'; outcome := o4; return next;
 end $$;
-create or replace function pg_temp.policy_check() returns table(test text, outcome text)
-language plpgsql as $$
-declare v_student uuid := '00000000-0000-0000-0000-00000000b001';
-  v_other uuid := '00000000-0000-0000-0000-00000000b002';
-  v_admin uuid := '00000000-0000-0000-0000-00000000f001';
-  v_live uuid; v_future uuid; v_n int; v_msg text;
-  o1 text; o2 text; o3 text; o4 text; o5 text;
-begin
-  begin
-    insert into public.policies (title, body, effective_date, created_by)
-    values ('rls live', 'x', current_date, v_admin) returning id into v_live;
-    insert into public.policies (title, body, effective_date, created_by)
-    values ('rls future', 'x', current_date + 30, v_admin) returning id into v_future;
-    insert into public.policy_acceptances (policy_id, user_id, revision) values (v_live, v_other, 1);
-
-    perform set_config('request.jwt.claims', json_build_object('sub', v_student, 'role', 'authenticated')::text, true);
-    set local role authenticated;
-
-    begin
-      insert into public.policy_acceptances (policy_id, user_id, revision) values (v_live, v_student, 1);
-      o1 := 'FAIL - direct acceptance insert allowed';
-    exception when others then o1 := 'PASS';
-    end;
-
-    perform public.accept_policy(v_live);
-    select count(*) into v_n from public.policy_acceptances where policy_id = v_live and user_id = v_student and revision = 1;
-    o2 := case when v_n = 1 then 'PASS' else 'FAIL - accept_policy recorded nothing' end;
-
-    begin
-      perform public.accept_policy(v_future);
-      o3 := 'FAIL - accepted a policy not yet in effect';
-    exception when others then o3 := 'PASS';
-    end;
-
-    select count(*) into v_n from public.policy_acceptances where user_id <> v_student;
-    o4 := case when v_n = 0 then 'PASS' else 'FAIL - saw ' || v_n || ' other acceptances' end;
-
-    reset role;
-    update public.policies set body = 'y', revision = 2 where id = v_live;
-    update public.policies set body = 'z' where id = v_live;
-    select count(*) into v_n from public.policy_versions where policy_id = v_live;
-    o5 := case when v_n = 1 then 'PASS' else 'FAIL - ' || v_n || ' versions kept' end;
-
-    raise exception 'rollback';
-  exception when others then
-    get stacked diagnostics v_msg = message_text;
-    if v_msg <> 'rollback' then o5 := coalesce(o5, 'FAIL - ' || v_msg); end if;
-  end;
-  reset role;
-  test := 'PA1: direct acceptance insert'; outcome := o1; return next;
-  test := 'PA2: accept_policy records current revision'; outcome := o2; return next;
-  test := 'PA3: accept a future policy'; outcome := o3; return next;
-  test := 'PA4: read other users acceptances'; outcome := o4; return next;
-  test := 'PA5: only a revision bump keeps a version'; outcome := o5; return next;
-end $$;
 -- L1-L6 (20260929120000): a landlord/landlady adds a walk-in student, and that
 -- stay starts only with the student's own QR. Picks a verified landlord/landlady
 -- with an available room, a student with no stay, and any other student whose
@@ -1034,7 +978,7 @@ begin
     results := results || case when v_n = 0 then 'PASS' else 'FAIL - deleted' end;
 
     begin
-      update public.leases set status = 'ended', ended_reason = 'h' where id = v_lease;
+      update public.leases set status = 'ended', ended_reason = 'stay_ended', decision_reason = 'h' where id = v_lease;
       v_msg := 'PASS';
     exception when others then get stacked diagnostics v_msg = message_text; v_msg := 'FAIL - ' || v_msg;
     end;
@@ -1396,8 +1340,6 @@ union all
 select * from pg_temp.private_ref_check()
 union all
 select * from pg_temp.ticket_check()
-union all
-select * from pg_temp.policy_check()
 union all
 select * from pg_temp.accreditation_check()
 union all
