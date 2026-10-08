@@ -26,7 +26,7 @@
     <div v-else class="manual-stage">
       <span class="manual-icon"><IconifyIcon icon="lucide:keyboard" width="28" /></span>
       <h2 class="manual-title">Enter code manually</h2>
-      <p class="manual-copy">Type the code from the student's ISU ID or QR.</p>
+      <p class="manual-copy">Type the student number from their ISU ID.</p>
       <div class="manual-row">
         <q-input id="manual-code" v-model="manualCode" outlined dense autofocus class="manual-input" placeholder="e.g. 2024-12345" @keyup.enter="lookupManual" />
         <q-btn unelevated no-caps color="primary" class="manual-btn" label="Look up" @click="lookupManual" />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, flatFees, isBillSettled, manilaToday, minPayment, nextLedgerRent, nextRentMonth, paymentTitle, referenceProblem, tenantMonthlyRent, toLedger, type RentPayment } from './payments'
+import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, buildStatement, dueNowRows, flatFees, isBillSettled, manilaToday, minPayment, nextLedgerRent, nextRentMonth, paymentTitle, referenceProblem, tenantMonthlyRent, toLedger, type RentPayment } from './payments'
 
 const rent = (month: string, status: string): RentPayment => ({ month, status, description: '' })
 
@@ -140,5 +140,44 @@ describe('tenantMonthlyRent', () => {
     expect(tenantMonthlyRent(1500, 'person', 4)).toBe(1500)
     expect(tenantMonthlyRent(3500, 'room', 1)).toBe(3500)
     expect(tenantMonthlyRent(3500, 'room', null)).toBe(3500)
+  })
+})
+
+describe('statement', () => {
+  const row = (kind: 'rent' | 'deposit' | 'bill', month: string | null, dueDate: string, due: number, paid: number, state: string, billId: string | null = null) =>
+    toLedger([{ kind, month, bill_id: billId, due_date: dueDate, due, confirmed: paid, pending: 0, waived: 0, balance: due - paid, state }])[0]!
+  const ledger = [
+    row('deposit', null, '2026-10-15', 3000, 3000, 'paid'),
+    row('rent', '2026-10-01', '2026-10-15', 3000, 3000, 'paid'),
+    row('rent', '2026-11-01', '2026-10-15', 3000, 0, 'overdue'),
+    row('rent', '2026-12-01', '2026-12-15', 3000, 0, 'unpaid'),
+    row('bill', '2026-10-01', '2026-10-25', 250, 0, 'unpaid', 'b1'),
+  ]
+  const payments = [
+    { id: 'p1', kind: 'rent', month: '2026-10-01', billId: null },
+    { id: 'p2', kind: 'deposit', month: '2026-10-01', billId: null },
+  ]
+
+  it('groups by month with the deposit in the first month and files payments under their item', () => {
+    const s = buildStatement(ledger, payments, '2026-10-15', '2026-10-20')
+    expect(s.map((m) => m.month)).toEqual(['2026-10-01', '2026-11-01', '2026-12-01'])
+    expect(s[0]!.items.map((i) => i.row.kind)).toEqual(['rent', 'deposit', 'bill'])
+    expect(s[0]!.items[0]!.payments.map((p) => p.id)).toEqual(['p1'])
+    expect(s[0]!.items[1]!.payments.map((p) => p.id)).toEqual(['p2'])
+    expect(s[0]!.settled).toBe(false)
+  })
+
+  it('marks the advance months and what is due, overdue or upcoming', () => {
+    const s = buildStatement(ledger, payments, '2026-10-15', '2026-10-20')
+    expect(s[1]!.items[0]!.advance).toBe(true)
+    expect(s[1]!.items[0]!.status).toBe('overdue')
+    expect(s[2]!.items[0]!.advance).toBe(false)
+    expect(s[2]!.items[0]!.status).toBe('upcoming')
+    expect(s[0]!.items[2]!.status).toBe('upcoming')
+  })
+
+  it('owes now what has fallen due; an ended stay owes all its rent and bills', () => {
+    expect(dueNowRows(ledger, '2026-10-20', false).map((r) => r.month)).toEqual(['2026-11-01'])
+    expect(dueNowRows(ledger, '2026-10-20', true).map((r) => r.kind)).toEqual(['rent', 'rent', 'bill'])
   })
 })

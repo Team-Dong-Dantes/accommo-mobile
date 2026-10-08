@@ -179,6 +179,7 @@ import ConfirmGate from '@/components/shared/ConfirmGate.vue'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
 import { countLeasesAwaitingManager } from '@/api/leases';
 import { pageTitleOverride } from '@/utils/pageTitle'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -237,7 +238,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     quickActions: [
       // Labelled by who answers, so a student picks the right one before opening it.
       { icon: 'lucide:shield-check', label: 'OSAS support', route: '/student/support' },
-      { icon: 'lucide:triangle-alert', label: 'Landlord/Landlady concerns', route: '/student/concerns' },
+      { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
     ],
     secondaryPages: [
       { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
@@ -343,6 +344,7 @@ const displayQuickActions = computed(() =>
 // and Settings up top, then the role's quick actions below, all in one card.
 // The third row is role-specific: a landlord/landlady scans student QR codes, a
 // student shows their own.
+const auth = useAuthStore()
 const accountActions = computed(() => {
   const profileRoute = config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home
   const items: QuickAction[] = [
@@ -351,11 +353,11 @@ const accountActions = computed(() => {
     // role path rather than profileRoute. Scanner/QR below genuinely are
     // profile screens and keep hanging off it.
     { icon: 'lucide:settings', label: 'Settings', route: `/${role.value}/settings` },
-    // Offered on web too; there the scanner is manual code entry only (see QRScanner).
-    role.value === 'manager'
-      ? { icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` }
-      : { icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` },
   ]
+  // Offered on web too; there the scanner is manual code entry only (see
+  // QRScanner). Verified landlords/landladies only — the database refuses the rest.
+  if (role.value !== 'manager') items.push({ icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` })
+  else if (auth.isVerifiedLandlord) items.push({ icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` })
   return items
 })
 

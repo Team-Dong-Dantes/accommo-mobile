@@ -24,64 +24,30 @@
         <p class="ps-empty">Nothing is owed on this stay right now.</p>
       </div>
 
-      <!-- Step 1: what is being paid. Every item is a card you tap to pick. -->
+      <!-- Step 1: what is being paid — everything owed, month by month, the
+           same order as the statement. What is due now starts ticked. -->
       <template v-else-if="step === 1">
         <div class="ps-body">
-          <!-- Rent is one card: how many months, oldest first (months are paid in order). -->
-          <div v-if="rentRows.length" class="ps-card" :class="{ 'ps-card--on': months > 0 }">
-            <button type="button" class="ps-card-main" :aria-pressed="months > 0" @click="toggleRent">
-              <span class="ps-radio" :class="{ 'ps-radio--on': months > 0 }"><IconifyIcon v-if="months > 0" icon="lucide:check" width="13" /></span>
+          <p v-if="rentRows.length > 1" class="ps-hint">Rent months are paid in order, oldest first.</p>
+          <section v-for="g in groups" :key="g.month" class="ps-group">
+            <h4 class="ps-group-name">{{ formatMonth(g.month) }}</h4>
+            <button
+              v-for="it in g.items"
+              :key="it.key"
+              type="button"
+              class="ps-card ps-card-main"
+              :class="{ 'ps-card--on': it.on }"
+              :aria-pressed="it.on"
+              @click="it.toggle"
+            >
+              <span class="ps-radio" :class="{ 'ps-radio--on': it.on }"><IconifyIcon v-if="it.on" icon="lucide:check" width="13" /></span>
               <span class="ps-card-body">
-                <span class="ps-card-name">Rent</span>
-                <span class="ps-card-note" :class="{ 'ps-late': rentLate }">{{ rentRange }}</span>
+                <span class="ps-card-name">{{ it.name }}</span>
+                <span class="ps-card-note" :class="{ 'ps-late': it.late }">{{ it.note }}</span>
               </span>
-              <span class="ps-card-amt">{{ formatPesoExact(months > 0 ? rentTotal : rentRows[0]!.balance) }}</span>
+              <span class="ps-card-amt">{{ formatPesoExact(it.amount) }}</span>
             </button>
-            <div v-if="months > 0" class="ps-stepper">
-              <span class="ps-stepper-label">Months</span>
-              <button type="button" class="ps-stepper-btn" :disabled="months <= 1" aria-label="One month less" @click="months--">
-                <IconifyIcon icon="lucide:minus" width="16" />
-              </button>
-              <span class="ps-stepper-value">{{ months }}</span>
-              <button type="button" class="ps-stepper-btn" :disabled="months >= rentRows.length" aria-label="One month more" @click="months++">
-                <IconifyIcon icon="lucide:plus" width="16" />
-              </button>
-            </div>
-          </div>
-
-          <button
-            v-for="b in bills"
-            :key="b.id"
-            type="button"
-            class="ps-card ps-card-main"
-            :class="{ 'ps-card--on': billIds.includes(b.id) }"
-            :aria-pressed="billIds.includes(b.id)"
-            @click="toggle(billIds, b.id)"
-          >
-            <span class="ps-radio" :class="{ 'ps-radio--on': billIds.includes(b.id) }"><IconifyIcon v-if="billIds.includes(b.id)" icon="lucide:check" width="13" /></span>
-            <span class="ps-card-body">
-              <span class="ps-card-name">{{ b.label }}</span>
-              <span class="ps-card-note" :class="{ 'ps-late': b.overdue }">{{ b.overdue ? 'Overdue since' : 'Due' }} {{ formatDate(b.dueDate) }}{{ b.partly ? ' · part paid' : '' }}</span>
-            </span>
-            <span class="ps-card-amt">{{ formatPesoExact(b.balance) }}</span>
-          </button>
-
-          <button
-            v-for="m in moveIn"
-            :key="m.kind"
-            type="button"
-            class="ps-card ps-card-main"
-            :class="{ 'ps-card--on': moveInPicked.includes(m.kind) }"
-            :aria-pressed="moveInPicked.includes(m.kind)"
-            @click="toggle(moveInPicked, m.kind)"
-          >
-            <span class="ps-radio" :class="{ 'ps-radio--on': moveInPicked.includes(m.kind) }"><IconifyIcon v-if="moveInPicked.includes(m.kind)" icon="lucide:check" width="13" /></span>
-            <span class="ps-card-body">
-              <span class="ps-card-name">{{ m.kind === 'advance' ? 'Advance' : 'Deposit' }}</span>
-              <span class="ps-card-note">{{ m.partly ? 'Part paid' : 'Paid once, on moving in' }}</span>
-            </span>
-            <span class="ps-card-amt">{{ formatPesoExact(m.balance) }}</span>
-          </button>
+          </section>
 
           <div v-if="payLess" class="ps-card ps-less">
             <label class="ps-field">
@@ -202,14 +168,13 @@ import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument } from '@/utils/upload'
-import { formatDate, formatPesoExact, landlordTitle, PAYMENT_METHOD_LABEL } from '@/utils/format'
+import { formatDate, formatMonth, formatPesoExact, landlordTitle, PAYMENT_METHOD_LABEL } from '@/utils/format'
 import { BILL_TAG, fileFingerprint, manilaToday, minPayment, normalizeReference, referenceProblem, toLedger, type LedgerRow } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
 
 // One sheet for everything owed on a stay — the student's "Pay" and the
-// landlord/landlady's "Log a payment". Rent months are chips (how many to pay),
-// bills and the advance/deposit are tick boxes, and the whole lot goes to
-// record_payments as one transfer.
+// landlord/landlady's "Log a payment". Everything owed is a tick box, grouped by
+// month, and the whole lot goes to record_payments as one transfer.
 const props = defineProps<{
   modelValue: boolean
   leaseId: string
@@ -221,6 +186,8 @@ const props = defineProps<{
   subtitle?: string
   /** An ended stay: only rent and bills are left to settle. */
   settleOnly?: boolean
+  /** The stay's move-in date: the rent due on it is the advance. */
+  startDate?: string
 }>()
 const emit = defineEmits<{ 'update:modelValue': [boolean]; submitted: [] }>()
 const notify = useNotify()
@@ -247,7 +214,7 @@ const who = computed(() => landlordTitle(landlordSex.value).toLowerCase())
 
 const months = ref(0)
 const billIds = ref<string[]>([])
-const moveInPicked = ref<('advance' | 'deposit')[]>([])
+const moveInPicked = ref<'deposit'[]>([])
 const payLess = ref(false)
 const amount = ref(0)
 const method = ref<Method>('gcash')
@@ -267,30 +234,21 @@ const rentRows = computed(() => ledger.value.filter((r) => r.kind === 'rent' && 
 const bills = computed(() =>
   ledger.value
     .filter((r) => r.kind === 'bill' && r.balance > 0.009 && r.billId)
-    .map((r) => {
-      const u = billMeta.value[r.billId as string]?.utility
-      return {
-        id: r.billId as string,
-        label: `${u ? BILL_TAG[u] : 'Bill'} · ${shortMonth(r.month)}`,
-        dueDate: r.dueDate ?? '',
-        overdue: r.state === 'overdue',
-        partly: r.balance + 0.009 < r.due,
-        balance: r.balance,
-      }
-    }),
+    .map((r) => ({ id: r.billId as string, overdue: r.state === 'overdue' })),
 )
 const moveIn = computed(() =>
   (props.settleOnly ? [] : ledger.value)
-    .filter((r): r is LedgerRow & { kind: 'advance' | 'deposit' } => (r.kind === 'advance' || r.kind === 'deposit') && r.balance > 0.009)
-    .map((r) => ({ kind: r.kind, balance: r.balance, partly: r.balance + 0.009 < r.due })),
+    .filter((r) => r.kind === 'deposit' && r.balance > 0.009)
+    .map((r) => ({ kind: 'deposit' as const, balance: r.balance, partly: r.balance + 0.009 < r.due })),
 )
 
 // The picked items in the order the money is applied to them (the database
-// uses the same order): rent, bills by due date, advance, deposit.
+// uses the same order): rent, bills by due date, deposit. The advance is no
+// item of its own: it is the first rent months, due on moving in.
 const picked = computed(() => [
   ...rentRows.value.slice(0, months.value),
   ...ledger.value.filter((r) => r.kind === 'bill' && billIds.value.includes(r.billId as string)),
-  ...(props.settleOnly ? [] : ledger.value.filter((r) => (r.kind === 'advance' || r.kind === 'deposit') && moveInPicked.value.includes(r.kind))),
+  ...(props.settleOnly ? [] : ledger.value.filter((r) => r.kind === 'deposit' && moveInPicked.value.includes('deposit'))),
 ])
 const total = computed(() => Math.round(picked.value.reduce((s, r) => s + r.balance, 0) * 100) / 100)
 const minAmount = computed(() => {
@@ -301,38 +259,59 @@ const minAmount = computed(() => {
 const canPayLess = computed(() => landlord.value || minAmount.value + 0.009 < total.value)
 const payAmount = computed(() => (payLess.value ? Number(amount.value) || 0 : total.value))
 
-// Rent is one card: the oldest `months` months still owed (months stay in order).
-const rentTotal = computed(() => Math.round(rentRows.value.slice(0, months.value).reduce((t, r) => t + r.balance, 0) * 100) / 100)
-const rentLate = computed(() => rentRows.value.slice(0, Math.max(months.value, 1)).some((r) => r.state === 'overdue'))
-const rentRange = computed(() => {
-  const rows = rentRows.value
-  if (!months.value) return `${shortMonth(rows[0]?.month, true)} is next · tap to add rent`
-  const first = rows[0]
-  const last = rows[months.value - 1]
-  const range = months.value === 1 ? shortMonth(first?.month, true) : `${shortMonth(first?.month)} – ${shortMonth(last?.month, true)}`
-  const late = rows.slice(0, months.value).filter((r) => r.state === 'overdue').length
-  const part = first && first.balance + 0.009 < first.due ? ` · ${formatPesoExact(first.balance)} left on ${shortMonth(first.month)}` : ''
-  return `${range}${late ? ` · ${late} overdue` : ''}${part}`
-})
-// Tapping the rent card turns it off, or back on at the months it had.
-let lastMonths = 1
-function toggleRent() {
-  if (months.value) {
-    lastMonths = months.value
-    months.value = 0
-  } else {
-    months.value = Math.min(lastMonths, rentRows.value.length)
-  }
+// Every item owed, grouped by month: rent, the deposit (in the month the stay
+// starts), then that month's bills. Rent goes oldest first, so ticking a month
+// ticks the ones before it and unticking one unticks the ones after.
+interface PickItem { key: string; name: string; note: string; late: boolean; amount: number; on: boolean; toggle: () => void }
+function rowNote(r: LedgerRow): string {
+  if (r.state === 'overdue') return `Overdue since ${formatDate(r.dueDate)}`
+  const when = r.kind === 'rent' && r.dueDate === props.startDate ? 'Due on moving in' : `Due ${formatDate(r.dueDate)}`
+  return r.balance + 0.009 < r.due ? `${formatPesoExact(r.balance)} left of ${formatPesoExact(r.due)} · ${when.toLowerCase()}` : when
 }
+const groups = computed(() => {
+  const byMonth = new Map<string, PickItem[]>()
+  const add = (month: string | null | undefined, item: PickItem) => {
+    const key = `${(month ?? props.startDate ?? today()).slice(0, 7)}-01`
+    byMonth.set(key, [...(byMonth.get(key) ?? []), item])
+  }
+  rentRows.value.forEach((r, i) => add(r.month, {
+    key: `rent-${r.month}`,
+    name: r.dueDate === props.startDate ? 'Rent · advance' : 'Rent',
+    note: rowNote(r),
+    late: r.state === 'overdue',
+    amount: r.balance,
+    on: i < months.value,
+    toggle: () => { months.value = i < months.value ? i : i + 1 },
+  }))
+  for (const m of moveIn.value) {
+    add(rentRows.value[0]?.month ?? props.startDate, {
+      key: 'deposit',
+      name: 'Deposit',
+      note: m.partly ? `${formatPesoExact(m.balance)} left · paid once, on moving in` : 'Paid once, on moving in',
+      late: false,
+      amount: m.balance,
+      on: moveInPicked.value.includes('deposit'),
+      toggle: () => toggle(moveInPicked.value, 'deposit'),
+    })
+  }
+  for (const b of ledger.value.filter((r) => r.kind === 'bill' && r.balance > 0.009 && r.billId)) {
+    const u = billMeta.value[b.billId as string]?.utility
+    add(b.month, {
+      key: `bill-${b.billId}`,
+      name: u ? BILL_TAG[u] : 'Utility bill',
+      note: rowNote(b),
+      late: b.state === 'overdue',
+      amount: b.balance,
+      on: billIds.value.includes(b.billId as string),
+      toggle: () => toggle(billIds.value, b.billId as string),
+    })
+  }
+  return [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, items]) => ({ month, items }))
+})
 function toggle<T>(list: T[], v: T) {
   const i = list.indexOf(v)
   if (i >= 0) list.splice(i, 1)
   else list.push(v)
-}
-
-function shortMonth(m: string | null | undefined, withYear = false): string {
-  if (!m) return ''
-  return new Date(`${m.slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', withYear ? { month: 'short', year: 'numeric' } : { month: 'short' })
 }
 
 const payTo = computed(() => {
@@ -395,8 +374,8 @@ watch(
         const { data: person } = await supabase.from('users').select('sex').eq('id', props.landlordId).maybeSingle()
         landlordSex.value = person?.sex ?? null
       }
-      // Rent due by today (at least the oldest month), overdue bills, and an
-      // unpaid advance/deposit start picked.
+      // Rent due by today (at least the oldest month; the advance months are
+      // due on moving in), overdue bills, and an unpaid deposit start picked.
       const due = rentRows.value.filter((r) => (r.dueDate ?? '') <= today() || r.state === 'overdue').length
       // An ended stay is settled as a whole: everything left starts picked.
       months.value = props.settleOnly ? rentRows.value.length : rentRows.value.length ? Math.max(due, 1) : 0
@@ -472,7 +451,8 @@ async function submit() {
       p_lease: props.leaseId,
       p_months: months.value,
       p_bills: billIds.value,
-      p_advance: !props.settleOnly && moveInPicked.value.includes('advance'),
+      // The advance is rent now (20261009010000); the parameter stays for older builds.
+      p_advance: false,
       p_deposit: !props.settleOnly && moveInPicked.value.includes('deposit'),
       p_method: method.value,
       ...(partial ? { p_amount: pay } : {}),
@@ -615,6 +595,20 @@ async function submit() {
   text-align: center;
 }
 
+.ps-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ps-group-name {
+  margin: 4px 0 0;
+  padding: 0 2px;
+  color: var(--m-ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
 /* Item cards: the whole card is the tap target. */
 .ps-card {
   display: flex;
@@ -690,45 +684,6 @@ button.ps-card-main:not(.ps-card) {
   font-weight: 600;
 }
 
-.ps-stepper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 14px;
-  padding: 10px 0 12px 34px;
-  border-top: 1px solid var(--m-border);
-}
-.ps-stepper-label {
-  flex: 1;
-  color: var(--m-muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-.ps-stepper-btn {
-  display: flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-ink);
-  cursor: pointer;
-}
-.ps-stepper-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.ps-stepper-value {
-  min-width: 24px;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 18px;
-  font-weight: 700;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
 
 .ps-less {
   gap: 12px;

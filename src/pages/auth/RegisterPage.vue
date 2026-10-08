@@ -509,6 +509,7 @@ import { capitalizeName, composeStudentId, isPhMobile, normalizePhPhone, phNatio
 import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAIL_DOMAINS_TEXT, isAllowedEmailDomain } from '@/utils/config';
 import { yearOptions, collegePrograms } from '@/constants/academics';
 import { checkDocument, type DocExpected } from '@/utils/docReading';
+import { manilaToday } from '@/utils/payments';
 
 const router = useRouter();
 const route = useRoute();
@@ -596,7 +597,7 @@ let createdUserId: string | null = null;
 const sexOptions = ['Male', 'Female'];
 
 /** Today, as yyyy-mm-dd, for the date input's own upper bound. */
-const today = new Date().toISOString().slice(0, 10);
+const today = manilaToday();
 
 // The database carries the same bounds (users_date_of_birth_plausible); these
 // exist so the person is told before the request is made, not after it fails.

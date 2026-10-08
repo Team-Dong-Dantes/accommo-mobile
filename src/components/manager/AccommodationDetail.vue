@@ -1152,6 +1152,7 @@ import {
   clampNum, clampOptional, partitionFacilities,
   nextFloorNumber as nextFloorNumberOf, nextRoomNumber as nextRoomNumberOf, sameRoomNumber,
 } from '@/utils/roomInventory'
+import { manilaToday } from '@/utils/payments'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
@@ -1299,7 +1300,7 @@ const draftMissing = computed(() => {
     missing.push('all four permits')
   } else {
     if (docRows.value.some((d) => !d.expires_at)) missing.push('an expiry date on every permit')
-    const today = new Date().toISOString().slice(0, 10)
+    const today = manilaToday()
     if (docRows.value.some((d) => d.expires_at && d.expires_at < today)) missing.push('permits that have not expired')
   }
   return missing

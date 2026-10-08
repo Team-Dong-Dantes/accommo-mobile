@@ -600,7 +600,7 @@ async function load(silent = false) {
       return {
         id: h.id,
         name: h.accommodation_name || 'Accommodation',
-        meta: [h.room_type, h.end_reason].filter(Boolean).join(' · ') || 'Stay',
+        meta: [h.room_type, titleCase(h.end_reason)].filter(Boolean).join(' · ') || 'Stay',
         period: period(h.period_start, h.period_end),
         roomType: h.room_type || '',
         endReason: h.end_reason || '',

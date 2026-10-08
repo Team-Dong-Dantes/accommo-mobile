@@ -16,8 +16,11 @@ export interface Stay {
   lat: number | null
   lng: number | null
   photoUrl: string
-  advancePaid: boolean
-  depositPaid: boolean
+  /**
+   * What moving in costs — the advance months of rent and the deposit, all due
+   * on the move-in date — and how much of it is left. Null when nothing is.
+   */
+  moveIn: { due: number; left: number } | null
 }
 
 export interface Manager {

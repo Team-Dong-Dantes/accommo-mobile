@@ -109,6 +109,16 @@ describe('landlord/landlady approval', () => {
       .toBe('/manager/properties')
   })
 
+  it.each(['pending', 'rejected', 'needs_resubmission'])('keeps a %s landlord/landlady off the QR scanner', (status) => {
+    expect(resolveDestination(student({ path: '/manager/profile/qr-scanner', role: 'manager', status })).to)
+      .toBe('/manager/profile')
+  })
+
+  it('lets a verified landlord/landlady scan', () => {
+    expect(resolveDestination(student({ path: '/manager/profile/qr-scanner', role: 'manager', status: 'verified' })).to)
+      .toBe(true)
+  })
+
   it('lets a verified landlord/landlady add an accommodation', () => {
     expect(resolveDestination(student({ path: '/manager/properties/new', role: 'manager', status: 'verified' })).to)
       .toBe(true)

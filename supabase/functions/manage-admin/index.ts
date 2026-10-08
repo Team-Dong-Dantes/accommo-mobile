@@ -120,12 +120,17 @@ Deno.serve(async (req) => {
       return json(200, { action });
     }
 
-    // remove_admin — revoke admin access but keep the account (demote to student).
+    // remove_admin — revoke admin access but keep the account. It used to keep
+    // its old status as a student with no student record; now it starts over
+    // the way admin_change_role leaves an account: unregistered, so their next
+    // sign-in picks a role and registers, and signed out everywhere now.
     const { error: updErr } = await userClient
       .from('users')
-      .update({ role: 'student', is_superadmin: false })
+      .update({ role: 'student', is_superadmin: false, status: 'pending', registered_at: null })
       .eq('id', target_id);
     if (updErr) return json(400, { error: updErr.message });
+    await userClient.from('admin_access').delete().eq('user_id', target_id);
+    await userClient.rpc('admin_sign_out_everywhere', { p_user: target_id });
     await audit('admin.removed', { role: 'student' });
     return json(200, { action });
   } catch (e) {

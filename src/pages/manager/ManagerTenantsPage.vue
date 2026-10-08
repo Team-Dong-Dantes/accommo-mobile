@@ -387,6 +387,7 @@
       v-model="paymentOpen"
       :lease-id="paymentLease?.id ?? ''"
       role="landlord"
+      :start-date="paymentLease?.startDate ?? ''"
       :subtitle="paymentLease ? `${paymentLease.studentName}${paymentLease.monthlyRent ? ` · ${formatPeso(paymentLease.monthlyRent)}/mo` : ''}` : ''"
       @submitted="load(true)"
     />

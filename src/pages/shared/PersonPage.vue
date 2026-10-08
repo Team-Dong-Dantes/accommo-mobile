@@ -249,13 +249,28 @@ onMounted(async () => {
       .select('full_name, initials, avatar_url, role, sex')
       .eq('id', targetId.value)
       .maybeSingle()
-    if (!user) throw new Error('That account no longer exists.')
 
-    person.name = user.full_name || 'Unknown'
-    person.initials = user.initials || initialsOf(person.name)
-    person.avatarUrl = user.avatar_url ? resolveAsset(user.avatar_url, AVATAR) : null
-    person.role = user.role ?? ''
-    person.sex = user.sex ?? null
+    if (user) {
+      person.name = user.full_name || 'Unknown'
+      person.initials = user.initials || initialsOf(person.name)
+      person.avatarUrl = user.avatar_url ? resolveAsset(user.avatar_url, AVATAR) : null
+      person.role = user.role ?? ''
+      person.sex = user.sex ?? null
+    } else if (scan.value) {
+      // users RLS (can_notify) hides anyone without a shared lease or
+      // conversation — exactly who a manager scans. The scan payload stands in.
+      person.name = scan.value.name
+      person.initials = scan.value.initials
+      person.avatarUrl = scan.value.avatarUrl
+      person.role = 'student'
+    } else {
+      // Hidden by RLS and deleted look the same from here, so say both.
+      throw new Error(
+        role.value === 'manager'
+          ? 'You can only view a student you have messaged or leased to. Scan their QR code to see their profile — or the account may have been deleted.'
+          : 'You can only view someone you have messaged or leased with. The account may also have been deleted.',
+      )
+    }
 
     // Readable only when a lease already links us; the scan payload covers the
     // case where it does not.

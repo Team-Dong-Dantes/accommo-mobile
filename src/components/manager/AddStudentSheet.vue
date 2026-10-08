@@ -78,6 +78,7 @@ import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
+import { manilaToday } from '@/utils/payments'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; added: [] }>()
@@ -86,7 +87,7 @@ const qrStore = useQrStore()
 const notify = useNotify()
 
 const isNative = Capacitor.isNativePlatform()
-const today = new Date().toISOString().slice(0, 10)
+const today = manilaToday()
 const studentNo = ref('')
 const student = ref<ScannedStudent | null>(null)
 const finding = ref(false)

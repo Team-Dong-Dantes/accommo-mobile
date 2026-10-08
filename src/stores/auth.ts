@@ -10,7 +10,7 @@ import type { Json } from '@/types/database.gen';
 
 // The database role enum says 'landlord'; this app's routes and folders say
 // 'manager' (`/manager/*`, `pages/manager/`). That split is deliberate and
-// documented in AGENTS.md — the role was renamed to Landlord/Landlady, but the
+// documented in the workspace CLAUDE.md — the role was renamed to Landlord/Landlady, but the
 // internal paths were left alone rather than churn 150+ references for
 // something no user reads. Map between the two at the DB boundary so routing
 // keeps working off 'manager' while everything stored stays 'landlord'.
@@ -264,6 +264,12 @@ export const useAuthStore = defineStore('auth', {
         })
         .eq('user_id', userId);
       if (profileError) throw sanitizeError(profileError);
+      // The other two paths (register, completeGoogleProfile) file these too;
+      // this one, the usual one, left OSAS's document review empty.
+      await this.submitStudentVerificationDocuments(userId, [
+        { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
+        { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
+      ]);
       await this.markRegistered();
       this.cachedRole = 'student';
     },
@@ -335,23 +341,12 @@ export const useAuthStore = defineStore('auth', {
 
       if (userError) throw sanitizeError(userError);
 
+      // A failed upload stops here, as on the password path. Swallowing it let a
+      // Google sign-up finish registering with no documents for OSAS to check.
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
-
-      if (form.schoolIdFile) {
-        try {
-          schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
-        } catch {
-          schoolIdUrl = null;
-        }
-      }
-      if (form.assessmentFile) {
-        try {
-          assessmentUrl = await uploadSecureDocument(form.assessmentFile);
-        } catch {
-          assessmentUrl = null;
-        }
-      }
+      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
+      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile);
 
       const { error: profileError } = await supabase
         .from('student_profiles')

@@ -78,14 +78,6 @@ export async function acceptAddedStudent(leaseId: string, code: string): Promise
   if (error) throw new Error(error.message)
 }
 
-/** Clears the invite once it has been used. */
-export async function clearApplicationInvite(conversationId: string): Promise<void> {
-  await supabase
-    .from('conversations')
-    .update({ invited_room_id: null, invited_at: null })
-    .eq('id', conversationId)
-}
-
 /**
  * Accept or decline a pending room application (a `leases` row with status 'pending').
  *

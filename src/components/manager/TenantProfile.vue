@@ -162,6 +162,27 @@
                 </button>
               </div>
             </div>
+            <div v-else-if="lease.status === 'active'" class="decide-box">
+              <div v-if="decisionReasonFor === 'end'" class="decide-reason">
+                <label class="decide-reason-label">
+                  Why is this stay ending?
+                  <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="The student sees this…" />
+                </label>
+                <p class="decide-note" style="margin: 0; text-align: left">End it when the term is over or they moved out. Terminate it only for breaking the house rules.</p>
+                <div class="decide-reason-actions">
+                  <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = ''">Cancel</button>
+                  <button type="button" class="decide-btn decide-btn--danger" :disabled="deciding || !decisionReason.trim()" @click="endStay(true)">Terminate</button>
+                  <button type="button" class="decide-btn" :disabled="deciding || !decisionReason.trim()" @click="endStay(false)">
+                    {{ deciding ? 'Ending…' : 'End stay' }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="decide">
+                <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'end'; decisionReason = ''">
+                  End stay
+                </button>
+              </div>
+            </div>
             <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && tenantReview" class="decide-box rated">
               <StarRating :model-value="tenantReview.rating" :size="16" />
               <span class="rated-label">You rated this tenant</span>
@@ -260,79 +281,57 @@
             <div class="sec-head">
               <h2 class="sec-title">Payments</h2>
               <button v-if="canPostBill" type="button" class="sec-link" @click="postBillOpen = true">Post utility bill</button>
-              <button v-if="payments.length > 3" type="button" class="sec-link" @click="paymentsExpanded = !paymentsExpanded">
-                {{ paymentsExpanded ? 'Show less' : `Show all (${payments.length})` }}
-              </button>
             </div>
 
-            <template v-if="owedItems.length">
+            <PaymentStatement
+              v-if="lease.status !== 'pending'"
+              :ledger="ledger"
+              :payments="payments"
+              :start-date="lease.startDate"
+              role="landlord"
+              :closed="lease.status === 'ended' || lease.status === 'terminated'"
+              can-pay
+              :bill-utility="billUtility"
+              :metered="canPostBill ? monthlyUtilities : []"
+              @pay="logOpen = true"
+              @open-payment="openPaymentDetail"
+              @forgive="forgiveRow"
+              @remove-bill="removeBill"
+              @post-bill="postBillOpen = true"
+            />
+
+            <template v-if="payments.length">
               <div class="owed-head">
-                <p class="pay-label bills-head">Owed</p>
-                <button type="button" class="sec-link" @click="logOpen = true">Log payment</button>
+                <p class="pay-label bills-head">Receipts</p>
+                <button v-if="payments.length > 3" type="button" class="sec-link" @click="paymentsExpanded = !paymentsExpanded">
+                  {{ paymentsExpanded ? 'Show less' : `Show all (${payments.length})` }}
+                </button>
               </div>
               <div class="group">
-                <div v-for="r in owedItems" :key="`${r.kind}-${r.month}`" class="pay-row">
+                <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row pay-row--tap" @click="openPaymentDetail(p)">
                   <div class="pay-row-main">
-                    <span class="pay-row-month">{{ ledgerLabel(r) }}</span>
-                    <span class="pay-row-amount">{{ formatPesoExact(r.balance) }}</span>
+                    <span class="pay-row-month">{{ paymentTitle(p) }}</span>
+                    <span class="pay-row-amount">{{ formatPesoExact(p.amount) }}</span>
                   </div>
                   <div class="pay-row-sub">
-                    <span class="pay-row-method" :class="{ 'bill-overdue': r.state === 'overdue' }">
-                      {{ r.balance + 0.009 < r.due ? `left of ${formatPesoExact(r.due)}` : r.state === 'overdue' ? 'Overdue' : 'Due' }}{{ r.dueDate && r.kind === 'rent' ? ` · due ${formatDate(r.dueDate)}` : '' }}
-                    </span>
-                    <span class="bill-actions">
-                      <button type="button" class="bill-remove" @click="openForgive(r)">Forgive</button>
+                    <span class="pay-row-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
+                    <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
+                      {{ statusText(PAYMENT_STATUS, p.status) }}
                     </span>
                   </div>
-                </div>
-              </div>
-            </template>
-
-            <div v-if="payments.length" class="group">
-              <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row pay-row--tap" @click="openPaymentDetail(p)">
-                <div class="pay-row-main">
-                  <span class="pay-row-month">{{ paymentTitle(p) }}</span>
-                  <span class="pay-row-amount">{{ formatPesoExact(p.amount) }}</span>
-                </div>
-                <div class="pay-row-sub">
-                  <span class="pay-row-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
-                  <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                    {{ statusText(PAYMENT_STATUS, p.status) }}
+                  <span v-if="p.status === 'pending_verification'" class="pay-row-review">
+                    Tap to review
+                    <IconifyIcon icon="lucide:chevron-right" width="13" />
                   </span>
-                </div>
-                <span v-if="p.status === 'pending_verification'" class="pay-row-review">
-                  Tap to review
-                  <IconifyIcon icon="lucide:chevron-right" width="13" />
-                </span>
-              </button>
-            </div>
-            <template v-if="unpaidBills.length">
-              <p class="pay-label bills-head">Unpaid utility bills</p>
-              <div class="group">
-                <div v-for="b in unpaidBills" :key="b.id" class="pay-row">
-                  <div class="pay-row-main">
-                    <span class="pay-row-month">{{ BILL_TAG[b.utility] }} · {{ formatMonth(b.month) }}</span>
-                    <span class="pay-row-amount">{{ formatPesoExact(billLeft(b)) }}</span>
-                  </div>
-                  <div class="pay-row-sub">
-                    <span class="pay-row-method" :class="{ 'bill-overdue': b.dueDate < today }">
-                      {{ b.dueDate < today ? 'Overdue since' : 'Due' }} {{ formatDate(b.dueDate) }}{{ b.note ? ` · ${b.note}` : '' }}
-                    </span>
-                    <span class="bill-actions">
-                      <button type="button" class="bill-cash" :disabled="!!billBusy" @click="recordBillCash(b)">Record cash</button>
-                      <button v-if="billLeft(b) + 0.009 < b.amount" type="button" class="bill-remove" :disabled="!!billBusy" @click="openForgiveBill(b)">Forgive</button>
-                      <button v-else type="button" class="bill-remove" :disabled="!!billBusy" @click="removeBill(b.id)">Remove</button>
-                    </span>
-                  </div>
-                </div>
+                </button>
               </div>
             </template>
             <EmptyState
-              v-else-if="!payments.length"
+              v-if="lease.status === 'pending'"
               variant="compact"
               icon="lucide:receipt"
               title="No payments yet"
-              message="Log a payment for this tenant from the tenants list to start their history."
+              message="Payments start once you accept this application."
             />
             </div>
             </Teleport>
@@ -399,6 +398,7 @@
       role="landlord"
       :subtitle="lease.studentName"
       :settle-only="lease.status === 'ended' || lease.status === 'terminated'"
+      :start-date="lease.startDate"
       @submitted="load(true)"
     />
 
@@ -439,6 +439,7 @@ import StarRating from '@/components/shared/StarRating.vue'
 import PostBillDialog from '@/components/manager/PostBillDialog.vue'
 import PaymentReviewSheet from '@/components/manager/PaymentReviewSheet.vue'
 import PaySheet from '@/components/shared/PaySheet.vue'
+import PaymentStatement from '@/components/shared/PaymentStatement.vue'
 import { BILL_TAG, isBillSettled, manilaToday, paymentTitle, toLedger, type LedgerRow } from '@/utils/payments'
 import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -473,9 +474,7 @@ const lease = reactive({
   email: '',
   phone: '',
   roomLabel: '',
-  accommodationId: '',
   accommodationName: '',
-  roomType: '',
   startDate: '',
   endDate: '',
   monthlyRent: 0,
@@ -529,12 +528,8 @@ async function setDueTerms(day: number | null, grace: number) {
   void loadLedger()
 }
 
-// Rent, advance and deposit still owed today (bills have their own list).
-const owedItems = computed(() =>
-  ledger.value.filter((r) => r.kind !== 'bill' && r.balance > 0.009 && (r.kind !== 'rent' || (r.dueDate ?? '') <= today || r.state === 'overdue')),
-)
 function ledgerLabel(r: LedgerRow): string {
-  return r.kind === 'advance' ? 'Advance' : r.kind === 'deposit' ? 'Deposit' : formatMonth(r.month)
+  return r.kind === 'deposit' ? 'Deposit' : formatMonth(r.month)
 }
 function billLeft(b: Bill): number {
   return ledger.value.find((r) => r.billId === b.id)?.balance ?? b.amount
@@ -551,6 +546,12 @@ function openForgive(r: LedgerRow) {
   forgiveTarget.value = { kind: r.kind, month: r.month, billId: null, balance: r.balance, label: r.kind === 'rent' ? `${ledgerLabel(r)} rent` : `the ${ledgerLabel(r).toLowerCase()}` }
   forgiveReason.value = ''
   forgiveOpen.value = true
+}
+// From the statement: a bill is forgiven by its own row, rent and the deposit by kind.
+function forgiveRow(r: LedgerRow) {
+  const b = r.kind === 'bill' ? bills.value.find((x) => x.id === r.billId) : undefined
+  if (b) openForgiveBill(b)
+  else openForgive(r)
 }
 function openForgiveBill(b: Bill) {
   forgiveTarget.value = { kind: 'bill', month: b.month, billId: b.id, balance: billLeft(b), label: `the ${BILL_TAG[b.utility].toLowerCase()} for ${formatMonth(b.month)}` }
@@ -587,6 +588,8 @@ const payments = ref<
   {
     id: string
     month: string
+    kind: string
+    billId: string | null
     amount: number
     status: string
     method: string
@@ -616,7 +619,8 @@ const monthlyUtilities = computed(() =>
 const canPostBill = computed(() => monthlyUtilities.value.length > 0 && (lease.status === 'active' || lease.status === 'leave_requested'))
 type Bill = { id: string; utility: UtilityKey; month: string; amount: number; note: string; dueDate: string; settled: boolean }
 const bills = ref<Bill[]>([])
-const unpaidBills = computed(() => bills.value.filter((b) => !b.settled).sort((a, b) => a.dueDate.localeCompare(b.dueDate)))
+// Which utility each bill is, for the statement's labels.
+const billUtility = computed(() => Object.fromEntries(bills.value.map((b) => [b.id, b.utility])))
 const postBillOpen = ref(false)
 const billBusy = ref('')
 const today = manilaToday()
@@ -668,9 +672,7 @@ async function load(silent = false) {
     lease.email = student?.email || ''
     lease.phone = student?.phone || ''
     lease.roomLabel = room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Room')
-    lease.accommodationId = room?.accommodation_id || ''
     lease.accommodationName = room?.accommodations?.name || 'Accommodation'
-    lease.roomType = room?.room_type || ''
 
     const cover = [...(room?.accommodations?.accommodation_images ?? [])].sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
@@ -689,7 +691,7 @@ async function load(silent = false) {
       supabase
         .from('payments')
         .select(
-          'id,month,amount,status,method,description,txn_reference,proof_url,paid_at,rejection_reason,note,promise_date,claimed_amount,undo_reason,receipt_no,verified_by_user:users!payments_verified_by_fkey(full_name)',
+          'id,month,amount,status,method,kind,bill_id,description,txn_reference,proof_url,paid_at,rejection_reason,note,promise_date,claimed_amount,undo_reason,receipt_no,verified_by_user:users!payments_verified_by_fkey(full_name)',
         )
         .eq('lease_id', leaseId.value)
         .order('month', { ascending: false }),
@@ -717,6 +719,8 @@ async function load(silent = false) {
     payments.value = (paymentRows ?? []).map((p) => ({
       id: p.id,
       month: p.month,
+      kind: p.kind,
+      billId: p.bill_id,
       amount: Number(p.amount),
       status: p.status,
       method: p.method,
@@ -759,7 +763,7 @@ async function load(silent = false) {
   }
 }
 
-const decisionReasonFor = ref<'' | 'reject' | 'keep'>('')
+const decisionReasonFor = ref<'' | 'reject' | 'keep' | 'end'>('')
 const decisionReason = ref('')
 
 async function decide(next: 'active' | 'rejected') {
@@ -783,37 +787,52 @@ async function approveLeave() {
   if (deciding.value) return
   deciding.value = true
   try {
-    const today = new Date().toISOString().slice(0, 10)
+    // The database stamps the end date (today in Manila) and writes the stay
+    // into the student's history (tg_lease_history), which rating it hangs off.
+    // That used to be a second request from here that could fail on its own and
+    // leave the student unable to rate the stay.
     const { error: updateError } = await supabase
       .from('leases')
-      .update({ status: 'ended', ended_reason: 'leave_approved', end_date: today })
+      .update({ status: 'ended', ended_reason: 'leave_approved' })
       .eq('id', leaseId.value)
     if (updateError) throw updateError
-
-    // This row is what the student's History screen lists, and rating a stay
-    // hangs off that list — so if it fails to write, the student can never
-    // review this stay. It used to be fired and forgotten; the approval itself
-    // has already gone through, so say what happened rather than claim the
-    // whole thing failed.
-    const { error: historyError } = await supabase.from('boarding_history').insert({
-      student_id: lease.studentId,
-      accommodation_id: lease.accommodationId,
-      accommodation_name: lease.accommodationName,
-      room_type: lease.roomType || null,
-      period_start: lease.startDate,
-      period_end: today,
-      end_reason: 'leave_approved',
-    })
-
     lease.status = 'ended'
-
-    if (historyError) {
-      notify.warning('Leave approved, but the stay was not added to their history — they will not be able to rate it.')
-    } else {
-      notify.success('Leave request approved.')
-    }
+    notify.success('Leave request approved.')
+    void load(true)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not approve the leave request.'))
+  } finally {
+    deciding.value = false
+  }
+}
+
+// The landlord/landlady closes a stay the student never asked to leave: the term
+// is over, they moved out without a word, or (terminate) they broke the house
+// rules. The student is told the reason; the database requires one.
+async function endStay(terminate: boolean) {
+  const reason = decisionReason.value.trim()
+  if (deciding.value || !reason) return
+  if (!(await confirmAction({
+    title: terminate ? 'Terminate this stay?' : 'End this stay?',
+    message: 'It ends today and the room is freed. The student sees your reason.',
+  }))) return
+  deciding.value = true
+  try {
+    const { error: updateError } = await supabase
+      .from('leases')
+      .update({
+        status: terminate ? 'terminated' : 'ended',
+        ended_reason: terminate ? 'terminated' : 'stay_ended',
+        decision_reason: reason,
+      })
+      .eq('id', leaseId.value)
+    if (updateError) throw updateError
+    lease.status = terminate ? 'terminated' : 'ended'
+    decisionReasonFor.value = ''
+    notify.success(terminate ? 'Stay terminated.' : 'Stay ended.')
+    void load(true)
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not end this stay.'))
   } finally {
     deciding.value = false
   }
@@ -849,30 +868,6 @@ async function removeBill(billId: string) {
     bills.value = bills.value.filter((b) => b.id !== billId)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not remove the bill.'))
-  } finally {
-    billBusy.value = ''
-  }
-}
-
-// The tenant paid this bill in cash, in person: log it already verified, the
-// way a cash rent payment is logged from the tenants list.
-async function recordBillCash(b: Bill) {
-  const left = billLeft(b)
-  if (!(await confirmAction({ title: `Record ${formatPesoExact(left)} in cash?`, message: `${BILL_TAG[b.utility]} for ${formatMonth(b.month)}.` }))) return
-  billBusy.value = b.id
-  try {
-    const { error: rpcError } = await supabase.rpc('record_payment', {
-      p_lease: leaseId.value,
-      p_kind: 'bill',
-      p_bill: b.id,
-      p_amount: left,
-      p_method: 'cash',
-    })
-    if (rpcError) throw rpcError
-    void load(true)
-    notify.success('Cash payment recorded.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not record this payment.'))
   } finally {
     billBusy.value = ''
   }
@@ -1475,32 +1470,6 @@ useLiveData({
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-}
-.bill-actions {
-  display: inline-flex;
-  gap: 12px;
-}
-.bill-overdue {
-  color: var(--m-danger);
-  font-weight: 700;
-}
-.bill-cash {
-  border: 0;
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-}
-.bill-remove {
-  border: 0;
-  background: transparent;
-  color: var(--m-danger);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
 }
 .pay-submit {
   min-height: 48px;

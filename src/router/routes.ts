@@ -4,8 +4,7 @@ import authRoutes from '@/router/auth';
 import managerRoutes from '@/router/manager';
 import studentRoutes from '@/router/student';
 
-// Feature screens are being rebuilt from docs/FEATURES.md. Add each screen to
-// its role's route file; MainLayout already carries the shell config for both.
+// Add each screen to its role's route file; MainLayout already carries the shell config for both.
 const routes: RouteRecordRaw[] = [
   {
     path: '/',

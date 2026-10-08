@@ -188,6 +188,7 @@ import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 import { errorMessage } from '@/utils/errors'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
+import { manilaToday } from '@/utils/payments'
 
 export interface AnnouncementDraft {
   /** One notice per house: the same text, addressed to each set of tenants. */
@@ -232,7 +233,7 @@ const form = reactive<AnnouncementDraft>({
 })
 
 /** Nothing can be scheduled into the past; the picker greys out earlier days. */
-const today = new Date().toISOString().slice(0, 10)
+const today = manilaToday()
 
 const detailsOpen = ref(false)
 const uploading = ref(false)

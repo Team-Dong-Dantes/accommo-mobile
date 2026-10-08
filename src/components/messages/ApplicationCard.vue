@@ -150,7 +150,7 @@
         </div>
         <div v-if="applyRoom.advanceMonths" class="sum-row">
           <dt>Advance</dt>
-          <dd>{{ applyRoom.advanceMonths }} month{{ applyRoom.advanceMonths === 1 ? '' : 's' }} · {{ formatPeso(monthlyDue * applyRoom.advanceMonths) }}</dd>
+          <dd>{{ applyRoom.advanceMonths === 1 ? 'first month' : `first ${applyRoom.advanceMonths} months` }} of rent · {{ formatPeso(monthlyDue * applyRoom.advanceMonths) }}</dd>
         </div>
         <div v-if="applyRoom.depositMonths" class="sum-row">
           <dt>Deposit</dt>
@@ -259,7 +259,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatDate, formatPeso, landlordTitle } from '@/utils/format'
-import { tenantMonthlyRent } from '@/utils/payments'
+import { manilaToday, tenantMonthlyRent } from '@/utils/payments'
 import { useNotify } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirmAction'
 import {
@@ -267,7 +267,6 @@ import {
   stampInquiryRoom,
   requestApplicationForm,
   issueApplicationForm,
-  clearApplicationInvite,
 } from '@/utils/applications'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
 import { UTILITIES, UTILITY_SELECT, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
@@ -341,7 +340,7 @@ const applicant = ref<{
 } | null>(null)
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+  return manilaToday()
 }
 
 function addMonths(dateStr: string, months: number): string {
@@ -524,6 +523,11 @@ async function runRefresh() {
     inquiryRoom.value = inquiryId ? { id: inquiryId, label: await fetchRoomLabel(inquiryId) } : null
   }
 
+  // A men's or women's house is said up front, not after the form is asked for.
+  if (props.role === 'student' && !applyBlocked.value && inquiryRoom.value) {
+    applyBlocked.value = await genderBlock(inquiryRoom.value.id)
+  }
+
   // The apply form opens only for a room the landlord/landlady has actually issued one for,
   // and only on the student's side — the landlord/landlady sees that it is out, not the form.
   invitedRoomId.value = convo?.invited_room_id ?? null
@@ -651,13 +655,29 @@ async function whyApplyBlocked(): Promise<string | null> {
     : 'OSAS needs to verify your account before you can request an application form.'
 }
 
+/**
+ * Who the house takes, against the student's sex on record — the same rule
+ * assert_gender_fits() holds the invite, the application and the acceptance to.
+ */
+async function genderBlock(roomId: string): Promise<string | null> {
+  const [{ data: room }, { data: me }] = await Promise.all([
+    supabase.from('rooms').select('accommodations(gender_policy)').eq('id', roomId).maybeSingle(),
+    supabase.from('users').select('sex').eq('id', props.me).maybeSingle(),
+  ])
+  const policy = (room?.accommodations as unknown as { gender_policy: string | null } | null)?.gender_policy
+  const sex = (me?.sex ?? '').trim().toUpperCase()
+  if (policy === 'male' && sex !== 'M') return 'This accommodation only takes male students.'
+  if (policy === 'female' && sex !== 'F') return 'This accommodation only takes female students.'
+  return null
+}
+
 async function submitApplication() {
   if (applying.value || !applyRoom.value) return
   applying.value = true
   try {
     // Re-asked at submit: OSAS may have paused applications since the card
     // loaded. All this buys is saying so in words before RLS says it in an error.
-    const blocked = await whyApplyBlocked()
+    const blocked = (await whyApplyBlocked()) ?? (await genderBlock(applyRoom.value.id))
     if (blocked) {
       applyBlocked.value = blocked
       notify.warning(blocked)
@@ -684,8 +704,7 @@ async function submitApplication() {
     if (insertError) throw insertError
 
     emit('system', `Applied for ${room.label} — move-in ${formatDate(applyForm.startDate)}.`)
-    // The form has been used up; a second one has to be issued again.
-    await clearApplicationInvite(props.conversationId)
+    // The form has been used up (tg_lease_uses_invite); a second one has to be issued again.
     invitedRoomId.value = null
     declined.value = null
     application.value = {

@@ -7,6 +7,7 @@
 // mobile data. Every path now goes through prepare → upload → save here.
 import { supabase } from '@/utils/supabase'
 import { uploadSecureDocument } from '@/utils/upload'
+import { manilaToday } from '@/utils/payments'
 
 export const PERMIT_TYPES = [
   { key: 'sanitary_permit', label: 'Sanitary permit' },
@@ -55,7 +56,7 @@ export function permitReplaceOpen(
   if (!expiresAt || flagged) return true
   const soon = new Date(today)
   soon.setDate(soon.getDate() + 30)
-  return expiresAt < soon.toISOString().slice(0, 10)
+  return expiresAt < manilaToday(soon)
 }
 
 /** "Oct 25, 2027" — a permit's date. Parsed as a calendar day, so no timezone shift. */

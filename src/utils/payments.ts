@@ -104,8 +104,9 @@ export function nextRentMonth(leaseStartDate: string, payments: RentPayment[]): 
 
 // ---- The server's ledger (lease_ledger(), 20261006070000) -------------------
 //
-// What is owed comes from the database — rent plus flat fees per month, the
-// advance and deposit — with confirmed and awaiting-confirmation totals. The
+// What is owed comes from the database — rent plus flat fees per month (the
+// advance months fall due on moving in) and the deposit — with confirmed and
+// awaiting-confirmation totals. The
 // database refuses any payment that breaks these rules; the helpers below only
 // let the form say so before the round trip.
 
@@ -188,4 +189,96 @@ export async function fileFingerprint(file: Blob): Promise<string | null> {
 export function tenantMonthlyRent(rent: number, basis: string | null | undefined, capacity: number | null | undefined): number {
   if (basis === 'person') return rent
   return Math.round((rent / Math.max(capacity || 1, 1)) * 100) / 100
+}
+
+// ---- The statement: the ledger by month (PaymentStatement.vue) ---------------
+
+/** What a payment row needs to be filed under the item it paid toward. */
+export interface StatementPayment {
+  id: string
+  kind: string
+  month: string
+  billId: string | null
+}
+
+export type StatementStatus = 'paid' | 'pending' | 'overdue' | 'partial' | 'due' | 'upcoming'
+
+export interface StatementItem<P extends StatementPayment = StatementPayment> {
+  key: string
+  row: LedgerRow
+  /** Rent due on moving in: the advance months (20261009010000). */
+  advance: boolean
+  status: StatementStatus
+  /** Payments toward this item, newest first — rejected and withdrawn ones included. */
+  payments: P[]
+}
+
+export interface StatementMonth<P extends StatementPayment = StatementPayment> {
+  /** YYYY-MM-01. */
+  month: string
+  items: StatementItem<P>[]
+  /** Nothing left to pay or confirm in it. */
+  settled: boolean
+}
+
+const ORDER: Record<LedgerRow['kind'], number> = { rent: 0, advance: 1, deposit: 2, bill: 3 }
+
+export function itemStatus(row: LedgerRow, today: string): StatementStatus {
+  if (row.state === 'paid') return 'paid'
+  if (row.state === 'pending') return 'pending'
+  if (row.state === 'overdue') return 'overdue'
+  if (row.balance + 0.009 < row.due) return 'partial'
+  return (row.dueDate ?? '') <= today ? 'due' : 'upcoming'
+}
+
+/**
+ * The ledger grouped by month, oldest first: rent, then the deposit (in the
+ * month the stay starts), then that month's bills. Each item carries the
+ * payments made toward it.
+ */
+export function buildStatement<P extends StatementPayment>(
+  ledger: LedgerRow[],
+  payments: P[],
+  startDate: string,
+  today: string,
+): StatementMonth<P>[] {
+  const byMonth = new Map<string, StatementItem<P>[]>()
+  const startMonth = `${startDate.slice(0, 7)}-01`
+  for (const row of ledger) {
+    const month = row.kind === 'deposit' || row.kind === 'advance' ? startMonth : `${(row.month ?? startDate).slice(0, 7)}-01`
+    const mine = payments
+      .filter((p) =>
+        row.kind === 'bill' ? p.billId === row.billId
+          : row.kind === 'rent' ? p.kind === 'rent' && p.month.slice(0, 7) === month.slice(0, 7)
+            : p.kind === row.kind,
+      )
+      .sort((a, b) => b.month.localeCompare(a.month))
+    const item: StatementItem<P> = {
+      key: `${row.kind}-${row.billId ?? month}`,
+      row,
+      advance: row.kind === 'rent' && row.dueDate === startDate,
+      status: itemStatus(row, today),
+      payments: mine,
+    }
+    byMonth.set(month, [...(byMonth.get(month) ?? []), item])
+  }
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, items]) => ({
+      month,
+      items: items.sort((a, b) => ORDER[a.row.kind] - ORDER[b.row.kind]),
+      settled: items.every((i) => i.status === 'paid'),
+    }))
+}
+
+/**
+ * What is owed now: everything past or at its due date, and — once a stay has
+ * ended — every rent month and bill left (what past_stay_balance() counts).
+ */
+export function dueNowRows(ledger: LedgerRow[], today: string, closed: boolean): LedgerRow[] {
+  return ledger.filter((r) => {
+    if (r.balance <= 0.009) return false
+    if (closed) return r.kind === 'rent' || r.kind === 'bill'
+    return (r.dueDate ?? '') <= today || r.state === 'overdue'
+  })
 }

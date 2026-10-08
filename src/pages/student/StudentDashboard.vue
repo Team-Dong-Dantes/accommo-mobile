@@ -68,7 +68,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, landlordTitle, LANDLORD_ROLE_LABEL } from '@/utils/format'
-import { BILL_TAG, isBillSettled, manilaToday } from '@/utils/payments'
+import { BILL_TAG, isBillSettled, manilaToday, toLedger } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
 import { ago } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
@@ -160,7 +160,7 @@ async function load(silent = false) {
     const { data: leaseRow, error: leaseError } = await supabase
       .from('leases')
       .select(
-        'id, status, start_date, end_date, monthly_rent, room_id, advance_paid, deposit_paid, rooms(room_number, label, monthly_rent, accommodations(id, name, landlord_id, lat, lng))',
+        'id, status, start_date, end_date, monthly_rent, room_id, rooms(room_number, label, monthly_rent, accommodations(id, name, landlord_id, lat, lng))',
       )
       .eq('student_id', user.id)
       .in('status', ['active', 'pending', 'leave_requested'])
@@ -212,8 +212,17 @@ async function load(silent = false) {
         lat: acc?.lat ?? null,
         lng: acc?.lng ?? null,
         photoUrl,
-        advancePaid: Boolean(leaseRow.advance_paid),
-        depositPaid: Boolean(leaseRow.deposit_paid),
+        moveIn: null,
+      }
+
+      // Read off the ledger. These used to come from leases.advance_paid and
+      // deposit_paid, which nothing ever writes, so both read "not yet paid"
+      // for every stay forever.
+      if (leaseRow.status !== 'pending') {
+        const { data: rows } = await supabase.rpc('lease_ledger', { p_lease: leaseRow.id })
+        const upFront = toLedger(rows).filter((r) => r.kind === 'deposit' || (r.kind === 'rent' && r.dueDate === leaseRow.start_date))
+        const due = upFront.reduce((s, r) => s + r.due, 0)
+        if (due > 0.009) stay.value.moveIn = { due, left: upFront.reduce((s, r) => s + r.balance, 0) }
       }
     } else {
       stay.value = null
@@ -354,21 +363,20 @@ async function load(silent = false) {
     }
 
     if (stay.value) {
-      for (const p of [
-        { id: 'deposit', label: 'Security deposit', paid: stay.value.depositPaid },
-        { id: 'advance', label: 'Advance payment', paid: stay.value.advancePaid },
-      ]) {
+      const moveIn = stay.value.moveIn
+      if (moveIn) {
+        const paid = moveIn.left <= 0.009
         list.push({
-          id: p.id,
-          icon: p.paid ? 'lucide:check-circle' : 'lucide:circle-dashed',
+          id: 'move-in',
+          icon: paid ? 'lucide:check-circle' : 'lucide:circle-dashed',
           kind: 'Move-in',
-          label: p.label,
-          hint: p.paid ? 'Paid' : 'Not yet recorded as paid',
+          label: 'Advance and deposit',
+          hint: paid ? 'Paid' : `${formatPesoExact(moveIn.left)} of ${formatPesoExact(moveIn.due)} left`,
           when: '',
-          action: p.paid ? '' : 'Pay now',
+          action: paid ? '' : 'Pay now',
           route: '/student/payments',
-          tone: p.paid ? 'done' : 'warn',
-          rank: p.paid ? 99 : 2,
+          tone: paid ? 'done' : 'warn',
+          rank: paid ? 99 : 2,
         })
       }
 

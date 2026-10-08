@@ -133,7 +133,18 @@ Deno.serve(async (req) => {
         }
         return json({ already_admin: true, id: existing.id, message: 'Already an administrator.' });
       }
-      // Promote an existing non-admin (student / accommodation manager) to administrator.
+      // Promote an existing non-admin (student / landlord/landlady) to administrator.
+      // Only one with nothing running: an admin passes every lease and payment
+      // guard, so a landlord/landlady promoted with tenants would be judging their
+      // own stays. admin_change_role holds role changes to the same rule.
+      const [{ count: leases }, { count: listings }] = await Promise.all([
+        serviceClient.from('leases').select('id', { count: 'exact', head: true })
+          .or(`student_id.eq.${existing.id},landlord_id.eq.${existing.id}`)
+          .in('status', ['active', 'pending', 'leave_requested']),
+        serviceClient.from('accommodations').select('id', { count: 'exact', head: true }).eq('landlord_id', existing.id),
+      ]);
+      if (leases) return fail('That account has a current stay or application. It has to end first.', 409);
+      if (listings) return fail('That account still owns accommodations. Remove or transfer them first.', 409);
       const { error: updErr } = await userClient
         .from('users')
         .update({ role: 'admin', is_superadmin: false, onboarding_complete: true })

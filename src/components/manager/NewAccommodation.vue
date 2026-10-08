@@ -361,6 +361,7 @@ import { AMENITY_META, AMENITY_KEYS, BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL } 
 import { to12Hour } from '@/utils/format'
 import { capturePhoto } from '@/utils/camera'
 import type { Database } from '@/types/database.gen'
+import { manilaToday } from '@/utils/payments'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
@@ -392,7 +393,7 @@ const uploadingPhotos = ref(false)
 const photos = ref<{ url: string }[]>([])
 const permits = reactive<Record<string, UploadedPermit>>({})
 const permitExpiry = reactive<Record<string, string>>({})
-const today = new Date().toISOString().slice(0, 10)
+const today = manilaToday()
 const uploadingPermit = ref('')
 
 const attachedPermits = computed(() => DOC_TYPES.filter((d) => permits[d.key]).length)

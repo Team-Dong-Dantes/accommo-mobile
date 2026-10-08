@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       accommodation_amenities: {
@@ -393,6 +418,7 @@ export type Database = {
           reviews_count: number | null
           room_type: Database["public"]["Enums"]["room_type"] | null
           status: Database["public"]["Enums"]["accommodation_status"]
+          status_note: string | null
           total_floors: number | null
           total_rooms: number | null
         }
@@ -424,6 +450,7 @@ export type Database = {
           reviews_count?: number | null
           room_type?: Database["public"]["Enums"]["room_type"] | null
           status: Database["public"]["Enums"]["accommodation_status"]
+          status_note?: string | null
           total_floors?: number | null
           total_rooms?: number | null
         }
@@ -455,6 +482,7 @@ export type Database = {
           reviews_count?: number | null
           room_type?: Database["public"]["Enums"]["room_type"] | null
           status?: Database["public"]["Enums"]["accommodation_status"]
+          status_note?: string | null
           total_floors?: number | null
           total_rooms?: number | null
         }
@@ -2804,6 +2832,10 @@ export type Database = {
       }
       archive_expired_announcements: { Args: never; Returns: number }
       assert_admin_over: { Args: { p_user: string }; Returns: undefined }
+      assert_gender_fits: {
+        Args: { p_room: string; p_student: string }
+        Returns: undefined
+      }
       audit_entry: { Args: { p_id: string }; Returns: Json }
       audit_json: {
         Args: { a: Database["public"]["Tables"]["audit_logs"]["Row"] }
@@ -2964,6 +2996,7 @@ export type Database = {
         }
         Returns: string
       }
+      owed_on_past_stays: { Args: { p_student: string }; Returns: number }
       past_stay_balance: { Args: { p_student: string }; Returns: number }
       payment_covered: {
         Args: {
@@ -3121,6 +3154,11 @@ export type Database = {
       sweep_expired_accreditations: { Args: never; Returns: undefined }
       sweep_expired_permits: { Args: never; Returns: undefined }
       sync_accommodation_totals: { Args: { p_id: string }; Returns: undefined }
+      tenant_of_accommodation: {
+        Args: { p_accommodation: string }
+        Returns: boolean
+      }
+      tenant_of_room: { Args: { p_room: string }; Returns: boolean }
       touch_last_active: { Args: never; Returns: undefined }
       verify_student_qr: { Args: { p_code: string }; Returns: Json }
       waive_balance: {
@@ -3320,6 +3358,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       accommodation_status: [

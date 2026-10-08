@@ -120,17 +120,13 @@ export function resolveDestination(s: GuardState): GuardDecision {
   if (s.role === 'admin') return go('/login?adminUsesWeb=true', true)
 
   // A landlord/landlady uses the app before OSAS verifies them — pending, or sent
-  // back for changes — and only adding inventory waits. The one screen that
-  // exists for nothing else is the new-accommodation form, so it bounces to the
-  // list, where the reason is shown. Only on a status actually read: a failed
-  // lookup (status null) must not lock a verified account out.
-  if (
-    s.role === 'manager' &&
-    s.status !== null &&
-    s.status !== 'verified' &&
-    s.path === '/manager/properties/new'
-  ) {
-    return go('/manager/properties')
+  // back for changes — and only adding inventory and scanning student QR codes
+  // wait (the database refuses both). Those screens bounce to where the reason
+  // is shown. Only on a status actually read: a failed lookup (status null) must
+  // not lock a verified account out.
+  if (s.role === 'manager' && s.status !== null && s.status !== 'verified') {
+    if (s.path === '/manager/properties/new') return go('/manager/properties')
+    if (s.path === '/manager/profile/qr-scanner') return go('/manager/profile')
   }
 
   if (s.path.startsWith('/student') && s.role !== 'student') {

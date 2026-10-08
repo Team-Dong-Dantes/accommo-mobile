@@ -49,6 +49,7 @@ import { capturePhoto } from '@/utils/camera'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { expiryProblem, permitLabel, savePermitVersion, uploadPermitFile } from '@/utils/permits'
+import { manilaToday } from '@/utils/payments'
 
 const props = defineProps<{
   modelValue: boolean
@@ -65,7 +66,7 @@ const notify = useNotify()
 const file = ref<File | null>(null)
 const expiresAt = ref('')
 const busy = ref(false)
-const today = new Date().toISOString().slice(0, 10)
+const today = manilaToday()
 
 watch(() => props.modelValue, (open) => {
   if (!open) return

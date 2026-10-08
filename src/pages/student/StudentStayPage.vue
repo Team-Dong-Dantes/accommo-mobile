@@ -81,14 +81,6 @@
                         <span class="rule-label">Monthly rent</span>
                         <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
                       </div>
-                      <div v-if="lease.advancePaid" class="rule">
-                        <span class="rule-label">Advance paid</span>
-                        <span class="rule-value">{{ formatPeso(lease.advancePaid) }}</span>
-                      </div>
-                      <div v-if="lease.depositPaid" class="rule">
-                        <span class="rule-label">Deposit paid</span>
-                        <span class="rule-value">{{ formatPeso(lease.depositPaid) }}</span>
-                      </div>
                       <div v-for="u in UTILITIES" :key="u.key" class="rule">
                         <span class="rule-label">{{ u.label }}</span>
                         <span class="rule-value">{{ utilityTermsLabel(lease.utilities[u.key]) }}</span>
@@ -183,46 +175,25 @@
                   </span>
                   <button type="button" class="past-owed-btn" @click="pastPay = o">Pay</button>
                 </div>
-                <div v-if="lease" class="pay-head">
-                  <span class="pay-head-label">Expected rent</span>
-                  <span class="pay-head-rent">{{ formatPeso(lease.monthlyRent) }}<span class="pay-head-per">/mo</span></span>
-                  <span class="pay-head-sub">{{ lease.roomLabel || 'Your room' }} · {{ lease.accommodationName }}</span>
-                  <p v-if="owedNow > 0.009" class="pay-head-owed" :class="{ 'pay-head-owed--overdue': hasOverdue }">
-                    {{ formatPesoExact(owedNow) }} owed now{{ hasOverdue ? ' · overdue' : '' }}
-                  </p>
-                  <p v-if="leaseClosed" class="pay-head-note">This stay has ended. Settle what's left to be able to apply for a new room.</p>
-                  <div v-if="canPay && (canPayAdvance || canPayDeposit || unpaidBills.length)" class="pay-dues">
-                    <div v-for="b in unpaidBills" :key="b.id" class="pay-due">
-                      <span class="pay-due-body">
-                        <span class="pay-due-label">{{ BILL_TAG[b.utility] }} · {{ formatMonth(b.month) }}</span>
-                        <span class="pay-due-note" :class="{ 'pay-due-note--overdue': b.overdue }">
-                          {{ billNote(b) }} · {{ b.overdue ? 'overdue since' : 'due' }} {{ formatDate(b.dueDate) }}{{ b.note ? ` · ${b.note}` : '' }}
-                        </span>
-                      </span>
-                    </div>
-                    <div v-if="canPayAdvance && !leaseClosed" class="pay-due">
-                      <span class="pay-due-body">
-                        <span class="pay-due-label">Advance</span>
-                        <span class="pay-due-note">{{ itemNote('advance') }}</span>
-                      </span>
-                    </div>
-                    <div v-if="canPayDeposit && !leaseClosed" class="pay-due">
-                      <span class="pay-due-body">
-                        <span class="pay-due-label">Deposit</span>
-                        <span class="pay-due-note">{{ itemNote('deposit') }}</span>
-                      </span>
-                    </div>
-                  </div>
-                  <button v-if="canPay && (!leaseClosed || owedNow > 0.009)" type="button" class="pay-head-btn" @click="payOpen = true">
-                    <IconifyIcon icon="lucide:wallet" width="16" />
-                    Pay
-                  </button>
-                  <p v-else-if="!canPay" class="pay-head-note">You'll be able to pay once your application is accepted.</p>
-                </div>
+                <PaymentStatement
+                  v-if="lease && canPay"
+                  :ledger="ledger"
+                  :payments="currentLeasePayments"
+                  :start-date="lease.startDate"
+                  role="student"
+                  :closed="leaseClosed"
+                  can-pay
+                  :bill-utility="billUtility"
+                  :metered="metered"
+                  @pay="payOpen = true"
+                  @open-payment="openPaymentDetail"
+                />
+                <p v-else-if="lease" class="pay-head-note">You'll be able to pay once your application is accepted.</p>
+                <p v-if="leaseClosed" class="pay-head-note">This stay has ended. Settle what's left to be able to apply for a new room.</p>
 
                 <section class="sec">
                   <div class="sec-head">
-                    <h2 class="sec-title">{{ showAllPayments ? 'All payments' : 'History' }}</h2>
+                    <h2 class="sec-title">{{ showAllPayments ? 'All payments' : 'Receipts' }}</h2>
                     <button v-if="hasOtherLeasePayments" type="button" class="sec-link" @click="showAllPayments = !showAllPayments">
                       {{ showAllPayments ? 'Current room only' : 'View all payments' }}
                     </button>
@@ -287,6 +258,7 @@
       :allow-partial="lease.allowPartial"
       :partial-min-pct="lease.partialMinPct"
       :settle-only="leaseClosed"
+      :start-date="lease.startDate"
       @submitted="load(true)"
     />
     <PaySheet
@@ -399,7 +371,6 @@ import {
   formatPeso,
   formatPesoExact,
   formatDate,
-  formatMonth,
   initialsOf,
   landlordTitle,
   LEASE_STATUS,
@@ -412,9 +383,8 @@ import { useNotify } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirmAction'
 import { signRows } from '@/utils/upload'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { AMENITY_META, UTILITIES, UTILITY_SELECT, roomTypeLabel, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
+import { AMENITY_META, UTILITIES, UTILITY_SELECT, isBilledMonthly, roomTypeLabel, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
 import {
-  BILL_TAG,
   isBillSettled,
   manilaToday,
   paymentTitle,
@@ -423,6 +393,7 @@ import {
 } from '@/utils/payments'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import PaySheet from '@/components/shared/PaySheet.vue'
+import PaymentStatement from '@/components/shared/PaymentStatement.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { POLICY_FULL } from '@/api/selects'
 
@@ -450,11 +421,9 @@ interface Lease {
   roomLabel: string
   status: 'active' | 'pending' | 'leave_requested' | 'ended' | 'terminated'
   monthlyRent: number
-  advancePaid: number
   /** The landlord/landlady's partial-payment terms for this stay. */
   allowPartial: boolean
   partialMinPct: number
-  depositPaid: number
   startDate: string
   endDate: string
   roomType: string
@@ -482,6 +451,8 @@ interface Payment {
   id: string
   leaseId: string
   month: string
+  kind: string
+  billId: string | null
   amount: number
   status: string
   method: string
@@ -512,9 +483,11 @@ const error = ref('')
 const lease = ref<Lease | null>(null)
 const payments = ref<Payment[]>([])
 const bills = ref<Bill[]>([])
-// Bills still owed on the current stay, soonest due first.
-const unpaidBills = computed(() =>
-  bills.value.filter((b) => !b.settled && b.leaseId === lease.value?.id).sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+// Which utility each bill is, for the statement's labels.
+const billUtility = computed(() => Object.fromEntries(bills.value.map((b) => [b.id, b.utility])))
+// Utilities this stay bills monthly (own meter or split), for "not posted yet".
+const metered = computed(() =>
+  lease.value ? UTILITIES.filter((u) => isBilledMonthly(lease.value!.utilities[u.key].billing)).map((u) => ({ key: u.key, label: u.label })) : [],
 )
 const showAllPayments = ref(false)
 
@@ -556,39 +529,6 @@ async function loadLedger() {
 }
 // A stay that ended with something still owed: shown so it can be settled.
 const leaseClosed = computed(() => lease.value?.status === 'ended' || lease.value?.status === 'terminated')
-// What is owed today — rent up to this month, bills, advance and deposit.
-const owedNow = computed(() => {
-  const today = manilaToday()
-  return ledger.value
-    // Once a stay has ended, everything left on it is owed now — the same sum
-    // past_stay_balance() blocks applying on — not only what is past due.
-    .filter((r) => r.kind !== 'rent' || leaseClosed.value || (r.dueDate ?? '') <= today || r.state === 'overdue')
-    .filter((r) => !leaseClosed.value || r.kind === 'rent' || r.kind === 'bill')
-    .reduce((sum, r) => sum + r.balance, 0)
-})
-const hasOverdue = computed(() => ledger.value.some((r) => r.state === 'overdue'))
-function billNote(b: Bill): string {
-  const row = ledger.value.find((r) => r.billId === b.id)
-  return row && row.balance + 0.009 < row.due ? `${formatPesoExact(row.balance)} of ${formatPesoExact(row.due)} left` : formatPesoExact(b.amount)
-}
-
-const ledgerItem = (kind: 'advance' | 'deposit') => ledger.value.find((r) => r.kind === kind)
-const canPayItem = (kind: 'advance' | 'deposit', fallback: boolean) => {
-  const row = ledgerItem(kind)
-  return ledger.value.length ? Boolean(row && row.balance > 0.009) : fallback
-}
-/** "₱2,500 · not yet paid", "₱1,250 of ₱2,500 left", or "Awaiting confirmation". */
-function itemNote(kind: 'advance' | 'deposit'): string {
-  const row = ledgerItem(kind)
-  if (!row) return 'Not yet paid'
-  if (row.pending > 0) return 'Awaiting confirmation'
-  return row.balance + 0.009 < row.due ? `${formatPesoExact(row.balance)} of ${formatPesoExact(row.due)} left` : `${formatPesoExact(row.due)} · not yet paid`
-}
-const canPayAdvance = computed(() => canPayItem('advance', Boolean(lease.value && !lease.value.advancePaid)))
-const canPayDeposit = computed(() => canPayItem('deposit', Boolean(lease.value && !lease.value.depositPaid)))
-
-
-
 const paymentDetailOpen = ref(false)
 const selectedPayment = ref<Payment | null>(null)
 function openPaymentDetail(p: Payment) {
@@ -599,7 +539,7 @@ function openPaymentDetail(p: Payment) {
 // A pending application isn't an accepted lease yet, so there's nothing to pay.
 const canPay = computed(() => lease.value?.status !== 'pending')
 
-const LEASE_SELECT = `id, room_id, status, start_date, end_date, monthly_rent, advance_paid, deposit_paid, allow_partial, partial_min_pct, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`
+const LEASE_SELECT = `id, room_id, status, start_date, end_date, monthly_rent, allow_partial, partial_min_pct, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -632,7 +572,7 @@ async function load(silent = false) {
       supabase
         .from('payments')
         .select(
-          'id, lease_id, month, amount, status, method, description, txn_reference, proof_url, paid_at, rejection_reason, note, promise_date, claimed_amount, undo_reason, receipt_no, verified_by_user:users!payments_verified_by_fkey(full_name), leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
+          'id, lease_id, month, amount, status, method, kind, bill_id, description, txn_reference, proof_url, paid_at, rejection_reason, note, promise_date, claimed_amount, undo_reason, receipt_no, verified_by_user:users!payments_verified_by_fkey(full_name), leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
         )
         .eq('leases.student_id', user.id)
         .order('month', { ascending: false }),
@@ -668,6 +608,8 @@ async function load(silent = false) {
         id: p.id,
         leaseId: p.lease_id,
         month: p.month,
+        kind: p.kind,
+        billId: p.bill_id,
         amount: Number(p.amount),
         status: p.status,
         method: p.method,
@@ -778,8 +720,6 @@ async function load(silent = false) {
       roomLabel: room?.label || (room?.room_number ? `Room ${room.room_number}` : ''),
       status: leaseRow.status as Lease['status'],
       monthlyRent: Number(leaseRow.monthly_rent ?? 0),
-      advancePaid: Number(leaseRow.advance_paid ?? 0),
-      depositPaid: Number(leaseRow.deposit_paid ?? 0),
       allowPartial: Boolean(leaseRow.allow_partial),
       partialMinPct: Number(leaseRow.partial_min_pct ?? 50),
       startDate: leaseRow.start_date,
@@ -1325,51 +1265,6 @@ function onPull(done: () => void) {
   color: var(--m-text);
 }
 
-.pay-head {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.pay-head-label {
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.pay-head-rent {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.pay-head-per {
-  font-size: 13px;
-  font-weight: 600;
-  opacity: 0.7;
-}
-.pay-head-sub {
-  color: var(--m-muted);
-  font-size: 12.5px;
-}
-.pay-head-btn {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 9px 16px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
 .pay-head-note {
   margin: 10px 0 0;
   color: var(--m-muted);
@@ -1414,15 +1309,6 @@ function onPull(done: () => void) {
   font-size: 13.5px;
   font-weight: 700;
 }
-.pay-head-owed {
-  margin: 8px 0 0;
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-.pay-head-owed--overdue {
-  color: var(--m-danger);
-}
 .detail-withdraw {
   min-height: 44px;
   border: 0;
@@ -1430,53 +1316,6 @@ function onPull(done: () => void) {
   color: var(--m-danger);
   font: inherit;
   font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-dues {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}
-.pay-due {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.pay-due-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.pay-due-label {
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-.pay-due-note {
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.pay-due-note--overdue {
-  color: var(--m-danger);
-  font-weight: 700;
-}
-.pay-due-action {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 1px;
-  color: var(--m-primary-dark);
-  font-size: 12.5px;
   font-weight: 700;
 }
 
