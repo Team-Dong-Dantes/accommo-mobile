@@ -29,21 +29,41 @@ export function formatPesoExact(amount: number): string {
 
 /**
  * Capitalises the first letter of each part of a name, leaving the rest of each
- * word exactly as typed.
+ * word exactly as typed — unless the word was typed in capitals.
  *
  * Fixing the input beats refusing it: someone typing "juan dela cruz" in a hurry
  * gets "Juan Dela Cruz" rather than a red field telling them to try again.
  *
  * It fires after a space, an apostrophe or a hyphen as well as at the start, so
- * "o'brien" and "mary-jane" come out right. Nothing is lower-cased, which is
- * what keeps "McDonald" and "DeGuzman" intact — only a leading lowercase letter
- * is ever touched.
+ * "o'brien" and "mary-jane" come out right. Mixed case is left alone, which is
+ * what keeps "McDonald" and "DeGuzman" intact.
+ *
+ * A run of two or more capitals is lowered first: "ALEXA JOY E. BALDOZ" and
+ * "MA. YZAVEL" reached the OSAS queue that way, from a held Caps Lock, and
+ * capitalising alone left them as they were. Roman numerals ("III") are not
+ * shouting and are spared; a lone capital is an initial and is never touched.
+ * The cost is "McDONALD" → "Mcdonald", which nobody types on purpose.
  */
 export function capitalizeName(value: string): string {
-  return (value ?? '').replace(
-    /(^|[\s'-])(\p{Ll})/gu,
-    (_match, separator: string, letter: string) => separator + letter.toUpperCase(),
-  );
+  return (value ?? '')
+    .replace(/\p{Lu}{2,}/gu, (run) => (ROMAN_NUMERAL.test(run) ? run : run.toLowerCase()))
+    .replace(
+      /(^|[\s'-])(\p{Ll})/gu,
+      (_match, separator: string, letter: string) => separator + letter.toUpperCase(),
+    );
+}
+
+const ROMAN_NUMERAL = /^(I{1,3}|IV|VI{0,3}|IX|X)$/;
+
+/**
+ * Whether a name, or one part of one, holds only what Philippine names actually
+ * contain — letters, spaces, hyphens, apostrophes and periods ("Dela Cruz",
+ * "D'Souza", "Ma. Clara"), starting with a letter. The register screen's name
+ * fields and both profile editors check against this one rule, so a name
+ * refused at sign-up cannot be typed in a week later from Profile.
+ */
+export function isPersonName(value: string | null | undefined): boolean {
+  return /^[\p{L}\p{M}][\p{L}\p{M}'\-. ]*$/u.test((value ?? '').trim());
 }
 
 /** Jr., Sr. and the generational numerals, in the forms people actually type. */

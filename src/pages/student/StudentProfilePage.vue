@@ -80,7 +80,16 @@
 
         <template #more>
           <ProfileBlock icon="lucide:graduation-cap" title="Academics">
-            <ProfileField v-model="draft.studentId" label="Student ID" readonly :editing="editing" placeholder="Not set" />
+            <!-- Editable only while blank: freshmen register before ISU issues
+                 them one. Once set it is fixed here, and the DB locks it for good
+                 once OSAS verifies the account. -->
+            <ProfileField
+              v-model="draft.studentId"
+              label="Student ID"
+              :readonly="!!academics.studentId"
+              :editing="editing"
+              :placeholder="editing ? 'YY-NNNN, e.g. 25-01234' : 'Not set'"
+            />
             <ProfileField
               :model-value="draft.college"
               label="College"
@@ -164,7 +173,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { isDesktop } from '@/utils/useTabletMode'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
-import { initialsOf, isPhMobile, normalizePhPhone } from '@/utils/format'
+import { capitalizeName, initialsOf, isPersonName, isPhMobile, isStudentId, normalizePhPhone } from '@/utils/format'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 import ProfileField from '@/components/shared/ProfileField.vue'
@@ -296,9 +305,19 @@ function cancelEdit() {
 }
 
 async function save() {
-  const name = draft.fullName.trim()
+  // Held to the register screen's rule, and its case fixed the same way, so
+  // a name refused at sign-up cannot come back in from here.
+  const name = capitalizeName(draft.fullName.trim().replace(/\s+/g, ' '))
   if (!name) {
     notify.error('Your name cannot be empty.')
+    return
+  }
+  if (!isPersonName(name)) {
+    notify.error('Use letters, spaces, hyphens and apostrophes only in your name.')
+    return
+  }
+  if (!name.includes(' ')) {
+    notify.error('Enter your first and last name.')
     return
   }
   // Checked here as well as at registration: normalizePhPhone turns an empty
@@ -311,6 +330,13 @@ async function save() {
   // The emergency contact is optional, so it is only judged once filled in.
   if (draft.emergencyPhone.trim() && !isPhMobile(draft.emergencyPhone)) {
     notify.error('That emergency contact number is not a valid mobile number.')
+    return
+  }
+  // Only sent when it is being filled in for the first time, so an ordinary
+  // save never touches a column the DB may have locked after verification.
+  const newStudentId = academics.studentId ? '' : draft.studentId.trim()
+  if (newStudentId && !isStudentId(newStudentId)) {
+    notify.error('Enter your student ID as YY-NNNN, e.g. 25-01234.')
     return
   }
 
@@ -339,14 +365,18 @@ async function save() {
         program: draft.program || null,
         year_level: draft.yearLevel ? yearLevelFromLabel(draft.yearLevel) : null,
         emergency_contact_json: hasContact ? contact : null,
+        ...(newStudentId ? { student_id: newStudentId } : {}),
       },
       { onConflict: 'user_id' },
     )
+    // student_profiles_student_id_key: someone else already registered it.
+    if (profileError?.code === '23505') throw new Error('That student ID is already registered to another account.')
     if (profileError) throw profileError
 
     me.fullName = name
     me.phone = phone
     me.initials = initials
+    if (newStudentId) academics.studentId = newStudentId
     academics.college = draft.college
     academics.program = draft.program
     academics.yearLevel = draft.yearLevel

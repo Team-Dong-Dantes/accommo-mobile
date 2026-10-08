@@ -505,7 +505,7 @@ import AuthDivider from '@/components/auth/AuthDivider.vue';
 import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
 import ConnectedGoogleBox from '@/components/auth/ConnectedGoogleBox.vue';
 import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue';
-import { capitalizeName, composeStudentId, isPhMobile, normalizePhPhone, phNationalDigits } from '@/utils/format';
+import { capitalizeName, composeStudentId, isPersonName, isPhMobile, normalizePhPhone, phNationalDigits } from '@/utils/format';
 import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAIL_DOMAINS_TEXT, isAllowedEmailDomain } from '@/utils/config';
 import { yearOptions, collegePrograms } from '@/constants/academics';
 import { checkDocument, type DocExpected } from '@/utils/docReading';
@@ -622,9 +622,7 @@ const nameExtensions = [NAME_EXT_NONE, 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
 function nameRules(label: string) {
   return [
     (val: string) => !!val?.trim() || `${label} is required`,
-    (val: string) =>
-      /^[\p{L}\p{M}][\p{L}\p{M}'\-. ]*$/u.test((val ?? '').trim()) ||
-      'Letters, spaces, hyphens and apostrophes only',
+    (val: string) => isPersonName(val) || 'Letters, spaces, hyphens and apostrophes only',
   ];
 }
 

@@ -110,8 +110,9 @@
       </span>
     </div>
     <p v-if="declined" class="app-card-reason">Reason: {{ declined.reason }}</p>
-    <!-- An unverified student cannot be issued a form, so they are not offered
-         the request at all — the reason stands in for the button. -->
+    <!-- A student OSAS turned down, suspended or paused cannot be issued a form,
+         so they are not offered the request at all — the reason stands in for
+         the button. Unverified is not a reason: they may apply, only not move in. -->
     <p v-if="applyBlocked" class="app-card-reason">{{ applyBlocked }}</p>
     <div v-if="applyBlocked && owesPast" class="app-card-actions">
       <button type="button" class="app-btn" @click="router.push('/student/payments')">Pay the balance</button>
@@ -219,11 +220,17 @@
           <dd>{{ formatPeso(application.monthlyRent) }}</dd>
         </div>
       </dl>
+      <!-- Applying no longer waits for OSAS, but moving in does: the database
+           refuses the acceptance until the student is verified, so say so
+           instead of offering a button that fails. -->
+      <p v-if="!applicant?.verified" class="sheet-note">
+        OSAS has not verified this student yet. You can accept once they do; scan their QR in person to see the documents they sent.
+      </p>
       <div class="sheet-actions">
         <button type="button" class="app-btn app-btn--ghost" :disabled="deciding" @click="reviewOpen = false; declineOpen = true">
           Decline
         </button>
-        <button type="button" class="app-btn" :disabled="deciding" @click="decideApplication('active')">
+        <button type="button" class="app-btn" :disabled="deciding || !applicant?.verified" @click="decideApplication('active')">
           {{ deciding ? 'Accepting…' : 'Accept' }}
         </button>
       </div>
@@ -634,8 +641,10 @@ async function openReview() {
 /**
  * Asks the database the same question the lease insert policy asks, rather than
  * a second reading of it: a client that asks the database its own question
- * cannot drift from it. The one answer covers "not verified" and "OSAS paused
- * applications"; only the second has a reason worth reading out.
+ * cannot drift from it. The one answer covers "turned down or suspended" and
+ * "OSAS paused applications"; only the second has a reason worth reading out.
+ * Not being verified yet is no longer one of them (migration 20261009020000):
+ * that gates the acceptance, not the application.
  */
 async function whyApplyBlocked(): Promise<string | null> {
   // Owing on a past stay blocks a new one (guard_lease_writes); say so before
@@ -643,8 +652,8 @@ async function whyApplyBlocked(): Promise<string | null> {
   const { data: owed } = await supabase.rpc('past_stay_balance', { p_student: props.me })
   owesPast.value = Number(owed ?? 0) > 0.009
   if (owesPast.value) return `You still owe ${formatPeso(Number(owed))} on a past stay. Pay it first, then you can apply for a room.`
-  const { data: mayLease } = await supabase.rpc('student_may_lease', { p_student: props.me })
-  if (mayLease === true) return null
+  const { data: mayApply } = await supabase.rpc('student_may_apply', { p_student: props.me })
+  if (mayApply === true) return null
   const { data: standing } = await supabase
     .from('account_standing')
     .select('reason, restrictions')
@@ -652,7 +661,7 @@ async function whyApplyBlocked(): Promise<string | null> {
     .maybeSingle()
   return standing?.restrictions?.includes('apply')
     ? `OSAS has paused your room applications.${standing.reason ? ` ${standing.reason}` : ''}`
-    : 'OSAS needs to verify your account before you can request an application form.'
+    : 'OSAS has turned down or suspended your account, so you cannot apply for a room. Open OSAS from your profile to sort it out.'
 }
 
 /**

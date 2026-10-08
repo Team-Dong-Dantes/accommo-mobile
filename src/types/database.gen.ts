@@ -3127,6 +3127,7 @@ export type Database = {
         Returns: undefined
       }
       sign_out_session: { Args: { p_session: string }; Returns: boolean }
+      student_may_apply: { Args: { p_student: string }; Returns: boolean }
       student_may_lease: { Args: { p_student: string }; Returns: boolean }
       student_past_balance: {
         Args: { p_student: string }

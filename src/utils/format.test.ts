@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capitalizeName, composeStudentId, formatPesoExact, initialsOf, isPhMobile, isStudentId } from './format'
+import { capitalizeName, composeStudentId, formatPesoExact, initialsOf, isPersonName, isPhMobile, isStudentId } from './format'
 
 describe('isStudentId', () => {
   it('accepts a year and a student number of four to six digits', () => {
@@ -75,9 +75,37 @@ describe('isPhMobile', () => {
 
 // Names are fixed rather than refused: typing "juan dela cruz" in a hurry should
 // produce a correct name, not a red field.
+describe('isPersonName', () => {
+  it('accepts what Philippine names contain', () => {
+    expect(isPersonName('Ma. Clara Dela Cruz')).toBe(true)
+    expect(isPersonName("D'Souza")).toBe(true)
+    expect(isPersonName('Mary-Jane Niño')).toBe(true)
+  })
+
+  it('refuses digits, symbols and a leading separator', () => {
+    expect(isPersonName('Juan123')).toBe(false)
+    expect(isPersonName('Lol :)')).toBe(false)
+    expect(isPersonName('-Juan')).toBe(false)
+    expect(isPersonName('')).toBe(false)
+  })
+})
+
 describe('capitalizeName', () => {
   it('capitalises every part of a name', () => {
     expect(capitalizeName('juan dela cruz')).toBe('Juan Dela Cruz')
+  })
+
+  // Both really reached the OSAS queue.
+  it('lowers words typed in capitals before capitalising them', () => {
+    expect(capitalizeName('ALEXA JOY E. BALDOZ')).toBe('Alexa Joy E. Baldoz')
+    expect(capitalizeName('MA. YZAVEL M. Asuncion')).toBe('Ma. Yzavel M. Asuncion')
+    expect(capitalizeName('JUAN DELA CRUZ JR.')).toBe('Juan Dela Cruz Jr.')
+  })
+
+  it('spares roman numerals, initials and mixed case', () => {
+    expect(capitalizeName('Juan Dela Cruz III')).toBe('Juan Dela Cruz III')
+    expect(capitalizeName('E')).toBe('E')
+    expect(capitalizeName('McDonald')).toBe('McDonald')
   })
 
   it('capitalises after an apostrophe or a hyphen', () => {

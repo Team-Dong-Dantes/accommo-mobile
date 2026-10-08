@@ -347,6 +347,28 @@ async function load(silent = false) {
       })
     }
 
+    // Skippable at registration ("I don't have it right now") because freshmen
+    // sign up before ISU issues one, so it is chased from here until it is set.
+    const { data: studentProfile } = await supabase
+      .from('student_profiles')
+      .select('student_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!studentProfile?.student_id) {
+      list.push({
+        id: 'student-id',
+        icon: 'lucide:id-card',
+        kind: 'Profile',
+        label: 'Add your student ID',
+        hint: 'Once ISU gives you one, add it from your profile',
+        when: '',
+        action: 'Add student ID',
+        route: '/student/profile',
+        tone: 'warn',
+        rank: 3,
+      })
+    }
+
     if (leaseRow?.status === 'pending') {
       list.push({
         id: 'application',
