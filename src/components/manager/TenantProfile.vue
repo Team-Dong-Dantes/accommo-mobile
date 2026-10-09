@@ -121,14 +121,12 @@
                 <!-- Added by hand: accepted only by scanning their QR (DB-enforced). -->
                 <template v-if="lease.addedByLandlord">
                   <button
-                    v-if="isNative"
                     type="button"
                     class="decide-btn"
                     @click="router.push(`/manager/profile/qr-scanner?accept=${leaseId}`)"
                   >
                     Scan to accept
                   </button>
-                  <span v-else class="decide-note">Accept in the Accommo app</span>
                 </template>
                 <button v-else type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
                   Accept
@@ -444,7 +442,6 @@ import { BILL_TAG, isBillSettled, manilaToday, paymentTitle, toLedger, type Ledg
 import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-import { Capacitor } from '@capacitor/core'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -582,7 +579,6 @@ async function forgive() {
   }
 }
 
-const isNative = Capacitor.isNativePlatform()
 const coverUrl = ref('')
 const payments = ref<
   {

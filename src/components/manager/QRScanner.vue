@@ -39,17 +39,15 @@
     <p>{{
       acceptFor
         ? `Scan ${acceptFor.studentName}’s student QR to accept them into ${acceptFor.roomLabel}.`
-        : !isNative
-          ? 'Enter the student’s ID number to look them up.'
-          : manualMode
+        : manualMode
           ? 'Camera is paused while you enter a code by hand.'
           : 'Point the camera at the student’s QR code to verify identity.'
     }}</p>
     <!-- Accepting needs the student's own QR: a typed ID is not their consent. -->
-    <button v-if="isNative && !cameraError && !acceptLeaseId" type="button" class="hint-action" @click="manualMode = !manualMode">
+    <button v-if="!cameraError && !acceptLeaseId" type="button" class="hint-action" @click="manualMode = !manualMode">
       <IconifyIcon :icon="manualMode ? 'lucide:camera' : 'lucide:keyboard'" width="16" /> {{ manualMode ? 'Back to camera' : 'Enter code manually' }}
     </button>
-    <button v-else-if="isNative && cameraError" type="button" class="hint-action" @click="retryCamera">
+    <button v-else-if="cameraError" type="button" class="hint-action" @click="retryCamera">
       <IconifyIcon icon="lucide:refresh-cw" width="16" /> Camera off — try again
     </button>
   </div>
@@ -65,7 +63,6 @@ import { acceptAddedStudent } from '@/utils/applications'
 import { useQuasar } from 'quasar'
 import { useQrStore } from '@/stores/qr'
 import { Html5Qrcode } from 'html5-qrcode'
-import { Capacitor } from '@capacitor/core'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -106,9 +103,7 @@ async function accept(code: string) {
 const qrStore = useQrStore()
 
 const cameraError = ref('')
-// The web build is manual entry only — no camera prompt in a browser.
-const isNative = Capacitor.isNativePlatform()
-const manualMode = ref(!isNative)
+const manualMode = ref(false)
 const manualCode = ref('')
 const readerRef = ref<HTMLElement | null>(null)
 let html5Scanner: Html5Qrcode | null = null
@@ -154,7 +149,7 @@ watch(manualMode, (isManual) => {
 
 async function startScanner() {
   cameraError.value = ''
-  if (!isNative || !readerRef.value) return
+  if (!readerRef.value) return
   // If the user navigates away while the camera is still initialising, never
   // continue attaching to an unmounted element afterwards.
   if (disposed) return

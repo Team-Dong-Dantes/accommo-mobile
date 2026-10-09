@@ -58,7 +58,7 @@
       </div>
 
       <p class="add-note">
-        They join this room once you scan their student QR in person{{ isNative ? '' : ' with the Accommo app' }}.
+        They join this room once you scan their student QR in person.
       </p>
       <button type="button" class="add-btn" :disabled="!roomId || !startDate || adding" @click="add">
         {{ adding ? 'Adding…' : 'Add student' }}
@@ -69,7 +69,6 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { Capacitor } from '@capacitor/core'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useQrStore, type ScannedStudent } from '@/stores/qr'
@@ -86,7 +85,6 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean]; added: [] }>()
 const qrStore = useQrStore()
 const notify = useNotify()
 
-const isNative = Capacitor.isNativePlatform()
 const today = manilaToday()
 const studentNo = ref('')
 const student = ref<ScannedStudent | null>(null)

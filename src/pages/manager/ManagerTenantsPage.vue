@@ -63,8 +63,7 @@
                 <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:hand-coins'" width="16" />
                 {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
               </button>
-              <!-- Walk-in tenants. Adding works anywhere; accepting them still
-                   needs the camera, so on the web the row says to scan in the app. -->
+              <!-- Walk-in tenants, accepted later by scanning their QR. -->
               <button v-if="!pickingPayment" type="button" class="top-pay-btn top-pay-btn--ghost" @click="addOpen = true">
                 <IconifyIcon icon="lucide:user-plus" width="16" />
                 Add a student
@@ -178,14 +177,12 @@
                                their QR, never with a tap (DB-enforced). -->
                           <template v-if="l.addedByLandlord">
                             <button
-                              v-if="isNative"
                               type="button"
                               class="lease-act"
                               @click="router.push(`/manager/profile/qr-scanner?accept=${l.id}`)"
                             >
                               Scan to accept
                             </button>
-                            <span v-else class="lease-act-note">Accept in the Accommo app</span>
                           </template>
                           <button
                             v-else
@@ -418,7 +415,6 @@ import BottomSheet from '@/components/shared/BottomSheet.vue'
 import AddStudentSheet from '@/components/manager/AddStudentSheet.vue'
 import PaymentReviewSheet from '@/components/manager/PaymentReviewSheet.vue'
 import PaySheet from '@/components/shared/PaySheet.vue'
-import { Capacitor } from '@capacitor/core'
 
 interface Lease {
   id: string
@@ -871,7 +867,6 @@ function occupancyTone(pct: number) {
 }
 
 const decidingId = ref('')
-const isNative = Capacitor.isNativePlatform()
 const addOpen = ref(false)
 
 const declineOpen = ref(false)
@@ -1321,12 +1316,6 @@ function openLogPayment(l: Lease) {
   font-size: 11.5px;
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
-}
-.lease-act-note {
-  align-self: center;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 600;
 }
 .lease-act:disabled {
   opacity: 0.6;
