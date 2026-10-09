@@ -68,7 +68,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, landlordTitle, LANDLORD_ROLE_LABEL } from '@/utils/format'
-import { BILL_TAG, isBillSettled, manilaToday, toLedger } from '@/utils/payments'
+import { BILL_TAG, isBillSettled, manilaToday, nextLedgerRent, toLedger, type LedgerRow } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
 import { ago } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
@@ -156,6 +156,7 @@ async function load(silent = false) {
       .eq('user_id', user.id)
       .maybeSingle()
 
+    let ledger: LedgerRow[] = []
     // A student holds at most one live lease, so one row is enough.
     const { data: leaseRow, error: leaseError } = await supabase
       .from('leases')
@@ -220,7 +221,8 @@ async function load(silent = false) {
       // for every stay forever.
       if (leaseRow.status !== 'pending') {
         const { data: rows } = await supabase.rpc('lease_ledger', { p_lease: leaseRow.id })
-        const upFront = toLedger(rows).filter((r) => r.kind === 'deposit' || (r.kind === 'rent' && r.dueDate === leaseRow.start_date))
+        ledger = toLedger(rows)
+        const upFront = ledger.filter((r) => r.kind === 'deposit' || (r.kind === 'rent' && r.dueDate === leaseRow.start_date))
         const due = upFront.reduce((s, r) => s + r.due, 0)
         if (due > 0.009) stay.value.moveIn = { due, left: upFront.reduce((s, r) => s + r.balance, 0) }
       }
@@ -451,18 +453,12 @@ async function load(silent = false) {
       }
 
       // A payment that is merely due is shown by the money row, which is
-      // tappable — only an overdue one is a task.
-      const { data: dueRows } = await supabase
-        .from('payments')
-        .select('id, amount, month, status')
-        .eq('lease_id', leaseRow.id)
-        .in('status', ['due', 'overdue'])
-        .order('month', { ascending: true })
-        .limit(1)
-
-      const due = dueRows?.[0]
-      nextPayment.value = due
-        ? { amount: Number(due.amount || 0), month: due.month, overdue: due.status === 'overdue' }
+      // tappable — only an overdue one is a task. Read off the ledger: this
+      // used to look for payments rows with status due/overdue, which nothing
+      // has written since record_payments, so it always said "Nothing due".
+      const due = nextLedgerRent(ledger)
+      nextPayment.value = due?.month
+        ? { amount: due.balance, month: due.month, overdue: due.state === 'overdue' }
         : null
 
       // Utility bills the landlord/landlady posted and nobody has paid yet.
@@ -487,12 +483,12 @@ async function load(silent = false) {
         })
       }
 
-      if (due && due.status === 'overdue') {
+      if (due?.month && due.state === 'overdue') {
         list.push({
-          id: `payment-${due.id}`,
+          id: `payment-${due.month}`,
           icon: 'lucide:banknote',
           kind: 'Rent',
-          label: `${formatPeso(Number(due.amount || 0))} is overdue`,
+          label: `${formatPeso(due.balance)} is overdue`,
           hint: `Rent for ${formatMonth(due.month)}`,
           when: '',
           action: 'Pay now',
