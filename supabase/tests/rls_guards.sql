@@ -27,6 +27,10 @@
 --   AA1-AA8  PASS
 --   PY1-PY18  PASS
 
+-- The guards date things in Manila; current_date here must too. In UTC (CI)
+-- it is yesterday from 16:00 UTC on, so every move-in was "in the past".
+set timezone = 'Asia/Manila';
+
 create or replace function pg_temp.rls_check() returns table(test text, outcome text)
 language plpgsql as $$
 declare
