@@ -1,7 +1,30 @@
 <template>
   <q-page class="tp" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
-      <div v-if="loading" class="stack">
+      <!-- Desktop: the loaded card's two halves, tenants left and payments right. -->
+      <div v-if="loading && split" class="stack">
+        <div class="desk-card">
+          <div class="desk-col">
+            <q-skeleton type="rect" height="40px" class="sk sk-pill" />
+            <h2 class="sec-title">By tenant</h2>
+            <div v-for="n in 2" :key="n" class="acc">
+              <div class="acc-head">
+                <q-skeleton type="rect" size="36px" />
+                <span class="acc-head-body">
+                  <q-skeleton type="text" width="55%" height="15px" />
+                  <q-skeleton type="text" width="35%" height="12px" />
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="desk-col">
+            <h2 class="sec-title">Payments</h2>
+            <q-skeleton type="rect" height="70px" class="sk" />
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="loading" class="stack">
         <div class="tabs">
           <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
           <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
@@ -957,6 +980,14 @@ function openLogPayment(l: Lease) {
 .sk {
   border-radius: var(--m-radius);
   margin: 0 var(--m-page-gutter);
+}
+/* A half has its own padding. */
+.desk-col > .sk {
+  margin: 0;
+}
+/* Stands in for the desk search pinned atop the left half. */
+.sk-pill {
+  border-radius: 999px;
 }
 .card {
   margin: 8px var(--m-page-gutter);

@@ -128,7 +128,7 @@
       icon="lucide:message-square-warning"
       :hint="`Pick a concern to see its progress and your ${myLandlord}’s reply`"
     >
-      <q-card v-if="selected" class="detail-sheet">
+      <div v-if="selected" class="detail-sheet" :class="{ 'detail-sheet--pane': isTablet }">
         <div class="detail-head">
           <h3 class="detail-title">{{ CONCERN_CATEGORY_LABEL[selected.category] || selected.category }}</h3>
           <span class="detail-chip" :class="`detail-chip--${statusColor(CONCERN_STATUS, selected.status)}`">
@@ -165,33 +165,32 @@
         </template>
 
         <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="detailOpen = false" />
-      </q-card>
+      </div>
     </SplitDetail>
 
-    <q-dialog v-model="newOpen" position="bottom">
-      <q-card class="new-sheet">
-        <h3 class="new-title">Report a concern</h3>
-        <label class="field">
-          <span class="field-label">Category</span>
-          <select v-model="form.category" class="field-input app-select">
-            <option v-for="(label, key) in CONCERN_CATEGORY_LABEL" :key="key" :value="key">{{ label }}</option>
-          </select>
-        </label>
-        <label class="field">
-          <span class="field-label">Description</span>
-          <textarea v-model="form.description" class="field-input field-textarea" rows="4" placeholder="What's going on?" />
-        </label>
-        <label class="field">
-          <span class="field-label">Photo (optional)</span>
-          <span class="file-picker" :class="{ 'file-picker--chosen': form.photo }">
-            <IconifyIcon :icon="form.photo ? 'lucide:file-check' : 'lucide:camera'" width="16" />
-            <span class="file-picker-text">{{ form.photo ? form.photo.name : 'Attach a photo' }}</span>
-            <input type="file" accept="image/*" class="file-picker-input" @change="onPhotoSelected" />
-          </span>
-        </label>
+    <AppModal v-model="newOpen" title="Report a concern">
+      <label class="field">
+        <span class="field-label">Category</span>
+        <select v-model="form.category" class="field-input app-select">
+          <option v-for="(label, key) in CONCERN_CATEGORY_LABEL" :key="key" :value="key">{{ label }}</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Description</span>
+        <textarea v-model="form.description" class="field-input field-textarea" rows="4" placeholder="What's going on?" />
+      </label>
+      <label class="field">
+        <span class="field-label">Photo (optional)</span>
+        <span class="file-picker" :class="{ 'file-picker--chosen': form.photo }">
+          <IconifyIcon :icon="form.photo ? 'lucide:file-check' : 'lucide:camera'" width="16" />
+          <span class="file-picker-text">{{ form.photo ? form.photo.name : 'Attach a photo' }}</span>
+          <input type="file" accept="image/*" class="file-picker-input" @change="onPhotoSelected" />
+        </span>
+      </label>
+      <template #footer>
         <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="submitting" label="Submit" @click="submit" />
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
   </q-page>
 </template>
 
@@ -213,6 +212,7 @@ import SplitDetail from '@/components/shared/SplitDetail.vue'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { fetchCurrentLease } from '@/api/leases';
 import { useMyLandlordTitle } from '@/utils/myLandlordTitle'
+import AppModal from '@/components/shared/AppModal.vue'
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -253,7 +253,6 @@ const selected = ref<Concern | null>(null)
 const newOpen = ref(false)
 const submitting = ref(false)
 const form = reactive({ category: 'maintenance', description: '', photo: null as File | null })
-
 
 // A single timeline replaces the old step-tracker + activity list: each row
 // is "done" once its timestamp lands, so a rejected report still shows
@@ -439,7 +438,6 @@ async function submit() {
   }
 }
 
-
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it
 // loads silently (no skeleton behind the spinner) and resets the freshness
 // clock, so returning to the screen does not immediately fetch again.
@@ -564,23 +562,14 @@ function onPull(done: () => void) {
   color: var(--m-muted);
 }
 
-.detail-sheet,
-.new-sheet {
+.detail-sheet {
   display: flex;
-  width: 100%;
-  max-width: 480px;
   flex-direction: column;
   gap: 10px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
 }
-.new-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
+/* In a modal AppModal pads the card; in the tablet pane it pads itself. */
+.detail-sheet--pane {
+  padding: 16px var(--m-page-gutter);
 }
 .detail-head {
   display: flex;
@@ -774,6 +763,7 @@ function onPull(done: () => void) {
   resize: vertical;
 }
 .new-submit {
+  flex: 1;
   min-height: 48px;
   font-weight: 700;
 }

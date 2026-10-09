@@ -1,50 +1,50 @@
 <template>
-  <q-dialog v-model="open" persistent>
-    <q-card class="gate-card">
-      <div class="gate-head">
-        <span class="gate-title">{{ staleDocs.length > 1 ? 'Our terms were updated' : `Our ${staleDocs[0]?.title} was updated` }}</span>
-        <span class="gate-sub">
-          Please read and accept {{ staleDocs.length > 1 ? 'the updated documents' : 'the updated document' }} to keep using accommo.
-        </span>
-      </div>
+  <AppModal
+    v-model="open"
+    :title="staleDocs.length > 1 ? 'Our terms were updated' : `Our ${staleDocs[0]?.title} was updated`"
+    tall
+    persistent
+  >
+    <p class="gate-sub">
+      Please read and accept {{ staleDocs.length > 1 ? 'the updated documents' : 'the updated document' }} to keep using accommo.
+    </p>
 
-      <div ref="bodyEl" class="gate-body" @scroll="onScroll">
-        <LegalDocuments :ids="staleIds" @loaded="onLoaded" />
-      </div>
+    <div ref="bodyEl" class="gate-body" @scroll="onScroll">
+      <LegalDocuments :ids="staleIds" @loaded="onLoaded" />
+    </div>
 
-      <div class="gate-boxes">
-        <q-checkbox
-          v-for="doc in staleDocs"
-          :key="doc.id"
-          v-model="acceptedIds[doc.id]"
-          dense
-          size="sm"
-          color="primary"
-          :disable="!hasRead"
-          :label="doc.id === 'privacy' ? 'I consent to my personal data being processed as described above' : 'I agree to the Terms of Service'"
-          class="gate-box"
-        />
-      </div>
+    <div class="gate-boxes">
+      <q-checkbox
+        v-for="doc in staleDocs"
+        :key="doc.id"
+        v-model="acceptedIds[doc.id]"
+        dense
+        size="sm"
+        color="primary"
+        :disable="!hasRead"
+        :label="doc.id === 'privacy' ? 'I consent to my personal data being processed as described above' : 'I agree to the Terms of Service'"
+        class="gate-box"
+      />
+    </div>
 
-      <div class="gate-actions">
-        <button type="button" class="gate-out" :disabled="saving" @click="signOutInstead">Sign out</button>
-        <span v-if="!hasRead" class="gate-note">Scroll to the end to accept</span>
-        <span v-else-if="!allAccepted" class="gate-note">Tick every box to continue</span>
-        <q-btn
-          v-if="hasRead"
-          unelevated
-          rounded
-          no-caps
-          color="primary"
-          :loading="saving"
-          :disable="!allAccepted"
-          label="I accept"
-          class="q-px-lg"
-          @click="accept"
-        />
-      </div>
-    </q-card>
-  </q-dialog>
+    <template #footer>
+      <button type="button" class="gate-out" :disabled="saving" @click="signOutInstead">Sign out</button>
+      <span v-if="!hasRead" class="gate-note">Scroll to the end to accept</span>
+      <span v-else-if="!allAccepted" class="gate-note">Tick every box to continue</span>
+      <q-btn
+        v-if="hasRead"
+        unelevated
+        rounded
+        no-caps
+        color="primary"
+        :loading="saving"
+        :disable="!allAccepted"
+        label="I accept"
+        class="q-px-lg"
+        @click="accept"
+      />
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -53,6 +53,7 @@ import { useRouter } from 'vue-router'
 import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
 import LegalDocuments from '@/components/shared/LegalDocuments.vue'
+import AppModal from '@/components/shared/AppModal.vue'
 import { LEGAL_DOCUMENTS, type LegalDocument, type LegalDocumentId } from '@/constants/legal'
 
 // Re-consent gate. A bundled document whose effective date is later than this
@@ -142,38 +143,25 @@ async function signOutInstead() {
 </script>
 
 <style scoped>
-.gate-card {
-  display: flex;
-  width: min(520px, 92vw);
-  max-height: 82vh;
-  flex-direction: column;
-  border-radius: 16px;
+.gate-sub { margin: 0; color: var(--m-muted); font-size: 12.5px; line-height: 1.4; }
+.gate-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
-.gate-head { padding: 16px 16px 10px; }
-.gate-title { display: block; color: var(--m-ink); font-size: 15.5px; font-weight: 700; }
-.gate-sub { display: block; margin-top: 3px; color: var(--m-muted); font-size: 12px; line-height: 1.4; }
-.gate-body { overflow-y: auto; padding: 0 12px 12px; }
 .gate-boxes {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 14px 4px;
 }
 .gate-box :deep(.q-checkbox__label) {
   color: var(--m-text);
   font-size: 12px;
   line-height: 1.4;
 }
-.gate-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px 14px;
-  border-top: 1px solid var(--m-border);
-}
 .gate-note { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
 .gate-out {
+  margin-right: auto;
   padding: 6px 4px;
   border: 0;
   background: none;

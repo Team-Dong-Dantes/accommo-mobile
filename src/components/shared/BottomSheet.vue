@@ -1,38 +1,34 @@
 <template>
-  <q-dialog
+  <AppModal
     :model-value="modelValue"
-    position="bottom"
+    :title="title"
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <div class="sheet">
-      <div class="sheet-head">
-        <h2 class="sheet-title">{{ title }}</h2>
-        <button v-if="clearLabel" type="button" class="sheet-clear" @click="emit('clear')">
-          {{ clearLabel }}
-        </button>
-      </div>
+    <template v-if="clearLabel" #actions>
+      <button type="button" class="sheet-clear" @click="emit('clear')">
+        {{ clearLabel }}
+      </button>
+    </template>
 
-      <slot />
+    <slot />
 
-      <button
-        v-if="doneLabel"
-        type="button"
-        class="sheet-done"
-        @click="emit('update:modelValue', false)"
-      >
+    <template v-if="doneLabel" #footer>
+      <button type="button" class="sheet-done" @click="emit('update:modelValue', false)">
         {{ doneLabel }}
       </button>
-    </div>
-  </q-dialog>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
-// The filter sheet the eight list screens open from their SearchDock: a
-// bottom-anchored panel with a title, a reset link, the screen's own controls,
-// and a full-width confirm button that just closes it.
+import AppModal from '@/components/shared/AppModal.vue'
+
+// The filter sheet the eight list screens open from their SearchDock: an
+// AppModal with a title, a reset link, the screen's own controls, and a
+// full-width confirm button that just closes it.
 //
-// Bespoke sheets elsewhere (the QR scanner, the application review) share the `.sheet` prefix but not this structure, and are left alone —
-// they are different panels, not copies of this one.
+// Other modals (the QR scanner, the application review) are AppModals too but
+// not this structure — they are different panels, not copies of this one.
 withDefaults(
   defineProps<{
     modelValue: boolean
@@ -58,27 +54,6 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.sheet {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
-  background: var(--m-surface);
-}
-.sheet-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sheet-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .sheet-clear {
   border: 0;
   background: transparent;
@@ -89,6 +64,7 @@ const emit = defineEmits<{
   font-weight: 700;
 }
 .sheet-done {
+  flex: 1;
   min-height: 48px;
   border: 0;
   border-radius: 999px;

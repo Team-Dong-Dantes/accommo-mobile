@@ -1,7 +1,9 @@
 <template>
   <q-page class="prof" :class="{ 'page-wide': isDesktop }">
     <!-- Loading -->
-    <div v-if="loading" class="stack">
+    <!-- Desktop: the loaded card's two halves, hero left and details right. -->
+    <div v-if="loading" :class="isDesktop ? 'desk-card desk-card--profile' : 'stack'">
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <div class="sk-card">
         <div class="sk-hero-top">
           <q-skeleton type="circle" size="56px" />
@@ -18,11 +20,14 @@
           </div>
         </div>
       </div>
+      </div>
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <div class="sk-card sk-fields">
         <q-skeleton type="text" width="45%" height="13px" />
         <q-skeleton type="text" width="90%" height="15px" />
         <q-skeleton type="text" width="90%" height="15px" />
         <q-skeleton type="text" width="90%" height="15px" />
+      </div>
       </div>
     </div>
 
@@ -32,9 +37,10 @@
     </div>
 
     <!-- Profile Content -->
-    <!-- Desktop: the two halves of a card — the hero on the left, every detail
-         on the right. Elsewhere the .desk-pass wrappers are display: contents. -->
-    <div v-else :class="isDesktop ? 'desk-card' : 'stack'">
+    <!-- Desktop: the two halves of a card — the hero and a section menu in a
+         narrow left half, every detail in the wide right one. Elsewhere the
+         .desk-pass wrappers are display: contents. -->
+    <div v-else :class="isDesktop ? 'desk-card desk-card--profile' : 'stack'">
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <!-- Hero Header -->
       <ProfileHero
@@ -62,13 +68,14 @@
           <IconifyIcon v-if="stay" icon="lucide:chevron-right" width="16" class="stay-chevron" />
         </component>
       </ProfileHero>
+      <ProfileSectionNav v-if="isDesktop" :sections="sections" />
       </div>
 
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <!-- Profile -->
       <ProfileCard :open="isDesktop">
         <template #always>
-          <ProfileBlock icon="lucide:user" title="Your details">
+          <ProfileBlock id="ps-details" icon="lucide:user" title="Your details">
             <template #actions>
               <EditButton v-if="!editing" @click="startEdit" />
             </template>
@@ -79,7 +86,7 @@
         </template>
 
         <template #more>
-          <ProfileBlock icon="lucide:graduation-cap" title="Academics">
+          <ProfileBlock id="ps-academics" icon="lucide:graduation-cap" title="Academics">
             <!-- Editable only while blank: freshmen register before ISU issues
                  them one. Once set it is fixed here, and the DB locks it for good
                  once OSAS verifies the account. -->
@@ -114,13 +121,13 @@
             />
           </ProfileBlock>
 
-          <ProfileBlock icon="lucide:phone-forwarded" title="Emergency contact">
+          <ProfileBlock id="ps-emergency" icon="lucide:phone-forwarded" title="Emergency contact">
             <ProfileField v-model="draft.emergencyName" label="Name" :editing="editing" />
             <ProfileField v-model="draft.emergencyRelation" label="Relationship" :editing="editing" placeholder="Parent, guardian…" />
             <ProfileField v-model="draft.emergencyPhone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
           </ProfileBlock>
 
-          <ProfileBlock icon="lucide:shield-check" title="Verification" :badge="pendingDocs > 0 ? `${pendingDocs} pending` : ''">
+          <ProfileBlock id="ps-verification" icon="lucide:shield-check" title="Verification" :badge="pendingDocs > 0 ? `${pendingDocs} pending` : ''">
             <div v-if="documents.length">
               <div v-for="doc in documents" :key="doc.id" class="doc-row">
                 <span class="doc-icon" :class="`doc-icon--${doc.tone}`">
@@ -140,7 +147,7 @@
             </button>
           </ProfileBlock>
 
-          <ProfileBlock icon="lucide:settings" title="Settings">
+          <ProfileBlock id="ps-settings" icon="lucide:settings" title="Settings">
             <button class="row-link" @click="go('/student/settings')">
               <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
               <span>Notifications, security, appearance &amp; more</span>
@@ -181,6 +188,7 @@ import ProfileHero from '@/components/shared/ProfileHero.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ProfileCard from '@/components/shared/ProfileCard.vue'
 import ProfileBlock from '@/components/shared/ProfileBlock.vue'
+import ProfileSectionNav from '@/components/shared/ProfileSectionNav.vue'
 import EditButton from '@/components/shared/EditButton.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
@@ -267,6 +275,13 @@ const stayStatusNote = computed(() => {
 })
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
+const sections = computed(() => [
+  { id: 'ps-details', label: 'Your details', icon: 'lucide:user' },
+  { id: 'ps-academics', label: 'Academics', icon: 'lucide:graduation-cap' },
+  { id: 'ps-emergency', label: 'Emergency contact', icon: 'lucide:phone-forwarded' },
+  { id: 'ps-verification', label: 'Verification', icon: 'lucide:shield-check', badge: pendingDocs.value ? `${pendingDocs.value} pending` : '' },
+  { id: 'ps-settings', label: 'Settings', icon: 'lucide:settings' },
+])
 
 const courseLine = computed(() => {
   const parts = [academics.program, yearLevelToLabel(Number(academics.yearLevel) || null)].filter(Boolean)
@@ -554,6 +569,11 @@ useLiveData({
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius);
   background: var(--m-surface);
+}
+/* Desktop: a half is the card already (as .profile-card is, app.scss). */
+.desk-col > .sk-card {
+  border: 0;
+  background: transparent;
 }
 .sk-hero-top,
 .sk-hero-row {

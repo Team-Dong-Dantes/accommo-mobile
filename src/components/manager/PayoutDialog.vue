@@ -1,7 +1,6 @@
 <template>
-  <q-dialog :model-value="modelValue" position="bottom" @update:model-value="emit('update:modelValue', $event)">
-    <q-card class="po-sheet">
-      <h3 class="po-title">Payment details</h3>
+  <AppModal :model-value="modelValue" title="Payment details" @update:model-value="emit('update:modelValue', $event)">
+    <div class="po-form">
       <p class="po-note">Your tenants see these when they pay, with a button to copy the number. Leave out any you don't use.</p>
 
       <p class="po-group">GCash</p>
@@ -19,10 +18,12 @@
 
       <p class="po-group">Note for tenants (optional)</p>
       <input v-model="form.note" type="text" maxlength="300" class="po-input" placeholder="e.g. Cash is fine too — I'm home after 5 PM" />
+    </div>
 
+    <template #footer>
       <q-btn unelevated rounded no-caps color="primary" class="po-submit" :loading="saving" label="Save" @click="save" />
-    </q-card>
-  </q-dialog>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -30,6 +31,7 @@ import { reactive, ref, watch } from 'vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
+import AppModal from '@/components/shared/AppModal.vue'
 
 // Where tenants send money (landlord_payout). Only the landlord/landlady's own
 // tenants can read it; the database checks the number formats.
@@ -77,25 +79,13 @@ async function save() {
 </script>
 
 <style scoped>
-.po-sheet {
+.po-form {
   display: flex;
-  width: 100%;
-  max-width: 480px;
   flex-direction: column;
   gap: 8px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.po-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
 }
 .po-note {
-  margin: -4px 0 0;
+  margin: 0;
   color: var(--m-muted);
   font-size: 13px;
 }
@@ -118,8 +108,8 @@ async function save() {
   font-size: 14px;
 }
 .po-submit {
+  flex: 1;
   min-height: 48px;
-  margin-top: 6px;
   font-weight: 700;
 }
 </style>

@@ -5,7 +5,23 @@
        of a card; tablet keeps list-beside-thread. -->
   <q-page class="op" :class="{ 'page-split': isTablet && !isDesktop, 'page-wide': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
-      <div v-if="loading" class="stack">
+      <!-- Desktop: the loaded card's two halves, not the phone's tabs. -->
+      <div v-if="loading && isDesktop" class="stack">
+        <div class="desk-card">
+          <div class="desk-col">
+            <h2 class="desk-col-title">Requirements</h2>
+            <q-skeleton type="rect" height="34px" class="sk-card" />
+            <q-skeleton type="rect" height="84px" class="sk-card" />
+            <q-skeleton type="rect" height="180px" class="sk-card" />
+          </div>
+          <div class="desk-col">
+            <h2 class="desk-col-title">Support tickets</h2>
+            <q-skeleton v-for="n in 2" :key="n" type="rect" height="84px" class="sk-card" />
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="loading" class="stack">
         <div class="tabs">
           <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
           <q-skeleton type="rect" width="72px" height="38px" class="m-sk-tab" />
@@ -179,24 +195,23 @@
 
     <!-- PERMIT UPLOAD FORM — a document already on file is never edited in
          place; replacing it always goes through this fresh form. -->
-    <q-dialog v-model="uploadDialogOpen" position="bottom">
-      <q-card class="new-sheet">
-        <h3 class="new-title">{{ DOC_TYPE_LABEL[uploadDocType] }}</h3>
-        <label class="field">
-          <span class="field-label">File</span>
-          <span class="file-picker" :class="{ 'file-picker--chosen': uploadForm.file }">
-            <IconifyIcon :icon="uploadForm.file ? 'lucide:file-check' : 'lucide:upload'" width="16" />
-            <span class="file-picker-text">{{ uploadForm.file ? uploadForm.file.name : 'Choose file' }}</span>
-            <input type="file" accept="image/*,application/pdf" class="file-picker-input" @change="onUploadFileSelected" />
-          </span>
-        </label>
-        <label class="field">
-          <span class="field-label">Expiration date</span>
-          <DateTimeField v-model="uploadForm.expiresAt" mode="date" placeholder="Pick an expiry date" />
-        </label>
+    <AppModal v-model="uploadDialogOpen" :title="DOC_TYPE_LABEL[uploadDocType]">
+      <label class="field">
+        <span class="field-label">File</span>
+        <span class="file-picker" :class="{ 'file-picker--chosen': uploadForm.file }">
+          <IconifyIcon :icon="uploadForm.file ? 'lucide:file-check' : 'lucide:upload'" width="16" />
+          <span class="file-picker-text">{{ uploadForm.file ? uploadForm.file.name : 'Choose file' }}</span>
+          <input type="file" accept="image/*,application/pdf" class="file-picker-input" @change="onUploadFileSelected" />
+        </span>
+      </label>
+      <label class="field">
+        <span class="field-label">Expiration date</span>
+        <DateTimeField v-model="uploadForm.expiresAt" mode="date" placeholder="Pick an expiry date" />
+      </label>
+      <template #footer>
         <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="uploadingDoc || uploadingMyDoc" label="Upload" @click="submitDocUpload" />
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
 
     <!-- Phone and tablet: the thread covers the list (phone) or sits beside it
          (tablet). Desktop shows it inside the tickets half above. -->
@@ -241,6 +256,7 @@ import TicketCompose, { type TicketDraft } from '@/components/shared/TicketCompo
 import DateTimeField from '@/components/shared/DateTimeField.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import RequirementCards, { type RequirementItem } from '@/components/shared/RequirementCards.vue'
+import AppModal from '@/components/shared/AppModal.vue'
 
 // `compliance` is the stored DB value — legacy rows and the admin client both
 // read it, so only the label follows the app's "accreditation" wording.
@@ -269,7 +285,6 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 // submitManagerVerificationDocuments) — OSAS reviews these per-document via
 // doc_status, independent of any accommodation.
 const MY_DOC_TYPES = ['government_id', 'business_permit'] as const
-
 
 interface Accommodation {
   id: string
@@ -715,7 +730,6 @@ async function submitTicket(draft: TicketDraft) {
   }
 }
 
-
 // This screen is kept alive (see MainLayout's KEEP_ALIVE_PAGES), so without
 // this it would fetch once and never again — an OSAS decision or ticket reply
 // would not surface until the app restarted. The permit watch follows the
@@ -732,7 +746,6 @@ const { refresh } = useLiveData({
     { table: 'tickets', filter: `landlord_id=eq.${uid}` },
   ],
 })
-
 
 // Pull-to-refresh goes through useLiveData's refresh rather than load(): it
 // loads silently (no skeleton behind the spinner) and resets the freshness
@@ -767,7 +780,6 @@ function onPull(done: () => void) {
   background: var(--m-surface);
   text-align: center;
 }
-
 
 /* Same rounded-top pill tabs fused into a bordered panel used by
    AccommodationDetail.vue / TenantProfile.vue / ManagerTenantsPage.vue —
@@ -986,24 +998,6 @@ function onPull(done: () => void) {
   color: var(--m-danger);
 }
 
-.new-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.new-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-
 .field {
   display: flex;
   flex-direction: column;
@@ -1052,6 +1046,7 @@ function onPull(done: () => void) {
   cursor: pointer;
 }
 .new-submit {
+  flex: 1;
   min-height: 48px;
   font-weight: 700;
 }

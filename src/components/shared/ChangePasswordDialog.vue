@@ -1,34 +1,27 @@
 <template>
-  <q-dialog v-model="open" @hide="reset">
-    <q-card flat class="pw">
+  <AppModal v-model="open" :title="sent ? 'Check your inbox' : 'Change password'" size="sm" @hide="reset">
+    <template v-if="!sent">
+      <p class="pw-sub">We'll email you a link to set a new password. You stay signed in on this device.</p>
+      <p v-if="problem" class="pw-error">{{ problem }}</p>
+    </template>
+    <p v-else class="pw-sub">We sent a password reset link to {{ email }}. Follow it to set a new password.</p>
+
+    <template #footer>
       <template v-if="!sent">
-        <h2 class="pw-title">Change password</h2>
-        <p class="pw-sub">We'll email you a link to set a new password. You stay signed in on this device.</p>
-
-        <p v-if="problem" class="pw-error">{{ problem }}</p>
-
-        <div class="pw-actions">
-          <button type="button" class="pw-btn pw-btn--ghost" :disabled="busy" @click="open = false">
-            Cancel
-          </button>
-          <button type="button" class="pw-btn pw-btn--go" :disabled="busy" @click="submit">
-            {{ busy ? 'Sending…' : 'Send reset link' }}
-          </button>
-        </div>
+        <button type="button" class="pw-btn pw-btn--ghost" :disabled="busy" @click="open = false">
+          Cancel
+        </button>
+        <button type="button" class="pw-btn pw-btn--go" :disabled="busy" @click="submit">
+          {{ busy ? 'Sending…' : 'Send reset link' }}
+        </button>
       </template>
-
-      <template v-else>
-        <h2 class="pw-title">Check your inbox</h2>
-        <p class="pw-sub">We sent a password reset link to {{ email }}. Follow it to set a new password.</p>
-        <div class="pw-actions">
-          <button type="button" class="pw-btn pw-btn--go" @click="open = false">Done</button>
-        </div>
-      </template>
-    </q-card>
-  </q-dialog>
+      <button v-else type="button" class="pw-btn pw-btn--go" @click="open = false">Done</button>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
+import AppModal from '@/components/shared/AppModal.vue'
 import { ref } from 'vue'
 import { supabase } from '@/utils/supabase'
 
@@ -70,36 +63,16 @@ async function submit() {
 </script>
 
 <style scoped>
-.pw {
-  width: 100%;
-  max-width: 340px;
-  padding: 16px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-}
-.pw-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
 .pw-sub {
-  margin: 3px 0 12px;
+  margin: 0;
   color: var(--m-muted);
-  font-size: 12.5px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.45;
 }
 .pw-error {
   margin: 2px 0 0;
   color: var(--m-danger);
   font-size: 12px;
-}
-.pw-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
 }
 .pw-btn {
   flex: 1 1 0;

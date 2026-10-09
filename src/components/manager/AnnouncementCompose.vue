@@ -165,16 +165,13 @@
 
     <!-- Typing a notice and losing it to a stray tap on X is the one mistake
          this screen can make for you. -->
-    <q-dialog v-model="confirmDiscard">
-      <q-card class="ask">
-        <h3 class="ask-title">Discard this announcement?</h3>
-        <p class="ask-text">What you have written will not be kept.</p>
-        <div class="ask-actions">
-          <button type="button" class="ghost-btn" @click="confirmDiscard = false">Keep writing</button>
-          <button type="button" class="danger-btn" @click="emit('close')">Discard</button>
-        </div>
-      </q-card>
-    </q-dialog>
+    <AppModal v-model="confirmDiscard" title="Discard this announcement?" size="sm">
+      <p class="ask-text">What you have written will not be kept.</p>
+      <template #footer>
+        <button type="button" class="ghost-btn" @click="confirmDiscard = false">Keep writing</button>
+        <button type="button" class="danger-btn" @click="emit('close')">Discard</button>
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -189,6 +186,7 @@ import { useNotify } from '@/utils/notify'
 import { errorMessage } from '@/utils/errors'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
 import { manilaToday } from '@/utils/payments'
+import AppModal from '@/components/shared/AppModal.vue'
 
 export interface AnnouncementDraft {
   /** One notice per house: the same text, addressed to each set of tenants. */
@@ -743,33 +741,11 @@ function submit() {
   font-size: 12px;
   font-weight: 600;
 }
-.ask {
-  display: flex;
-  width: 100%;
-  max-width: 320px;
-  flex-direction: column;
-  gap: 8px;
-  padding: 18px;
-  border-radius: var(--m-radius-lg);
-  background: var(--m-surface);
-}
-.ask-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 15px;
-  font-weight: 700;
-}
 .ask-text {
   margin: 0;
   color: var(--m-muted);
-  font-size: 12.5px;
-}
-.ask-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
 }
 .m-chips {
   flex: 1 1 auto;

@@ -125,9 +125,8 @@
   </div>
 
   <!-- Student: what they are committing to, before anything is written. -->
-  <q-dialog v-model="reviewOpen" position="bottom">
-    <div v-if="role === 'student' && applyRoom" class="sheet">
-      <h3 class="sheet-title">Review your application</h3>
+  <AppModal v-model="reviewOpen" :title="role === 'student' ? 'Review your application' : 'Review application'">
+    <template v-if="role === 'student' && applyRoom">
       <dl class="sum">
         <div class="sum-row">
           <dt>Room</dt>
@@ -165,18 +164,11 @@
       <p class="sheet-note">
         Your {{ otherTitle }} decides on this application. Nothing is charged through Accommo.
       </p>
-      <div class="sheet-actions">
-        <button type="button" class="app-btn app-btn--ghost" @click="reviewOpen = false">Back</button>
-        <button type="button" class="app-btn" :disabled="applying" @click="submitApplication">
-          {{ applying ? 'Submitting…' : 'Submit application' }}
-        </button>
-      </div>
-    </div>
+    </template>
 
     <!-- Manager: who is applying and on what terms, with both decisions here so
          an application cannot be approved without the details in view. -->
-    <div v-else-if="role === 'manager' && application" class="sheet">
-      <h3 class="sheet-title">Review application</h3>
+    <template v-else-if="role === 'manager' && application">
       <div class="who">
         <span class="who-name">{{ otherName }}</span>
         <span v-if="applicant?.verified" class="who-chip who-chip--ok">
@@ -226,37 +218,43 @@
       <p v-if="!applicant?.verified" class="sheet-note">
         OSAS has not verified this student yet. You can accept once they do; scan their QR in person to see the documents they sent.
       </p>
-      <div class="sheet-actions">
+    </template>
+
+    <template #footer>
+      <template v-if="role === 'student' && applyRoom">
+        <button type="button" class="app-btn app-btn--ghost" @click="reviewOpen = false">Back</button>
+        <button type="button" class="app-btn" :disabled="applying" @click="submitApplication">
+          {{ applying ? 'Submitting…' : 'Submit application' }}
+        </button>
+      </template>
+      <template v-else-if="role === 'manager' && application">
         <button type="button" class="app-btn app-btn--ghost" :disabled="deciding" @click="reviewOpen = false; declineOpen = true">
           Decline
         </button>
         <button type="button" class="app-btn" :disabled="deciding || !applicant?.verified" @click="decideApplication('active')">
           {{ deciding ? 'Accepting…' : 'Accept' }}
         </button>
-      </div>
-    </div>
-  </q-dialog>
+      </template>
+    </template>
+  </AppModal>
 
   <!-- A decline the student can act on: the reason reaches them in the
        notification and stays on the lease. -->
-  <q-dialog v-model="declineOpen" position="bottom">
-    <div class="sheet">
-      <h3 class="sheet-title">Decline application</h3>
-      <p class="sheet-note">The student sees this reason.</p>
-      <textarea v-model="declineReason" class="sheet-input" rows="3" placeholder="Why are you declining?" />
-      <div class="sheet-actions">
-        <button type="button" class="app-btn app-btn--ghost" @click="declineOpen = false">Cancel</button>
-        <button
-          type="button"
-          class="app-btn"
-          :disabled="!declineReason.trim() || deciding"
-          @click="decideApplication('rejected')"
-        >
-          {{ deciding ? 'Declining…' : 'Decline' }}
-        </button>
-      </div>
-    </div>
-  </q-dialog>
+  <AppModal v-model="declineOpen" title="Decline application" size="sm">
+    <p class="sheet-note">The student sees this reason.</p>
+    <textarea v-model="declineReason" class="sheet-input" rows="3" placeholder="Why are you declining?" />
+    <template #footer>
+      <button type="button" class="app-btn app-btn--ghost" @click="declineOpen = false">Cancel</button>
+      <button
+        type="button"
+        class="app-btn"
+        :disabled="!declineReason.trim() || deciding"
+        @click="decideApplication('rejected')"
+      >
+        {{ deciding ? 'Declining…' : 'Decline' }}
+      </button>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -277,6 +275,7 @@ import {
 } from '@/utils/applications'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
 import { UTILITIES, UTILITY_SELECT, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
+import AppModal from '@/components/shared/AppModal.vue'
 
 const props = defineProps<{
   conversationId: string
@@ -891,22 +890,6 @@ defineExpose({ refresh })
   flex: 1 1 100%;
   min-height: 40px;
 }
-.sheet {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
-  background: var(--m-surface);
-}
-.sheet-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .sheet-note {
   margin: 0;
   color: var(--m-muted);
@@ -922,11 +905,6 @@ defineExpose({ refresh })
   font: inherit;
   font-size: 14px;
   resize: none;
-}
-.sheet-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 .who {
   display: flex;

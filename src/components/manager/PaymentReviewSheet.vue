@@ -1,19 +1,16 @@
 <template>
-  <q-dialog :model-value="modelValue" position="bottom" @update:model-value="emit('update:modelValue', $event)">
-    <q-card v-if="payment" class="pay-detail-sheet">
-      <div class="pay-detail-head">
-        <span class="pay-detail-head-body">
-          <h3 class="pay-detail-title">{{ paymentTitle(payment) }}</h3>
-          <span class="pay-detail-amount">{{ formatPesoExact(payment.amount) }}</span>
-        </span>
-        <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, payment.status)}`">
-          {{ statusText(PAYMENT_STATUS, payment.status) }}
-        </span>
-        <button type="button" class="sheet-x" aria-label="Close" @click="emit('update:modelValue', false)">
-          <IconifyIcon icon="lucide:x" width="20" />
-        </button>
-      </div>
+  <AppModal :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
+    <template v-if="payment" #header>
+      <span class="pay-detail-head-body">
+        <h3 class="pay-detail-title">{{ paymentTitle(payment) }}</h3>
+        <span class="pay-detail-amount">{{ formatPesoExact(payment.amount) }}</span>
+      </span>
+      <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, payment.status)}`">
+        {{ statusText(PAYMENT_STATUS, payment.status) }}
+      </span>
+    </template>
 
+    <template v-if="payment">
       <div class="group">
         <div v-if="payment.claimedAmount" class="pay-detail-rule">
           <span class="pay-detail-rule-label">Student submitted</span>
@@ -106,13 +103,12 @@
         </div>
         <button v-else type="button" class="pay-detail-link" @click="mode = 'undo'; reason = ''">Undo this confirmation</button>
       </template>
-    </q-card>
-  </q-dialog>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
@@ -120,6 +116,7 @@ import { confirmAction } from '@/utils/confirmAction'
 import { resolveAsset } from '@/utils/cloudinaryUrl'
 import { formatDate, formatPesoExact, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
 import { paymentTitle } from '@/utils/payments'
+import AppModal from '@/components/shared/AppModal.vue'
 
 // The landlord/landlady's view of one payment, and the only place it is
 // reviewed: confirm as submitted, reject, or undo a recent
@@ -190,25 +187,10 @@ async function act(action: 'confirm' | 'reject' | 'undo') {
 </script>
 
 <style scoped>
-.pay-detail-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.pay-detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
 .pay-detail-head-body {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
 }
 .pay-detail-title {
@@ -391,19 +373,5 @@ async function act(action: 'confirm' | 'reject' | 'undo') {
   font: inherit;
   font-size: 13px;
   font-weight: 700;
-}
-.sheet-x {
-  display: flex;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  margin: -6px -8px 0 0;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--m-muted);
-  cursor: pointer;
 }
 </style>

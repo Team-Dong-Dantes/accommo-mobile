@@ -601,22 +601,8 @@ body {
     display: none;
   }
 
-  /* ---- Bottom sheets float ----
-     Every `position="bottom"` q-dialog is a phone sheet: pinned to the bottom
-     edge, 480px or less. In a desktop browser that is a strip along the bottom
-     of a wide window, so here it becomes a centred, wider card, on a tablet too.
-     !important because each sheet's scoped max-width/radius outranks this. */
-  body .q-dialog__inner--bottom {
-    top: 0;
-    align-items: center;
-    padding: 32px !important;
-  }
-  body .q-dialog__inner--bottom > div {
-    width: 640px !important;
-    max-width: 100% !important;
-    max-height: calc(100vh - 64px) !important;
-    border-radius: var(--m-radius-lg) !important;
-  }
+  /* (Modals float on wide screens in AppModal.vue itself, from 600px — this
+     block used to force every bottom q-dialog into a 640px card here.) */
 
   /* ---- Shell panes as one card ----
      A list pane and the detail routed beside it (Discover → a listing,
@@ -686,6 +672,32 @@ body {
   border: 0;
   border-radius: 0;
   background: transparent;
+}
+
+/* Profile (student and manager): a narrow identity + section-menu half beside
+   a wide details half, rather than two equal halves with the left one mostly
+   empty. */
+.shell-tablet .desk-card.desk-card--profile {
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+/* The details half is too wide for one label-left, value-right row per field:
+   a block made only of fields lays them out two to a row. Rules go on top of
+   each row past the first instead of under each field, so a short last row
+   does not end on mismatched borders. */
+.shell-tablet .desk-card--profile .p-block-body:not(:has(> :not(.pf))) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+}
+.shell-tablet .desk-card--profile .p-block-body:not(:has(> :not(.pf))) > .pf {
+  border-bottom: 0;
+}
+.shell-tablet .desk-card--profile .p-block-body:not(:has(> :not(.pf))) > .pf:nth-child(n + 3) {
+  border-top: 1px solid var(--m-border);
+}
+/* A jumped-to block lands just under the half's top edge, not flush on it. */
+.shell-tablet .desk-card--profile .p-block {
+  scroll-margin-top: 4px;
 }
 
 /* A tab's content moved (by Teleport) into another half on desktop — e.g.
@@ -761,16 +773,9 @@ body {
   margin: 0;
   padding: 12px 14px 10px;
 }
-/* Above a card rather than inside one: the page's own ground behind it. */
-.shell-tablet .desk-search.desk-search--above {
-  position: static;
-  margin: 0 0 10px;
-  padding: 0;
-  background: transparent;
-}
 
 /* The way back to a list, just above a card's left half (an accommodation,
-   the new-accommodation form). */
+   the new-accommodation form, History). */
 .shell-tablet .desk-back-row {
   display: flex;
   align-items: center;
@@ -807,14 +812,6 @@ body {
   color: var(--m-ink);
   font-size: 16px;
   font-weight: 700;
-}
-/* The same bar across the top of a whole desk card, over both halves. The rows
-   are set so the halves, not the bar, take the card's spare height. */
-.shell-tablet .desk-card:has(> .desk-card-bar) {
-  grid-template-rows: auto minmax(0, 1fr);
-}
-.shell-tablet .desk-card-bar {
-  grid-column: 1 / -1;
 }
 
 /* ---- Pages that split themselves (.page-split): the card on their columns --

@@ -1,72 +1,71 @@
 <template>
-  <q-dialog :model-value="modelValue" position="bottom" @update:model-value="(v) => emit('update:modelValue', v)">
-    <q-card class="room-sheet room-sheet--paged room-sheet--wizard">
-      <span class="sheet-grip" aria-hidden="true" />
-      <div class="sheet-header">
-        <span class="sheet-header-icon"><IconifyIcon icon="lucide:map-pin" width="18" /></span>
-        <h3 class="room-sheet-title">Set location</h3>
-      </div>
+  <AppModal
+    :model-value="modelValue"
+    title="Set location"
+    icon="lucide:map-pin"
+    size="lg"
+    tall
+    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
+  >
+    <div class="room-sheet-scroll">
+      <template v-if="!hasToken">
+        <p class="none">Map unavailable — VITE_MAPBOX_TOKEN isn't configured.</p>
+      </template>
+      <template v-else>
+        <!-- The suggestion list floats over the sheet instead of sitting in
+             flow, where it was pushing the map down and getting clipped by
+             the scroll container. -->
+        <div class="search-wrap">
+          <label class="field">
+            <span class="field-label">Search</span>
+            <input v-model="query" type="text" class="field-input" placeholder="Search an address or landmark" @input="onQueryInput" />
+          </label>
 
-      <div class="room-sheet-scroll">
-        <template v-if="!hasToken">
-          <p class="none">Map unavailable — VITE_MAPBOX_TOKEN isn't configured.</p>
-        </template>
-        <template v-else>
-          <!-- The suggestion list floats over the sheet instead of sitting in
-               flow, where it was pushing the map down and getting clipped by
-               the scroll container. -->
-          <div class="search-wrap">
-            <label class="field">
-              <span class="field-label">Search</span>
-              <input v-model="query" type="text" class="field-input" placeholder="Search an address or landmark" @input="onQueryInput" />
-            </label>
-
-            <div v-if="searching" class="search-pop search-pop--hint">Searching…</div>
-            <div v-else-if="results.length" class="search-pop">
-              <button v-for="r in results" :key="r.id" type="button" class="facility-row" @click="pickResult(r)">
-                <span class="facility-icon"><IconifyIcon icon="lucide:map-pin" width="16" /></span>
-                <span class="facility-body">
-                  <span class="facility-name">{{ r.name }}</span>
-                  <span v-if="r.addressGuess" class="facility-sub">{{ r.addressGuess }}</span>
-                </span>
-              </button>
-            </div>
+          <div v-if="searching" class="search-pop search-pop--hint">Searching…</div>
+          <div v-else-if="results.length" class="search-pop">
+            <button v-for="r in results" :key="r.id" type="button" class="facility-row" @click="pickResult(r)">
+              <span class="facility-icon"><IconifyIcon icon="lucide:map-pin" width="16" /></span>
+              <span class="facility-body">
+                <span class="facility-name">{{ r.name }}</span>
+                <span v-if="r.addressGuess" class="facility-sub">{{ r.addressGuess }}</span>
+              </span>
+            </button>
           </div>
+        </div>
 
-          <div class="location-map-wrap">
-            <div ref="mapEl" class="location-map" aria-label="Map used to set the accommodation location" />
-          </div>
-          <p class="sec-hint">Tap the map to drop a pin, or use search / your current location above.</p>
-          <div v-if="barangayGuess || cityGuess" class="picked">
-            <IconifyIcon icon="lucide:map-pin" width="14" />
-            <span>{{ [barangayGuess, cityGuess].filter(Boolean).join(', ') }}</span>
-          </div>
-        </template>
-      </div>
+        <div class="location-map-wrap">
+          <div ref="mapEl" class="location-map" aria-label="Map used to set the accommodation location" />
+        </div>
+        <p class="sec-hint">Tap the map to drop a pin, or use search / your current location above.</p>
+        <div v-if="barangayGuess || cityGuess" class="picked">
+          <IconifyIcon icon="lucide:map-pin" width="14" />
+          <span>{{ [barangayGuess, cityGuess].filter(Boolean).join(', ') }}</span>
+        </div>
+      </template>
+    </div>
 
-      <div v-if="hasToken" class="photo-actions photo-actions--pinned">
-        <button type="button" class="photo-action-btn" :disabled="locating" @click="useCurrentLocation">
-          <IconifyIcon icon="lucide:locate-fixed" width="15" />
-          {{ locating ? 'Locating…' : 'Use my current location' }}
-        </button>
-      </div>
+    <div v-if="hasToken" class="photo-actions photo-actions--pinned">
+      <button type="button" class="photo-action-btn" :disabled="locating" @click="useCurrentLocation">
+        <IconifyIcon icon="lucide:locate-fixed" width="15" />
+        {{ locating ? 'Locating…' : 'Use my current location' }}
+      </button>
+    </div>
 
-      <div class="wizard-nav">
-        <button type="button" class="ghost-btn" @click="emit('update:modelValue', false)">Cancel</button>
-        <q-btn
-          unelevated
-          rounded
-          no-caps
-          color="primary"
-          class="save-btn"
-          label="Use this location"
-          :disable="lat === null || lng === null"
-          :loading="confirming"
-          @click="confirmLocation"
-        />
-      </div>
-    </q-card>
-  </q-dialog>
+    <template #footer>
+      <button type="button" class="ghost-btn" @click="emit('update:modelValue', false)">Cancel</button>
+      <q-btn
+        unelevated
+        rounded
+        no-caps
+        color="primary"
+        class="save-btn"
+        label="Use this location"
+        :disable="lat === null || lng === null"
+        :loading="confirming"
+        @click="confirmLocation"
+      />
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -75,6 +74,7 @@ import mapboxgl from '@/utils/mapbox'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useNotify } from '@/utils/notify'
 import { CAMPUS, geolocationErrorMessage } from '@/utils/geo'
+import AppModal from '@/components/shared/AppModal.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -334,25 +334,6 @@ async function confirmLocation() {
 </script>
 
 <style scoped>
-.room-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-  background: var(--m-surface);
-  overflow-y: auto;
-}
-.room-sheet--wizard {
-  height: min(660px, 85vh);
-}
-.room-sheet--paged {
-  overflow: hidden;
-}
 .room-sheet-scroll {
   display: flex;
   flex: 1;
@@ -360,36 +341,6 @@ async function confirmLocation() {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-}
-.sheet-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.sheet-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.sheet-header-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.room-sheet-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
 }
 .field {
   display: flex;
@@ -552,15 +503,6 @@ async function confirmLocation() {
 }
 .photo-action-btn:disabled {
   opacity: 0.6;
-}
-.wizard-nav {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex: 0 0 auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--m-border);
 }
 .ghost-btn {
   flex: 0 0 auto;

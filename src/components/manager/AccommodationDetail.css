@@ -355,7 +355,6 @@
   font-weight: 600;
 }
 
-
 .toggles {
   display: flex;
   flex-direction: column;
@@ -734,48 +733,6 @@
   opacity: 0.6;
 }
 
-.room-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-  overflow-y: auto;
-}
-.sheet-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.sheet-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.sheet-header-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.room-sheet-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .field-prefixed {
   position: relative;
   display: flex;
@@ -802,6 +759,7 @@
 }
 .room-sheet-actions {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
@@ -852,27 +810,20 @@
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
 }
-/* Every footer button — Back included — sits together at the right edge. */
+/* Every footer button — Back included — sits together at the right edge.
+   Both rows fill AppModal's footer. */
 .wizard-nav {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
 }
 
-/* One fixed height for every multi-step form (room, facility — create and
-   edit alike) so they don't visibly resize between short steps (Photos)
-   and long ones (Basics); overflow scrolls inside via .room-sheet-scroll. */
-.room-sheet--wizard {
-  height: min(660px, 85vh);
-}
-
-/* The room dialog scrolls its own content while the footer (Back/Next/Done,
-   or Delete/Save) stays put — overrides the plain sheets' "everything
-   scrolls together" layout with a dedicated scroll pane + a pinned footer. */
-.room-sheet--paged {
-  overflow: hidden;
-}
+/* Every multi-step form (room, facility — create and edit alike) is an
+   AppModal with `tall`, one fixed height, so they don't visibly resize between
+   short steps (Photos) and long ones (Basics). The content scrolls here while
+   the footer (Back/Next/Done, or Delete/Save) stays put. */
 .room-sheet-scroll {
   display: flex;
   flex: 1;
@@ -880,12 +831,6 @@
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-}
-.room-sheet--paged > .room-sheet-actions,
-.room-sheet--paged > .wizard-nav {
-  flex: 0 0 auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--m-border);
 }
 .photo-actions--pinned {
   flex: 0 0 auto;
@@ -989,6 +934,11 @@
 }
 .desk-card .desk-col:first-child {
   gap: 0;
+}
+/* The loading photo, bleeding the same way and spaced as the overview is. */
+.desk-card .sk-hero {
+  width: auto;
+  margin: -14px -18px 14px;
 }
 /* Overview and settings are content in the half, not a second card. */
 .desk-card .panel {

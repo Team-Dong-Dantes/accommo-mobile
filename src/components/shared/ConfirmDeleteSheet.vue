@@ -1,30 +1,26 @@
 <template>
-  <q-dialog
+  <AppModal
     :model-value="modelValue"
-    position="bottom"
+    :title="title"
+    icon="lucide:triangle-alert"
+    tone="danger"
+    size="sm"
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <q-card class="cds">
-      <span class="cds-grip" aria-hidden="true" />
-      <div class="cds-header">
-        <span class="cds-icon"><IconifyIcon icon="lucide:triangle-alert" width="18" /></span>
-        <h3 class="cds-title">{{ title }}</h3>
-      </div>
-      <p class="cds-body">{{ body }}</p>
-      <div class="cds-actions">
-        <button type="button" class="cds-cancel" :disabled="busy" @click="emit('update:modelValue', false)">
-          Cancel
-        </button>
-        <button type="button" class="cds-confirm" :disabled="busy" @click="emit('confirm')">
-          {{ busy ? busyLabel : confirmLabel }}
-        </button>
-      </div>
-    </q-card>
-  </q-dialog>
+    <p class="cds-body">{{ body }}</p>
+    <template #footer>
+      <button type="button" class="cds-cancel" :disabled="busy" @click="emit('update:modelValue', false)">
+        Cancel
+      </button>
+      <button type="button" class="cds-confirm" :disabled="busy" @click="emit('confirm')">
+        {{ busy ? busyLabel : confirmLabel }}
+      </button>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
-import { Icon as IconifyIcon } from '@iconify/vue'
+import AppModal from '@/components/shared/AppModal.vue'
 
 /**
  * "Are you sure you want to delete this?" as one component.
@@ -37,10 +33,8 @@ import { Icon as IconifyIcon } from '@iconify/vue'
  *
  * Deliberately not built on BottomSheet: that one is the list-filter panel
  * (title, reset link, Done button), a different shape from a destructive
- * confirm, and bending it to cover both would make it worse at each.
- *
- * Styles are its own copy rather than inherited — scoped CSS does not cross
- * the component boundary.
+ * confirm, and bending it to cover both would make it worse at each. Both sit
+ * on AppModal, which draws the sheet itself.
  */
 withDefaults(
   defineProps<{
@@ -63,65 +57,11 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.cds {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-  overflow-y: auto;
-}
-
-.cds-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-
-.cds-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cds-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-
-.cds-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-
 .cds-body {
   margin: 0;
   color: var(--m-muted);
   font-size: 13px;
   line-height: 1.5;
-}
-
-.cds-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
 }
 
 .cds-cancel,

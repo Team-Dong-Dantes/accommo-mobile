@@ -1,7 +1,26 @@
 <template>
   <q-page class="history-page" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
-      <div v-if="loading" class="stack">
+      <!-- Desktop: the loaded shape — the way back live already above a card
+           of two halves, each with its own search. -->
+      <div v-if="loading && split" class="stack">
+        <div class="desk-back-row">
+          <button type="button" class="desk-panel-back" :aria-label="backLabel" @click="goBack">
+            <IconifyIcon icon="lucide:arrow-left" width="20" />
+          </button>
+          <span class="desk-panel-title">{{ backLabel }}</span>
+        </div>
+        <div class="desk-card">
+          <div v-for="title in ['Ratings', 'Payments']" :key="title" class="desk-col">
+            <q-skeleton type="rect" height="40px" class="sk sk-search" />
+            <h2 class="desk-col-title">{{ title }}</h2>
+            <q-skeleton type="rect" height="90px" class="sk" />
+            <q-skeleton type="rect" height="90px" class="sk" />
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="loading" class="stack">
         <q-skeleton type="rect" height="40px" class="sk" />
         <q-skeleton type="rect" height="90px" class="sk" />
         <q-skeleton type="rect" height="90px" class="sk" />
@@ -12,17 +31,15 @@
       </div>
 
       <div v-else class="stack">
-        <!-- Desktop: one search above the card; it searches both halves. -->
-        <SearchDock
-          v-if="split"
-          v-model="query"
-          inline
-          class="desk-search desk-search--above"
-          :filter-count="deskFilterCount"
-          placeholder="Search ratings, tenants, rooms or months"
-          search-label="Search"
-          @open-filters="filtersOpen = true"
-        />
+        <!-- Desktop: the way back sits just above the card, as on an
+             accommodation; the app header stays the plain one (see OWN_BACK
+             in MainLayout). -->
+        <div v-if="split" class="desk-back-row">
+          <button type="button" class="desk-panel-back" :aria-label="backLabel" @click="goBack">
+            <IconifyIcon icon="lucide:arrow-left" width="20" />
+          </button>
+          <span class="desk-panel-title">{{ backLabel }}</span>
+        </div>
         <div class="m-tabbed">
           <div v-if="!split" class="tabs">
             <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
@@ -34,16 +51,19 @@
           </div>
 
           <div :class="split ? 'desk-card' : 'panel'">
-            <!-- Desktop: the way back sits on the card, not in the app header,
-                 which stays the plain one (see OWN_BACK in MainLayout). -->
-            <header v-if="split" class="desk-panel-bar desk-card-bar">
-              <button type="button" class="desk-panel-back" aria-label="Back" @click="goBack">
-                <IconifyIcon icon="lucide:arrow-left" width="20" />
-              </button>
-              <span class="desk-panel-title">History</span>
-            </header>
             <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
               <component :is="panelIs" name="reviews" :class="split ? 'desk-col' : 'tab-panel'">
+                <!-- Desktop: each half searches and filters only itself. -->
+                <SearchDock
+                  v-if="split"
+                  v-model="queries.reviews"
+                  inline
+                  class="desk-search"
+                  :filter-count="reviewDateFilter !== 'all' ? 1 : 0"
+                  placeholder="Search ratings"
+                  search-label="Search"
+                  @open-filters="openFilters('reviews')"
+                />
                 <h2 v-if="split" class="desk-col-title">Ratings</h2>
                 <template v-if="reviews.length">
                   <div class="rating-summary">
@@ -84,6 +104,16 @@
               </component>
 
               <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
+                <SearchDock
+                  v-if="split"
+                  v-model="queries.payments"
+                  inline
+                  class="desk-search"
+                  :filter-count="filter !== 'all' ? 1 : 0"
+                  placeholder="Search tenant, room or month"
+                  search-label="Search"
+                  @open-filters="openFilters('payments')"
+                />
                 <h2 v-if="split" class="desk-col-title">Payments</h2>
                 <template v-if="payments.length">
                   <div v-if="paymentProperties.length > 1" class="m-chips">
@@ -149,11 +179,11 @@
          content while you pull, which would drag this fixed dock along. -->
     <SearchDock
       v-if="!loading && !error && !split"
-      v-model="query"
+      v-model="queries[tab]"
       :filter-count="(tab === 'reviews' ? reviewDateFilter : filter) !== 'all' ? 1 : 0"
       :placeholder="tab === 'payments' ? 'Search tenant, room or month' : 'Search ratings'"
       search-label="Search"
-      @open-filters="filtersOpen = true"
+      @open-filters="openFilters(tab)"
     />
 
     <BottomSheet
@@ -161,9 +191,8 @@
       title="Filters"
       @clear="clearFilters"
     >
-      <!-- One section per tab on a phone; both on desktop, where both halves
-           are on screen at once. -->
-      <div v-if="split || tab === 'reviews'" class="sheet-block">
+      <!-- One section: the open tab's on a phone, the half's own on desktop. -->
+      <div v-if="sheetFor === 'reviews'" class="sheet-block">
         <span class="sheet-label">Date</span>
         <div class="m-chips">
           <button
@@ -178,7 +207,7 @@
           </button>
         </div>
       </div>
-      <div v-if="split || tab === 'payments'" class="sheet-block">
+      <div v-if="sheetFor === 'payments'" class="sheet-block">
         <span class="sheet-label">Status</span>
         <div class="m-chips">
           <button
@@ -195,23 +224,26 @@
       </div>
     </BottomSheet>
 
-    <q-dialog v-model="reviewDetailOpen" position="bottom">
-      <q-card v-if="reviewDetailTarget" class="detail-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
+    <AppModal v-model="reviewDetailOpen" size="sm">
+      <template v-if="reviewDetailTarget" #header>
         <h3 class="detail-title">
           Anonymous <span class="review-source">· {{ reviewDetailTarget.source }}</span>
         </h3>
+      </template>
+      <template v-if="reviewDetailTarget">
         <StarRating :model-value="reviewDetailTarget.rating" :size="20" />
         <p v-if="reviewDetailTarget.comment" class="detail-text">{{ reviewDetailTarget.comment }}</p>
         <p class="detail-sub">{{ formatDate(reviewDetailTarget.createdAt) }}</p>
+      </template>
+      <template #footer>
         <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="reviewDetailOpen = false" />
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onActivated } from 'vue'
 import { useDeskPanels } from '@/utils/useDeskPanels'
 import { useLiveData } from '@/utils/useLiveData'
 import { useRoute, useRouter } from 'vue-router'
@@ -224,6 +256,7 @@ import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import { formatPeso, formatMonth, formatDate, initialsOf, PAYMENT_STATUS, statusText, statusColor } from '@/utils/format'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
+import AppModal from '@/components/shared/AppModal.vue'
 
 interface Review {
   id: string
@@ -249,15 +282,32 @@ interface PaymentRow {
 const route = useRoute()
 const router = useRouter()
 // Back to wherever History was opened from (Settings, or a View-all link);
-// Settings on a fresh load with nothing behind it.
+// Settings on a fresh load with nothing behind it. Read on every visit, not
+// once at setup: the page is kept alive, so where it was opened from changes.
+const BACK_LABELS: Record<string, string> = {
+  '/manager/settings': 'settings',
+  '/manager/tenants': 'my tenants',
+  '/manager/notifications': 'notifications',
+}
+const backPath = ref<string | null>(null)
+function readBack() {
+  backPath.value = window.history.state?.back ?? null
+}
+readBack()
+onActivated(readBack)
+const backLabel = computed(() => {
+  if (!backPath.value) return 'Back to settings'
+  const name = BACK_LABELS[backPath.value.split('?')[0] ?? '']
+  return name ? `Back to ${name}` : 'Back'
+})
 function goBack() {
-  if (window.history.state?.back) router.back()
+  if (backPath.value) router.back()
   else void router.push('/manager/settings')
 }
 
 const loading = ref(true)
 const error = ref('')
-const tab = ref(route.query.tab === 'payments' ? 'payments' : 'reviews')
+const tab = ref<'reviews' | 'payments'>(route.query.tab === 'payments' ? 'payments' : 'reviews')
 // Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
 
@@ -267,10 +317,15 @@ const reviewDetailOpen = ref(false)
 const reviewDetailTarget = ref<Review | null>(null)
 const avgRating = computed(() => (reviews.value.length ? reviews.value.reduce((n, r) => n + r.rating, 0) / reviews.value.length : 0))
 
-// Search applies to whichever tab is open; the status filter only means
-// anything on Payments, so it's the only tab that reads it.
-const query = ref('')
+// One search per tab — the open tab's on a phone, each half's own on desktop.
+const queries = reactive({ reviews: '', payments: '' })
 const filtersOpen = ref(false)
+// Which list the filter sheet is for: the open tab, or the half it was opened from.
+const sheetFor = ref<'reviews' | 'payments'>('reviews')
+function openFilters(t: 'reviews' | 'payments') {
+  sheetFor.value = t
+  filtersOpen.value = true
+}
 
 // Source (About me / Properties) and property-scope are cheap, always-useful
 // toggles — kept inline above each list instead of behind the filter button,
@@ -316,7 +371,7 @@ const visibleReviews = computed(() => {
   let list = reviews.value
   if (reviewFilter.value !== 'all') list = list.filter((r) => r.kind === reviewFilter.value)
   if (reviewDateFilter.value !== 'all') list = list.filter((r) => withinDateFilter(r.createdAt, reviewDateFilter.value))
-  const q = query.value.trim().toLowerCase()
+  const q = queries.reviews.trim().toLowerCase()
   if (q) list = list.filter((r) => `${r.source} ${r.comment}`.toLowerCase().includes(q))
   return list
 })
@@ -324,27 +379,25 @@ const visiblePayments = computed(() => {
   let list = payments.value
   if (propertyFilter.value !== 'all') list = list.filter((p) => p.accommodationName === propertyFilter.value)
   if (filter.value !== 'all') list = list.filter((p) => p.status === filter.value)
-  const q = query.value.trim().toLowerCase()
+  const q = queries.payments.trim().toLowerCase()
   if (q) list = list.filter((p) => `${p.studentName} ${p.roomLabel} ${formatMonth(p.month)}`.toLowerCase().includes(q))
   return list
 })
 
 watch(tab, () => {
-  query.value = ''
+  queries.reviews = ''
+  queries.payments = ''
   filter.value = 'all'
   reviewFilter.value = 'all'
   reviewDateFilter.value = 'all'
   propertyFilter.value = 'all'
 })
 
-// The sheet's Clear: the open tab's filter on a phone, both on desktop.
+// The sheet's Clear: only the list the sheet is for.
 function clearFilters() {
-  if (split.value || tab.value === 'reviews') reviewDateFilter.value = 'all'
-  if (split.value || tab.value === 'payments') filter.value = 'all'
+  if (sheetFor.value === 'reviews') reviewDateFilter.value = 'all'
+  else filter.value = 'all'
 }
-const deskFilterCount = computed(() =>
-  [reviewDateFilter.value, filter.value].filter((f) => f !== 'all').length,
-)
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -447,6 +500,10 @@ const { refresh } = useLiveData({ key: 'manager-history', load, ttl: 120_000 })
 }
 .sk {
   border-radius: var(--m-radius);
+}
+/* Stands in for a half's own search (.desk-search). */
+.sk-search {
+  border-radius: 999px;
 }
 .card {
   padding: 18px 14px;
@@ -656,25 +713,6 @@ const { refresh } = useLiveData({ key: 'manager-history', load, ttl: 120_000 })
 
 /* Filter sheet */
 
-.sheet-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.detail-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 14px 16px 18px;
-  border-radius: 16px 16px 0 0;
-  background: var(--m-surface, #fff);
-}
 .detail-title {
   margin: 0;
   color: var(--m-ink);
@@ -694,8 +732,8 @@ const { refresh } = useLiveData({ key: 'manager-history', load, ttl: 120_000 })
   font-size: 11.5px;
 }
 .detail-close {
+  flex: 1;
   min-height: 46px;
-  margin-top: 6px;
   font-weight: 700;
 }
 </style>

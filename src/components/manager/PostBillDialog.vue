@@ -1,29 +1,28 @@
 <template>
-  <q-dialog :model-value="modelValue" position="bottom" @update:model-value="emit('update:modelValue', $event)">
-    <q-card class="pb-sheet">
-      <h3 class="pb-title">Post utility bill</h3>
-      <p class="pb-note">{{ studentName }} will see it under Payments and pay it like rent.</p>
+  <AppModal :model-value="modelValue" title="Post utility bill" @update:model-value="emit('update:modelValue', $event)">
+    <p class="pb-note">{{ studentName }} will see it under Payments and pay it like rent.</p>
 
-      <label class="pb-field">
-        <span class="pb-label">Month</span>
-        <input v-model="month" type="month" class="pb-input" />
-      </label>
-      <label v-for="u in utilities" :key="u.key" class="pb-field">
-        <span class="pb-label">{{ u.label }} (₱) · {{ UTILITY_BILLING_LABEL[u.billing] }}</span>
-        <input v-model.number="amounts[u.key]" type="number" min="0" step="0.01" inputmode="decimal" class="pb-input" placeholder="Leave blank to skip" />
-      </label>
-      <label class="pb-field">
-        <span class="pb-label">Due date</span>
-        <input v-model="dueDate" type="date" :min="today" class="pb-input" />
-      </label>
-      <label class="pb-field">
-        <span class="pb-label">Note (optional)</span>
-        <input v-model="note" type="text" class="pb-input" placeholder="e.g. Meter 1,204 → 1,262 kWh" />
-      </label>
+    <label class="pb-field">
+      <span class="pb-label">Month</span>
+      <input v-model="month" type="month" class="pb-input" />
+    </label>
+    <label v-for="u in utilities" :key="u.key" class="pb-field">
+      <span class="pb-label">{{ u.label }} (₱) · {{ UTILITY_BILLING_LABEL[u.billing] }}</span>
+      <input v-model.number="amounts[u.key]" type="number" min="0" step="0.01" inputmode="decimal" class="pb-input" placeholder="Leave blank to skip" />
+    </label>
+    <label class="pb-field">
+      <span class="pb-label">Due date</span>
+      <input v-model="dueDate" type="date" :min="today" class="pb-input" />
+    </label>
+    <label class="pb-field">
+      <span class="pb-label">Note (optional)</span>
+      <input v-model="note" type="text" class="pb-input" placeholder="e.g. Meter 1,204 → 1,262 kWh" />
+    </label>
 
+    <template #footer>
       <q-btn unelevated rounded no-caps color="primary" class="pb-submit" :loading="posting" label="Post bill" @click="post" />
-    </q-card>
-  </q-dialog>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -34,6 +33,7 @@ import { useNotify } from '@/utils/notify'
 import { formatMonth } from '@/utils/format'
 import { UTILITY_BILLING_LABEL, type UtilityKey } from '@/utils/listings'
 import { manilaToday } from '@/utils/payments'
+import AppModal from '@/components/shared/AppModal.vue'
 
 // The landlord/landlady's side of a metered or split utility: one month's
 // amount per utility, posted as utility_bills rows. The student pays each one
@@ -108,25 +108,8 @@ async function post() {
 </script>
 
 <style scoped>
-.pb-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.pb-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .pb-note {
-  margin: -6px 0 0;
+  margin: -4px 0 0;
   color: var(--m-muted);
   font-size: 13px;
 }
@@ -153,6 +136,7 @@ async function post() {
   font-size: 14px;
 }
 .pb-submit {
+  flex: 1;
   min-height: 48px;
   font-weight: 700;
 }

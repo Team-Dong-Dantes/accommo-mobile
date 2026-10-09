@@ -1,164 +1,161 @@
 <template>
-  <q-dialog :model-value="modelValue" position="bottom" @update:model-value="emit('update:modelValue', $event)">
-    <q-card class="ps-sheet">
-      <span class="ps-grip" aria-hidden="true" />
-      <div class="ps-progress" aria-hidden="true"><span class="ps-progress-fill" :style="{ width: step === 1 ? '50%' : '100%' }" /></div>
+  <AppModal :model-value="modelValue" tall @update:model-value="emit('update:modelValue', $event)">
+    <template #header>
+      <button v-if="step === 2" type="button" class="ps-back" aria-label="Back to what you're paying" @click="step = 1">
+        <IconifyIcon icon="lucide:chevron-left" width="20" />
+      </button>
+      <span class="ps-head-body">
+        <span class="ps-step">{{ landlord ? 'Log a payment' : 'Pay' }} · step {{ step }} of 2</span>
+        <h3 class="ps-title">
+          {{ step === 1 ? (landlord ? 'What was paid?' : 'What are you paying?') : (landlord ? 'How was it paid?' : 'How did you pay?') }}
+        </h3>
+      </span>
+      <span v-if="step === 2" class="ps-head-amt">{{ formatPesoExact(payAmount) }}</span>
+    </template>
 
-      <div class="ps-head">
-        <button v-if="step === 2" type="button" class="ps-back" aria-label="Back to what you're paying" @click="step = 1">
-          <IconifyIcon icon="lucide:chevron-left" width="20" />
-        </button>
-        <span class="ps-head-body">
-          <span class="ps-step">{{ landlord ? 'Log a payment' : 'Pay' }} · step {{ step }} of 2</span>
-          <h3 class="ps-title">
-            {{ step === 1 ? (landlord ? 'What was paid?' : 'What are you paying?') : (landlord ? 'How was it paid?' : 'How did you pay?') }}
-          </h3>
-        </span>
-        <span v-if="step === 2" class="ps-head-amt">{{ formatPesoExact(payAmount) }}</span>
+    <div class="ps-progress" aria-hidden="true"><span class="ps-progress-fill" :style="{ width: step === 1 ? '50%' : '100%' }" /></div>
+    <span v-if="subtitle && step === 1" class="ps-sub">{{ subtitle }}</span>
+
+    <div v-if="loading" class="ps-body ps-center"><q-spinner size="24px" color="primary" /></div>
+    <div v-else-if="!rentRows.length && !bills.length && !moveIn.length" class="ps-body ps-center">
+      <IconifyIcon icon="lucide:circle-check" width="32" class="ps-done-icon" />
+      <p class="ps-empty">Nothing is owed on this stay right now.</p>
+    </div>
+
+    <!-- Step 1: what is being paid — everything owed, month by month, the
+         same order as the statement. What is due now starts ticked. -->
+    <template v-else-if="step === 1">
+      <div class="ps-body">
+        <p v-if="rentRows.length > 1" class="ps-hint">Rent months are paid in order, oldest first.</p>
+        <section v-for="g in groups" :key="g.month" class="ps-group">
+          <h4 class="ps-group-name">{{ formatMonth(g.month) }}</h4>
+          <button
+            v-for="it in g.items"
+            :key="it.key"
+            type="button"
+            class="ps-card ps-card-main"
+            :class="{ 'ps-card--on': it.on }"
+            :aria-pressed="it.on"
+            @click="it.toggle"
+          >
+            <span class="ps-radio" :class="{ 'ps-radio--on': it.on }"><IconifyIcon v-if="it.on" icon="lucide:check" width="13" /></span>
+            <span class="ps-card-body">
+              <span class="ps-card-name">{{ it.name }}</span>
+              <span class="ps-card-note" :class="{ 'ps-late': it.late }">{{ it.note }}</span>
+            </span>
+            <span class="ps-card-amt">{{ formatPesoExact(it.amount) }}</span>
+          </button>
+        </section>
+
+        <div v-if="payLess" class="ps-card ps-less">
+          <label class="ps-field">
+            <span class="ps-label">Amount{{ landlord ? ' received' : ' you are paying now' }}</span>
+            <span class="ps-money">
+              <span class="ps-money-sign">₱</span>
+              <input v-model.number="amount" type="number" :min="minAmount" :max="total" step="0.01" inputmode="decimal" class="ps-money-input" />
+            </span>
+            <span class="ps-hint">Goes to the picked items from the top; the rest stays owed.<template v-if="!landlord"> At least {{ formatPesoExact(minAmount) }}.</template></span>
+          </label>
+          <label v-if="!landlord && amount + 0.009 < total" class="ps-field">
+            <span class="ps-label">When will you pay the rest? (optional)</span>
+            <input v-model="promiseDate" type="date" :min="manilaToday()" class="ps-input" />
+          </label>
+        </div>
       </div>
-      <span v-if="subtitle && step === 1" class="ps-sub">{{ subtitle }}</span>
 
-      <div v-if="loading" class="ps-body ps-center"><q-spinner size="24px" color="primary" /></div>
-      <div v-else-if="!rentRows.length && !bills.length && !moveIn.length" class="ps-body ps-center">
-        <IconifyIcon icon="lucide:circle-check" width="32" class="ps-done-icon" />
-        <p class="ps-empty">Nothing is owed on this stay right now.</p>
+      <div class="ps-foot">
+        <div class="ps-total">
+          <span class="ps-total-label">{{ payLess ? `Paying now · of ${formatPesoExact(total)}` : 'Total' }}</span>
+          <button v-if="total > 0 && (payLess || canPayLess)" type="button" class="ps-link" @click="payLess ? (payLess = false) : startPayLess()">
+            {{ payLess ? 'Pay all' : landlord ? 'Received less' : 'Pay less' }}
+          </button>
+        </div>
+        <span class="ps-total-amt">{{ formatPesoExact(payAmount) }}</span>
+        <q-btn unelevated rounded no-caps color="primary" class="ps-submit" :disable="!(payAmount > 0)" @click="next">
+          Continue <IconifyIcon icon="lucide:arrow-right" width="18" class="ps-submit-icon" />
+        </q-btn>
       </div>
+    </template>
 
-      <!-- Step 1: what is being paid — everything owed, month by month, the
-           same order as the statement. What is due now starts ticked. -->
-      <template v-else-if="step === 1">
-        <div class="ps-body">
-          <p v-if="rentRows.length > 1" class="ps-hint">Rent months are paid in order, oldest first.</p>
-          <section v-for="g in groups" :key="g.month" class="ps-group">
-            <h4 class="ps-group-name">{{ formatMonth(g.month) }}</h4>
-            <button
-              v-for="it in g.items"
-              :key="it.key"
-              type="button"
-              class="ps-card ps-card-main"
-              :class="{ 'ps-card--on': it.on }"
-              :aria-pressed="it.on"
-              @click="it.toggle"
-            >
-              <span class="ps-radio" :class="{ 'ps-radio--on': it.on }"><IconifyIcon v-if="it.on" icon="lucide:check" width="13" /></span>
-              <span class="ps-card-body">
-                <span class="ps-card-name">{{ it.name }}</span>
-                <span class="ps-card-note" :class="{ 'ps-late': it.late }">{{ it.note }}</span>
-              </span>
-              <span class="ps-card-amt">{{ formatPesoExact(it.amount) }}</span>
-            </button>
-          </section>
-
-          <div v-if="payLess" class="ps-card ps-less">
-            <label class="ps-field">
-              <span class="ps-label">Amount{{ landlord ? ' received' : ' you are paying now' }}</span>
-              <span class="ps-money">
-                <span class="ps-money-sign">₱</span>
-                <input v-model.number="amount" type="number" :min="minAmount" :max="total" step="0.01" inputmode="decimal" class="ps-money-input" />
-              </span>
-              <span class="ps-hint">Goes to the picked items from the top; the rest stays owed.<template v-if="!landlord"> At least {{ formatPesoExact(minAmount) }}.</template></span>
-            </label>
-            <label v-if="!landlord && amount + 0.009 < total" class="ps-field">
-              <span class="ps-label">When will you pay the rest? (optional)</span>
-              <input v-model="promiseDate" type="date" :min="manilaToday()" class="ps-input" />
-            </label>
-          </div>
+    <!-- Step 2: how it was paid. -->
+    <template v-else>
+      <div class="ps-body">
+        <div class="ps-methods" role="radiogroup" aria-label="Payment method">
+          <button
+            v-for="m in METHODS"
+            :key="m"
+            type="button"
+            role="radio"
+            class="ps-method"
+            :class="{ 'ps-method--on': method === m, 'ps-method--wide': m === 'others' }"
+            :aria-checked="method === m"
+            @click="method = m"
+          >
+            <IconifyIcon :icon="METHOD_ICON[m]" width="20" />
+            <span>{{ PAYMENT_METHOD_LABEL[m] }}</span>
+            <IconifyIcon v-if="method === m" icon="lucide:circle-check" width="16" class="ps-method-check" />
+          </button>
         </div>
 
-        <div class="ps-foot">
-          <div class="ps-total">
-            <span class="ps-total-label">{{ payLess ? `Paying now · of ${formatPesoExact(total)}` : 'Total' }}</span>
-            <button v-if="total > 0 && (payLess || canPayLess)" type="button" class="ps-link" @click="payLess ? (payLess = false) : startPayLess()">
-              {{ payLess ? 'Pay all' : landlord ? 'Received less' : 'Pay less' }}
-            </button>
-          </div>
-          <span class="ps-total-amt">{{ formatPesoExact(payAmount) }}</span>
-          <q-btn unelevated rounded no-caps color="primary" class="ps-submit" :disable="!(payAmount > 0)" @click="next">
-            Continue <IconifyIcon icon="lucide:arrow-right" width="18" class="ps-submit-icon" />
-          </q-btn>
-        </div>
-      </template>
+        <div v-if="!landlord" class="ps-card ps-panel">
+          <template v-if="method === 'cash'">
+            <p class="ps-panel-text">
+              <IconifyIcon icon="lucide:hand-coins" width="18" />
+              Hand it over in person. Your {{ who }} confirms it once received.
+            </p>
+          </template>
+          <template v-else>
+            <div v-if="payTo" class="ps-payto">
+              <span class="ps-payto-body">
+                <span class="ps-label">Send to</span>
+                <span class="ps-payto-number">{{ payTo.number }}</span>
+                <span v-if="payTo.name" class="ps-payto-name">{{ payTo.name }}</span>
+              </span>
+              <button type="button" class="ps-copy" @click="copyText(payTo.number)">
+                <IconifyIcon icon="lucide:copy" width="14" /> Copy
+              </button>
+            </div>
+            <p v-else-if="!payout" class="ps-hint ps-panel-row">Your {{ who }} hasn't added payment details yet — ask them where to send it.</p>
+            <p v-if="payout?.note" class="ps-hint ps-panel-row">{{ payout.note }}</p>
 
-      <!-- Step 2: how it was paid. -->
-      <template v-else>
-        <div class="ps-body">
-          <div class="ps-methods" role="radiogroup" aria-label="Payment method">
-            <button
-              v-for="m in METHODS"
-              :key="m"
-              type="button"
-              role="radio"
-              class="ps-method"
-              :class="{ 'ps-method--on': method === m, 'ps-method--wide': m === 'others' }"
-              :aria-checked="method === m"
-              @click="method = m"
-            >
-              <IconifyIcon :icon="METHOD_ICON[m]" width="20" />
-              <span>{{ PAYMENT_METHOD_LABEL[m] }}</span>
-              <IconifyIcon v-if="method === m" icon="lucide:circle-check" width="16" class="ps-method-check" />
-            </button>
-          </div>
-
-          <div v-if="!landlord" class="ps-card ps-panel">
-            <template v-if="method === 'cash'">
-              <p class="ps-panel-text">
-                <IconifyIcon icon="lucide:hand-coins" width="18" />
-                Hand it over in person. Your {{ who }} confirms it once received.
-              </p>
-            </template>
-            <template v-else>
-              <div v-if="payTo" class="ps-payto">
-                <span class="ps-payto-body">
-                  <span class="ps-label">Send to</span>
-                  <span class="ps-payto-number">{{ payTo.number }}</span>
-                  <span v-if="payTo.name" class="ps-payto-name">{{ payTo.name }}</span>
-                </span>
-                <button type="button" class="ps-copy" @click="copyText(payTo.number)">
-                  <IconifyIcon icon="lucide:copy" width="14" /> Copy
-                </button>
-              </div>
-              <p v-else-if="!payout" class="ps-hint ps-panel-row">Your {{ who }} hasn't added payment details yet — ask them where to send it.</p>
-              <p v-if="payout?.note" class="ps-hint ps-panel-row">{{ payout.note }}</p>
-
-              <label class="ps-field ps-panel-row">
-                <span class="ps-label">Reference number</span>
-                <input v-model="reference" type="text" class="ps-input" :inputmode="method === 'gcash' ? 'numeric' : 'text'" :placeholder="method === 'gcash' ? '13-digit GCash reference' : 'Reference number'" />
-                <span v-if="referenceProblem(method, reference)" class="ps-hint ps-late">{{ referenceProblem(method, reference) }}</span>
-              </label>
-              <div class="ps-field ps-panel-row">
-                <span class="ps-label">Screenshot of the receipt</span>
-                <span class="ps-file" :class="{ 'ps-file--chosen': proofUrl }">
-                  <img v-if="proofPreview" :src="proofPreview" alt="" class="ps-file-thumb" />
-                  <IconifyIcon v-else icon="lucide:image-plus" width="18" />
-                  <span class="ps-file-text">{{ uploading ? 'Uploading…' : proofUrl ? 'Attached · tap to replace' : 'Attach a screenshot' }}</span>
-                  <input type="file" accept="image/*" class="ps-file-input" :disabled="uploading" @change="onProof" />
-                </span>
-              </div>
-            </template>
             <label class="ps-field ps-panel-row">
-              <span class="ps-label">Note (optional)</span>
-              <input v-model="note" type="text" maxlength="300" class="ps-input" placeholder="e.g. The rest after my allowance comes in" />
+              <span class="ps-label">Reference number</span>
+              <input v-model="reference" type="text" class="ps-input" :inputmode="method === 'gcash' ? 'numeric' : 'text'" :placeholder="method === 'gcash' ? '13-digit GCash reference' : 'Reference number'" />
+              <span v-if="referenceProblem(method, reference)" class="ps-hint ps-late">{{ referenceProblem(method, reference) }}</span>
             </label>
-          </div>
+            <div class="ps-field ps-panel-row">
+              <span class="ps-label">Screenshot of the receipt</span>
+              <span class="ps-file" :class="{ 'ps-file--chosen': proofUrl }">
+                <img v-if="proofPreview" :src="proofPreview" alt="" class="ps-file-thumb" />
+                <IconifyIcon v-else icon="lucide:image-plus" width="18" />
+                <span class="ps-file-text">{{ uploading ? 'Uploading…' : proofUrl ? 'Attached · tap to replace' : 'Attach a screenshot' }}</span>
+                <input type="file" accept="image/*" class="ps-file-input" :disabled="uploading" @change="onProof" />
+              </span>
+            </div>
+          </template>
+          <label class="ps-field ps-panel-row">
+            <span class="ps-label">Note (optional)</span>
+            <input v-model="note" type="text" maxlength="300" class="ps-input" placeholder="e.g. The rest after my allowance comes in" />
+          </label>
         </div>
+      </div>
 
-        <div class="ps-foot">
-          <q-btn
-            unelevated
-            rounded
-            no-caps
-            color="primary"
-            class="ps-submit"
-            :loading="submitting"
-            :disable="uploading"
-            :label="`${landlord ? 'Log' : 'Submit'} ${formatPesoExact(payAmount)}`"
-            @click="submit"
-          />
-          <p v-if="!landlord" class="ps-foot-note">Your {{ who }} confirms it once the money arrives.</p>
-        </div>
-      </template>
-    </q-card>
-  </q-dialog>
+      <div class="ps-foot">
+        <q-btn
+          unelevated
+          rounded
+          no-caps
+          color="primary"
+          class="ps-submit"
+          :loading="submitting"
+          :disable="uploading"
+          :label="`${landlord ? 'Log' : 'Submit'} ${formatPesoExact(payAmount)}`"
+          @click="submit"
+        />
+        <p v-if="!landlord" class="ps-foot-note">Your {{ who }} confirms it once the money arrives.</p>
+      </div>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -171,6 +168,7 @@ import { uploadSecureDocument } from '@/utils/upload'
 import { formatDate, formatMonth, formatPesoExact, landlordTitle, PAYMENT_METHOD_LABEL } from '@/utils/format'
 import { BILL_TAG, fileFingerprint, manilaToday, minPayment, normalizeReference, referenceProblem, toLedger, type LedgerRow } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
+import AppModal from '@/components/shared/AppModal.vue'
 
 // One sheet for everything owed on a stay — the student's "Pay" and the
 // landlord/landlady's "Log a payment". Everything owed is a tick box, grouped by
@@ -476,32 +474,12 @@ async function submit() {
 </script>
 
 <style scoped>
-/* One fixed size for both steps: the sheet never jumps between them. The
-   middle scrolls; the head and the footer (total, button) stay put. */
-.ps-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  height: min(640px, 85vh);
-  flex-direction: column;
-  margin: 0 auto;
-  padding: 10px var(--m-page-gutter) calc(14px + env(safe-area-inset-bottom));
-  overflow: hidden;
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.ps-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  flex: 0 0 auto;
-  margin: 0 auto 10px;
-  border-radius: 999px;
-  background: var(--m-border);
-}
+/* One fixed size for both steps (AppModal's `tall`): the sheet never jumps
+   between them. The middle scrolls; the head and the footer (total, button)
+   stay put. */
 .ps-progress {
   height: 3px;
   flex: 0 0 auto;
-  margin-bottom: 14px;
   border-radius: 999px;
   background: var(--m-border);
   overflow: hidden;
@@ -514,12 +492,6 @@ async function submit() {
   transition: width 0.25s ease;
 }
 
-.ps-head {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-}
 .ps-head-body {
   display: flex;
   min-width: 0;
@@ -577,8 +549,7 @@ async function submit() {
   flex: 1;
   flex-direction: column;
   gap: 10px;
-  margin: 14px calc(-1 * var(--m-page-gutter)) 0;
-  padding: 0 var(--m-page-gutter) 12px;
+  padding-bottom: 12px;
   overflow-y: auto;
 }
 .ps-center {
@@ -683,7 +654,6 @@ button.ps-card-main:not(.ps-card) {
   color: var(--m-danger);
   font-weight: 600;
 }
-
 
 .ps-less {
   gap: 12px;

@@ -1,7 +1,9 @@
 <template>
   <q-page class="profile-page" :class="{ 'page-wide': isDesktop }">
     <!-- Loading -->
-    <div v-if="loading" class="loading-stack">
+    <!-- Desktop: the loaded card's two halves, hero left and details right. -->
+    <div v-if="loading" :class="isDesktop ? 'desk-card desk-card--profile' : 'loading-stack'">
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <div class="sk-card">
         <div class="sk-hero-top">
           <q-skeleton type="circle" size="56px" />
@@ -36,11 +38,14 @@
           </div>
         </div>
       </div>
+      </div>
+      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <div class="sk-card sk-fields">
         <q-skeleton type="text" width="45%" height="13px" />
         <q-skeleton type="text" width="90%" height="15px" />
         <q-skeleton type="text" width="90%" height="15px" />
         <q-skeleton type="text" width="90%" height="15px" />
+      </div>
       </div>
     </div>
 
@@ -57,9 +62,10 @@
     </div>
 
     <!-- Profile Content -->
-    <!-- Desktop: the two halves of a card — the hero on the left, every detail
-         on the right. Elsewhere the .desk-pass wrappers are display: contents. -->
-    <div v-else :class="isDesktop ? 'desk-card' : 'content-stack'">
+    <!-- Desktop: the two halves of a card — the hero and a section menu in a
+         narrow left half, every detail in the wide right one. Elsewhere the
+         .desk-pass wrappers are display: contents. -->
+    <div v-else :class="isDesktop ? 'desk-card desk-card--profile' : 'content-stack'">
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <!-- Only while OSAS has not verified the account yet. -->
       <VerificationBanner />
@@ -110,13 +116,14 @@
           </div>
         </div>
       </ProfileHero>
+      <ProfileSectionNav v-if="isDesktop" :sections="sections" />
       </div>
 
       <!-- ===== PROFILE ===== -->
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <ProfileCard :open="isDesktop">
         <template #always>
-          <ProfileBlock icon="lucide:user" title="Personal details">
+          <ProfileBlock id="ps-details" icon="lucide:user" title="Personal details">
             <template #actions>
               <EditButton v-if="!editing" @click="startEdit" />
             </template>
@@ -136,6 +143,7 @@
 
         <template #more>
           <ProfileBlock
+            id="ps-verification"
             icon="lucide:shield-check"
             title="Verification"
             :badge="pendingDocs > 0 ? `${pendingDocs} pending` : ''"
@@ -159,7 +167,7 @@
             </button>
           </ProfileBlock>
 
-          <ProfileBlock icon="lucide:building-2" title="Accommodations">
+          <ProfileBlock id="ps-accommodations" icon="lucide:building-2" title="Accommodations">
             <template #actions>
               <button
                 class="icon-btn"
@@ -183,7 +191,7 @@
             </button>
           </ProfileBlock>
 
-          <ProfileBlock icon="lucide:settings" title="Settings">
+          <ProfileBlock id="ps-settings" icon="lucide:settings" title="Settings">
             <button class="link-btn" @click="go('/manager/settings')">
               <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
               <span>Notifications, security, appearance &amp; more</span>
@@ -219,6 +227,7 @@ import ProfileHero from '@/components/shared/ProfileHero.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ProfileCard from '@/components/shared/ProfileCard.vue'
 import ProfileBlock from '@/components/shared/ProfileBlock.vue'
+import ProfileSectionNav from '@/components/shared/ProfileSectionNav.vue'
 import EditButton from '@/components/shared/EditButton.vue'
 import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
 
@@ -276,6 +285,12 @@ const documents = ref<DocRow[]>([])
 const status = computed(() => statusPresentation(me.status))
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
+const sections = computed(() => [
+  { id: 'ps-details', label: 'Personal details', icon: 'lucide:user' },
+  { id: 'ps-verification', label: 'Verification', icon: 'lucide:shield-check', badge: pendingDocs.value ? `${pendingDocs.value} pending` : '' },
+  { id: 'ps-accommodations', label: 'Accommodations', icon: 'lucide:building-2' },
+  { id: 'ps-settings', label: 'Settings', icon: 'lucide:settings' },
+])
 
 // ----- Methods -----
 function go(path: string) {
@@ -487,6 +502,11 @@ useLiveData({
   border-radius: var(--m-radius);
   background: var(--m-surface);
 }
+/* Desktop: a half is the card already (as .profile-card is, app.scss). */
+.desk-col > .sk-card {
+  border: 0;
+  background: transparent;
+}
 .sk-hero-top {
   display: flex;
   align-items: center;
@@ -596,6 +616,14 @@ useLiveData({
   width: 1px;
   height: 30px;
   background: var(--m-border);
+}
+/* Desktop: the stats share the narrow left half, too tight for three
+   badge-and-label pairs side by side, so they drop the badges. */
+.page-wide .stat-badge {
+  display: none;
+}
+.page-wide .stat-block {
+  text-align: center;
 }
 
 /* Action Scan */

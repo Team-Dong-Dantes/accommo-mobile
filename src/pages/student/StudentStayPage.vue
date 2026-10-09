@@ -1,7 +1,18 @@
 <template>
   <q-page class="sp" :class="{ 'page-wide': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
-      <div v-if="loading" class="stack">
+      <!-- Desktop: the loaded card's two halves, stay left and payments right. -->
+      <div v-if="loading && isDesktop" class="stack">
+        <div class="desk-card">
+          <div v-for="title in ['My Stay', 'Payments']" :key="title" class="desk-col">
+            <h2 class="split-head">{{ title }}</h2>
+            <q-skeleton type="rect" height="120px" class="sk" />
+            <q-skeleton type="rect" height="90px" class="sk" />
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="loading" class="stack">
         <q-skeleton type="rect" height="120px" class="sk" />
         <q-skeleton type="rect" height="90px" class="sk" />
       </div>
@@ -230,24 +241,20 @@
       </div>
 
     </q-pull-to-refresh>
-    <q-dialog v-model="leaveDialog" position="bottom">
-      <q-card class="leave-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <h3 class="leave-title">Request to leave?</h3>
-        <p class="leave-body">
-          Your {{ myLandlord }} will be notified and needs to approve this before your stay ends. You'll stay on your
-          current lease until then.
-        </p>
-        <div class="leave-actions">
-          <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
-            Cancel
-          </button>
-          <button type="button" class="leave-btn" :disabled="leaving" @click="requestLeave">
-            {{ leaving ? 'Sending…' : 'Request to leave' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
+    <AppModal v-model="leaveDialog" title="Request to leave?" size="sm">
+      <p class="leave-body">
+        Your {{ myLandlord }} will be notified and needs to approve this before your stay ends. You'll stay on your
+        current lease until then.
+      </p>
+      <template #footer>
+        <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
+          Cancel
+        </button>
+        <button type="button" class="leave-btn" :disabled="leaving" @click="requestLeave">
+          {{ leaving ? 'Sending…' : 'Request to leave' }}
+        </button>
+      </template>
+    </AppModal>
 
     <PaySheet
       v-if="lease"
@@ -275,15 +282,8 @@
       @submitted="load(true)"
     />
 
-    <q-dialog v-model="paymentDetailOpen" position="bottom">
-      <q-card v-if="selectedPayment" class="detail-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="detail-head">
-          <h3 class="detail-title">{{ paymentTitle(selectedPayment) }}</h3>
-          <button type="button" class="sheet-x" aria-label="Close" @click="paymentDetailOpen = false">
-            <IconifyIcon icon="lucide:x" width="20" />
-          </button>
-        </div>
+    <AppModal v-model="paymentDetailOpen" :title="selectedPayment ? paymentTitle(selectedPayment) : ''">
+      <template v-if="selectedPayment">
         <span class="detail-chip" :class="`detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
           {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
         </span>
@@ -354,8 +354,8 @@
         >
           {{ withdrawing ? 'Withdrawing…' : 'Withdraw this payment' }}
         </button>
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
   </q-page>
 </template>
 
@@ -396,6 +396,7 @@ import PaySheet from '@/components/shared/PaySheet.vue'
 import PaymentStatement from '@/components/shared/PaymentStatement.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { POLICY_FULL } from '@/api/selects'
+import AppModal from '@/components/shared/AppModal.vue'
 
 function yesNo(value: boolean | null | undefined): string {
   if (value === null || value === undefined) return ''
@@ -407,7 +408,6 @@ function yesNo(value: boolean | null | undefined): string {
 // schema change, and excluded from the rent month-sequence by that tag.
 // Rules live in utils/payments.ts so they can be tested without mounting this
 // 1600-line page. The tags are re-exported names, not new constants.
-
 
 interface Lease {
   id: string
@@ -1134,52 +1134,6 @@ function onPull(done: () => void) {
   -webkit-tap-highlight-color: transparent;
 }
 
-.sheet-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.leave-sheet,
-.detail-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-.sheet-x {
-  display: flex;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  margin: -6px -8px 0 0;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--m-muted);
-  cursor: pointer;
-}
-.detail-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .detail-chip {
   align-self: flex-start;
   padding: 3px 10px;
@@ -1226,22 +1180,11 @@ function onPull(done: () => void) {
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
 }
-.leave-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .leave-body {
   margin: 0;
   color: var(--m-text);
   font-size: 13.5px;
   line-height: 1.5;
-}
-.leave-actions {
-  display: flex;
-  gap: 8px;
 }
 .leave-btn {
   flex: 1;
@@ -1409,7 +1352,6 @@ function onPull(done: () => void) {
   background: var(--m-bg);
   color: var(--m-muted);
 }
-
 
 /* Both panels at once on a landscape tablet. The tab strip is gone, so the panel
    squares off the top corners it was using to fuse into it, and each half names

@@ -1,13 +1,12 @@
 <template>
-  <!-- Phone: the detail is a bottom sheet over the list, as it always was. -->
-  <q-dialog
+  <!-- Phone: the detail is a modal over the list, as it always was. -->
+  <AppModal
     v-if="!isTablet"
     :model-value="open"
-    position="bottom"
     @update:model-value="(v: boolean) => emit('update:open', v)"
   >
     <slot />
-  </q-dialog>
+  </AppModal>
 
   <!-- Tablet: the same markup, in the right half. -->
   <div v-else class="split-pane">
@@ -21,6 +20,7 @@
 
 <script setup lang="ts">
 import { isTablet } from '@/utils/useTabletMode'
+import AppModal from '@/components/shared/AppModal.vue'
 
 // Where a screen's detail goes, without the screen having to write it twice.
 //
@@ -65,7 +65,8 @@ const emit = defineEmits<{ 'update:open': [boolean] }>()
 /* The card was drawn as a bottom sheet — capped at 480px, centred, rounded along
    its top edge only because that edge was the one you could see. In a pane it is
    the pane's content, so it gives all three back. :deep because the card belongs
-   to the page that passed it in, not to this component. */
+   to the page that passed it in, not to this component. (The Concerns cards no
+   longer draw a sheet at all — AppModal does — and pad themselves for the pane.) */
 .split-pane :deep(.detail-sheet) {
   max-width: none;
   padding-bottom: 16px;

@@ -108,7 +108,7 @@
       icon="lucide:message-square-warning"
       hint="Pick a concern to read it and reply"
     >
-      <q-card v-if="selected" class="detail-sheet">
+      <div v-if="selected" class="detail-sheet" :class="{ 'detail-sheet--pane': isTablet }">
         <div class="detail-head">
           <span class="detail-avatar" :class="selected.avatarColor ? [`bg-${selected.avatarColor}`, 'text-white'] : []">
             <img v-if="selected.avatarUrl" :src="selected.avatarUrl" alt="" class="detail-avatar-img" @error="selected.avatarUrl = null" />
@@ -162,7 +162,7 @@
         <p v-if="selected.status === 'resolved' || selected.status === 'rejected'" class="detail-final">
           This concern is closed.
         </p>
-      </q-card>
+      </div>
     </SplitDetail>
   </q-page>
 </template>
@@ -587,13 +587,12 @@ function onPull(done: () => void) {
 
 .detail-sheet {
   display: flex;
-  width: 100%;
-  max-width: 480px;
   flex-direction: column;
   gap: 10px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
+}
+/* In a modal AppModal pads the card; in the tablet pane it pads itself. */
+.detail-sheet--pane {
+  padding: 16px var(--m-page-gutter);
 }
 .detail-head {
   display: flex;

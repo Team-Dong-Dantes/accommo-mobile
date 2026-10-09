@@ -1,20 +1,25 @@
 <template>
   <q-page class="person" :class="{ 'page-wide': split }">
     <!-- Mirrors PersonProfile's real shape — hero, overlapping card, tabs —
-         so the layout does not jump when the data lands. -->
-    <div v-if="loading" class="stack">
-      <q-skeleton type="rect" height="170px" square />
-      <div class="sk-card">
-        <q-skeleton type="circle" size="84px" style="margin-top: -42px; margin-bottom: 4px;" />
-        <q-skeleton type="text" width="130px" height="17px" />
-        <q-skeleton type="text" width="72px" height="18px" />
-        <q-skeleton type="text" width="160px" height="12px" />
+         so the layout does not jump when the data lands. On desktop that shape
+         is the card's two halves, the person left and the history right. -->
+    <div v-if="loading" :class="split ? 'desk-card' : 'stack'">
+      <div :class="split ? 'desk-col' : 'desk-pass'">
+        <q-skeleton type="rect" height="170px" square class="sk-hero" />
+        <div class="sk-card">
+          <q-skeleton type="circle" size="84px" style="margin-top: -42px; margin-bottom: 4px;" />
+          <q-skeleton type="text" width="130px" height="17px" />
+          <q-skeleton type="text" width="72px" height="18px" />
+          <q-skeleton type="text" width="160px" height="12px" />
+        </div>
+        <div v-if="!split" class="sk-tabs">
+          <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
+          <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
+        </div>
       </div>
-      <div class="sk-tabs">
-        <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
-        <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
+      <div :class="split ? 'desk-col' : 'desk-pass'">
+        <q-skeleton type="rect" height="120px" class="sk" />
       </div>
-      <q-skeleton type="rect" height="120px" class="sk" />
     </div>
 
     <EmptyState
@@ -349,6 +354,11 @@ onMounted(async () => {
   box-shadow: var(--m-shadow);
 }
 .sk-tabs { display: flex; gap: 4px; margin: 0 var(--m-page-gutter); }
+/* Desktop halves (app.scss): as PersonProfile's, the hero bleeds to the
+   half's edges and the card overlaps it, so the half drops its gap. */
+.desk-card .desk-col:first-child { gap: 0; }
+.desk-card .sk-hero { width: auto; margin: -14px -18px 0; }
+.desk-card .sk { margin: 0; }
 .sec { display: flex; flex-direction: column; gap: 12px; }
 
 .verdict {

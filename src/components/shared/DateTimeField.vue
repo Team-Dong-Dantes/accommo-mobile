@@ -9,44 +9,43 @@
     <span class="dtf-text">{{ display || placeholder || 'Pick a date' }}</span>
   </button>
 
-  <q-dialog v-model="showing">
-    <q-card class="pick">
-      <!-- Date and time are two steps rather than two stacked panels: both at
-           once is taller than a phone screen, and the pills double as a summary
-           of what has been chosen so far. -->
-      <div v-if="mode === 'datetime'" class="pick-steps">
-        <button type="button" class="step" :class="{ 'step--on': step === 'date' }" @click="step = 'date'">
-          {{ draftDate ? prettyDate(draftDate) : 'Date' }}
-        </button>
-        <button type="button" class="step" :class="{ 'step--on': step === 'time' }" @click="step = 'time'">
-          {{ draftTime ? prettyTime(draftTime) : 'Time' }}
-        </button>
-      </div>
+  <AppModal v-model="showing" :title="placeholder || (mode === 'date' ? 'Pick a date' : 'Pick a date and time')" size="sm">
+    <!-- Date and time are two steps rather than two stacked panels: both at
+         once is taller than a phone screen, and the pills double as a summary
+         of what has been chosen so far. -->
+    <div v-if="mode === 'datetime'" class="pick-steps">
+      <button type="button" class="step" :class="{ 'step--on': step === 'date' }" @click="step = 'date'">
+        {{ draftDate ? prettyDate(draftDate) : 'Date' }}
+      </button>
+      <button type="button" class="step" :class="{ 'step--on': step === 'time' }" @click="step = 'time'">
+        {{ draftTime ? prettyTime(draftTime) : 'Time' }}
+      </button>
+    </div>
 
-      <q-date
-        v-show="step === 'date'"
-        v-model="draftDate"
-        mask="YYYY-MM-DD"
-        minimal
-        flat
-        :options="allowed"
-        class="pick-body"
-      />
-      <q-time v-if="mode === 'datetime'" v-show="step === 'time'" v-model="draftTime" mask="HH:mm" flat class="pick-body" />
+    <q-date
+      v-show="step === 'date'"
+      v-model="draftDate"
+      mask="YYYY-MM-DD"
+      minimal
+      flat
+      :options="allowed"
+      class="pick-body"
+    />
+    <q-time v-if="mode === 'datetime'" v-show="step === 'time'" v-model="draftTime" mask="HH:mm" flat class="pick-body" />
 
-      <div class="pick-actions">
-        <button type="button" class="pick-ghost" @click="clear">Clear</button>
-        <span class="pick-spacer" />
-        <button type="button" class="pick-ghost" @click="showing = false">Cancel</button>
-        <button type="button" class="pick-primary" :disabled="!draftDate" @click="commit">Done</button>
-      </div>
-    </q-card>
-  </q-dialog>
+    <template #footer>
+      <button type="button" class="pick-ghost" @click="clear">Clear</button>
+      <span class="pick-spacer" />
+      <button type="button" class="pick-ghost" @click="showing = false">Cancel</button>
+      <button type="button" class="pick-primary" :disabled="!draftDate" @click="commit">Done</button>
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
+import AppModal from '@/components/shared/AppModal.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -148,19 +147,9 @@ const display = computed(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pick {
-  display: flex;
-  width: 100%;
-  max-width: 340px;
-  flex-direction: column;
-  padding: 12px;
-  border-radius: var(--m-radius-lg);
-  background: var(--m-surface);
-}
 .pick-steps {
   display: flex;
   gap: 6px;
-  padding-bottom: 10px;
 }
 .step {
   min-height: 34px;
@@ -185,12 +174,6 @@ const display = computed(() => {
 .pick-body {
   width: 100%;
   box-shadow: none;
-}
-.pick-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-top: 10px;
 }
 .pick-spacer {
   flex: 1 1 auto;

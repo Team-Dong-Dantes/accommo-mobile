@@ -1,6 +1,26 @@
 <template>
   <q-page class="ad" :class="{ 'page-wide': split }">
-    <div v-if="loading" class="stack">
+    <!-- Desktop: the loaded shape — the way back above a card of two halves,
+         photo and overview left, rooms right. -->
+    <div v-if="loading && split" class="stack">
+      <div class="desk-back-row">
+        <button type="button" class="desk-panel-back" aria-label="Back to properties" @click="router.push('/manager/properties')">
+          <IconifyIcon icon="lucide:arrow-left" width="20" />
+        </button>
+        <span class="desk-panel-title">Properties</span>
+      </div>
+      <div class="desk-card">
+        <div class="desk-col">
+          <q-skeleton type="rect" height="220px" square class="sk-hero" />
+          <q-skeleton type="rect" height="90px" class="sk" />
+        </div>
+        <div class="desk-col">
+          <q-skeleton v-for="n in 2" :key="n" type="rect" height="90px" class="sk" />
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="loading" class="stack">
       <q-skeleton type="rect" height="220px" square />
       <div class="tabs">
         <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
@@ -385,28 +405,21 @@
     </div>
 
     <!-- COVER PHOTOS -->
-    <q-dialog v-model="coverSheetOpen" position="bottom">
-      <q-card class="room-sheet room-sheet--paged room-sheet--wizard">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:camera" width="18" /></span>
-          <h3 class="room-sheet-title">Property photos</h3>
-        </div>
-        <div class="room-sheet-scroll">
-          <input type="file" accept="image/*" multiple class="file-input" @change="onCoverPhotosSelected" />
-          <span v-if="uploadingCover" class="sec-hint">Uploading…</span>
-          <div v-if="images.length" class="thumbs">
-            <div v-for="img in images" :key="img.id" class="thumb">
-              <img :src="img.url" alt="" />
-              <button type="button" class="thumb-x" :disabled="deletingImage === img.id" @click="deleteImage(img.id)">
-                <IconifyIcon icon="lucide:x" width="12" />
-              </button>
-            </div>
+    <AppModal v-model="coverSheetOpen" title="Property photos" icon="lucide:camera" tall>
+      <div class="room-sheet-scroll">
+        <input type="file" accept="image/*" multiple class="file-input" @change="onCoverPhotosSelected" />
+        <span v-if="uploadingCover" class="sec-hint">Uploading…</span>
+        <div v-if="images.length" class="thumbs">
+          <div v-for="img in images" :key="img.id" class="thumb">
+            <img :src="img.url" alt="" />
+            <button type="button" class="thumb-x" :disabled="deletingImage === img.id" @click="deleteImage(img.id)">
+              <IconifyIcon icon="lucide:x" width="12" />
+            </button>
           </div>
-          <p v-else class="none">No photos yet.</p>
         </div>
-      </q-card>
-    </q-dialog>
+        <p v-else class="none">No photos yet.</p>
+      </div>
+    </AppModal>
 
     <PermitUploadSheet
       v-model="permitSheetOpen"
@@ -417,69 +430,55 @@
     />
 
     <!-- PERMIT FILE PREVIEW -->
-    <q-dialog v-model="docPreviewOpen" position="bottom">
-      <q-card class="room-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:file-text" width="18" /></span>
-          <h3 class="room-sheet-title">Permit file</h3>
-        </div>
-        <div class="room-sheet-scroll">
-          <img v-if="docPreviewUrl && !isPdf(docPreviewUrl)" :src="resolveAsset(docPreviewUrl)" alt="" class="doc-preview-img" />
-          <a v-else-if="docPreviewUrl" :href="resolveAsset(docPreviewUrl)" target="_blank" rel="noopener" class="doc-preview-file">
-            <IconifyIcon icon="lucide:external-link" width="18" />
-            <span>Open file</span>
-          </a>
-        </div>
-      </q-card>
-    </q-dialog>
+    <AppModal v-model="docPreviewOpen" title="Permit file" icon="lucide:file-text">
+      <div class="room-sheet-scroll">
+        <img v-if="docPreviewUrl && !isPdf(docPreviewUrl)" :src="resolveAsset(docPreviewUrl)" alt="" class="doc-preview-img" />
+        <a v-else-if="docPreviewUrl" :href="resolveAsset(docPreviewUrl)" target="_blank" rel="noopener" class="doc-preview-file">
+          <IconifyIcon icon="lucide:external-link" width="18" />
+          <span>Open file</span>
+        </a>
+      </div>
+    </AppModal>
 
     <!-- EDIT ONE FIELD (Overview + Settings both use this) -->
-    <q-dialog v-model="fieldDialogOpen" position="bottom">
-      <q-card class="room-sheet room-sheet--paged room-sheet--wizard">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:pencil" width="18" /></span>
-          <h3 class="room-sheet-title">{{ editingField ? FIELD_META[editingField].label : '' }}</h3>
+    <AppModal v-model="fieldDialogOpen" :title="editingField ? FIELD_META[editingField].label : ''" icon="lucide:pencil" tall>
+      <div class="room-sheet-scroll">
+        <p v-if="editingField && fieldReview(editingField) !== 'free'" class="sec-hint">
+          {{ fieldReview(editingField) === 'request'
+            ? 'OSAS checked this. Your change goes to OSAS, and students keep seeing the current value until it is approved.'
+            : 'OSAS checked this, and it can’t change while OSAS is reviewing the listing or it is not accredited.' }}
+        </p>
+        <select v-if="editingField && FIELD_META[editingField].type === 'select'" v-model="fieldDraft" class="field-input app-select">
+          <option value="">Select {{ FIELD_META[editingField].label.toLowerCase() }}</option>
+          <option v-for="(label, key) in FIELD_META[editingField].options" :key="key" :value="key">{{ label }}</option>
+        </select>
+        <textarea
+          v-else-if="editingField && FIELD_META[editingField].type === 'textarea'"
+          v-model="fieldDraft"
+          class="field-input field-textarea"
+          rows="4"
+        />
+        <input
+          v-else-if="editingField && FIELD_META[editingField].type === 'time'"
+          v-model="fieldDraft"
+          type="time"
+          class="field-input"
+        />
+        <!-- Quiet hours is a range, so it takes two pickers and is stored
+             back as one "10:00 PM – 6:00 AM" string. -->
+        <div v-else-if="editingField && FIELD_META[editingField].type === 'timerange'" class="field-row">
+          <label class="field">
+            <span class="field-label">From</span>
+            <input v-model="fieldDraft" type="time" class="field-input" />
+          </label>
+          <label class="field">
+            <span class="field-label">Until</span>
+            <input v-model="fieldDraftTo" type="time" class="field-input" />
+          </label>
         </div>
-
-        <div class="room-sheet-scroll">
-          <p v-if="editingField && fieldReview(editingField) !== 'free'" class="sec-hint">
-            {{ fieldReview(editingField) === 'request'
-              ? 'OSAS checked this. Your change goes to OSAS, and students keep seeing the current value until it is approved.'
-              : 'OSAS checked this, and it can’t change while OSAS is reviewing the listing or it is not accredited.' }}
-          </p>
-          <select v-if="editingField && FIELD_META[editingField].type === 'select'" v-model="fieldDraft" class="field-input app-select">
-            <option value="">Select {{ FIELD_META[editingField].label.toLowerCase() }}</option>
-            <option v-for="(label, key) in FIELD_META[editingField].options" :key="key" :value="key">{{ label }}</option>
-          </select>
-          <textarea
-            v-else-if="editingField && FIELD_META[editingField].type === 'textarea'"
-            v-model="fieldDraft"
-            class="field-input field-textarea"
-            rows="4"
-          />
-          <input
-            v-else-if="editingField && FIELD_META[editingField].type === 'time'"
-            v-model="fieldDraft"
-            type="time"
-            class="field-input"
-          />
-          <!-- Quiet hours is a range, so it takes two pickers and is stored
-               back as one "10:00 PM – 6:00 AM" string. -->
-          <div v-else-if="editingField && FIELD_META[editingField].type === 'timerange'" class="field-row">
-            <label class="field">
-              <span class="field-label">From</span>
-              <input v-model="fieldDraft" type="time" class="field-input" />
-            </label>
-            <label class="field">
-              <span class="field-label">Until</span>
-              <input v-model="fieldDraftTo" type="time" class="field-input" />
-            </label>
-          </div>
-          <input v-else v-model="fieldDraft" type="text" class="field-input" />
-        </div>
-
+        <input v-else v-model="fieldDraft" type="text" class="field-input" />
+      </div>
+      <template #footer>
         <div class="room-sheet-actions">
           <q-btn
             unelevated
@@ -493,388 +492,377 @@
             @click="saveField"
           />
         </div>
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
 
     <!-- AMENITIES -->
-    <q-dialog v-model="amenitiesDialogOpen" position="bottom">
-      <q-card class="room-sheet room-sheet--paged room-sheet--wizard">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:sparkles" width="18" /></span>
-          <h3 class="room-sheet-title">Amenities</h3>
+    <AppModal v-model="amenitiesDialogOpen" title="Amenities" icon="lucide:sparkles" tall>
+      <div class="room-sheet-scroll">
+        <div class="m-chips">
+          <button
+            v-for="key in AMENITY_KEYS"
+            :key="key"
+            type="button"
+            class="m-chip"
+            :class="{ 'm-chip--on': rules.amenities.includes(key) }"
+            @click="toggle(rules.amenities, key)"
+          >
+            <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="14" />
+            {{ AMENITY_META[key]?.label || key }}
+          </button>
         </div>
-        <div class="room-sheet-scroll">
-          <div class="m-chips">
-            <button
-              v-for="key in AMENITY_KEYS"
-              :key="key"
-              type="button"
-              class="m-chip"
-              :class="{ 'm-chip--on': rules.amenities.includes(key) }"
-              @click="toggle(rules.amenities, key)"
-            >
-              <IconifyIcon :icon="AMENITY_META[key]?.icon || 'lucide:dot'" width="14" />
-              {{ AMENITY_META[key]?.label || key }}
-            </button>
-          </div>
-        </div>
+      </div>
+      <template #footer>
         <div class="room-sheet-actions">
           <q-btn unelevated rounded no-caps color="primary" class="save-btn" :loading="savingAmenities" label="Save" @click="saveAmenities" />
         </div>
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
 
     <!-- RENAME FLOOR -->
-    <q-dialog v-model="floorNameOpen" position="bottom">
-      <q-card class="room-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:layers" width="18" /></span>
-          <h3 class="room-sheet-title">Name Floor {{ floorNameFor }}</h3>
-        </div>
-        <label class="field">
-          <span class="field-label">Floor name</span>
-          <input v-model="floorNameDraft" type="text" maxlength="30" class="field-input" :placeholder="`Floor ${floorNameFor}`" />
-        </label>
-        <p class="sec-hint">e.g. Ground floor, Annex. Leave it blank to use the number.</p>
+    <AppModal v-model="floorNameOpen" :title="`Name Floor ${floorNameFor}`" icon="lucide:layers">
+      <label class="field">
+        <span class="field-label">Floor name</span>
+        <input v-model="floorNameDraft" type="text" maxlength="30" class="field-input" :placeholder="`Floor ${floorNameFor}`" />
+      </label>
+      <p class="sec-hint">e.g. Ground floor, Annex. Leave it blank to use the number.</p>
+      <template #footer>
         <div class="room-sheet-actions">
           <q-btn unelevated rounded no-caps color="primary" class="save-btn" :loading="savingFloorName" label="Save" @click="saveFloorName" />
         </div>
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
 
     <!-- ADD/EDIT ROOM -->
-    <q-dialog v-model="roomOpen" position="bottom" @hide="onRoomDialogHide">
-      <q-card class="room-sheet room-sheet--paged room-sheet--wizard">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:bed-double" width="18" /></span>
-          <h3 class="room-sheet-title">{{ roomDialogMode === 'edit' ? 'Edit room' : 'Add room' }}</h3>
+    <AppModal
+      v-model="roomOpen"
+      :title="roomDialogMode === 'edit' ? 'Edit room' : 'Add room'"
+      icon="lucide:bed-double"
+      tall
+      @hide="onRoomDialogHide"
+    >
+      <div class="room-sheet-scroll">
+        <div v-if="roomDialogMode === 'create'" class="steps steps--sheet">
+          <span v-for="n in 4" :key="n" class="step-dot" :class="{ 'step-dot--on': n <= roomStep }" />
         </div>
 
-        <div class="room-sheet-scroll">
-          <div v-if="roomDialogMode === 'create'" class="steps steps--sheet">
-            <span v-for="n in 4" :key="n" class="step-dot" :class="{ 'step-dot--on': n <= roomStep }" />
+        <!-- STEP 1 / edit mode: basics -->
+        <template v-if="roomDialogMode === 'edit' || roomStep === 1">
+          <div v-if="editingRoomId" class="room-name-static">
+            <span class="room-name-static-label">Room {{ activeRoomNumber || '—' }}</span>
+            <span class="room-name-static-floor">{{ floorName(roomForm.floor) }}</span>
+          </div>
+          <div v-else-if="roomStep > 1" class="room-name-static">
+            <span class="room-name-static-label">Room {{ activeRoomNumber }}</span>
+            <span class="room-name-static-floor">{{ floorName(roomForm.floor) }}</span>
           </div>
 
-          <!-- STEP 1 / edit mode: basics -->
-          <template v-if="roomDialogMode === 'edit' || roomStep === 1">
-            <div v-if="editingRoomId" class="room-name-static">
-              <span class="room-name-static-label">Room {{ activeRoomNumber || '—' }}</span>
-              <span class="room-name-static-floor">{{ floorName(roomForm.floor) }}</span>
+          <div v-if="roomDialogMode === 'edit'" class="status-box">
+            <p class="status-text">
+              {{
+                activeRoomStatus === 'occupied'
+                  ? 'This room is currently occupied.'
+                  : activeRoomStatus === 'maintenance'
+                    ? 'Marked unavailable — hidden from new applicants until reopened.'
+                    : 'Available and visible to students.'
+              }}
+            </p>
+            <button
+              v-if="activeRoomStatus !== 'occupied'"
+              type="button"
+              class="status-btn"
+              :class="{ 'status-btn--danger': activeRoomStatus === 'available' }"
+              :disabled="togglingRoomStatus"
+              @click="toggleRoomStatus"
+            >
+              {{ activeRoomStatus === 'maintenance' ? 'Mark as available' : 'Mark as unavailable' }}
+            </button>
+          </div>
+
+          <!-- Read-only recap once a room already exists; "Edit" swaps this for the editable fields below. -->
+          <div v-if="roomDialogMode === 'edit' && roomViewMode === 'view'" class="view-group">
+            <div class="view-row">
+              <span class="view-label">Type</span>
+              <span class="view-value">{{ roomTypeLabel(roomForm.roomType === 'custom' ? roomForm.customRoomType : roomForm.roomType) }}</span>
             </div>
-            <div v-else-if="roomStep > 1" class="room-name-static">
-              <span class="room-name-static-label">Room {{ activeRoomNumber }}</span>
-              <span class="room-name-static-floor">{{ floorName(roomForm.floor) }}</span>
+            <div class="view-row">
+              <span class="view-label">Capacity</span>
+              <span class="view-value">{{ roomForm.capacity }}</span>
             </div>
-
-            <div v-if="roomDialogMode === 'edit'" class="status-box">
-              <p class="status-text">
-                {{
-                  activeRoomStatus === 'occupied'
-                    ? 'This room is currently occupied.'
-                    : activeRoomStatus === 'maintenance'
-                      ? 'Marked unavailable — hidden from new applicants until reopened.'
-                      : 'Available and visible to students.'
-                }}
-              </p>
-              <button
-                v-if="activeRoomStatus !== 'occupied'"
-                type="button"
-                class="status-btn"
-                :class="{ 'status-btn--danger': activeRoomStatus === 'available' }"
-                :disabled="togglingRoomStatus"
-                @click="toggleRoomStatus"
-              >
-                {{ activeRoomStatus === 'maintenance' ? 'Mark as available' : 'Mark as unavailable' }}
-              </button>
+            <div class="view-row">
+              <span class="view-label">Rent</span>
+              <span class="view-value">
+                {{ formatPeso(roomForm.monthlyRent) }}/mo{{ roomForm.capacity > 1 ? (roomForm.rentBasis === 'person' ? ' per person' : ' whole room') : '' }}
+              </span>
             </div>
-
-            <!-- Read-only recap once a room already exists; "Edit" swaps this for the editable fields below. -->
-            <div v-if="roomDialogMode === 'edit' && roomViewMode === 'view'" class="view-group">
-              <div class="view-row">
-                <span class="view-label">Type</span>
-                <span class="view-value">{{ roomTypeLabel(roomForm.roomType === 'custom' ? roomForm.customRoomType : roomForm.roomType) }}</span>
-              </div>
-              <div class="view-row">
-                <span class="view-label">Capacity</span>
-                <span class="view-value">{{ roomForm.capacity }}</span>
-              </div>
-              <div class="view-row">
-                <span class="view-label">Rent</span>
-                <span class="view-value">
-                  {{ formatPeso(roomForm.monthlyRent) }}/mo{{ roomForm.capacity > 1 ? (roomForm.rentBasis === 'person' ? ' per person' : ' whole room') : '' }}
-                </span>
-              </div>
-              <div class="view-row">
-                <span class="view-label">Advance</span>
-                <span class="view-value">{{ roomForm.advanceMonths ?? '—' }} mo</span>
-              </div>
-              <div class="view-row">
-                <span class="view-label">Deposit</span>
-                <span class="view-value">{{ roomForm.depositMonths ?? '—' }} mo</span>
-              </div>
-              <div v-for="u in UTILITIES" :key="u.key" class="view-row">
-                <span class="view-label">{{ u.label }}</span>
-                <span class="view-value">{{ utilityTermsLabel(roomForm.utilities[u.key]) }}</span>
-              </div>
+            <div class="view-row">
+              <span class="view-label">Advance</span>
+              <span class="view-value">{{ roomForm.advanceMonths ?? '—' }} mo</span>
             </div>
+            <div class="view-row">
+              <span class="view-label">Deposit</span>
+              <span class="view-value">{{ roomForm.depositMonths ?? '—' }} mo</span>
+            </div>
+            <div v-for="u in UTILITIES" :key="u.key" class="view-row">
+              <span class="view-label">{{ u.label }}</span>
+              <span class="view-value">{{ utilityTermsLabel(roomForm.utilities[u.key]) }}</span>
+            </div>
+          </div>
 
-            <template v-else>
-              <div class="field-row">
-                <label class="field">
-                  <span class="field-label">Room number or name</span>
-                  <input v-model="roomForm.roomNumber" type="text" maxlength="20" class="field-input" :placeholder="previewRoomNumber" />
-                </label>
-                <label class="field">
-                  <span class="field-label">Floor</span>
-                  <select v-model.number="roomForm.floor" class="field-input app-select" @change="onRoomFloorChange">
-                    <option v-for="f in floorOptions" :key="f" :value="f">{{ floorName(f) }}</option>
-                  </select>
-                </label>
-              </div>
-
-              <div class="field-row">
-                <label class="field">
-                  <span class="field-label">Room type</span>
-                  <select v-model="roomForm.roomType" class="field-input app-select" @change="onRoomTypeChange">
-                    <option v-for="(label, key) in ROOM_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                </label>
-                <label v-if="roomForm.roomType === 'custom'" class="field">
-                  <span class="field-label">Custom type name</span>
-                  <input v-model="roomForm.customRoomType" type="text" class="field-input" />
-                </label>
-              </div>
-
+          <template v-else>
+            <div class="field-row">
               <label class="field">
-                <span class="field-label">Capacity</span>
-                <input
-                  v-model.number="roomForm.capacity"
-                  type="number"
-                  min="1"
-                  :max="CAPACITY_MAX"
-                  class="field-input"
-                  :disabled="roomForm.roomType in ROOM_TYPE_DEFAULT_CAPACITY"
-                  @blur="roomForm.capacity = clampNum(roomForm.capacity, 1, CAPACITY_MAX)"
-                />
+                <span class="field-label">Room number or name</span>
+                <input v-model="roomForm.roomNumber" type="text" maxlength="20" class="field-input" :placeholder="previewRoomNumber" />
               </label>
-              <p v-if="roomForm.roomType in ROOM_TYPE_DEFAULT_CAPACITY" class="sec-hint">
-                Capacity is fixed at {{ roomForm.capacity }} for {{ ROOM_TYPE_LABEL[roomForm.roomType] }} rooms.
-              </p>
+              <label class="field">
+                <span class="field-label">Floor</span>
+                <select v-model.number="roomForm.floor" class="field-input app-select" @change="onRoomFloorChange">
+                  <option v-for="f in floorOptions" :key="f" :value="f">{{ floorName(f) }}</option>
+                </select>
+              </label>
+            </div>
 
-              <div class="field-row">
-                <div v-if="roomForm.capacity > 1" class="field">
-                  <span class="field-label">Rent is for</span>
-                  <div class="m-chips">
-                    <button
-                      type="button"
-                      class="m-chip"
-                      :class="{ 'm-chip--on': roomForm.rentBasis === 'room' }"
-                      @click="roomForm.rentBasis = 'room'"
-                    >
-                      Whole room
-                    </button>
-                    <button
-                      type="button"
-                      class="m-chip"
-                      :class="{ 'm-chip--on': roomForm.rentBasis === 'person' }"
-                      @click="roomForm.rentBasis = 'person'"
-                    >
-                      Per person
-                    </button>
-                  </div>
-                </div>
-                <label class="field">
-                  <span class="field-label">Monthly rent</span>
-                  <div class="field-prefixed">
-                    <span class="field-prefix">₱</span>
-                    <input
-                      v-model.number="roomForm.monthlyRent"
-                      type="number"
-                      min="0"
-                      :max="RENT_MAX"
-                      step="0.01"
-                      class="field-input field-input--prefixed"
-                      @blur="roomForm.monthlyRent = clampNum(roomForm.monthlyRent, 0, RENT_MAX)"
-                    />
-                  </div>
-                </label>
-              </div>
-              <p v-if="rentBasisHint" class="sec-hint">{{ rentBasisHint }}</p>
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Room type</span>
+                <select v-model="roomForm.roomType" class="field-input app-select" @change="onRoomTypeChange">
+                  <option v-for="(label, key) in ROOM_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label v-if="roomForm.roomType === 'custom'" class="field">
+                <span class="field-label">Custom type name</span>
+                <input v-model="roomForm.customRoomType" type="text" class="field-input" />
+              </label>
+            </div>
 
-              <div class="field-row">
-                <label class="field">
-                  <span class="field-label">Advance (months)</span>
-                  <input
-                    v-model.number="roomForm.advanceMonths"
-                    type="number"
-                    min="0"
-                    :max="MONTHS_MAX"
-                    class="field-input"
-                    @blur="roomForm.advanceMonths = clampOptional(roomForm.advanceMonths, 0, MONTHS_MAX)"
-                  />
-                </label>
-                <label class="field">
-                  <span class="field-label">Deposit (months)</span>
-                  <input
-                    v-model.number="roomForm.depositMonths"
-                    type="number"
-                    min="0"
-                    :max="MONTHS_MAX"
-                    class="field-input"
-                    @blur="roomForm.depositMonths = clampOptional(roomForm.depositMonths, 0, MONTHS_MAX)"
-                  />
-                </label>
-              </div>
+            <label class="field">
+              <span class="field-label">Capacity</span>
+              <input
+                v-model.number="roomForm.capacity"
+                type="number"
+                min="1"
+                :max="CAPACITY_MAX"
+                class="field-input"
+                :disabled="roomForm.roomType in ROOM_TYPE_DEFAULT_CAPACITY"
+                @blur="roomForm.capacity = clampNum(roomForm.capacity, 1, CAPACITY_MAX)"
+              />
+            </label>
+            <p v-if="roomForm.roomType in ROOM_TYPE_DEFAULT_CAPACITY" class="sec-hint">
+              Capacity is fixed at {{ roomForm.capacity }} for {{ ROOM_TYPE_LABEL[roomForm.roomType] }} rooms.
+            </p>
 
-              <div class="sheet-section">
-                <span class="field-label">Utilities</span>
-                <p v-if="activeRoomTenants > 0" class="sec-hint">
-                  Current tenants keep the terms they moved in with. Changes apply to new tenants.
-                </p>
-                <UtilitiesFields v-model="roomForm.utilities" />
-              </div>
-
-              <template v-if="roomDialogMode === 'create'">
-                <label class="field">
-                  <span class="field-label">How many rooms like this?</span>
-                  <input
-                    v-model.number="roomForm.count"
-                    type="number"
-                    min="1"
-                    :max="BULK_MAX"
-                    class="field-input"
-                    @blur="roomForm.count = clampNum(roomForm.count, 1, BULK_MAX)"
-                  />
-                </label>
-                <p v-if="roomForm.count > 1" class="sec-hint">
-                  Adds {{ bulkNumbers.length }} identical rooms: {{ bulkNumbers.join(', ') }}. Add photos to each one afterwards.
-                </p>
-              </template>
-            </template>
-          </template>
-
-          <!-- STEP 2 / edit mode: photos (shown in both view and edit) -->
-          <template v-if="roomDialogMode === 'edit' || roomStep === 2">
-            <div class="sheet-section">
-              <span class="field-label">Photos</span>
-              <span v-if="uploadingRoomPhoto" class="sec-hint">Uploading…</span>
-              <div v-if="roomImages.length" class="thumbs">
-                <div v-for="img in roomImages" :key="img.id" class="thumb">
-                  <img :src="img.url" alt="" />
+            <div class="field-row">
+              <div v-if="roomForm.capacity > 1" class="field">
+                <span class="field-label">Rent is for</span>
+                <div class="m-chips">
                   <button
-                    v-if="roomDialogMode === 'create' || roomViewMode === 'edit'"
                     type="button"
-                    class="thumb-x"
-                    :disabled="deletingRoomImage === img.id"
-                    @click="deleteRoomImage(img.id)"
+                    class="m-chip"
+                    :class="{ 'm-chip--on': roomForm.rentBasis === 'room' }"
+                    @click="roomForm.rentBasis = 'room'"
                   >
-                    <IconifyIcon icon="lucide:x" width="12" />
+                    Whole room
+                  </button>
+                  <button
+                    type="button"
+                    class="m-chip"
+                    :class="{ 'm-chip--on': roomForm.rentBasis === 'person' }"
+                    @click="roomForm.rentBasis = 'person'"
+                  >
+                    Per person
                   </button>
                 </div>
               </div>
-              <p v-else class="none">No photos yet.</p>
+              <label class="field">
+                <span class="field-label">Monthly rent</span>
+                <div class="field-prefixed">
+                  <span class="field-prefix">₱</span>
+                  <input
+                    v-model.number="roomForm.monthlyRent"
+                    type="number"
+                    min="0"
+                    :max="RENT_MAX"
+                    step="0.01"
+                    class="field-input field-input--prefixed"
+                    @blur="roomForm.monthlyRent = clampNum(roomForm.monthlyRent, 0, RENT_MAX)"
+                  />
+                </div>
+              </label>
             </div>
-          </template>
+            <p v-if="rentBasisHint" class="sec-hint">{{ rentBasisHint }}</p>
 
-          <!-- STEP 3 / edit mode: private facilities -->
-          <template v-if="roomDialogMode === 'edit' || roomStep === 3">
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Advance (months)</span>
+                <input
+                  v-model.number="roomForm.advanceMonths"
+                  type="number"
+                  min="0"
+                  :max="MONTHS_MAX"
+                  class="field-input"
+                  @blur="roomForm.advanceMonths = clampOptional(roomForm.advanceMonths, 0, MONTHS_MAX)"
+                />
+              </label>
+              <label class="field">
+                <span class="field-label">Deposit (months)</span>
+                <input
+                  v-model.number="roomForm.depositMonths"
+                  type="number"
+                  min="0"
+                  :max="MONTHS_MAX"
+                  class="field-input"
+                  @blur="roomForm.depositMonths = clampOptional(roomForm.depositMonths, 0, MONTHS_MAX)"
+                />
+              </label>
+            </div>
+
             <div class="sheet-section">
-              <div class="sec-head">
-                <span class="field-label">Private facilities</span>
+              <span class="field-label">Utilities</span>
+              <p v-if="activeRoomTenants > 0" class="sec-hint">
+                Current tenants keep the terms they moved in with. Changes apply to new tenants.
+              </p>
+              <UtilitiesFields v-model="roomForm.utilities" />
+            </div>
+
+            <template v-if="roomDialogMode === 'create'">
+              <label class="field">
+                <span class="field-label">How many rooms like this?</span>
+                <input
+                  v-model.number="roomForm.count"
+                  type="number"
+                  min="1"
+                  :max="BULK_MAX"
+                  class="field-input"
+                  @blur="roomForm.count = clampNum(roomForm.count, 1, BULK_MAX)"
+                />
+              </label>
+              <p v-if="roomForm.count > 1" class="sec-hint">
+                Adds {{ bulkNumbers.length }} identical rooms: {{ bulkNumbers.join(', ') }}. Add photos to each one afterwards.
+              </p>
+            </template>
+          </template>
+        </template>
+
+        <!-- STEP 2 / edit mode: photos (shown in both view and edit) -->
+        <template v-if="roomDialogMode === 'edit' || roomStep === 2">
+          <div class="sheet-section">
+            <span class="field-label">Photos</span>
+            <span v-if="uploadingRoomPhoto" class="sec-hint">Uploading…</span>
+            <div v-if="roomImages.length" class="thumbs">
+              <div v-for="img in roomImages" :key="img.id" class="thumb">
+                <img :src="img.url" alt="" />
                 <button
                   v-if="roomDialogMode === 'create' || roomViewMode === 'edit'"
                   type="button"
-                  class="sec-link"
-                  :disabled="!canAddInventory"
-                  @click="openFacilityAddDialog('private', editingRoomId)"
+                  class="thumb-x"
+                  :disabled="deletingRoomImage === img.id"
+                  @click="deleteRoomImage(img.id)"
                 >
-                  Add
+                  <IconifyIcon icon="lucide:x" width="12" />
                 </button>
               </div>
-              <div v-if="currentRoomFacilities.length" class="group">
-                <button v-for="f in currentRoomFacilities" :key="f.id" type="button" class="room-row" @click="openFacilityDetails(f)">
-                  <span class="room-shot" :class="{ 'room-shot--empty': !f.images.length }">
-                    <img v-if="f.images[0]" :src="f.images[0].url" alt="" />
-                    <IconifyIcon v-else :icon="FACILITY_META[f.facilityType]?.icon || 'lucide:box'" width="18" />
-                  </span>
-                  <span class="room-body">
-                    <span class="room-name">{{ f.label || FACILITY_META[f.facilityType]?.label || f.facilityType }}</span>
-                    <span v-if="uploadingFacilityId === f.id" class="room-sub">Uploading…</span>
-                    <span v-else-if="f.description" class="room-sub">{{ f.description }}</span>
-                    <span v-else class="room-sub">{{ f.images.length ? `${f.images.length} photo${f.images.length === 1 ? '' : 's'}` : 'Private facility' }}</span>
-                  </span>
-                </button>
-              </div>
-              <p v-else class="none">No private facilities for this room yet.</p>
             </div>
-          </template>
+            <p v-else class="none">No photos yet.</p>
+          </div>
+        </template>
 
-          <!-- STEP 4 (create only): summary -->
-          <template v-if="roomDialogMode === 'create' && roomStep === 4">
-            <div class="sheet-section">
-              <span class="field-label">Summary</span>
-              <div class="group">
-                <div class="rule">
-                  <span class="rule-label">Room</span>
-                  <span class="rule-value">Room {{ activeRoomNumber || '—' }} · {{ floorName(roomForm.floor) }}</span>
-                </div>
-                <div class="rule">
-                  <span class="rule-label">Type</span>
-                  <span class="rule-value">{{ roomTypeLabel(roomForm.roomType === 'custom' ? roomForm.customRoomType : roomForm.roomType) }}</span>
-                </div>
-                <div class="rule">
-                  <span class="rule-label">Capacity</span>
-                  <span class="rule-value">{{ roomForm.capacity }}</span>
-                </div>
-                <div class="rule">
-                  <span class="rule-label">Rent</span>
-                  <span class="rule-value">
-                    {{ formatPeso(roomForm.monthlyRent) }}/mo{{ roomForm.capacity > 1 ? (roomForm.rentBasis === 'person' ? ' per person' : ' whole room') : '' }}
-                  </span>
-                </div>
-                <div v-if="roomForm.advanceMonths || roomForm.depositMonths" class="rule">
-                  <span class="rule-label">Advance / Deposit</span>
-                  <span class="rule-value">{{ roomForm.advanceMonths ?? 0 }} / {{ roomForm.depositMonths ?? 0 }} mo</span>
-                </div>
-                <div v-for="u in UTILITIES" :key="u.key" class="rule">
-                  <span class="rule-label">{{ u.label }}</span>
-                  <span class="rule-value">{{ utilityTermsLabel(roomForm.utilities[u.key]) }}</span>
-                </div>
-                <div class="rule">
-                  <span class="rule-label">Photos</span>
-                  <span class="rule-value">{{ roomImages.length }}</span>
-                </div>
-                <div class="rule">
-                  <span class="rule-label">Private facilities</span>
-                  <span class="rule-value">
-                    {{
-                      currentRoomFacilities.length
-                        ? currentRoomFacilities.map((f) => f.label || FACILITY_META[f.facilityType]?.label || f.facilityType).join(', ')
-                        : 'None'
-                    }}
-                  </span>
-                </div>
+        <!-- STEP 3 / edit mode: private facilities -->
+        <template v-if="roomDialogMode === 'edit' || roomStep === 3">
+          <div class="sheet-section">
+            <div class="sec-head">
+              <span class="field-label">Private facilities</span>
+              <button
+                v-if="roomDialogMode === 'create' || roomViewMode === 'edit'"
+                type="button"
+                class="sec-link"
+                :disabled="!canAddInventory"
+                @click="openFacilityAddDialog('private', editingRoomId)"
+              >
+                Add
+              </button>
+            </div>
+            <div v-if="currentRoomFacilities.length" class="group">
+              <button v-for="f in currentRoomFacilities" :key="f.id" type="button" class="room-row" @click="openFacilityDetails(f)">
+                <span class="room-shot" :class="{ 'room-shot--empty': !f.images.length }">
+                  <img v-if="f.images[0]" :src="f.images[0].url" alt="" />
+                  <IconifyIcon v-else :icon="FACILITY_META[f.facilityType]?.icon || 'lucide:box'" width="18" />
+                </span>
+                <span class="room-body">
+                  <span class="room-name">{{ f.label || FACILITY_META[f.facilityType]?.label || f.facilityType }}</span>
+                  <span v-if="uploadingFacilityId === f.id" class="room-sub">Uploading…</span>
+                  <span v-else-if="f.description" class="room-sub">{{ f.description }}</span>
+                  <span v-else class="room-sub">{{ f.images.length ? `${f.images.length} photo${f.images.length === 1 ? '' : 's'}` : 'Private facility' }}</span>
+                </span>
+              </button>
+            </div>
+            <p v-else class="none">No private facilities for this room yet.</p>
+          </div>
+        </template>
+
+        <!-- STEP 4 (create only): summary -->
+        <template v-if="roomDialogMode === 'create' && roomStep === 4">
+          <div class="sheet-section">
+            <span class="field-label">Summary</span>
+            <div class="group">
+              <div class="rule">
+                <span class="rule-label">Room</span>
+                <span class="rule-value">Room {{ activeRoomNumber || '—' }} · {{ floorName(roomForm.floor) }}</span>
+              </div>
+              <div class="rule">
+                <span class="rule-label">Type</span>
+                <span class="rule-value">{{ roomTypeLabel(roomForm.roomType === 'custom' ? roomForm.customRoomType : roomForm.roomType) }}</span>
+              </div>
+              <div class="rule">
+                <span class="rule-label">Capacity</span>
+                <span class="rule-value">{{ roomForm.capacity }}</span>
+              </div>
+              <div class="rule">
+                <span class="rule-label">Rent</span>
+                <span class="rule-value">
+                  {{ formatPeso(roomForm.monthlyRent) }}/mo{{ roomForm.capacity > 1 ? (roomForm.rentBasis === 'person' ? ' per person' : ' whole room') : '' }}
+                </span>
+              </div>
+              <div v-if="roomForm.advanceMonths || roomForm.depositMonths" class="rule">
+                <span class="rule-label">Advance / Deposit</span>
+                <span class="rule-value">{{ roomForm.advanceMonths ?? 0 }} / {{ roomForm.depositMonths ?? 0 }} mo</span>
+              </div>
+              <div v-for="u in UTILITIES" :key="u.key" class="rule">
+                <span class="rule-label">{{ u.label }}</span>
+                <span class="rule-value">{{ utilityTermsLabel(roomForm.utilities[u.key]) }}</span>
+              </div>
+              <div class="rule">
+                <span class="rule-label">Photos</span>
+                <span class="rule-value">{{ roomImages.length }}</span>
+              </div>
+              <div class="rule">
+                <span class="rule-label">Private facilities</span>
+                <span class="rule-value">
+                  {{
+                    currentRoomFacilities.length
+                      ? currentRoomFacilities.map((f) => f.label || FACILITY_META[f.facilityType]?.label || f.facilityType).join(', ')
+                      : 'None'
+                  }}
+                </span>
               </div>
             </div>
-          </template>
-        </div>
+          </div>
+        </template>
+      </div>
 
-        <div v-if="roomDialogMode === 'create' ? roomStep === 2 : roomViewMode === 'edit'" class="photo-actions photo-actions--pinned">
-          <button type="button" class="photo-action-btn" @click="takeRoomPhoto">
-            <IconifyIcon icon="lucide:camera" width="15" />
-            Take photo
-          </button>
-          <label class="photo-action-btn">
-            <IconifyIcon icon="lucide:image-plus" width="15" />
-            Upload
-            <input type="file" accept="image/*" multiple class="file-input-hidden" @change="onRoomPhotosSelected" />
-          </label>
-        </div>
-
+      <div v-if="roomDialogMode === 'create' ? roomStep === 2 : roomViewMode === 'edit'" class="photo-actions photo-actions--pinned">
+        <button type="button" class="photo-action-btn" @click="takeRoomPhoto">
+          <IconifyIcon icon="lucide:camera" width="15" />
+          Take photo
+        </button>
+        <label class="photo-action-btn">
+          <IconifyIcon icon="lucide:image-plus" width="15" />
+          Upload
+          <input type="file" accept="image/*" multiple class="file-input-hidden" @change="onRoomPhotosSelected" />
+        </label>
+      </div>
+      <template #footer>
         <div v-if="roomDialogMode === 'edit' && roomViewMode === 'view'" class="wizard-nav">
           <button type="button" class="ghost-btn" :disabled="savingRoom || !canAddInventory" @click="duplicateRoom">Duplicate</button>
           <q-btn unelevated rounded no-caps color="primary" class="save-btn" label="Edit" @click="roomViewMode = 'edit'" />
@@ -918,8 +906,8 @@
             @click="finishNewRoom"
           />
         </div>
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
 
     <!-- Three near-identical destructive confirms, one component. Deleting a
          floor takes its rooms with it, so the wording matters and should not
@@ -951,142 +939,133 @@
       @confirm="deleteRoom"
     />
     <!-- ADD ROOM OR FACILITY -->
-    <q-dialog v-model="addChoiceOpen" position="bottom">
-      <q-card class="room-sheet">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon icon="lucide:plus" width="18" /></span>
-          <h3 class="room-sheet-title">Add to Floor {{ addChoiceFloor }}</h3>
-        </div>
-        <div class="group">
-          <button type="button" class="facility-row" @click="chooseAddRoom">
-            <span class="facility-icon"><IconifyIcon icon="lucide:bed-double" width="16" /></span>
-            <span class="facility-body">
-              <span class="facility-name">Room</span>
-              <span class="facility-sub">A leasable room on this floor</span>
-            </span>
-          </button>
-          <button type="button" class="facility-row" @click="chooseAddFacility">
-            <span class="facility-icon"><IconifyIcon icon="lucide:sparkles" width="16" /></span>
-            <span class="facility-body">
-              <span class="facility-name">Facility</span>
-              <span class="facility-sub">A shared amenity on this floor</span>
-            </span>
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
+    <AppModal v-model="addChoiceOpen" :title="`Add to Floor ${addChoiceFloor}`" icon="lucide:plus">
+      <div class="group">
+        <button type="button" class="facility-row" @click="chooseAddRoom">
+          <span class="facility-icon"><IconifyIcon icon="lucide:bed-double" width="16" /></span>
+          <span class="facility-body">
+            <span class="facility-name">Room</span>
+            <span class="facility-sub">A leasable room on this floor</span>
+          </span>
+        </button>
+        <button type="button" class="facility-row" @click="chooseAddFacility">
+          <span class="facility-icon"><IconifyIcon icon="lucide:sparkles" width="16" /></span>
+          <span class="facility-body">
+            <span class="facility-name">Facility</span>
+            <span class="facility-sub">A shared amenity on this floor</span>
+          </span>
+        </button>
+      </div>
+    </AppModal>
 
     <!-- ADD / VIEW / EDIT FACILITY -->
-    <q-dialog v-model="facilityOpen" position="bottom">
-      <q-card class="room-sheet room-sheet--paged room-sheet--wizard">
-        <span class="sheet-grip" aria-hidden="true" />
-        <div class="sheet-header">
-          <span class="sheet-header-icon"><IconifyIcon :icon="FACILITY_META[facilityForm.facilityType]?.icon || 'lucide:box'" width="18" /></span>
-          <h3 class="room-sheet-title">{{ facilityDialogMode === 'edit' ? (facilityForm.label || FACILITY_META[facilityForm.facilityType]?.label || 'Facility') : 'Add facility' }}</h3>
+    <AppModal
+      v-model="facilityOpen"
+      :title="facilityDialogMode === 'edit' ? (facilityForm.label || FACILITY_META[facilityForm.facilityType]?.label || 'Facility') : 'Add facility'"
+      :icon="FACILITY_META[facilityForm.facilityType]?.icon || 'lucide:box'"
+      tall
+    >
+      <div class="room-sheet-scroll">
+        <div v-if="facilityDialogMode === 'create'" class="steps steps--sheet">
+          <span v-for="n in 2" :key="n" class="step-dot" :class="{ 'step-dot--on': n <= facilityStep }" />
         </div>
 
-        <div class="room-sheet-scroll">
-          <div v-if="facilityDialogMode === 'create'" class="steps steps--sheet">
-            <span v-for="n in 2" :key="n" class="step-dot" :class="{ 'step-dot--on': n <= facilityStep }" />
-          </div>
-
-          <!-- Basics: step 1 (create), or always shown in view/edit -->
-          <template v-if="facilityDialogMode === 'create' ? facilityStep === 1 : true">
-            <div v-if="facilityDialogMode === 'edit' && facilityViewMode === 'view'" class="view-group">
-              <div class="view-row">
-                <span class="view-label">Type</span>
-                <span class="view-value">{{ FACILITY_META[facilityForm.facilityType]?.label || facilityForm.facilityType }}</span>
-              </div>
-              <div class="view-row">
-                <span class="view-label">Label</span>
-                <span class="view-value">{{ facilityForm.label || '—' }}</span>
-              </div>
-              <div class="view-row">
-                <span class="view-label">Description</span>
-                <span class="view-value">{{ facilityForm.description || '—' }}</span>
-              </div>
-              <template v-if="facilityScope === 'shared'">
-                <div class="view-row">
-                  <span class="view-label">Status</span>
-                  <span class="view-value">{{ FACILITY_STATUS_LABEL[facilityForm.status] }}</span>
-                </div>
-                <div class="view-row">
-                  <span class="view-label">Shared by</span>
-                  <span class="view-value">{{ roomNames(facilityForm.roomIds) || '—' }}</span>
-                </div>
-              </template>
+        <!-- Basics: step 1 (create), or always shown in view/edit -->
+        <template v-if="facilityDialogMode === 'create' ? facilityStep === 1 : true">
+          <div v-if="facilityDialogMode === 'edit' && facilityViewMode === 'view'" class="view-group">
+            <div class="view-row">
+              <span class="view-label">Type</span>
+              <span class="view-value">{{ FACILITY_META[facilityForm.facilityType]?.label || facilityForm.facilityType }}</span>
             </div>
-            <template v-else>
+            <div class="view-row">
+              <span class="view-label">Label</span>
+              <span class="view-value">{{ facilityForm.label || '—' }}</span>
+            </div>
+            <div class="view-row">
+              <span class="view-label">Description</span>
+              <span class="view-value">{{ facilityForm.description || '—' }}</span>
+            </div>
+            <template v-if="facilityScope === 'shared'">
+              <div class="view-row">
+                <span class="view-label">Status</span>
+                <span class="view-value">{{ FACILITY_STATUS_LABEL[facilityForm.status] }}</span>
+              </div>
+              <div class="view-row">
+                <span class="view-label">Shared by</span>
+                <span class="view-value">{{ roomNames(facilityForm.roomIds) || '—' }}</span>
+              </div>
+            </template>
+          </div>
+          <template v-else>
+            <label class="field">
+              <span class="field-label">Type</span>
+              <select v-model="facilityForm.facilityType" class="field-input app-select">
+                <option v-for="(meta, key) in facilityTypeOptions" :key="key" :value="key">{{ meta.label }}</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Label (optional)</span>
+              <input v-model="facilityForm.label" type="text" class="field-input" placeholder="e.g. Rooftop lounge" />
+            </label>
+            <label class="field">
+              <span class="field-label">Description (optional)</span>
+              <input v-model="facilityForm.description" type="text" class="field-input" />
+            </label>
+            <template v-if="facilityScope === 'shared'">
               <label class="field">
-                <span class="field-label">Type</span>
-                <select v-model="facilityForm.facilityType" class="field-input app-select">
-                  <option v-for="(meta, key) in facilityTypeOptions" :key="key" :value="key">{{ meta.label }}</option>
+                <span class="field-label">Status</span>
+                <select v-model="facilityForm.status" class="field-input app-select">
+                  <option v-for="(label, key) in FACILITY_STATUS_LABEL" :key="key" :value="key">{{ label }}</option>
                 </select>
               </label>
-              <label class="field">
-                <span class="field-label">Label (optional)</span>
-                <input v-model="facilityForm.label" type="text" class="field-input" placeholder="e.g. Rooftop lounge" />
-              </label>
-              <label class="field">
-                <span class="field-label">Description (optional)</span>
-                <input v-model="facilityForm.description" type="text" class="field-input" />
-              </label>
-              <template v-if="facilityScope === 'shared'">
-                <label class="field">
-                  <span class="field-label">Status</span>
-                  <select v-model="facilityForm.status" class="field-input app-select">
-                    <option v-for="(label, key) in FACILITY_STATUS_LABEL" :key="key" :value="key">{{ label }}</option>
-                  </select>
-                </label>
-                <div class="field">
-                  <span class="field-label">Shared by</span>
-                  <q-option-group v-if="rooms.length" v-model="facilityForm.roomIds" :options="roomOptions" type="checkbox" color="primary" dense />
-                  <p v-else class="none">Add rooms first, then pick which ones share this facility.</p>
-                </div>
-              </template>
+              <div class="field">
+                <span class="field-label">Shared by</span>
+                <q-option-group v-if="rooms.length" v-model="facilityForm.roomIds" :options="roomOptions" type="checkbox" color="primary" dense />
+                <p v-else class="none">Add rooms first, then pick which ones share this facility.</p>
+              </div>
             </template>
           </template>
+        </template>
 
-          <!-- Photos: step 2 (create), or always shown in view/edit -->
-          <template v-if="facilityDialogMode === 'create' ? facilityStep === 2 : true">
-            <div class="sheet-section">
-              <span class="field-label">Photos</span>
-              <span v-if="uploadingFacilityId === activeFacilityId" class="sec-hint">Uploading…</span>
-              <div v-if="activeFacilityImages.length" class="thumbs">
-                <div v-for="img in activeFacilityImages" :key="img.id" class="thumb">
-                  <img :src="img.url" alt="" />
-                  <button
-                    v-if="facilityDialogMode === 'create' || facilityViewMode === 'edit'"
-                    type="button"
-                    class="thumb-x"
-                    :disabled="deletingFacilityImageId === img.id"
-                    @click="deleteFacilityPhotoInDialog(img.id)"
-                  >
-                    <IconifyIcon icon="lucide:x" width="12" />
-                  </button>
-                </div>
+        <!-- Photos: step 2 (create), or always shown in view/edit -->
+        <template v-if="facilityDialogMode === 'create' ? facilityStep === 2 : true">
+          <div class="sheet-section">
+            <span class="field-label">Photos</span>
+            <span v-if="uploadingFacilityId === activeFacilityId" class="sec-hint">Uploading…</span>
+            <div v-if="activeFacilityImages.length" class="thumbs">
+              <div v-for="img in activeFacilityImages" :key="img.id" class="thumb">
+                <img :src="img.url" alt="" />
+                <button
+                  v-if="facilityDialogMode === 'create' || facilityViewMode === 'edit'"
+                  type="button"
+                  class="thumb-x"
+                  :disabled="deletingFacilityImageId === img.id"
+                  @click="deleteFacilityPhotoInDialog(img.id)"
+                >
+                  <IconifyIcon icon="lucide:x" width="12" />
+                </button>
               </div>
-              <p v-else class="none">No photos yet.</p>
             </div>
-          </template>
-        </div>
+            <p v-else class="none">No photos yet.</p>
+          </div>
+        </template>
+      </div>
 
-        <div
-          v-if="facilityDialogMode === 'create' ? facilityStep === 2 : facilityViewMode === 'edit'"
-          class="photo-actions photo-actions--pinned"
-        >
-          <button type="button" class="photo-action-btn" @click="takeFacilityPhoto(activeFacilityId)">
-            <IconifyIcon icon="lucide:camera" width="15" />
-            Take photo
-          </button>
-          <label class="photo-action-btn">
-            <IconifyIcon icon="lucide:image-plus" width="15" />
-            Upload
-            <input type="file" accept="image/*" multiple class="file-input-hidden" @change="uploadFacilityPhoto($event, activeFacilityId)" />
-          </label>
-        </div>
-
+      <div
+        v-if="facilityDialogMode === 'create' ? facilityStep === 2 : facilityViewMode === 'edit'"
+        class="photo-actions photo-actions--pinned"
+      >
+        <button type="button" class="photo-action-btn" @click="takeFacilityPhoto(activeFacilityId)">
+          <IconifyIcon icon="lucide:camera" width="15" />
+          Take photo
+        </button>
+        <label class="photo-action-btn">
+          <IconifyIcon icon="lucide:image-plus" width="15" />
+          Upload
+          <input type="file" accept="image/*" multiple class="file-input-hidden" @change="uploadFacilityPhoto($event, activeFacilityId)" />
+        </label>
+      </div>
+      <template #footer>
         <div v-if="facilityDialogMode === 'edit' && facilityViewMode === 'view'" class="wizard-nav">
           <q-btn unelevated rounded no-caps color="primary" class="save-btn" label="Edit" @click="facilityViewMode = 'edit'" />
         </div>
@@ -1109,8 +1088,8 @@
           />
           <q-btn v-else unelevated rounded no-caps color="primary" class="save-btn" label="Done" @click="facilityOpen = false" />
         </div>
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
 
     <LocationPicker
       v-if="locationPickerOpen"
@@ -1153,6 +1132,7 @@ import {
   nextFloorNumber as nextFloorNumberOf, nextRoomNumber as nextRoomNumberOf, sameRoomNumber,
 } from '@/utils/roomInventory'
 import { manilaToday } from '@/utils/payments'
+import AppModal from '@/components/shared/AppModal.vue'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.

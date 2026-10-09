@@ -38,6 +38,22 @@ export const isTablet = readonly(state)
  */
 export const isDesktop = isTablet
 
+/**
+ * Whether modals float as a centred card rather than rising as a bottom sheet
+ * (AppModal.vue). A lower line than the tablet shell's: a portrait tablet keeps
+ * the phone shell but is far too wide for a sheet pinned to its bottom edge.
+ * The height test keeps a phone held sideways (~400px tall) on sheets — there a
+ * centred card would have less room than the sheet it replaces.
+ */
+const wideMql = typeof window !== 'undefined' ? window.matchMedia('(min-width: 600px) and (min-height: 480px)') : null
+const wide = ref(wideMql?.matches ?? false)
+
+wideMql?.addEventListener('change', (e) => {
+  wide.value = e.matches
+})
+
+export const isWide = readonly(wide)
+
 export function useTabletMode() {
   return { isTablet }
 }

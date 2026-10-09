@@ -1,42 +1,39 @@
 <template>
-  <q-dialog :model-value="modelValue" position="bottom" @update:model-value="emit('update:modelValue', $event)">
-    <q-card class="sheet">
-      <span class="sheet-grip" aria-hidden="true" />
-      <div class="sheet-header">
-        <span class="sheet-header-icon"><IconifyIcon icon="lucide:file-up" width="18" /></span>
-        <h3 class="sheet-title">{{ replacing ? 'Replace' : 'Upload' }} {{ permitLabel(docType).toLowerCase() }}</h3>
-      </div>
+  <AppModal
+    :model-value="modelValue"
+    :title="`${replacing ? 'Replace' : 'Upload'} ${permitLabel(docType).toLowerCase()}`"
+    icon="lucide:file-up"
+    @update:model-value="emit('update:modelValue', $event)"
+  >
+    <p v-if="osasNote" class="sheet-note">
+      <IconifyIcon icon="lucide:message-square-warning" width="14" />
+      <span>{{ osasNote }}</span>
+    </p>
 
-      <p v-if="osasNote" class="sheet-note">
-        <IconifyIcon icon="lucide:message-square-warning" width="14" />
-        <span>{{ osasNote }}</span>
-      </p>
-
-      <div class="pick-row">
-        <button type="button" class="pick-btn" :disabled="busy" @click="takePhoto">
-          <IconifyIcon icon="lucide:camera" width="16" /> Take a photo
-        </button>
-        <label class="pick-btn" :class="{ 'pick-btn--disabled': busy }">
-          <IconifyIcon icon="lucide:upload" width="16" /> Choose a file
-          <input type="file" accept="image/*,application/pdf" class="file-hidden" :disabled="busy" @change="onPicked" />
-        </label>
-      </div>
-      <p v-if="file" class="picked">
-        <IconifyIcon :icon="file.type === 'application/pdf' ? 'lucide:file-text' : 'lucide:image'" width="14" />
-        <span>{{ file.name }}</span>
-      </p>
-      <p class="hint">A clear photo of the whole permit, or the PDF. Photos must be at least 1000 px on the short side.</p>
-
-      <label class="field">
-        <span class="field-label">Expires on</span>
-        <input v-model="expiresAt" type="date" class="field-input" :min="today" />
+    <div class="pick-row">
+      <button type="button" class="pick-btn" :disabled="busy" @click="takePhoto">
+        <IconifyIcon icon="lucide:camera" width="16" /> Take a photo
+      </button>
+      <label class="pick-btn" :class="{ 'pick-btn--disabled': busy }">
+        <IconifyIcon icon="lucide:upload" width="16" /> Choose a file
+        <input type="file" accept="image/*,application/pdf" class="file-hidden" :disabled="busy" @change="onPicked" />
       </label>
+    </div>
+    <p v-if="file" class="picked">
+      <IconifyIcon :icon="file.type === 'application/pdf' ? 'lucide:file-text' : 'lucide:image'" width="14" />
+      <span>{{ file.name }}</span>
+    </p>
+    <p class="hint">A clear photo of the whole permit, or the PDF. Photos must be at least 1000 px on the short side.</p>
 
-      <div class="actions">
-        <q-btn unelevated rounded no-caps color="primary" :loading="busy" :disabled="!file" label="Upload" @click="save" />
-      </div>
-    </q-card>
-  </q-dialog>
+    <label class="field">
+      <span class="field-label">Expires on</span>
+      <input v-model="expiresAt" type="date" class="field-input" :min="today" />
+    </label>
+
+    <template #footer>
+      <q-btn unelevated rounded no-caps color="primary" :loading="busy" :disabled="!file" label="Upload" @click="save" />
+    </template>
+  </AppModal>
 </template>
 
 <script setup lang="ts">
@@ -50,6 +47,7 @@ import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { expiryProblem, permitLabel, savePermitVersion, uploadPermitFile } from '@/utils/permits'
 import { manilaToday } from '@/utils/payments'
+import AppModal from '@/components/shared/AppModal.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -109,46 +107,6 @@ async function save() {
 </script>
 
 <style scoped>
-/* The bottom-sheet look AccommodationDetail's own sheets use, so this one sits
-   among them without a seam. */
-.sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-  overflow-y: auto;
-}
-.sheet-grip {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.sheet-header { display: flex; align-items: center; gap: 10px; }
-.sheet-header-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.sheet-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .sheet-note {
   display: flex;
   gap: 8px;
@@ -213,5 +171,4 @@ async function save() {
   font: inherit;
   font-size: 14px;
 }
-.actions { display: flex; justify-content: flex-end; }
 </style>

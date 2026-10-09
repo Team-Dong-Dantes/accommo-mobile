@@ -45,6 +45,8 @@ withDefaults(
   margin: 0;
   flex: 1;
   font-size: 13px;
+  /* Quasar's global h2 line-height (3.75rem) otherwise made every header 60px tall. */
+  line-height: 1.3;
   font-weight: 700;
   color: var(--m-ink);
   text-transform: uppercase;

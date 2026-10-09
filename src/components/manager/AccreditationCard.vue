@@ -136,24 +136,20 @@
     />
 
     <!-- Replacing the last flagged permit is the moment to send it back, so ask then. -->
-    <q-dialog v-model="resubmitPromptOpen" position="bottom">
-      <q-card class="rsp">
-        <span class="rsp-grip" aria-hidden="true" />
-        <span class="box-head"><IconifyIcon icon="lucide:send" width="16" /> Send it back to OSAS?</span>
-        <p class="box-text">
-          {{ flagged.length
-            ? 'Every permit OSAS flagged is replaced. OSAS won’t see it until you resubmit.'
-            : 'Permit saved. When you’ve made the changes OSAS asked for, resubmit so OSAS reviews it again.' }}
-        </p>
-        <textarea v-model="message" class="note-input" rows="2" maxlength="1000" placeholder="Note for OSAS (optional)" />
-        <div class="rsp-actions">
-          <button type="button" class="pill-btn" :disabled="busy" @click="resubmitPromptOpen = false">Not yet</button>
-          <button type="button" class="main-btn" :disabled="busy" @click="resubmitFromPrompt">
-            {{ busy ? 'Sending…' : 'Resubmit to OSAS' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
+    <AppModal v-model="resubmitPromptOpen" title="Send it back to OSAS?" icon="lucide:send" size="sm">
+      <p class="box-text">
+        {{ flagged.length
+          ? 'Every permit OSAS flagged is replaced. OSAS won’t see it until you resubmit.'
+          : 'Permit saved. When you’ve made the changes OSAS asked for, resubmit so OSAS reviews it again.' }}
+      </p>
+      <textarea v-model="message" class="note-input" rows="2" maxlength="1000" placeholder="Note for OSAS (optional)" />
+      <template #footer>
+        <button type="button" class="pill-btn rsp-later" :disabled="busy" @click="resubmitPromptOpen = false">Not yet</button>
+        <button type="button" class="main-btn" :disabled="busy" @click="resubmitFromPrompt">
+          {{ busy ? 'Sending…' : 'Resubmit to OSAS' }}
+        </button>
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -172,6 +168,7 @@ import { useNotify } from '@/utils/notify'
 import { permitLabel } from '@/utils/permits'
 import { BUILDING_TYPE_LABEL, GENDER_POLICY_LABEL } from '@/utils/listings'
 import PermitUploadSheet from '@/components/manager/PermitUploadSheet.vue'
+import AppModal from '@/components/shared/AppModal.vue'
 
 const props = defineProps<{
   accommodationId: string
@@ -493,19 +490,7 @@ defineExpose({ reload: load, flagged, permitReplaced })
 .flag-row .pill-btn { align-self: center; }
 .pill-btn--danger { border-color: var(--m-danger); background: var(--m-danger-soft); color: var(--m-danger); }
 .pill-btn:disabled { opacity: 0.6; }
-.rsp {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.rsp-grip { width: 40px; height: 4px; margin: 0 auto; border-radius: 999px; background: var(--m-border); }
-.rsp-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-.rsp-actions .pill-btn { align-self: center; min-height: 46px; }
+.rsp-later { align-self: center; min-height: 46px; }
 .change-list { display: flex; flex-direction: column; gap: 6px; }
 .change-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; }
 .change-label { color: var(--m-muted); }

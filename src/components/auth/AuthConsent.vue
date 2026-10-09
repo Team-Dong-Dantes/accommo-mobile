@@ -49,35 +49,32 @@
       </template>
     </q-field>
 
-    <q-dialog :model-value="openDoc !== null" @update:model-value="openDoc = null">
-      <q-card v-if="openDocument" class="doc-card">
-        <div class="doc-head">
-          <span class="doc-title">{{ openDocument.title }}</span>
-          <span v-if="!read[openDocument.id]" class="doc-hint">Scroll to the end</span>
-        </div>
+    <AppModal :model-value="openDoc !== null" :title="openDocument?.title" tall @update:model-value="openDoc = null">
+      <template v-if="openDocument && !read[openDocument.id]" #actions>
+        <span class="doc-hint">Scroll to the end</span>
+      </template>
 
-        <div ref="bodyEl" class="doc-body" @scroll="onScroll">
-          <LegalDocuments :ids="[openDocument.id]" @loaded="onLoaded" />
-        </div>
+      <div v-if="openDocument" ref="bodyEl" class="doc-body" @scroll="onScroll">
+        <LegalDocuments :ids="[openDocument.id]" @loaded="onLoaded" />
+      </div>
 
-        <!-- "I accept", the same word the re-consent gate uses, and it means it:
-             the button that says you accept is the one that records it. A button
-             here that only closed the dialog would send you back to a box you
-             still had to tick, having already said the thing the box says. -->
-        <div class="doc-foot">
-          <q-btn
-            unelevated
-            rounded
-            no-caps
-            color="primary"
-            label="I accept"
-            class="q-px-lg"
-            :disable="!read[openDocument.id]"
-            @click="acceptOpenDocument"
-          />
-        </div>
-      </q-card>
-    </q-dialog>
+      <!-- "I accept", the same word the re-consent gate uses, and it means it:
+           the button that says you accept is the one that records it. A button
+           here that only closed the dialog would send you back to a box you
+           still had to tick, having already said the thing the box says. -->
+      <template v-if="openDocument" #footer>
+        <q-btn
+          unelevated
+          rounded
+          no-caps
+          color="primary"
+          label="I accept"
+          class="q-px-lg"
+          :disable="!read[openDocument.id]"
+          @click="acceptOpenDocument"
+        />
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -85,6 +82,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import type { QField } from 'quasar'
 import LegalDocuments from '@/components/shared/LegalDocuments.vue'
+import AppModal from '@/components/shared/AppModal.vue'
 import { LEGAL_DOCUMENTS, type LegalDocumentId } from '@/constants/legal'
 
 // The consent gate, inline at the foot of the first screen — under the name and
@@ -263,30 +261,10 @@ watch(openDoc, (id) => {
   cursor: pointer;
 }
 
-.doc-card {
-  display: flex;
-  width: min(520px, 92vw);
-  max-height: 78vh;
-  flex-direction: column;
-  border-radius: 16px;
-}
-.doc-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--m-border);
-}
-.doc-title { font-size: 15px; font-weight: 700; }
 .doc-hint { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
-.doc-body { overflow-y: auto; padding: 12px; }
-.doc-foot {
-  display: flex;
-  min-height: 52px;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 8px 14px;
-  border-top: 1px solid var(--m-border);
+.doc-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 </style>

@@ -5,7 +5,22 @@
        (the tabs, side by side); tablet keeps list-beside-thread. -->
   <q-page class="op" :class="{ 'page-split': isTablet && !isDesktop, 'page-wide': isDesktop }">
     <q-pull-to-refresh @refresh="onPull">
-      <div v-if="loading" class="stack">
+      <!-- Desktop: the loaded card's two halves, not the phone's tabs. -->
+      <div v-if="loading && isDesktop" class="stack">
+        <div class="desk-card">
+          <div class="desk-col">
+            <h2 class="desk-col-title">Requirements</h2>
+            <q-skeleton type="rect" height="84px" class="sk-card" />
+            <q-skeleton type="rect" height="180px" class="sk-card" />
+          </div>
+          <div class="desk-col">
+            <h2 class="desk-col-title">Support tickets</h2>
+            <q-skeleton v-for="n in 2" :key="n" type="rect" height="84px" class="sk-card" />
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="loading" class="stack">
         <div class="tabs">
           <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
           <q-skeleton type="rect" width="70px" height="38px" class="m-sk-tab" />

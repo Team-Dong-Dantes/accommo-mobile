@@ -366,14 +366,13 @@
       @posted="load(true)"
     />
 
-    <q-dialog v-model="reviewOpen" position="bottom">
-      <q-card class="pay-sheet">
-        <h3 class="pay-title">Rate {{ lease.studentName }}</h3>
-        <StarRating v-model="reviewForm.rating" interactive :size="26" />
-        <label class="pay-field">
-          <span class="pay-label">Notes (optional)</span>
-          <textarea v-model="reviewForm.comment" class="pay-input review-textarea" rows="3" placeholder="How was this tenant to have?" />
-        </label>
+    <AppModal v-model="reviewOpen" :title="`Rate ${lease.studentName}`">
+      <StarRating v-model="reviewForm.rating" interactive :size="26" />
+      <label class="pay-field">
+        <span class="pay-label">Notes (optional)</span>
+        <textarea v-model="reviewForm.comment" class="pay-input review-textarea" rows="3" placeholder="How was this tenant to have?" />
+      </label>
+      <template #footer>
         <q-btn
           unelevated
           rounded
@@ -384,8 +383,8 @@
           label="Submit"
           @click="submitTenantReview"
         />
-      </q-card>
-    </q-dialog>
+      </template>
+    </AppModal>
 
     <!-- Payment review — verifying only ever happens from here, never
          straight off the row, so a proof/reference actually gets looked at. -->
@@ -400,22 +399,21 @@
       @submitted="load(true)"
     />
 
-    <q-dialog v-model="forgiveOpen" position="bottom">
-      <q-card v-if="forgiveTarget" class="forgive-sheet">
-        <h3 class="forgive-title">Forgive {{ formatPesoExact(forgiveTarget.balance) }}?</h3>
+    <AppModal v-model="forgiveOpen" :title="forgiveTarget ? `Forgive ${formatPesoExact(forgiveTarget.balance)}?` : ''" size="sm">
+      <template v-if="forgiveTarget">
         <p class="forgive-note">
           What's left of {{ forgiveTarget.label }} is settled without payment. It isn't counted as money received, and
           the tenant sees your reason.
         </p>
         <textarea v-model="forgiveReason" class="forgive-input" rows="2" maxlength="300" placeholder="e.g. Away for the semestral break, as we agreed" />
-        <div class="forgive-actions">
-          <button type="button" class="forgive-cancel" @click="forgiveOpen = false">Cancel</button>
-          <button type="button" class="forgive-confirm" :disabled="forgiving || !forgiveReason.trim()" @click="forgive">
-            {{ forgiving ? 'Forgiving…' : 'Forgive' }}
-          </button>
-        </div>
-      </q-card>
-    </q-dialog>
+      </template>
+      <template #footer>
+        <button type="button" class="forgive-cancel" @click="forgiveOpen = false">Cancel</button>
+        <button type="button" class="forgive-confirm" :disabled="forgiving || !forgiveReason.trim()" @click="forgive">
+          {{ forgiving ? 'Forgiving…' : 'Forgive' }}
+        </button>
+      </template>
+    </AppModal>
   </q-page>
 </template>
 
@@ -442,6 +440,7 @@ import { BILL_TAG, isBillSettled, manilaToday, paymentTitle, toLedger, type Ledg
 import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import AppModal from '@/components/shared/AppModal.vue'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -875,7 +874,6 @@ function openPaymentDetail(p: (typeof payments.value)[number]) {
   selectedPayment.value = p
   paymentDetailOpen.value = true
 }
-
 
 const reviewOpen = ref(false)
 const submittingReview = ref(false)
@@ -1420,23 +1418,6 @@ useLiveData({
   text-align: center;
 }
 
-.pay-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.pay-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
 .pay-field {
   display: flex;
   flex-direction: column;
@@ -1468,6 +1449,7 @@ useLiveData({
   justify-content: space-between;
 }
 .pay-submit {
+  flex: 1;
   min-height: 48px;
   font-weight: 700;
 }
@@ -1479,23 +1461,6 @@ useLiveData({
 
 .group > .pay-detail-rule:first-child {
   border-top: 0;
-}
-.forgive-sheet {
-  display: flex;
-  width: 100%;
-  max-width: 480px;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0 auto;
-  padding: 16px var(--m-page-gutter) calc(16px + env(safe-area-inset-bottom));
-  border-radius: var(--m-radius-lg, var(--m-radius)) var(--m-radius-lg, var(--m-radius)) 0 0;
-}
-.forgive-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
 }
 .forgive-note {
   margin: 0;
@@ -1514,10 +1479,6 @@ useLiveData({
   font: inherit;
   font-size: 13.5px;
   resize: vertical;
-}
-.forgive-actions {
-  display: flex;
-  gap: 8px;
 }
 .forgive-cancel,
 .forgive-confirm {
