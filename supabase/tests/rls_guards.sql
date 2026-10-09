@@ -328,7 +328,7 @@ create or replace function pg_temp.unverified_check() returns table(test text, o
 language plpgsql as $$
 declare
   v_pending uuid; v_verified uuid; v_acc uuid; v_msg text;
-  v_student uuid; v_room uuid; v_landlord uuid; o4 text; o5 text; o6 text;
+  v_student uuid; v_room uuid; v_landlord uuid; v_lease uuid; o4 text; o5 text; o6 text;
 begin
   -- 20260924120000: an unverified landlord/landlady may sign in but may not add
   -- inventory. Skipped when there is no such account to impersonate.
@@ -393,11 +393,12 @@ begin
     test := 'U3b: room on an unaccredited listing'; return next;
   end if;
 
-  -- U4-U6: a student OSAS has not verified may not apply for a room, and a
-  -- landlord/landlady may not add them to one. U5 has OSAS verify the same
-  -- student and retries, so U4 is known to fail on verification and nothing
-  -- else. The room invite is set up first, as the app does before applying.
-  -- Skipped when there is no such student or no available room.
+  -- U4-U6 (20261009020000): a student OSAS has not verified may apply for a
+  -- room, but the landlord/landlady may not accept them until OSAS does, nor
+  -- insert a lease for them directly. The room is on a verified landlord's
+  -- accredited listing so U5 reaches the verification check. The room invite
+  -- is set up first, as the app does before applying. Skipped when there is
+  -- no such student or no such room.
   select u.id into v_student from public.users u join public.student_profiles sp on sp.user_id = u.id
    where u.role = 'student' and u.status = 'verified' and sp.osas_verified_at is null
      and not exists (select 1 from public.leases l where l.student_id = u.id
@@ -405,7 +406,10 @@ begin
    limit 1;
   select r.id, a.landlord_id into v_room, v_landlord
     from public.rooms r join public.accommodations a on a.id = r.accommodation_id
-   where r.status = 'available' limit 1;
+    join public.users lu on lu.id = a.landlord_id
+   where r.status = 'available' and lu.status = 'verified'
+     and a.status = 'accredited' and not a.hidden_from_listings
+   limit 1;
 
   if v_student is not null and v_room is not null then
     begin
@@ -416,11 +420,12 @@ begin
       set local role authenticated;
       begin
         insert into public.leases (room_id, student_id, landlord_id, start_date, end_date, status)
-        values (v_room, v_student, v_landlord, current_date, current_date + 365, 'pending');
-        o4 := 'FAIL - an unverified student applied for a room';
+        values (v_room, v_student, v_landlord, current_date, current_date + 365, 'pending')
+        returning id into v_lease;
+        o4 := 'PASS - an unverified student may apply';
       exception when others then
         get stacked diagnostics v_msg = message_text;
-        o4 := 'PASS - ' || v_msg;
+        o4 := 'FAIL - ' || v_msg;
       end;
       reset role;
 
@@ -436,20 +441,18 @@ begin
       end;
       reset role;
 
-      -- No signed-in user, so trg_lock_osas lets the stamp through.
-      perform set_config('request.jwt.claims', '', true);
-      update public.student_profiles set osas_verified_at = now() where user_id = v_student;
-      perform set_config('request.jwt.claims', json_build_object('sub', v_student, 'role', 'authenticated')::text, true);
-      set local role authenticated;
-      begin
-        insert into public.leases (room_id, student_id, landlord_id, start_date, end_date, status)
-        values (v_room, v_student, v_landlord, current_date, current_date + 365, 'pending');
-        o5 := 'PASS - verified student may apply';
-      exception when others then
-        get stacked diagnostics v_msg = message_text;
-        o5 := 'FAIL - ' || v_msg;
-      end;
-      reset role;
+      if v_lease is not null then
+        perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
+        set local role authenticated;
+        begin
+          update public.leases set status = 'active' where id = v_lease;
+          o5 := 'FAIL - an unverified student was accepted as a tenant';
+        exception when others then
+          get stacked diagnostics v_msg = message_text;
+          o5 := case when v_msg like '%has not verified this student%' then 'PASS - ' || v_msg else 'FAIL - ' || v_msg end;
+        end;
+        reset role;
+      end if;
       raise exception 'rollback';
     exception when others then
       get stacked diagnostics v_msg = message_text;
@@ -461,7 +464,7 @@ begin
       end if;
     end;
     test := 'U4: unverified student applies for a room'; outcome := o4; return next;
-    test := 'U5: same student, once verified, may apply'; outcome := o5; return next;
+    test := 'U5: accept an unverified student''s application'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
     test := 'U6: landlord/landlady adds an unverified student'; outcome := o6; return next;
   end if;
 end $$;
@@ -570,9 +573,11 @@ begin
   test := 'T3: reporter re-prioritises own ticket'; outcome := o3; return next;
   test := 'T4: reply reopens a resolved ticket'; outcome := o4; return next;
 end $$;
--- L1-L6 (20260929120000): a landlord/landlady adds a walk-in student, and that
--- stay starts only with the student's own QR. Picks a verified landlord/landlady
--- with an available room, a student with no stay, and any other student whose
+-- L1-L7 (20260929120000): a landlord/landlady adds a walk-in student, and that
+-- stay starts only with the student's own QR — and, since 20261009020000, only
+-- once OSAS has verified them, though they may be added before. Picks a
+-- verified landlord/landlady with an available room, a student with no stay,
+-- and any other student whose
 -- token must not work. The setup runs with no signed-in user (the lock triggers
 -- let it through), and the whole block is rolled back.
 create or replace function pg_temp.added_check() returns table(test text, outcome text)
@@ -619,12 +624,21 @@ begin
       o1 := 'PASS - ' || v_msg;
     end;
     begin
-      perform public.add_student_to_room(v_room, 'rls-test-no', current_date);
-      o2 := 'FAIL - added a student OSAS has not verified';
+      v_lease := public.add_student_to_room(v_room, 'rls-test-no', current_date);
+      o2 := 'PASS - unverified student added as pending';
     exception when others then
       get stacked diagnostics v_msg = message_text;
-      o2 := 'PASS - ' || v_msg;
+      o2 := 'FAIL - ' || v_msg;
     end;
+    if v_lease is not null then
+      begin
+        perform public.accept_added_student(v_lease, v_code_a);
+        o3 := 'FAIL - accepted a student OSAS has not verified';
+      exception when others then
+        get stacked diagnostics v_msg = message_text;
+        o3 := case when v_msg like '%has not verified this student%' then 'PASS - ' || v_msg else 'FAIL - ' || v_msg end;
+      end;
+    end if;
     reset role;
 
     perform set_config('request.jwt.claims', '', true);
@@ -632,13 +646,6 @@ begin
 
     perform set_config('request.jwt.claims', json_build_object('sub', v_landlord, 'role', 'authenticated')::text, true);
     set local role authenticated;
-    begin
-      v_lease := public.add_student_to_room(v_room, 'rls-test-no', current_date);
-      o3 := 'PASS - verified student added as pending';
-    exception when others then
-      get stacked diagnostics v_msg = message_text;
-      o3 := 'FAIL - ' || v_msg;
-    end;
     if v_lease is not null then
       begin
         update public.leases set status = 'active' where id = v_lease;
@@ -679,7 +686,7 @@ begin
   end;
   test := 'L1: landlord/landlady inserts a lease directly'; outcome := o1; return next;
   test := 'L2: add a student OSAS has not verified'; outcome := o2; return next;
-  test := 'L3: add a verified student'; outcome := o3; return next;
+  test := 'L3: accept them before OSAS verifies'; outcome := coalesce(o3, 'FAIL - not reached'); return next;
   test := 'L4: accept an added student without a scan'; outcome := coalesce(o4, 'FAIL - not reached'); return next;
   test := 'L5: accept with another student''s QR'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
   test := 'L6: accept with their own QR'; outcome := coalesce(o6, 'FAIL - not reached'); return next;
