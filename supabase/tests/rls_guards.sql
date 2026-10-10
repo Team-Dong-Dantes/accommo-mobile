@@ -26,6 +26,7 @@
 --   H1-H22  PASS
 --   AA1-AA8  PASS
 --   PY1-PY18  PASS
+--   MA1-MA3  PASS
 
 -- The guards date things in Manila; current_date here must too. In UTC (CI)
 -- it is yesterday from 16:00 UTC on, so every move-in was "in the past".
@@ -1332,6 +1333,42 @@ begin
   end loop;
 end $f$;
 
+create or replace function pg_temp.map_area_check() returns table(test text, outcome text)
+language plpgsql as $$
+declare v_student uuid := '00000000-0000-0000-0000-00000000b001';
+  v_admin uuid := '00000000-0000-0000-0000-00000000f001';
+  v_n int; v_msg text; o1 text; o2 text; o3 text;
+begin
+  begin
+    insert into public.map_areas (name, color, ring, created_by)
+    values ('rls area', '#000', '[[0,0],[0,1],[1,1]]', v_admin);
+
+    perform set_config('request.jwt.claims', json_build_object('sub', v_student, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    select count(*) into v_n from public.map_areas;
+    o1 := case when v_n = 0 then 'PASS' else 'FAIL - saw ' || v_n end;
+    begin
+      insert into public.map_areas (name, color, ring) values ('x', '#000', '[[0,0],[0,1],[1,1]]');
+      o2 := 'FAIL - student inserted an area';
+    exception when others then o2 := 'PASS';
+    end;
+
+    reset role;
+    perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    select count(*) into v_n from public.map_areas where name = 'rls area';
+    o3 := case when v_n = 1 then 'PASS' else 'FAIL - saw ' || v_n end;
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> 'rollback' then o1 := coalesce(o1, 'FAIL - setup: ' || v_msg); end if;
+  end;
+  reset role;
+  test := 'MA1: a student cannot see OSAS map areas'; outcome := o1; return next;
+  test := 'MA2: a student cannot draw a map area'; outcome := o2; return next;
+  test := 'MA3: OSAS sees the areas'; outcome := o3; return next;
+end $$;
+
 select * from pg_temp.rls_check()
 union all
 select * from pg_temp.added_check()
@@ -1360,4 +1397,6 @@ select * from pg_temp.hardening_check()
 union all
 select * from pg_temp.access_check()
 union all
-select * from pg_temp.payment_check();
+select * from pg_temp.payment_check()
+union all
+select * from pg_temp.map_area_check();
