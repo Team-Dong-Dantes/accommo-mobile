@@ -15,10 +15,10 @@
         search-label="Search concerns"
         @open-filters="filtersOpen = true"
       />
-      <!-- Says who answers, and where everything else goes (OSAS support). -->
+      <!-- Says who answers, and where everything else goes (OSAS). -->
       <p class="scope-note">
         For problems with your room, rent or the house — your {{ myLandlord }} handles these.
-        School or account matters go to <router-link to="/student/support" class="scope-note-link">OSAS support</router-link>.
+        School or account matters go to <router-link to="/student/support" class="scope-note-link">OSAS</router-link>.
       </p>
       <div v-if="loading" class="stack">
         <div class="group">
