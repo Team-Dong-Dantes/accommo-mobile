@@ -178,9 +178,12 @@ begin
   test := 'M3: manager deletes a payment'; return next;
 
   -- M4. A confirmation is final (20261012000000): no undo, by RPC or update.
-  select p.id into v_payment from public.payments p join public.leases l on l.id = p.lease_id
-   where l.landlord_id = v_mgr and p.status = 'paid' limit 1;
+  -- The fixture may hold no confirmed payment, so the test logs one (as M2
+  -- does) and tries to undo that; the block rolls both back.
   begin
+    insert into public.payments (lease_id, month, amount, method, status, paid_at, verified_by)
+    values (v_lease, v_month, least(v_left, 1500), 'cash', 'paid', now(), v_mgr)
+    returning id into v_payment;
     perform public.review_payment(v_payment, 'undo', null, 'test');
     outcome := 'FAIL - a confirmation was undone';
     raise exception 'rollback';
