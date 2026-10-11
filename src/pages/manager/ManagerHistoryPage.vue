@@ -286,7 +286,7 @@ const router = useRouter()
 // once at setup: the page is kept alive, so where it was opened from changes.
 const BACK_LABELS: Record<string, string> = {
   '/manager/settings': 'settings',
-  '/manager/tenants': 'my tenants',
+  '/manager/tenants': 'my boarders',
   '/manager/notifications': 'notifications',
 }
 const backPath = ref<string | null>(null)

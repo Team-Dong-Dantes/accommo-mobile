@@ -126,7 +126,6 @@
 
     <q-footer
       v-else-if="!isSubPage && !immersive"
-      bordered
       class="bottom-footer"
     >
       <BottomNav
@@ -199,7 +198,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       // Centre of the bar, raised (BottomNav). A tab, not a Menu entry, so it
       // is no longer in quickActions or secondaryPages either: a tab screen has
       // the nav under it and no back arrow.
-      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'My Tenants', match: ['/manager/tenant/'], featured: true },
+      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'My Boarders', match: ['/manager/tenant/'], featured: true },
       { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages' },
       { name: 'menu', route: '/manager/profile', icon: 'lucide:menu', label: 'Menu' },
     ],
@@ -220,7 +219,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: /^\/manager\/person\/[^/]+$/, title: 'Profile', back: '/manager/messages', backLabel: 'messages' },
       { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'my tenants' },
+      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'my boarders' },
       { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'properties' },
       { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'properties' },
     ],
@@ -794,9 +793,9 @@ function onScroll() {
   bottom: 0;
   left: 0;
   z-index: 50;
-  background: var(--m-surface);
+  /* BottomNav draws the bar itself, notch and hairline included. */
+  background: transparent;
   color: var(--m-text);
-  box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
 }
 .page-container {
   background: var(--m-bg);
@@ -847,6 +846,22 @@ function onScroll() {
 [data-nav=page-slide-right] .page-leave-to { transform: translateX(100%); }
 [data-nav=page-fade] .page-enter-active,
 [data-nav=page-fade] .page-leave-active { transition: opacity 120ms ease-out; }
+/* Tab to tab: the leaving page is lifted out of the flow and laid over the
+   arriving one. Left in flow, the arriving page was laid out under it, its top
+   edge exactly at the bottom bar's, and showed through the bar's notch behind
+   the centre button for the length of the fade. */
+[data-nav=page-fade] .page-leave-active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+}
+/* The box a page lives in, so a page lifted out of the flow keeps that box's
+   width (a centred column on a tablet) rather than the whole stage's. */
+.page-stage > div {
+  position: relative;
+}
 [data-nav=page-fade] .page-enter-from,
 [data-nav=page-fade] .page-leave-to { opacity: 0; }
 /* Tenants <-> a tenant on desktop. The leaving page is lifted out of the flow

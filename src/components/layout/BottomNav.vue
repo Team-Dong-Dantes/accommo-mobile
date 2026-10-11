@@ -1,5 +1,18 @@
 <template>
   <div class="bottom-nav">
+    <!-- The bar's own surface, with a notch cut round the centre button and the
+         hairline following it. Sides stretch; the notch is a fixed-width piece so
+         it stays a true circle at any screen width. -->
+    <div class="bottom-nav-bg" aria-hidden="true">
+      <span class="bottom-nav-bg-side" />
+      <span class="bottom-nav-bg-notch">
+        <svg width="94" height="52" viewBox="0 0 94 52">
+          <path class="bottom-nav-bg-fill" d="M0 0 C7 0 9.8 2.2 11.9 6 A36 36 0 0 0 82.1 6 C84.2 2.2 87 0 94 0 V52 H0 Z" />
+          <path class="bottom-nav-bg-line" d="M0 0.5 C7 0.5 9.8 2.7 11.9 6.5 A36 36 0 0 0 82.1 6.5 C84.2 2.7 87 0.5 94 0.5" />
+        </svg>
+      </span>
+      <span class="bottom-nav-bg-side" />
+    </div>
     <button
       v-for="tab in tabs"
       :key="tab.name"
@@ -50,9 +63,49 @@ function onSelect(name: string) {
 
 <style scoped>
 .bottom-nav {
+  position: relative;
   display: flex;
   height: 100%;
   align-items: stretch;
+}
+/* Runs down over the footer's safe-area padding so the surface reaches the
+   screen's edge. */
+.bottom-nav-bg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
+  left: 0;
+  display: flex;
+  pointer-events: none;
+}
+.bottom-nav-bg-side {
+  flex: 1 1 0;
+  border-top: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+.bottom-nav-bg-notch {
+  display: flex;
+  flex: 0 0 94px;
+  flex-direction: column;
+}
+.bottom-nav-bg-notch svg {
+  display: block;
+  flex: 0 0 auto;
+}
+/* Below the 52px drawing, on a phone with a home indicator. */
+.bottom-nav-bg-notch::after {
+  content: '';
+  flex: 1;
+  margin-top: -1px;
+  background: var(--m-surface);
+}
+.bottom-nav-bg-fill {
+  fill: var(--m-surface);
+}
+.bottom-nav-bg-line {
+  fill: none;
+  stroke: var(--m-border);
 }
 .bottom-nav-item {
   position: relative;
@@ -132,10 +185,11 @@ function onSelect(name: string) {
   top: -1px;
   right: -1px;
 }
-/* The centre tab: a teal disc lifted 28px out of the bar. Its 4px ring is the
-   bar's own surface colour, so the disc reads as sitting in a notch cut into
-   the bar rather than pasted on top of it, in light and dark alike. The label
-   keeps the baseline every other tab's label sits on. */
+/* The centre tab: a flat disc docked in the bar's notch, centred 2px above the
+   bar's top edge with 7px of air all round. Ink while you are elsewhere, teal on
+   its own screen. The hairline ring inset 4px is the one detail; no gradient,
+   gloss or coloured glow. The label keeps the baseline every other tab's label
+   sits on, just under the notch. */
 .bottom-nav-item--featured {
   justify-content: flex-end;
   padding-bottom: 5px;
@@ -144,24 +198,43 @@ function onSelect(name: string) {
   transform: none;
 }
 .bottom-nav-fab {
+  --fab-bg: #17202a;
+  --fab-ring: rgba(255, 255, 255, 0.16);
   position: absolute;
-  top: -28px;
+  top: -31px;
   left: 50%;
   display: grid;
-  width: 56px;
-  height: 56px;
+  width: 58px;
+  height: 58px;
   place-items: center;
-  margin-left: -28px;
-  border: 4px solid var(--m-surface);
+  margin-left: -29px;
   border-radius: 50%;
-  background: linear-gradient(145deg, var(--m-primary), var(--m-primary-dark));
+  background: var(--fab-bg);
   color: #fff;
-  box-shadow: 0 6px 14px rgba(0, 105, 92, 0.32);
-  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.16s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12), 0 6px 14px rgba(15, 23, 42, 0.1);
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.16s ease;
+}
+.bottom-nav-fab::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--fab-ring);
+  border-radius: 50%;
+}
+/* Ink is the light theme's text colour; on a dark bar it is lifted one step so
+   it still reads as a button rather than a hole. */
+:global(:root.dark) .bottom-nav-fab {
+  --fab-bg: #353c48;
+}
+.bottom-nav-item--featured.active .bottom-nav-fab {
+  --fab-bg: var(--m-primary-dark);
+  --fab-ring: rgba(255, 255, 255, 0.26);
 }
 .bottom-nav-item--featured:active .bottom-nav-fab {
-  transform: scale(0.92);
-  box-shadow: 0 3px 8px rgba(0, 105, 92, 0.28);
+  transform: scale(0.94);
+}
+.bottom-nav-item--featured.active {
+  color: var(--m-primary-dark);
 }
 .bottom-nav-item--featured.active .bottom-nav-label {
   font-weight: 700;
