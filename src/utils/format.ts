@@ -283,6 +283,7 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   bank: 'Bank transfer',
   cash: 'Cash',
   others: 'Other',
+  deposit: 'Deposit',
 };
 
 /** concerns.status: open | acknowledged | in_progress | resolved | rejected */

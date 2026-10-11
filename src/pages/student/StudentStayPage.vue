@@ -13,6 +13,7 @@
       </div>
 
       <div v-else-if="loading" class="stack">
+        <q-skeleton type="rect" height="200px" square class="sk-hero" />
         <q-skeleton type="rect" height="120px" class="sk" />
         <q-skeleton type="rect" height="90px" class="sk" />
       </div>
@@ -33,7 +34,15 @@
       </EmptyState>
 
       <div v-else class="stack">
-        <div class="m-tabbed" :class="{ 'stay-both': isTablet }">
+        <div class="m-tabbed" :class="{ 'stay-both': isTablet, 'm-tabbed--hero': lease && !isDesktop }">
+          <StayHero
+            v-if="lease && !isDesktop"
+            :name="lease.accommodationName"
+            :room="lease.roomLabel"
+            :address="lease.address"
+            :status="lease.status"
+            :photo-url="lease.photoUrl"
+          />
           <!-- A phone shows one panel at a time and needs the strip to choose.
                On a tablet both are up, so there is nothing left to pick. -->
           <div v-if="!isTablet" class="tabs">
@@ -54,112 +63,107 @@
               <div v-show="isTablet || activeTab === 'stay'" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isTablet" class="split-head">My Stay</h2>
                 <template v-if="lease">
-                  <div class="head">
-                    <div class="head-top">
-                      <span class="head-name">{{ lease.accommodationName }}</span>
-                      <button type="button" class="head-history-link" @click="router.push('/student/profile/history')">View history</button>
+                  <StayHero
+                    v-if="isDesktop"
+                    :name="lease.accommodationName"
+                    :room="lease.roomLabel"
+                    :address="lease.address"
+                    :status="lease.status"
+                    :photo-url="lease.photoUrl"
+                  />
+
+                  <div class="mgr">
+                    <span class="mgr-avatar">
+                      <img v-if="lease.managerAvatarUrl" :src="lease.managerAvatarUrl" alt="" class="mgr-avatar-img" @error="lease.managerAvatarUrl = null" />
+                      <template v-else>{{ lease.managerInitials }}</template>
+                    </span>
+                    <span class="mgr-body">
+                      <span class="mgr-name">{{ lease.managerName }}</span>
+                      <span class="mgr-sub">
+                        Your {{ myLandlord }}<template v-if="lease.replyMinutes">{{ ` · replies in ~${lease.replyMinutes} min` }}</template>
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      class="mgr-msg"
+                      :aria-label="`Message your ${myLandlord}`"
+                      @click="router.push(`/student/messages?to=${lease.managerId}`)"
+                    >
+                      <IconifyIcon icon="lucide:message-circle" width="17" />
+                    </button>
+                  </div>
+                  <p v-if="lease.status === 'pending'" class="note">Application pending — awaiting your {{ myLandlord }}'s decision.</p>
+                  <p v-else-if="lease.status === 'leave_requested'" class="note">
+                    You asked to move out on {{ formatDate(lease.leaveDate) }} — awaiting your {{ myLandlord }}'s decision. Rent stays due until then.
+                  </p>
+                  <p v-else-if="lease.leaveDate" class="note">Moving out {{ formatDate(lease.leaveDate) }} — approved by your {{ myLandlord }}.</p>
+
+                  <!-- The four things a boarder actually checks, as tiles; the
+                       rest is reference, one hairline list below. -->
+                  <div class="facts">
+                    <div class="fact">
+                      <span class="fact-label">Monthly rent</span>
+                      <span class="fact-value">{{ formatPeso(lease.monthlyRent) }}</span>
+                      <span class="fact-sub">per month</span>
                     </div>
-                    <span v-if="lease.roomLabel" class="head-room">{{ lease.roomLabel }}</span>
-                    <span class="head-chip" :class="`head-chip--${statusColor(LEASE_STATUS, lease.status)}`">{{ statusText(LEASE_STATUS, lease.status) }}</span>
-                    <p v-if="lease.status === 'pending'" class="head-note">Application pending — awaiting your {{ myLandlord }}'s decision.</p>
-                    <p v-else-if="lease.status === 'leave_requested'" class="head-note">Leave requested — awaiting your {{ myLandlord }}'s decision.</p>
+                    <div class="fact">
+                      <span class="fact-label">Lease ends</span>
+                      <span class="fact-value">{{ formatDate(lease.endDate) }}</span>
+                      <span class="fact-sub">Started {{ formatDate(lease.startDate) }}</span>
+                    </div>
+                    <div class="fact">
+                      <span class="fact-label">Room type</span>
+                      <span class="fact-value">{{ lease.roomType || '—' }}</span>
+                    </div>
+                    <div class="fact">
+                      <span class="fact-label">Capacity</span>
+                      <span class="fact-value">{{ lease.capacity ? `${lease.capacity} ${lease.capacity === 1 ? 'person' : 'people'}` : '—' }}</span>
+                      <span v-if="lease.roommateCount !== null" class="fact-sub">
+                        {{ lease.roommateCount > 0 ? `${lease.roommateCount} roommate${lease.roommateCount === 1 ? '' : 's'}` : 'Just you so far' }}
+                      </span>
+                    </div>
                   </div>
 
-                  <!-- Manager contact -->
                   <section class="sec">
-                    <h2 class="sec-title">Your {{ lease.managerTitle.toLowerCase() }}</h2>
-                    <div class="mgr">
-                      <span class="mgr-avatar">
-                        <img v-if="lease.managerAvatarUrl" :src="lease.managerAvatarUrl" alt="" class="mgr-avatar-img" @error="lease.managerAvatarUrl = null" />
-                        <template v-else>{{ lease.managerInitials }}</template>
-                      </span>
-                      <span class="mgr-body">
-                        <span class="mgr-name">{{ lease.managerName }}</span>
-                        <span class="mgr-sub">{{ lease.replyMinutes ? `Replies in ~${lease.replyMinutes} min` : lease.managerTitle }}</span>
-                      </span>
-                      <button type="button" class="mgr-msg" @click="router.push(`/student/messages?to=${lease.managerId}`)">
-                        <IconifyIcon icon="lucide:message-circle" width="15" />
-                        Message
-                      </button>
-                    </div>
-                  </section>
-
-                  <!-- Money at a glance -->
-                  <section class="sec">
-                    <h2 class="sec-title">Money at a glance</h2>
-                    <div class="group">
-                      <div class="rule">
-                        <span class="rule-label">Monthly rent</span>
-                        <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
-                      </div>
-                      <div v-for="u in UTILITIES" :key="u.key" class="rule">
-                        <span class="rule-label">{{ u.label }}</span>
-                        <span class="rule-value">{{ utilityTermsLabel(lease.utilities[u.key]) }}</span>
-                      </div>
-                      <div class="rule">
-                        <span class="rule-label">Lease term</span>
-                        <span class="rule-value">{{ formatDate(lease.startDate) }} – {{ formatDate(lease.endDate) }}</span>
-                      </div>
-                    </div>
-                  </section>
-
-                  <!-- Room & boarding house -->
-                  <section class="sec">
-                    <h2 class="sec-title">About your room</h2>
-                    <div class="group">
-                      <div class="rule">
-                        <span class="rule-label">Room type</span>
-                        <span class="rule-value">{{ lease.roomType || '—' }}</span>
-                      </div>
-                      <div v-if="lease.capacity" class="rule">
-                        <span class="rule-label">Capacity</span>
-                        <span class="rule-value">{{ lease.capacity }} {{ lease.capacity === 1 ? 'person' : 'people' }}</span>
-                      </div>
-                      <div v-if="lease.roommateCount !== null" class="rule">
-                        <span class="rule-label">Roommates</span>
-                        <span class="rule-value">
-                          {{ lease.roommateCount > 0 ? `${lease.roommateCount} other${lease.roommateCount === 1 ? '' : 's'} in this room` : 'None — you have it to yourself' }}
-                        </span>
-                      </div>
-                      <div v-if="lease.address" class="rule">
-                        <span class="rule-label">Address</span>
-                        <span class="rule-value">{{ lease.address }}</span>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section v-if="lease.amenities.length" class="sec">
-                    <h2 class="sec-title">Amenities</h2>
-                    <div class="icon-grid">
-                      <span v-for="a in lease.amenities" :key="a" class="icon-item">
-                        <span class="icon-circle"><IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="19" /></span>
-                        <small>{{ AMENITY_META[a]?.label || a }}</small>
-                      </span>
+                    <h2 class="sec-title">Utilities</h2>
+                    <div v-for="u in UTILITIES" :key="u.key" class="line">
+                      <span class="line-label">{{ u.label }}</span>
+                      <span class="line-value">{{ utilityTermsLabel(lease.utilities[u.key]) }}</span>
                     </div>
                   </section>
 
                   <section v-if="lease.rules.length" class="sec">
                     <h2 class="sec-title">House rules</h2>
-                    <div class="group">
-                      <div v-for="rule in lease.rules" :key="rule.label" class="rule">
-                        <span class="rule-label">{{ rule.label }}</span>
-                        <span class="rule-value">{{ rule.value }}</span>
-                      </div>
+                    <div v-for="rule in lease.rules" :key="rule.label" class="line">
+                      <span class="line-label">{{ rule.label }}</span>
+                      <span class="line-value">{{ rule.value }}</span>
                     </div>
                   </section>
 
-                  <!-- Quick links -->
+                  <section v-if="lease.amenities.length" class="sec">
+                    <h2 class="sec-title">Amenities</h2>
+                    <div class="amenities">
+                      <span v-for="a in lease.amenities" :key="a" class="amenity">
+                        <IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="15" />
+                        {{ AMENITY_META[a]?.label || a }}
+                      </span>
+                    </div>
+                  </section>
+
                   <section class="sec">
-                    <div class="group">
-                      <button type="button" class="row-link" @click="router.push('/student/concerns')">
-                        <IconifyIcon icon="lucide:message-square-warning" width="16" />
-                        <span>Concerns</span>
-                        <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-                      </button>
-                    </div>
+                    <button type="button" class="line line-link" @click="router.push('/student/concerns')">
+                      <IconifyIcon icon="lucide:message-square-warning" width="16" />
+                      <span>Concerns</span>
+                      <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+                    </button>
+                    <button type="button" class="line line-link" @click="router.push('/student/profile/history')">
+                      <IconifyIcon icon="lucide:history" width="16" />
+                      <span>History</span>
+                      <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+                    </button>
                   </section>
 
-                  <button v-if="lease.status === 'active'" type="button" class="leave-link" @click="leaveDialog = true">
+                  <button v-if="lease.status === 'active' && !lease.leaveDate" type="button" class="leave-link" @click="openLeave">
                     Request to leave
                   </button>
                 </template>
@@ -179,12 +183,12 @@
 
               <div v-show="isTablet || activeTab === 'payments'" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isTablet" class="split-head">Payments</h2>
+                <!-- Moved out, still owing: it blocks applying for a new room. -->
                 <div v-for="o in pastOwed" :key="o.leaseId" class="past-owed">
-                  <span class="past-owed-body">
-                    <span class="past-owed-title">{{ formatPesoExact(o.balance) }} owed on a past stay</span>
-                    <span class="past-owed-sub">{{ o.place }} · settle it to be able to apply for rooms again</span>
-                  </span>
-                  <button type="button" class="past-owed-btn" @click="pastPay = o">Pay</button>
+                  <span class="past-owed-label">Left to settle · {{ o.place }}</span>
+                  <span class="past-owed-amt">{{ formatPesoExact(o.balance) }}</span>
+                  <span class="past-owed-sub">From a stay you've left. You can't apply for a new room until it's settled.</span>
+                  <button type="button" class="past-owed-btn" @click="pastPay = o">Settle {{ formatPesoExact(o.balance) }}</button>
                 </div>
                 <PaymentStatement
                   v-if="lease && canPay"
@@ -196,44 +200,22 @@
                   can-pay
                   :bill-utility="billUtility"
                   :metered="metered"
-                  @pay="payOpen = true"
+                  :who="myLandlord"
+                  :deposit-held="depositHeld"
+                  @pay="openPay(null)"
                   @open-payment="openPaymentDetail"
+                  @resubmit="startResubmit"
+                  @withdraw="withdrawPayment"
+                  @message="router.push(`/student/messages?to=${lease.managerId}`)"
                 />
                 <p v-else-if="lease" class="pay-head-note">You'll be able to pay once your application is accepted.</p>
                 <p v-if="leaseClosed" class="pay-head-note">This stay has ended. Settle what's left to be able to apply for a new room.</p>
-
-                <section class="sec">
-                  <div class="sec-head">
-                    <h2 class="sec-title">{{ showAllPayments ? 'All payments' : 'Receipts' }}</h2>
-                    <button v-if="hasOtherLeasePayments" type="button" class="sec-link" @click="showAllPayments = !showAllPayments">
-                      {{ showAllPayments ? 'Current room only' : 'View all payments' }}
-                    </button>
-                  </div>
-                  <p v-if="!showAllPayments && lease" class="pay-head-note">Payments for {{ lease.roomLabel || 'your current room' }}.</p>
-                  <div v-if="visibleHistoryPayments.length" class="group">
-                    <button
-                      v-for="p in visibleHistoryPayments"
-                      :key="p.id"
-                      type="button"
-                      class="pay-row"
-                      @click="openPaymentDetail(p)"
-                    >
-                      <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
-                      <span class="pay-body">
-                        <span class="pay-month">{{ paymentTitle(p) }}</span>
-                        <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.accommodationName }}</span>
-                      </span>
-                      <span class="pay-side">
-                        <span class="pay-amount">{{ formatPesoExact(p.amount) }}</span>
-                        <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                          {{ statusText(PAYMENT_STATUS, p.status) }}
-                        </span>
-                      </span>
-                      <IconifyIcon icon="lucide:chevron-right" width="16" class="pay-chevron" />
-                    </button>
-                  </div>
-                  <p v-else class="none">No payments {{ showAllPayments ? 'submitted yet' : 'for this room yet' }}.</p>
-                </section>
+                <p v-if="!lease && !payments.length" class="none">No payments yet.</p>
+                <button v-if="payments.length" type="button" class="all-pay" @click="router.push('/student/profile/history?tab=payments')">
+                  <IconifyIcon icon="lucide:receipt" width="16" />
+                  All my payments
+                  <IconifyIcon icon="lucide:chevron-right" width="16" class="all-pay-chev" />
+                </button>
               </div>
             </div>
           </div>
@@ -243,14 +225,17 @@
     </q-pull-to-refresh>
     <AppModal v-model="leaveDialog" title="Request to leave?" size="sm">
       <p class="leave-body">
-        Your {{ myLandlord }} will be notified and needs to approve this before your stay ends. You'll stay on your
-        current lease until then.
+        Your {{ myLandlord }} approves or declines it. Your stay runs until the day you move out, and rent is owed until then.
       </p>
+      <label class="mx-field leave-date">
+        <span class="mx-label">When will you move out?</span>
+        <input v-model="leaveDate" type="date" :min="manilaToday()" :max="lease?.endDate || undefined" class="mx-input" />
+      </label>
       <template #footer>
         <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
           Cancel
         </button>
-        <button type="button" class="leave-btn" :disabled="leaving" @click="requestLeave">
+        <button type="button" class="leave-btn" :disabled="leaving || !leaveDate" @click="requestLeave">
           {{ leaving ? 'Sending…' : 'Request to leave' }}
         </button>
       </template>
@@ -260,7 +245,7 @@
       v-if="lease"
       v-model="payOpen"
       :lease-id="lease.id"
-      role="student"
+      :resubmit="resubmit"
       :landlord-id="lease.managerId"
       :allow-partial="lease.allowPartial"
       :partial-min-pct="lease.partialMinPct"
@@ -272,7 +257,6 @@
       v-if="pastPay"
       :model-value="true"
       :lease-id="pastPay.leaseId"
-      role="student"
       settle-only
       :landlord-id="pastPay.landlordId"
       :allow-partial="pastPay.allowPartial"
@@ -292,10 +276,6 @@
           <div class="rule">
             <span class="rule-label">Amount</span>
             <span class="rule-value">{{ formatPesoExact(selectedPayment.amount) }}</span>
-          </div>
-          <div v-if="selectedPayment.claimedAmount" class="rule">
-            <span class="rule-label">You submitted</span>
-            <span class="rule-value">{{ formatPesoExact(selectedPayment.claimedAmount) }} — only {{ formatPesoExact(selectedPayment.amount) }} arrived</span>
           </div>
           <div v-if="selectedPayment.receiptNo" class="rule">
             <span class="rule-label">Receipt no.</span>
@@ -326,13 +306,8 @@
         </div>
 
         <template v-if="selectedPayment.status === 'rejected' && selectedPayment.rejectionReason">
-          <p class="detail-label detail-label--danger">Rejection reason</p>
-          <p class="detail-text">{{ selectedPayment.rejectionReason }}</p>
-        </template>
-
-        <template v-if="selectedPayment.undoReason && selectedPayment.status === 'pending_verification'">
-          <p class="detail-label detail-label--danger">Confirmation undone</p>
-          <p class="detail-text">{{ selectedPayment.undoReason }}</p>
+          <p class="detail-label detail-label--danger">Why it was sent back</p>
+          <p class="detail-text">{{ selectedPayment.rejectionReason.replace('\n', ' — ') }}</p>
         </template>
 
         <template v-if="selectedPayment.note">
@@ -352,7 +327,15 @@
           :disabled="withdrawing"
           @click="withdrawPayment(selectedPayment)"
         >
-          {{ withdrawing ? 'Withdrawing…' : 'Withdraw this payment' }}
+          {{ withdrawing ? 'Taking it back…' : 'Take it back' }}
+        </button>
+        <button
+          v-if="selectedPayment.status === 'rejected' && selectedPayment.leaseId === lease?.id"
+          type="button"
+          class="detail-fix"
+          @click="paymentDetailOpen = false; startResubmit(selectedPayment)"
+        >
+          Fix and send again
         </button>
       </template>
     </AppModal>
@@ -373,7 +356,6 @@ import {
   formatDate,
   initialsOf,
   landlordTitle,
-  LEASE_STATUS,
   PAYMENT_STATUS,
   PAYMENT_METHOD_LABEL,
   statusText,
@@ -382,7 +364,7 @@ import {
 import { useNotify } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirmAction'
 import { signRows } from '@/utils/upload'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, COVER } from '@/utils/cloudinaryUrl'
 import { AMENITY_META, UTILITIES, UTILITY_SELECT, isBilledMonthly, roomTypeLabel, utilitiesFromRow, utilityTermsLabel, type UtilityKey, type UtilityTerms } from '@/utils/listings'
 import {
   isBillSettled,
@@ -391,7 +373,9 @@ import {
   toLedger,
   type LedgerRow,
 } from '@/utils/payments'
+import type { Resubmit } from '@/components/shared/PaySheet.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import StayHero from '@/components/student/StayHero.vue'
 import PaySheet from '@/components/shared/PaySheet.vue'
 import PaymentStatement from '@/components/shared/PaymentStatement.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -419,6 +403,8 @@ interface Lease {
   replyMinutes: number | null
   accommodationName: string
   roomLabel: string
+  /** The accommodation's cover photo, or empty for the monogram. */
+  photoUrl: string
   status: 'active' | 'pending' | 'leave_requested' | 'ended' | 'terminated'
   monthlyRent: number
   /** The landlord/landlady's partial-payment terms for this stay. */
@@ -426,6 +412,8 @@ interface Lease {
   partialMinPct: number
   startDate: string
   endDate: string
+  /** The move-out day asked for (waiting) or approved (still active). */
+  leaveDate: string | null
   roomType: string
   capacity: number | null
   address: string
@@ -466,10 +454,9 @@ interface Payment {
   rejectionReason: string
   note: string
   promiseDate: string | null
-  /** What the student said they sent, when less arrived. */
-  claimedAmount: number | null
-  undoReason: string
   receiptNo: string
+  createdAt: string
+  batchId: string | null
 }
 
 const router = useRouter()
@@ -489,15 +476,17 @@ const billUtility = computed(() => Object.fromEntries(bills.value.map((b) => [b.
 const metered = computed(() =>
   lease.value ? UTILITIES.filter((u) => isBilledMonthly(lease.value!.utilities[u.key].billing)).map((u) => ({ key: u.key, label: u.label })) : [],
 )
-const showAllPayments = ref(false)
-
-// Payment history defaults to the current room only — a student who's moved
-// between rooms shouldn't see an unlabeled mix of past and present dues.
+// The statement covers the current room; the rest is in History.
 const currentLeasePayments = computed(() =>
   lease.value ? payments.value.filter((p) => p.leaseId === lease.value!.id) : payments.value,
 )
-const hasOtherLeasePayments = computed(() => Boolean(lease.value) && payments.value.length > currentLeasePayments.value.length)
-const visibleHistoryPayments = computed(() => (showAllPayments.value || !lease.value ? payments.value : currentLeasePayments.value))
+// The deposit still held on this stay (paid in, less what it has paid for).
+const depositReturned = ref(false)
+const depositHeld = computed(() => {
+  if (depositReturned.value) return 0
+  const rows = currentLeasePayments.value.filter((p) => p.status === 'paid')
+  return Math.max(rows.filter((p) => p.kind === 'deposit').reduce((s, p) => s + p.amount, 0) - rows.filter((p) => p.method === 'deposit').reduce((s, p) => s + p.amount, 0), 0)
+})
 // Deep links to the old /student/payments path (quick actions, settings,
 // stored notification link_urls from before this merge) land straight on the
 // Payments tab instead of needing a separate page.
@@ -511,9 +500,39 @@ function onTabSwipe({ direction }: { direction?: string }) {
 }
 
 const leaveDialog = ref(false)
+const leaveDate = ref('')
+// Defaults to the end of this month, or the end of the stay if that's sooner.
+function openLeave() {
+  const t = manilaToday()
+  const d = new Date(`${t.slice(0, 7)}-01T00:00:00`)
+  d.setMonth(d.getMonth() + 1)
+  d.setDate(0)
+  const monthEnd = d.toLocaleDateString('en-CA')
+  leaveDate.value = lease.value?.endDate && lease.value.endDate < monthEnd ? lease.value.endDate : monthEnd
+  leaveDialog.value = true
+}
 const leaving = ref(false)
 
 const payOpen = ref(false)
+// A transfer sent back, opened again with the same items and the reason in view.
+const resubmit = ref<Resubmit | null>(null)
+function openPay(r: Resubmit | null) {
+  resubmit.value = r
+  payOpen.value = true
+}
+function startResubmit(p: Payment) {
+  const batch = currentLeasePayments.value.filter((x) => (p.batchId ? x.batchId === p.batchId : x.id === p.id))
+  openPay({
+    reason: p.rejectionReason,
+    method: p.method,
+    reference: p.txnReference,
+    pick: {
+      months: batch.filter((x) => x.kind === 'rent').length,
+      billIds: batch.filter((x) => x.kind === 'bill' && x.billId).map((x) => x.billId as string),
+      deposit: batch.some((x) => x.kind === 'deposit'),
+    },
+  })
+}
 // Balances on ended stays other than the one shown (student_past_balance).
 interface PastOwed { leaseId: string; landlordId: string; place: string; balance: number; allowPartial: boolean; partialMinPct: number }
 const pastOwed = ref<PastOwed[]>([])
@@ -539,7 +558,7 @@ function openPaymentDetail(p: Payment) {
 // A pending application isn't an accepted lease yet, so there's nothing to pay.
 const canPay = computed(() => lease.value?.status !== 'pending')
 
-const LEASE_SELECT = `id, room_id, status, start_date, end_date, monthly_rent, allow_partial, partial_min_pct, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`
+const LEASE_SELECT = `id, room_id, status, start_date, end_date, leave_date, deposit_returned_at, monthly_rent, allow_partial, partial_min_pct, landlord_id, ${UTILITY_SELECT}, rooms(room_number, label, room_type, custom_room_type, capacity, accommodations(id, name, address, barangay, city, accommodation_amenities(amenity), accommodation_policies(${POLICY_FULL})))`
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -572,7 +591,7 @@ async function load(silent = false) {
       supabase
         .from('payments')
         .select(
-          'id, lease_id, month, amount, status, method, kind, bill_id, description, txn_reference, proof_url, paid_at, rejection_reason, note, promise_date, claimed_amount, undo_reason, receipt_no, verified_by_user:users!payments_verified_by_fkey(full_name), leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
+          'id, lease_id, month, amount, status, method, kind, bill_id, description, txn_reference, proof_url, paid_at, rejection_reason, note, promise_date, receipt_no, created_at, batch_id, verified_by_user:users!payments_verified_by_fkey(full_name), leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
         )
         .eq('leases.student_id', user.id)
         .order('month', { ascending: false }),
@@ -623,9 +642,9 @@ async function load(silent = false) {
         rejectionReason: p.rejection_reason || '',
         note: p.note || '',
         promiseDate: p.promise_date,
-        claimedAmount: p.claimed_amount == null ? null : Number(p.claimed_amount),
-        undoReason: p.undo_reason || '',
         receiptNo: p.receipt_no || '',
+        createdAt: p.created_at,
+        batchId: p.batch_id,
       }
     })
 
@@ -664,6 +683,7 @@ async function load(silent = false) {
       custom_room_type: string | null
       capacity: number | null
       accommodations: {
+        id: string
         name: string | null
         address: string | null
         barangay: string | null
@@ -691,7 +711,7 @@ async function load(silent = false) {
         ).filter((r) => r.value)
       : []
 
-    const [{ data: manager }, { data: profile }, roommateResult] = await Promise.all([
+    const [{ data: manager }, { data: profile }, roommateResult, { data: cover }] = await Promise.all([
       supabase.from('users').select('full_name, initials, avatar_url, sex').eq('id', leaseRow.landlord_id).maybeSingle(),
       supabase
         .from('landlord_profiles')
@@ -706,6 +726,9 @@ async function load(silent = false) {
             .eq('status', 'active')
             .neq('student_id', user.id)
         : Promise.resolve({ count: null }),
+      acc?.id
+        ? supabase.from('accommodation_images').select('url').eq('accommodation_id', acc.id).order('sort_order', { ascending: true }).limit(1).maybeSingle()
+        : Promise.resolve({ data: null }),
     ])
 
     lease.value = {
@@ -718,12 +741,14 @@ async function load(silent = false) {
       replyMinutes: profile?.avg_response_minutes ?? null,
       accommodationName: room?.accommodations?.name || 'Your accommodation',
       roomLabel: room?.label || (room?.room_number ? `Room ${room.room_number}` : ''),
+      photoUrl: cover?.url ? resolveAsset(cover.url, COVER) : '',
       status: leaseRow.status as Lease['status'],
       monthlyRent: Number(leaseRow.monthly_rent ?? 0),
       allowPartial: Boolean(leaseRow.allow_partial),
       partialMinPct: Number(leaseRow.partial_min_pct ?? 50),
       startDate: leaseRow.start_date,
       endDate: leaseRow.end_date,
+      leaveDate: leaseRow.leave_date,
       roomType: roomTypeLabel(room?.custom_room_type || room?.room_type),
       capacity: room?.capacity ?? null,
       address: acc?.address || [acc?.barangay, acc?.city].filter(Boolean).join(', ') || '',
@@ -734,6 +759,7 @@ async function load(silent = false) {
       rules,
       roommateCount: roommateResult.count,
     }
+    depositReturned.value = !!leaseRow.deposit_returned_at
     await loadLedger()
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
@@ -753,12 +779,12 @@ async function requestLeave() {
 
     const { error: updateError } = await supabase
       .from('leases')
-      .update({ status: 'leave_requested', leave_requested_at: new Date().toISOString() })
+      .update({ status: 'leave_requested', leave_requested_at: new Date().toISOString(), leave_date: leaveDate.value })
       .eq('id', lease.value.id)
       .eq('student_id', user.id)
     if (updateError) throw updateError
 
-    lease.value = { ...lease.value, status: 'leave_requested' }
+    lease.value = { ...lease.value, status: 'leave_requested', leaveDate: leaveDate.value }
     leaveDialog.value = false
     notify.success('Leave request sent.')
   } catch (e) {
@@ -827,72 +853,6 @@ function onPull(done: () => void) {
 .sk {
   border-radius: var(--m-radius);
 }
-.card {
-  padding: 18px 14px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  text-align: center;
-}
-
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.head-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.head-history-link {
-  flex: 0 0 auto;
-  border: 0;
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.head-name {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 20px;
-  font-weight: 700;
-}
-.head-room {
-  color: var(--m-muted);
-  font-size: 13px;
-}
-.head-chip {
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.head-chip--teal {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.head-chip--amber,
-.head-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.head-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-.head-note {
-  margin: 6px 0 0;
-  color: var(--m-warning);
-  font-size: 12.5px;
-  font-weight: 600;
-}
 
 /* Default tabbing design (see AccommodationDetail.vue) — edge-to-edge tabs
    and a panel stretched flush to the true bottom of the page (same
@@ -946,11 +906,13 @@ function onPull(done: () => void) {
 }
 .sec-title {
   margin: 0;
-  padding: 0 2px;
-  color: var(--m-ink);
-  font-size: 12.5px;
+  padding: 6px 2px 0;
+  color: var(--m-muted);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  /* Quasar gives h2 a 3.75rem line-height, which an 11px label inherits. */
+  line-height: 1.3;
   text-transform: uppercase;
 }
 .sec-head {
@@ -971,95 +933,6 @@ function onPull(done: () => void) {
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.icon-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
-  gap: 16px 6px;
-}
-.icon-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-}
-.icon-circle {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.icon-item small {
-  color: var(--m-text);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.mgr {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 10px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-}
-.mgr-avatar {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-size: 13px;
-  font-weight: 800;
-}
-.mgr-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.mgr-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-}
-.mgr-name {
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.mgr-sub {
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.mgr-msg {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
 }
@@ -1095,29 +968,187 @@ function onPull(done: () => void) {
   text-align: right;
 }
 
-.row-link {
+/* The hero runs edge to edge under the app header, and the tab strip is
+   pulled up over its bottom edge so the panel rises out of the photo — the
+   same recipe as AccommodationDetail.vue. .m-tabbed has no gap, so the two
+   negative margins are all that sits between them. */
+.sk-hero {
+  margin: -8px calc(var(--m-page-gutter) * -1) 0;
+  width: auto;
+}
+.m-tabbed--hero > .stay-hero {
+  margin: -8px calc(var(--m-page-gutter) * -1) 0;
+}
+.m-tabbed--hero > .tabs {
+  margin-top: -56px;
+}
+/* Desktop: the hero heads the stay half instead, as a card of its own. */
+.desk-col > .stay-hero {
+  height: 180px;
+  border-radius: var(--m-radius);
+}
+
+.mgr {
   display: flex;
-  width: 100%;
   align-items: center;
-  gap: 10px;
-  padding: 11px 12px;
+  gap: 11px;
+}
+.mgr-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+.mgr-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mgr-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+.mgr-name {
+  overflow: hidden;
+  color: var(--m-ink);
+  font-size: 15px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mgr-sub {
+  color: var(--m-muted);
+  font-size: 12px;
+}
+.mgr-msg {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
   border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
   cursor: pointer;
-  font: inherit;
-  text-align: left;
-  color: var(--m-text);
-  font-size: 13.5px;
-  font-weight: 600;
   -webkit-tap-highlight-color: transparent;
 }
-.group > .row-link:first-child {
-  border-top: 0;
+.note {
+  margin: -4px 0 0;
+  padding: 9px 12px;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+  font-size: 12.5px;
+  font-weight: 600;
 }
-.row-link .chevron {
+
+/* Key facts: recessed tiles, so they read as their own surface on the panel. */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.fact {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 13px;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+}
+.fact-label {
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.fact-value {
+  overflow: hidden;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fact-sub {
+  color: var(--m-muted);
+  font-size: 12px;
+}
+
+/* Reference rows: one hairline column, no boxes. */
+.line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--m-border);
+}
+.line-label {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+  font-size: 13px;
+}
+.line-value {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  text-wrap: pretty;
+}
+.line-link {
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.line-link .chevron {
   margin-left: auto;
   color: var(--m-muted);
+}
+
+.amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+}
+.amenity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .leave-link {
@@ -1180,6 +1211,9 @@ function onPull(done: () => void) {
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-sm);
 }
+.leave-date {
+  margin-top: 14px;
+}
 .leave-body {
   margin: 0;
   color: var(--m-text);
@@ -1215,41 +1249,76 @@ function onPull(done: () => void) {
 }
 .past-owed {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--m-danger);
-  border-radius: var(--m-radius);
-  background: var(--m-danger-soft);
-}
-.past-owed-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--m-danger) 30%, transparent);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
 }
-.past-owed-title {
+.past-owed-label {
   color: var(--m-danger);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.past-owed-amt {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 .past-owed-sub {
   color: var(--m-text);
-  font-size: 12.5px;
+  font-size: 13.5px;
+  line-height: 1.45;
 }
 .past-owed-btn {
-  flex: 0 0 auto;
-  min-height: 40px;
-  padding: 0 18px;
+  min-height: 46px;
+  margin-top: 4px;
   border: 0;
   border-radius: 999px;
   background: var(--m-danger);
   color: #fff;
   cursor: pointer;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.all-pay {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 0 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+  color: var(--m-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.all-pay-chev {
+  margin-left: auto;
+  color: var(--m-muted);
+}
+.detail-fix {
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-danger);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14.5px;
   font-weight: 700;
 }
 .detail-withdraw {
@@ -1268,89 +1337,6 @@ function onPull(done: () => void) {
   color: var(--m-muted);
   font-size: 12.5px;
   text-align: center;
-}
-.pay-row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.group > .pay-row:first-child {
-  border-top: 0;
-}
-.pay-chevron {
-  flex: 0 0 auto;
-  color: var(--m-muted);
-}
-.pay-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.pay-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-}
-.pay-month {
-  color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-method {
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.pay-side {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-.pay-amount {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-chip {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.pay-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.pay-chip--amber,
-.pay-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.pay-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.pay-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
 }
 
 /* Both panels at once on a landscape tablet. The tab strip is gone, so the panel
@@ -1371,6 +1357,7 @@ function onPull(done: () => void) {
 }
 .split-head {
   margin: 0 0 2px;
+  line-height: 1.3;
   color: var(--m-ink);
   font-size: 15px;
   font-weight: 700;

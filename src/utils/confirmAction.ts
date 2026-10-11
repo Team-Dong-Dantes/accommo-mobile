@@ -17,6 +17,12 @@ import { ref } from 'vue'
 export interface ConfirmPrompt {
   title: string
   message?: string
+  /** Things to check first, shown as a ticked list. */
+  checks?: string[]
+  /** A word to type before Confirm works — for money steps with no undo. */
+  typeToConfirm?: string
+  /** The Confirm button's label. */
+  confirmLabel?: string
 }
 
 export const prompt = ref<ConfirmPrompt | null>(null)
@@ -34,17 +40,22 @@ function release(ok: boolean) {
   resolve?.(ok)
 }
 
-export function confirmAction(options: { title?: string; message?: string } = {}): Promise<boolean> {
+export function confirmAction(options: Partial<ConfirmPrompt> = {}): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     // Superseding a prompt cancels the request it belonged to: the user never
     // saw that question through.
     release(false)
     settle = resolve
-    prompt.value = {
-      title: options.title ?? 'Are you sure?',
-      ...(options.message ? { message: options.message } : {}),
-    }
+    prompt.value = { ...options, title: options.title ?? 'Are you sure?' }
   })
+}
+
+/**
+ * The last step before money changes hands for good (confirming, logging cash,
+ * forgiving, using the deposit): there is no undo, so the person types CONFIRM.
+ */
+export function confirmMoney(title: string, message: string, checks: string[] = [], confirmLabel = 'Confirm'): Promise<boolean> {
+  return confirmAction({ title, message, checks, typeToConfirm: 'CONFIRM', confirmLabel })
 }
 
 /** Called by ConfirmGate when the user confirms or backs out. */

@@ -100,6 +100,21 @@ begin
   end;
   test := 'D: negative payment amount'; return next;
 
+  -- E. The deposit pays for things only when the landlord/landlady says so
+  -- (20261012000000).
+  begin
+    insert into public.payments (lease_id, month, amount, method, status)
+    select p.lease_id, date_trunc('month', current_date), 10, 'deposit', 'pending_verification'
+      from public.payments p where p.id = v_payment;
+    outcome := 'FAIL - student paid from the deposit';
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    outcome := case when v_msg = 'rollback' then 'FAIL - student paid from the deposit'
+                    else 'PASS - ' || v_msg end;
+  end;
+  test := 'E: student pays from the deposit'; return next;
+
   reset role;
 end $$;
 
@@ -161,6 +176,20 @@ begin
                     else 'FAIL - manager blocked: ' || v_msg end;
   end;
   test := 'M3: manager deletes a payment'; return next;
+
+  -- M4. A confirmation is final (20261012000000): no undo, by RPC or update.
+  select p.id into v_payment from public.payments p join public.leases l on l.id = p.lease_id
+   where l.landlord_id = v_mgr and p.status = 'paid' limit 1;
+  begin
+    perform public.review_payment(v_payment, 'undo', null, 'test');
+    outcome := 'FAIL - a confirmation was undone';
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    outcome := case when v_msg = 'A confirmed payment can''t be undone.' then 'PASS - ' || v_msg
+                    else 'FAIL - ' || v_msg end;
+  end;
+  test := 'M4: manager undoes a confirmation'; return next;
 
   reset role;
 end $$;

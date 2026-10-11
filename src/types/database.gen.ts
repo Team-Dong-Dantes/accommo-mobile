@@ -1388,6 +1388,7 @@ export type Database = {
           allow_partial: boolean
           decision_reason: string | null
           deposit_paid: number | null
+          deposit_returned_at: string | null
           electric_billing:
             | Database["public"]["Enums"]["utility_billing"]
             | null
@@ -1397,6 +1398,7 @@ export type Database = {
           grace_days: number
           id: string
           landlord_id: string
+          leave_date: string | null
           leave_requested_at: string | null
           monthly_rent: number | null
           partial_min_pct: number
@@ -1416,6 +1418,7 @@ export type Database = {
           allow_partial?: boolean
           decision_reason?: string | null
           deposit_paid?: number | null
+          deposit_returned_at?: string | null
           electric_billing?:
             | Database["public"]["Enums"]["utility_billing"]
             | null
@@ -1425,6 +1428,7 @@ export type Database = {
           grace_days?: number
           id?: string
           landlord_id: string
+          leave_date?: string | null
           leave_requested_at?: string | null
           monthly_rent?: number | null
           partial_min_pct?: number
@@ -1444,6 +1448,7 @@ export type Database = {
           allow_partial?: boolean
           decision_reason?: string | null
           deposit_paid?: number | null
+          deposit_returned_at?: string | null
           electric_billing?:
             | Database["public"]["Enums"]["utility_billing"]
             | null
@@ -1453,6 +1458,7 @@ export type Database = {
           grace_days?: number
           id?: string
           landlord_id?: string
+          leave_date?: string | null
           leave_requested_at?: string | null
           monthly_rent?: number | null
           partial_min_pct?: number
@@ -1498,6 +1504,48 @@ export type Database = {
           {
             foreignKeyName: "leases_student_id_fkey"
             columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      map_areas: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          ring: Json
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          ring: Json
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          ring?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_areas_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "map_areas_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users_full"
             referencedColumns: ["id"]
@@ -1606,6 +1654,32 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users_full"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_reminders: {
+        Row: {
+          key: string
+          lease_id: string
+          sent_at: string
+        }
+        Insert: {
+          key: string
+          lease_id: string
+          sent_at?: string
+        }
+        Update: {
+          key?: string
+          lease_id?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_reminders_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
             referencedColumns: ["id"]
           },
         ]
@@ -2830,6 +2904,7 @@ export type Database = {
         Args: { p_id: string; p_message: string }
         Returns: undefined
       }
+      approve_leave: { Args: { p_lease: string }; Returns: string }
       archive_expired_announcements: { Args: never; Returns: number }
       assert_admin_over: { Args: { p_user: string }; Returns: undefined }
       assert_gender_fits: {
@@ -2872,6 +2947,8 @@ export type Database = {
         }
         Returns: string
       }
+      deposit_held: { Args: { p_lease: string }; Returns: number }
+      end_approved_leaves: { Args: never; Returns: undefined }
       fanout_announcement: { Args: { p_id: string }; Returns: number }
       get_my_role: { Args: never; Returns: string }
       get_verification_queue: {
@@ -2901,6 +2978,22 @@ export type Database = {
       is_accredited_accommodation: { Args: { p_id: string }; Returns: boolean }
       is_admin: { Args: { p_uid: string }; Returns: boolean }
       is_verified_landlord: { Args: { uid: string }; Returns: boolean }
+      landlord_ledger: {
+        Args: never
+        Returns: {
+          balance: number
+          bill_id: string
+          confirmed: number
+          due: number
+          due_date: string
+          kind: string
+          lease_id: string
+          month: string
+          pending: number
+          state: string
+          waived: number
+        }[]
+      }
       landlord_title: { Args: { p_user: string }; Returns: string }
       lease_ledger: {
         Args: { p_lease: string }
@@ -3090,6 +3183,7 @@ export type Database = {
       }
       register_push_token: { Args: { p_token: string }; Returns: undefined }
       remind_accreditation_expiry: { Args: never; Returns: undefined }
+      remind_payments: { Args: never; Returns: undefined }
       remind_stale_drafts: { Args: never; Returns: undefined }
       remind_utility_bills: { Args: never; Returns: undefined }
       rent_due_date: {
@@ -3106,6 +3200,7 @@ export type Database = {
         Returns: number
       }
       resubmit_verification: { Args: never; Returns: undefined }
+      return_deposit: { Args: { p_lease: string }; Returns: number }
       review_payment: {
         Args: {
           p_action: string
@@ -3161,6 +3256,10 @@ export type Database = {
       }
       tenant_of_room: { Args: { p_room: string }; Returns: boolean }
       touch_last_active: { Args: never; Returns: undefined }
+      use_deposit: {
+        Args: { p_lease: string; p_mode: string }
+        Returns: number
+      }
       verify_student_qr: { Args: { p_code: string }; Returns: Json }
       waive_balance: {
         Args: {
@@ -3208,7 +3307,7 @@ export type Database = {
         | "rejected"
       msg_status: "sent" | "delivered" | "read"
       office: "osas" | "registrar" | "housing"
-      payment_method: "gcash" | "maya" | "bank" | "cash" | "others"
+      payment_method: "gcash" | "maya" | "bank" | "cash" | "others" | "deposit"
       payment_status:
         | "due"
         | "paid"
@@ -3400,7 +3499,7 @@ export const Constants = {
       ],
       msg_status: ["sent", "delivered", "read"],
       office: ["osas", "registrar", "housing"],
-      payment_method: ["gcash", "maya", "bank", "cash", "others"],
+      payment_method: ["gcash", "maya", "bank", "cash", "others", "deposit"],
       payment_status: [
         "due",
         "paid",

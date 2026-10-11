@@ -354,7 +354,7 @@
 import { ref, reactive, computed, watch, onActivated } from 'vue'
 import { useDeskPanels } from '@/utils/useDeskPanels'
 import { useLiveData } from '@/utils/useLiveData'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
@@ -434,7 +434,8 @@ const notify = useNotify()
 
 const loading = ref(true)
 const error = ref('')
-const tab = ref<'history' | 'reviews' | 'payments'>('history')
+// `?tab=payments` (the Payments tab's "All my payments" link).
+const tab = ref<'history' | 'reviews' | 'payments'>(useRoute().query.tab === 'payments' ? 'payments' : 'history')
 // Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
 // The right half is the payments panel itself; ratings are moved in below them.

@@ -134,6 +134,10 @@
               </div>
             </div>
             <div v-else-if="lease.status === 'leave_requested'" class="decide-box">
+              <p class="leave-ask">
+                <IconifyIcon icon="lucide:log-out" width="16" />
+                <span>Wants to move out on <b>{{ formatDate(lease.leaveDate) }}</b>. If you approve, the stay runs until then.</span>
+              </p>
               <div v-if="decisionReasonFor === 'keep'" class="decide-reason">
                 <label class="decide-reason-label">
                   Reason for keeping the tenant
@@ -161,6 +165,10 @@
               </div>
             </div>
             <div v-else-if="lease.status === 'active'" class="decide-box">
+              <p v-if="lease.leaveDate" class="leave-ask">
+                <IconifyIcon icon="lucide:log-out" width="16" />
+                <span>Moving out on <b>{{ formatDate(lease.leaveDate) }}</b> — you approved it. The stay ends that day.</span>
+              </p>
               <div v-if="decisionReasonFor === 'end'" class="decide-reason">
                 <label class="decide-reason-label">
                   Why is this stay ending?
@@ -205,52 +213,6 @@
                 <span class="rule-label">Monthly rent</span>
                 <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
               </div>
-              <div v-if="ledger.length" class="rule">
-                <span class="rule-label">Balance</span>
-                <span class="rule-value" :class="{ 'rule-value--warn': owed.overdue }">
-                  {{ owed.total > 0.009 ? formatPesoExact(owed.total) : 'Nothing owed' }}<template v-if="owed.overdue"> · {{ owed.overdue }} overdue</template>
-                </span>
-              </div>
-              <div v-if="lease.status === 'active' || lease.status === 'leave_requested'" class="rule">
-                <span class="rule-label">Partial payments</span>
-                <span class="rule-value rule-value--controls">
-                  <select
-                    v-if="lease.allowPartial"
-                    class="pct-select app-select"
-                    :value="lease.partialMinPct"
-                    :disabled="savingPartial"
-                    aria-label="Least a tenant pays at a time"
-                    @change="setPartial(true, Number(($event.target as HTMLSelectElement).value))"
-                  >
-                    <option v-for="p in [10, 25, 50, 75]" :key="p" :value="p">at least {{ p }}%</option>
-                  </select>
-                  <q-toggle :model-value="lease.allowPartial" :disable="savingPartial" color="primary" dense aria-label="Allow partial payments" @update:model-value="(v) => setPartial(v)" />
-                </span>
-              </div>
-              <div v-if="lease.status === 'active' || lease.status === 'leave_requested'" class="rule">
-                <span class="rule-label">Rent due</span>
-                <span class="rule-value rule-value--controls">
-                  <select
-                    class="pct-select app-select"
-                    :value="lease.rentDueDay ?? 0"
-                    :disabled="savingTerms"
-                    aria-label="Day of the month rent is due"
-                    @change="setDueTerms(Number(($event.target as HTMLSelectElement).value) || null, lease.graceDays)"
-                  >
-                    <option :value="0">move-in day ({{ ordinal(moveInDay) }})</option>
-                    <option v-for="d in 28" :key="d" :value="d">every {{ ordinal(d) }}</option>
-                  </select>
-                  <select
-                    class="pct-select app-select"
-                    :value="lease.graceDays"
-                    :disabled="savingTerms"
-                    aria-label="Days of grace before rent is overdue"
-                    @change="setDueTerms(lease.rentDueDay, Number(($event.target as HTMLSelectElement).value))"
-                  >
-                    <option v-for="g in [0, 3, 5, 7, 15]" :key="g" :value="g">{{ g ? `+${g} days grace` : 'no grace' }}</option>
-                  </select>
-                </span>
-              </div>
             </div>
 
             <template v-if="lease.email || lease.phone">
@@ -276,11 +238,6 @@
           <component :is="panelIs" name="payments" class="sec" :class="{ 'sec--moved': split }">
             <Teleport :to="rightCol" :disabled="!split || !rightCol">
             <div class="sec-body">
-            <div class="sec-head">
-              <h2 class="sec-title">Payments</h2>
-              <button v-if="canPostBill" type="button" class="sec-link" @click="postBillOpen = true">Post utility bill</button>
-            </div>
-
             <PaymentStatement
               v-if="lease.status !== 'pending'"
               :ledger="ledger"
@@ -291,39 +248,32 @@
               can-pay
               :bill-utility="billUtility"
               :metered="canPostBill ? monthlyUtilities : []"
+              :deposit-held="depositHeld"
+              :deposit-usable="depositUsable"
               @pay="logOpen = true"
               @open-payment="openPaymentDetail"
               @forgive="forgiveRow"
-              @remove-bill="removeBill"
+              @fix-bill="openFixBill"
               @post-bill="postBillOpen = true"
+              @message="router.push(`/manager/messages?to=${lease.studentId}`)"
+              @use-deposit="depositOpen = true"
             />
 
-            <template v-if="payments.length">
-              <div class="owed-head">
-                <p class="pay-label bills-head">Receipts</p>
-                <button v-if="payments.length > 3" type="button" class="sec-link" @click="paymentsExpanded = !paymentsExpanded">
-                  {{ paymentsExpanded ? 'Show less' : `Show all (${payments.length})` }}
-                </button>
-              </div>
-              <div class="group">
-                <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row pay-row--tap" @click="openPaymentDetail(p)">
-                  <div class="pay-row-main">
-                    <span class="pay-row-month">{{ paymentTitle(p) }}</span>
-                    <span class="pay-row-amount">{{ formatPesoExact(p.amount) }}</span>
-                  </div>
-                  <div class="pay-row-sub">
-                    <span class="pay-row-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }}</span>
-                    <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                      {{ statusText(PAYMENT_STATUS, p.status) }}
-                    </span>
-                  </div>
-                  <span v-if="p.status === 'pending_verification'" class="pay-row-review">
-                    Tap to review
-                    <IconifyIcon icon="lucide:chevron-right" width="13" />
-                  </span>
-                </button>
-              </div>
-            </template>
+            <!-- Below the statement: the terms it runs on, and posting a bill any time. -->
+            <button v-if="lease.status === 'active' || lease.status === 'leave_requested'" type="button" class="terms-row terms-row--after" @click="termsOpen = true">
+              <span class="terms-body">
+                <span class="terms-main">Rent due every {{ ordinal(lease.rentDueDay ?? moveInDay) }}</span>
+                <span class="terms-sub">{{ termsLine }}</span>
+              </span>
+              <span class="sec-link">Edit</span>
+            </button>
+            <button v-if="canPostBill" type="button" class="terms-row" @click="postBillOpen = true">
+              <span class="terms-body">
+                <span class="terms-main">Post a utility bill</span>
+                <span class="terms-sub">{{ monthlyUtilities.map((u) => u.label).join(' and ') }}, billed monthly</span>
+              </span>
+              <span class="sec-link">Post</span>
+            </button>
             <EmptyState
               v-if="lease.status === 'pending'"
               variant="compact"
@@ -388,31 +338,72 @@
 
     <!-- Payment review — verifying only ever happens from here, never
          straight off the row, so a proof/reference actually gets looked at. -->
-    <PaymentReviewSheet v-model="paymentDetailOpen" :payment="selectedPayment" @changed="load(true)" />
-    <PaySheet
+    <PaymentReviewSheet v-model="paymentDetailOpen" :payment-id="selectedPayment?.id ?? null" @changed="load(true)" />
+    <LogPaymentSheet
       v-model="logOpen"
       :lease-id="leaseId"
-      role="landlord"
-      :subtitle="lease.studentName"
+      :subtitle="`From ${lease.studentName} · ${lease.roomLabel}`"
       :settle-only="lease.status === 'ended' || lease.status === 'terminated'"
       :start-date="lease.startDate"
       @submitted="load(true)"
     />
+    <ForgiveSheet v-model="forgiveOpen" :lease-id="leaseId" :student-name="lease.studentName" :target="forgiveTarget" @done="load(true)" />
+    <BillFixSheet v-model="fixOpen" :student-name="lease.studentName" :bill="fixBill" @done="load(true)" />
+    <UseDepositSheet
+      v-model="depositOpen"
+      :lease-id="leaseId"
+      :student-name="lease.studentName"
+      :end-date="lease.endDate || null"
+      :held="depositHeld"
+      :ledger="ledger"
+      @done="load(true)"
+    />
 
-    <AppModal v-model="forgiveOpen" :title="forgiveTarget ? `Forgive ${formatPesoExact(forgiveTarget.balance)}?` : ''" size="sm">
-      <template v-if="forgiveTarget">
-        <p class="forgive-note">
-          What's left of {{ forgiveTarget.label }} is settled without payment. It isn't counted as money received, and
-          the tenant sees your reason.
-        </p>
-        <textarea v-model="forgiveReason" class="forgive-input" rows="2" maxlength="300" placeholder="e.g. Away for the semestral break, as we agreed" />
-      </template>
-      <template #footer>
-        <button type="button" class="forgive-cancel" @click="forgiveOpen = false">Cancel</button>
-        <button type="button" class="forgive-confirm" :disabled="forgiving || !forgiveReason.trim()" @click="forgive">
-          {{ forgiving ? 'Forgiving…' : 'Forgive' }}
-        </button>
-      </template>
+    <!-- When rent falls due, the grace before it's late, and part payments. -->
+    <AppModal v-model="termsOpen" title="Payment terms" size="sm">
+      <div class="terms-form">
+        <label class="mx-field">
+          <span class="mx-label">Rent is due</span>
+          <select
+            class="mx-input app-select"
+            :value="lease.rentDueDay ?? 0"
+            :disabled="savingTerms"
+            @change="setDueTerms(Number(($event.target as HTMLSelectElement).value) || null, lease.graceDays)"
+          >
+            <option :value="0">on the move-in day ({{ ordinal(moveInDay) }})</option>
+            <option v-for="d in 28" :key="d" :value="d">every {{ ordinal(d) }}</option>
+          </select>
+        </label>
+        <label class="mx-field">
+          <span class="mx-label">Late after</span>
+          <select
+            class="mx-input app-select"
+            :value="lease.graceDays"
+            :disabled="savingTerms"
+            @change="setDueTerms(lease.rentDueDay, Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="g in [0, 3, 5, 7, 15]" :key="g" :value="g">{{ g ? `${g} days of grace` : 'no grace — late the next day' }}</option>
+          </select>
+        </label>
+        <div class="terms-toggle">
+          <span class="terms-body">
+            <span class="terms-main">Partial payments</span>
+            <span class="terms-sub">Let {{ lease.studentName.split(' ')[0] }} pay part of an item at a time.</span>
+          </span>
+          <q-toggle :model-value="lease.allowPartial" :disable="savingPartial" color="primary" aria-label="Allow partial payments" @update:model-value="(v) => setPartial(v)" />
+        </div>
+        <label v-if="lease.allowPartial" class="mx-field">
+          <span class="mx-label">At least</span>
+          <select
+            class="mx-input app-select"
+            :value="lease.partialMinPct"
+            :disabled="savingPartial"
+            @change="setPartial(true, Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="p in [10, 25, 50, 75]" :key="p" :value="p">{{ p }}% of the item</option>
+          </select>
+        </label>
+      </div>
     </AppModal>
   </q-page>
 </template>
@@ -425,7 +416,7 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, statusText, statusColor } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirmAction'
 import { respondToApplication } from '@/utils/applications'
@@ -434,9 +425,12 @@ import { signRows } from '@/utils/upload'
 import StarRating from '@/components/shared/StarRating.vue'
 import PostBillDialog from '@/components/manager/PostBillDialog.vue'
 import PaymentReviewSheet from '@/components/manager/PaymentReviewSheet.vue'
-import PaySheet from '@/components/shared/PaySheet.vue'
+import LogPaymentSheet from '@/components/manager/LogPaymentSheet.vue'
+import ForgiveSheet, { type ForgiveTarget } from '@/components/manager/ForgiveSheet.vue'
+import BillFixSheet, { type FixBill } from '@/components/manager/BillFixSheet.vue'
+import UseDepositSheet from '@/components/manager/UseDepositSheet.vue'
 import PaymentStatement from '@/components/shared/PaymentStatement.vue'
-import { BILL_TAG, isBillSettled, manilaToday, paymentTitle, toLedger, type LedgerRow } from '@/utils/payments'
+import { BILL_TAG, isBillSettled, manilaToday, toLedger, type LedgerRow } from '@/utils/payments'
 import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -473,6 +467,7 @@ const lease = reactive({
   accommodationName: '',
   startDate: '',
   endDate: '',
+  leaveDate: '' as string | null,
   monthlyRent: 0,
   addedByLandlord: false,
   allowPartial: false,
@@ -489,10 +484,6 @@ async function loadLedger() {
   const { data } = await supabase.rpc('lease_ledger', { p_lease: leaseId.value })
   ledger.value = toLedger(data)
 }
-const owed = computed(() => {
-  const rows = ledger.value.filter((r) => r.balance > 0.009 && (r.kind !== 'rent' || r.state === 'overdue' || r.month === `${manilaToday().slice(0, 7)}-01`))
-  return { total: rows.reduce((s, r) => s + r.balance, 0), overdue: rows.filter((r) => r.state === 'overdue').length }
-})
 
 const savingPartial = ref(false)
 async function setPartial(allow: boolean, pct = lease.partialMinPct) {
@@ -524,59 +515,54 @@ async function setDueTerms(day: number | null, grace: number) {
   void loadLedger()
 }
 
-function ledgerLabel(r: LedgerRow): string {
-  return r.kind === 'deposit' ? 'Deposit' : formatMonth(r.month)
-}
-function billLeft(b: Bill): number {
-  return ledger.value.find((r) => r.billId === b.id)?.balance ?? b.amount
-}
+const termsOpen = ref(false)
+const termsLine = computed(() => {
+  const grace = lease.graceDays ? `${lease.graceDays} days grace` : 'no grace'
+  const partial = lease.allowPartial ? `partial payments of ${lease.partialMinPct}% or more` : 'no partial payments'
+  return `${grace} · ${partial}`
+})
 
-// Forgiving what's left of an item (waive_balance): settles it without counting
-// it as money received.
+// Forgiving what's left of an item (ForgiveSheet → waive_balance).
 const logOpen = ref(false)
 const forgiveOpen = ref(false)
-const forgiveTarget = ref<{ kind: LedgerRow['kind']; month: string | null; billId: string | null; balance: number; label: string } | null>(null)
-const forgiveReason = ref('')
-const forgiving = ref(false)
-function openForgive(r: LedgerRow) {
-  forgiveTarget.value = { kind: r.kind, month: r.month, billId: null, balance: r.balance, label: r.kind === 'rent' ? `${ledgerLabel(r)} rent` : `the ${ledgerLabel(r).toLowerCase()}` }
-  forgiveReason.value = ''
-  forgiveOpen.value = true
-}
-// From the statement: a bill is forgiven by its own row, rent and the deposit by kind.
+const forgiveTarget = ref<ForgiveTarget | null>(null)
 function forgiveRow(r: LedgerRow) {
   const b = r.kind === 'bill' ? bills.value.find((x) => x.id === r.billId) : undefined
-  if (b) openForgiveBill(b)
-  else openForgive(r)
-}
-function openForgiveBill(b: Bill) {
-  forgiveTarget.value = { kind: 'bill', month: b.month, billId: b.id, balance: billLeft(b), label: `the ${BILL_TAG[b.utility].toLowerCase()} for ${formatMonth(b.month)}` }
-  forgiveReason.value = ''
+  forgiveTarget.value = b
+    ? { kind: 'bill', month: b.month, billId: b.id, balance: r.balance, label: `the ${BILL_TAG[b.utility].toLowerCase()} for ${formatMonth(b.month).split(' ')[0]}` }
+    : { kind: r.kind, month: r.month ?? today, billId: null, balance: r.balance, label: r.kind === 'rent' ? `${formatMonth(r.month).split(' ')[0]} rent` : 'the deposit' }
   forgiveOpen.value = true
 }
-async function forgive() {
-  const t = forgiveTarget.value
-  if (!t || forgiving.value) return
-  if (!(await confirmAction({ title: `Forgive ${formatPesoExact(t.balance)}?` }))) return
-  forgiving.value = true
-  try {
-    const { error: e } = await supabase.rpc('waive_balance', {
-      p_lease: leaseId.value,
-      p_kind: t.kind,
-      p_month: t.month ?? today,
-      p_bill: t.billId as string,
-      p_reason: forgiveReason.value.trim(),
-    })
-    if (e) throw e
-    forgiveOpen.value = false
-    notify.success('Balance forgiven.')
-    void load(true)
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not forgive this balance.'))
-  } finally {
-    forgiving.value = false
+
+// Correcting a bill posted with the wrong amount (BillFixSheet).
+const fixOpen = ref(false)
+const fixBill = ref<FixBill | null>(null)
+function openFixBill(billId: string) {
+  const b = bills.value.find((x) => x.id === billId)
+  if (!b) return
+  const row = ledger.value.find((r) => r.billId === billId)
+  fixBill.value = {
+    id: b.id,
+    label: `${BILL_TAG[b.utility]} · ${formatMonth(b.month).split(' ')[0]}`,
+    amount: b.amount,
+    paid: row ? row.confirmed + row.pending + row.waived : 0,
   }
+  fixOpen.value = true
 }
+
+// The deposit still held: what was paid toward it, less what it has paid for.
+// It can be used once the stay is ending (UseDepositSheet).
+const depositOpen = ref(false)
+const depositReturned = ref(false)
+const depositHeld = computed(() => {
+  if (depositReturned.value) return 0
+  const paidIn = payments.value.filter((p) => p.kind === 'deposit' && p.status === 'paid').reduce((s, p) => s + p.amount, 0)
+  const usedUp = payments.value.filter((p) => p.method === 'deposit' && p.status === 'paid').reduce((s, p) => s + p.amount, 0)
+  return Math.max(paidIn - usedUp, 0)
+})
+const depositUsable = computed(
+  () => ['leave_requested', 'ended', 'terminated'].includes(lease.status) || (!!lease.endDate && lease.endDate.slice(0, 7) <= today.slice(0, 7)),
+)
 
 const coverUrl = ref('')
 const payments = ref<
@@ -596,13 +582,10 @@ const payments = ref<
     rejectionReason: string
     note: string
     promiseDate: string | null
-    claimedAmount: number | null
-    undoReason: string
-    receiptNo: string
+    createdAt: string
+    batchId: string | null
   }[]
 >([])
-const paymentsExpanded = ref(false)
-const visiblePayments = computed(() => (paymentsExpanded.value ? payments.value : payments.value.slice(0, 3)))
 const history = ref<{ id: string; accommodationName: string; roomType: string | null; periodStart: string; periodEnd: string }[]>([])
 const tenantReview = ref<{ rating: number; comment: string } | null>(null)
 
@@ -617,7 +600,6 @@ const bills = ref<Bill[]>([])
 // Which utility each bill is, for the statement's labels.
 const billUtility = computed(() => Object.fromEntries(bills.value.map((b) => [b.id, b.utility])))
 const postBillOpen = ref(false)
-const billBusy = ref('')
 const today = manilaToday()
 
 const leaseId = computed(() => String(route.params.leaseId || ''))
@@ -629,7 +611,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,monthly_rent,allow_partial,partial_min_pct,rent_due_day,grace_days,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,leave_date,deposit_returned_at,monthly_rent,allow_partial,partial_min_pct,rent_due_day,grace_days,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -675,18 +657,20 @@ async function load(silent = false) {
     coverUrl.value = cover?.url ? resolveAsset(cover.url, COVER) : ''
     lease.startDate = data.start_date
     lease.endDate = data.end_date
+    lease.leaveDate = data.leave_date
     lease.monthlyRent = Number(data.monthly_rent ?? 0)
     lease.allowPartial = Boolean(data.allow_partial)
     lease.partialMinPct = Number(data.partial_min_pct ?? 10)
     lease.rentDueDay = data.rent_due_day
     lease.graceDays = data.grace_days
+    depositReturned.value = !!data.deposit_returned_at
     void loadLedger()
 
     const [{ data: paymentRows }, { data: historyRows }, { data: billRows }] = await Promise.all([
       supabase
         .from('payments')
         .select(
-          'id,month,amount,status,method,kind,bill_id,description,txn_reference,proof_url,paid_at,rejection_reason,note,promise_date,claimed_amount,undo_reason,receipt_no,verified_by_user:users!payments_verified_by_fkey(full_name)',
+          'id,month,amount,status,method,kind,bill_id,description,txn_reference,proof_url,paid_at,rejection_reason,note,promise_date,created_at,batch_id,verified_by_user:users!payments_verified_by_fkey(full_name)',
         )
         .eq('lease_id', leaseId.value)
         .order('month', { ascending: false }),
@@ -727,9 +711,8 @@ async function load(silent = false) {
       rejectionReason: p.rejection_reason || '',
       note: p.note || '',
       promiseDate: p.promise_date,
-      claimedAmount: p.claimed_amount == null ? null : Number(p.claimed_amount),
-      undoReason: p.undo_reason || '',
-      receiptNo: p.receipt_no || '',
+      createdAt: p.created_at,
+      batchId: p.batch_id,
     }))
     history.value = (historyRows ?? []).map((h) => ({
       id: h.id,
@@ -778,21 +761,23 @@ async function decide(next: 'active' | 'rejected') {
 }
 
 async function approveLeave() {
-  if (!(await confirmAction({ title: 'Approve this leave request?', message: 'Their stay ends today and the room is freed.' }))) return
+  const today = manilaToday()
+  const later = !!lease.leaveDate && lease.leaveDate > today
+  if (!(await confirmAction({
+    title: 'Approve this leave request?',
+    message: later
+      ? `The stay runs until ${formatDate(lease.leaveDate)}, then ends and the room is freed.`
+      : 'Their stay ends today and the room is freed.',
+  }))) return
   if (deciding.value) return
   deciding.value = true
   try {
-    // The database stamps the end date (today in Manila) and writes the stay
-    // into the student's history (tg_lease_history), which rating it hangs off.
-    // That used to be a second request from here that could fail on its own and
-    // leave the student unable to rate the stay.
-    const { error: updateError } = await supabase
-      .from('leases')
-      .update({ status: 'ended', ended_reason: 'leave_approved' })
-      .eq('id', leaseId.value)
-    if (updateError) throw updateError
-    lease.status = 'ended'
-    notify.success('Leave request approved.')
+    // approve_leave (20261012010000) runs the stay to the leave date, or ends
+    // it today if that day has come. Ending stamps the end date and writes the
+    // stay into the student's history (tg_lease_history) server-side.
+    const { error: rpcError } = await supabase.rpc('approve_leave', { p_lease: leaseId.value })
+    if (rpcError) throw rpcError
+    notify.success(later ? `Approved — they move out ${formatDate(lease.leaveDate)}.` : 'Leave request approved.')
     void load(true)
   } catch (e) {
     notify.error(errorMessage(e, 'Could not approve the leave request.'))
@@ -840,7 +825,7 @@ async function declineLeave() {
   try {
     const { error: updateError } = await supabase
       .from('leases')
-      .update({ status: 'active', leave_requested_at: null, decision_reason: reason })
+      .update({ status: 'active', leave_requested_at: null, leave_date: null, decision_reason: reason })
       .eq('id', leaseId.value)
     if (updateError) throw updateError
     lease.status = 'active'
@@ -850,21 +835,6 @@ async function declineLeave() {
     notify.error(errorMessage(e, 'Could not update the leave request.'))
   } finally {
     deciding.value = false
-  }
-}
-
-// Only an unpaid bill can be removed — e.g. one posted with the wrong amount.
-async function removeBill(billId: string) {
-  if (!(await confirmAction({ title: 'Remove this bill?', message: 'The tenant will no longer see it as due.' }))) return
-  billBusy.value = billId
-  try {
-    const { error: deleteError } = await supabase.from('utility_bills').delete().eq('id', billId)
-    if (deleteError) throw deleteError
-    bills.value = bills.value.filter((b) => b.id !== billId)
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not remove the bill.'))
-  } finally {
-    billBusy.value = ''
   }
 }
 
@@ -1307,17 +1277,6 @@ useLiveData({
   font-size: 12.5px;
   font-weight: 600;
 }
-.rule-value--warn { color: var(--m-danger) !important; }
-.rule-value--controls { display: inline-flex; align-items: center; gap: 10px; }
-.pct-select {
-  padding: 4px 8px;
-  border: 1px solid var(--m-border);
-  border-radius: 8px;
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 12.5px;
-}
 .rule-value {
   color: var(--m-ink);
   font-size: 13px;
@@ -1342,73 +1301,67 @@ useLiveData({
 .rule-verify:disabled {
   opacity: 0.6;
 }
-
-.pay-row {
+.terms-row,
+.terms-toggle {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 9px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.pay-row--tap {
   width: 100%;
-  border-left: 0;
-  border-right: 0;
-  border-bottom: 0;
-  background: transparent;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+  color: inherit;
   cursor: pointer;
   font: inherit;
   text-align: left;
-  -webkit-tap-highlight-color: transparent;
 }
-.pay-row-review {
+/* The statement opens the tab; give it the room a heading used to. */
+.sec-body > .st:first-child {
+  margin-top: 16px;
+}
+.terms-row--after {
+  margin-top: 18px;
+}
+.terms-toggle {
+  margin: 0;
+  cursor: default;
+}
+.terms-body {
   display: flex;
-  align-items: center;
-  gap: 1px;
-  color: var(--m-primary-dark);
-  font-size: 11px;
-  font-weight: 700;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
 }
-.group > .pay-row:first-child {
-  border-top: 0;
-}
-.pay-row-main,
-.pay-row-sub {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.pay-row-month,
-.pay-row-amount {
+.terms-main {
   color: var(--m-ink);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
 }
-.pay-row-method {
+.terms-sub {
   color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12.5px;
 }
-.pay-chip {
+.terms-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.leave-ask {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--m-text);
+  font-size: 13.5px;
+  line-height: 1.45;
+  text-align: left;
+}
+.leave-ask > :first-child {
   flex: 0 0 auto;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-}
-.pay-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.pay-chip--amber,
-.pay-chip--orange {
-  background: var(--m-warning-soft);
+  margin-top: 2px;
   color: var(--m-warning);
-}
-.pay-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
 }
 .none {
   padding: 14px 12px;
@@ -1440,14 +1393,6 @@ useLiveData({
   font: inherit;
   font-size: 14px;
 }
-.bills-head {
-  margin: 12px 0 6px;
-}
-.owed-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
 .pay-submit {
   flex: 1;
   min-height: 48px;
@@ -1461,47 +1406,5 @@ useLiveData({
 
 .group > .pay-detail-rule:first-child {
   border-top: 0;
-}
-.forgive-note {
-  margin: 0;
-  color: var(--m-muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-.forgive-input {
-  width: 100%;
-  min-height: 60px;
-  padding: 10px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13.5px;
-  resize: vertical;
-}
-.forgive-cancel,
-.forgive-confirm {
-  min-height: 46px;
-  border-radius: 999px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
-.forgive-cancel {
-  padding: 0 18px;
-  border: 1px solid var(--m-border);
-  background: var(--m-surface);
-  color: var(--m-text);
-}
-.forgive-confirm {
-  flex: 1;
-  border: 0;
-  background: var(--m-primary);
-  color: #fff;
-}
-.forgive-confirm:disabled {
-  opacity: 0.6;
 }
 </style>

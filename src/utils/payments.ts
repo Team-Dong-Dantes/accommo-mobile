@@ -223,10 +223,18 @@ export interface StatementMonth<P extends StatementPayment = StatementPayment> {
 
 const ORDER: Record<LedgerRow['kind'], number> = { rent: 0, advance: 1, deposit: 2, bill: 3 }
 
+/**
+ * Late: rent or a bill the ledger marks overdue, or a deposit unpaid past its
+ * move-in date — the ledger never marks the deposit overdue itself.
+ */
+export function isLateRow(r: LedgerRow, today: string): boolean {
+  return r.state === 'overdue' || (r.kind === 'deposit' && r.state !== 'pending' && r.state !== 'paid' && (r.dueDate ?? '') < today)
+}
+
 export function itemStatus(row: LedgerRow, today: string): StatementStatus {
   if (row.state === 'paid') return 'paid'
   if (row.state === 'pending') return 'pending'
-  if (row.state === 'overdue') return 'overdue'
+  if (isLateRow(row, today)) return 'overdue'
   if (row.balance + 0.009 < row.due) return 'partial'
   return (row.dueDate ?? '') <= today ? 'due' : 'upcoming'
 }

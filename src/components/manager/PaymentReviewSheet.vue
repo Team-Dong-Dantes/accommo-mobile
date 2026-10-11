@@ -1,181 +1,304 @@
 <template>
-  <AppModal :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
-    <template v-if="payment" #header>
-      <span class="pay-detail-head-body">
-        <h3 class="pay-detail-title">{{ paymentTitle(payment) }}</h3>
-        <span class="pay-detail-amount">{{ formatPesoExact(payment.amount) }}</span>
-      </span>
-      <span class="pay-detail-chip" :class="`pay-detail-chip--${statusColor(PAYMENT_STATUS, payment.status)}`">
-        {{ statusText(PAYMENT_STATUS, payment.status) }}
-      </span>
+  <AppModal :model-value="modelValue" tall @update:model-value="emit('update:modelValue', $event)">
+    <template #header>
+      <button v-if="mode === 'reject'" type="button" class="rv-back" aria-label="Back to the payment" @click="mode = ''">
+        <IconifyIcon icon="lucide:chevron-left" width="20" />
+      </button>
+      <template v-if="mode === 'reject'">
+        <span class="mx-head">
+          <h3 class="mx-head-title">Why reject it?</h3>
+          <span class="mx-head-sub">{{ who.name }} · {{ formatPesoExact(total) }} by {{ methodLabel }}</span>
+        </span>
+      </template>
+      <template v-else>
+        <span class="rv-avatar" :class="who.color ? [`bg-${who.color}`, 'text-white'] : []">
+          <img v-if="who.avatar" :src="who.avatar" alt="" />
+          <template v-else>{{ initialsOf(who.name) }}</template>
+        </span>
+        <span class="mx-head">
+          <span class="rv-name">{{ who.name }}</span>
+          <span class="mx-head-sub">{{ who.place }}<template v-if="sentAt"> · sent {{ formatDate(sentAt) }}</template></span>
+        </span>
+        <span v-if="pending && waitDays >= 1" class="rv-wait" :class="{ 'rv-wait--long': waitDays >= 3 }">
+          <IconifyIcon icon="lucide:clock" width="13" />
+          Waiting {{ waitDays }} day{{ waitDays === 1 ? '' : 's' }}
+        </span>
+      </template>
     </template>
 
-    <template v-if="payment">
-      <div class="group">
-        <div v-if="payment.claimedAmount" class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Student submitted</span>
-          <span class="pay-detail-rule-value">{{ formatPesoExact(payment.claimedAmount) }}</span>
+    <div v-if="loading" class="mx-body rv-center"><q-spinner size="24px" color="primary" /></div>
+
+    <!-- Reject: a reason the student reads, then they fix it and send again. -->
+    <div v-else-if="mode === 'reject'" class="mx-body">
+      <div class="mx-radio-list" role="radiogroup" aria-label="Reason">
+        <button
+          v-for="r in REASONS"
+          :key="r"
+          type="button"
+          role="radio"
+          class="mx-radio"
+          :class="{ 'mx-radio--on': reason === r }"
+          :aria-checked="reason === r"
+          @click="reason = r"
+        >
+          <span class="mx-radio-dot" />{{ r }}
+        </button>
+      </div>
+      <label class="mx-field">
+        <span class="mx-label">Tell {{ firstName }} more</span>
+        <textarea v-model="detail" rows="3" maxlength="300" class="mx-input" />
+      </label>
+      <div class="mx-banner mx-banner--danger">
+        <IconifyIcon icon="lucide:circle-alert" width="18" class="mx-banner-icon" />
+        <span>{{ firstName }} sees this reason in Payments, with a button to send it again. {{ capitalize(whatList) }} stay <b>unpaid</b> until a corrected payment comes in.</span>
+      </div>
+    </div>
+
+    <div v-else-if="rows.length" class="mx-body">
+      <div class="rv-top">
+        <div class="rv-amount">
+          <span class="mx-label" :class="`rv-status--${statusColor(PAYMENT_STATUS, status)}`">{{ headline }}</span>
+          <span class="rv-big">{{ formatPesoExact(total) }}</span>
+          <span class="rv-by">{{ cash ? 'no receipt for cash, so only you can tell' : `by ${methodLabel}` }}</span>
         </div>
-        <div v-if="payment.receiptNo" class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Receipt no.</span>
-          <span class="pay-detail-rule-value">{{ payment.receiptNo }}</span>
-        </div>
-        <div class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Method</span>
-          <span class="pay-detail-rule-value">{{ PAYMENT_METHOD_LABEL[payment.method] || payment.method }}</span>
-        </div>
-        <div v-if="payment.studentName" class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Tenant</span>
-          <span class="pay-detail-rule-value">{{ payment.studentName }}</span>
-        </div>
-        <div v-if="payment.roomLabel" class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Stay</span>
-          <span class="pay-detail-rule-value">{{ payment.roomLabel }}{{ payment.accommodationName ? ` · ${payment.accommodationName}` : '' }}</span>
-        </div>
-        <div v-if="payment.txnReference" class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Reference number</span>
-          <span class="pay-detail-rule-value">{{ payment.txnReference }}</span>
-        </div>
-        <div v-if="payment.promiseDate" class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Rest promised by</span>
-          <span class="pay-detail-rule-value">{{ formatDate(payment.promiseDate) }}</span>
-        </div>
-        <div v-if="payment.verifiedByName" class="pay-detail-rule">
-          <span class="pay-detail-rule-label">Reviewed by</span>
-          <span class="pay-detail-rule-value">
-            {{ payment.verifiedByName }}{{ payment.paidAt ? ` · ${formatDate(payment.paidAt)}` : '' }}
-          </span>
+        <button v-if="proof" type="button" class="rv-proof" aria-label="Open receipt screenshot" @click="viewer = proof">
+          <img :src="proof" alt="" />
+          <span class="rv-proof-zoom"><IconifyIcon icon="lucide:maximize-2" width="13" /></span>
+        </button>
+      </div>
+
+      <!-- Part of one item: what came now, what is left, and the promise. -->
+      <div v-if="partial" class="mx-field">
+        <h3 class="mx-label">Part of {{ items[0]?.name.toLowerCase() }}</h3>
+        <div class="mx-list">
+          <div class="rv-bar-wrap">
+            <div class="rv-bar" aria-hidden="true">
+              <span :style="{ flex: total }" class="rv-bar-now" />
+              <span :style="{ flex: partial.left }" class="rv-bar-left" />
+            </div>
+            <div class="rv-bar-legend">
+              <span><b>{{ formatPesoExact(total) }}</b> now</span>
+              <span><b>{{ formatPesoExact(partial.left) }}</b> left of {{ formatPesoExact(partial.due) }}</span>
+            </div>
+          </div>
+          <div v-if="first.promise_date" class="mx-kv"><span class="mx-kv-key">Rest promised by</span><span class="mx-kv-val">{{ formatDate(first.promise_date) }}</span></div>
+          <div v-if="first.note" class="mx-kv"><span class="mx-kv-key">Note</span><span class="mx-kv-val rv-light">{{ first.note }}</span></div>
         </div>
       </div>
 
-      <template v-if="payment.status === 'rejected' && payment.rejectionReason">
-        <p class="pay-detail-label">Rejection reason</p>
-        <p class="pay-detail-text">{{ payment.rejectionReason }}</p>
-      </template>
-      <template v-if="payment.undoReason && payment.status === 'pending_verification'">
-        <p class="pay-detail-label">Confirmation undone</p>
-        <p class="pay-detail-text">{{ payment.undoReason }}</p>
-      </template>
-      <template v-if="payment.note">
-        <p class="pay-detail-label">{{ payment.status === 'waived' ? 'Why it was forgiven' : 'Note from the student' }}</p>
-        <p class="pay-detail-text">{{ payment.note }}</p>
-      </template>
-      <template v-if="payment.proofUrl">
-        <p class="pay-detail-label">Proof of payment</p>
-        <img :src="resolveAsset(payment.proofUrl)" alt="Proof of payment" class="pay-detail-proof-img" />
-      </template>
-
-      <!-- Awaiting confirmation: confirm it as submitted, or reject it with a reason. -->
-      <template v-if="payment.status === 'pending_verification'">
-        <div v-if="mode === 'reject'" class="pay-reject-form">
-          <label class="pay-detail-label">
-            Reason
-            <textarea v-model="reason" class="pay-reject-textarea" rows="2" placeholder="Why is this being rejected?" />
-          </label>
-          <div class="pay-reject-actions">
-            <button type="button" class="pay-reject-cancel" @click="mode = ''">Cancel</button>
-            <button type="button" class="pay-reject-confirm" :disabled="busy || !reason.trim()" @click="act('reject')">
-              {{ busy ? 'Rejecting…' : 'Confirm reject' }}
-            </button>
-          </div>
+      <div v-else class="mx-field">
+        <h3 class="mx-label">It pays for</h3>
+        <div class="mx-list">
+          <div v-for="it in items" :key="it.id" class="mx-kv"><span>{{ it.name }}</span><span class="mx-kv-val">{{ formatPesoExact(it.amount) }}</span></div>
         </div>
-        <div v-else class="pay-detail-actions">
-          <button type="button" class="pay-verify-btn" :disabled="busy" @click="act('confirm')">
-            {{ busy ? 'Confirming…' : 'Confirm received' }}
+      </div>
+
+      <div v-if="!partial && (first.txn_reference || first.note || first.receipt_no)" class="mx-field">
+        <h3 class="mx-label">{{ pending && !cash ? `Check against your ${methodLabel}` : 'Details' }}</h3>
+        <div class="mx-list">
+          <div v-if="first.txn_reference" class="mx-kv"><span class="mx-kv-key">Reference no.</span><span class="mx-kv-val rv-mono">{{ first.txn_reference }}</span></div>
+          <div v-if="first.receipt_no" class="mx-kv"><span class="mx-kv-key">Receipt no.</span><span class="mx-kv-val">{{ first.receipt_no }}</span></div>
+          <div v-if="first.note" class="mx-kv"><span class="mx-kv-key">{{ status === 'waived' ? 'Why forgiven' : 'Note' }}</span><span class="mx-kv-val rv-light">{{ first.note }}</span></div>
+        </div>
+      </div>
+
+      <div v-if="status === 'rejected' && first.rejection_reason" class="mx-banner mx-banner--danger">
+        <IconifyIcon icon="lucide:undo-2" width="18" class="mx-banner-icon" />
+        <span><b>Sent back</b> · {{ first.rejection_reason.replace('\n', ' — ') }}</span>
+      </div>
+      <p v-if="reviewer" class="mx-hint">{{ status === 'paid' ? 'Confirmed' : 'Reviewed' }} by {{ reviewer }}<template v-if="first.paid_at"> · {{ formatDate(first.paid_at) }}</template></p>
+    </div>
+
+    <template v-if="!loading && rows.length && (pending || mode === 'reject')" #footer>
+      <div v-if="mode === 'reject'" class="mx-foot">
+        <button type="button" class="mx-btn mx-btn--danger" :disabled="busy || !reasonText" @click="reject">
+          {{ busy ? 'Rejecting…' : 'Reject and ask to resend' }}
+        </button>
+      </div>
+      <div v-else class="mx-foot">
+        <div class="mx-foot-row">
+          <button type="button" class="mx-btn mx-btn--reject" :disabled="busy" @click="startReject">Reject</button>
+          <button type="button" class="mx-btn" :disabled="busy" @click="confirm">
+            <IconifyIcon icon="lucide:check" width="18" />
+            {{ busy ? 'Confirming…' : cash ? `I got ${formatPesoExact(total)} in cash` : `I received ${formatPesoExact(total)}` }}
           </button>
-          <button type="button" class="pay-reject-btn" @click="mode = 'reject'; reason = ''">Reject</button>
         </div>
-      </template>
-
-      <!-- Confirmed in the last 7 days: can be undone (a mis-tap, a bounced transfer). -->
-      <template v-if="canUndo">
-        <div v-if="mode === 'undo'" class="pay-reject-form">
-          <label class="pay-detail-label">
-            Why undo it?
-            <textarea v-model="reason" class="pay-reject-textarea" rows="2" placeholder="e.g. The transfer was reversed by the bank" />
-          </label>
-          <div class="pay-reject-actions">
-            <button type="button" class="pay-reject-cancel" @click="mode = ''">Cancel</button>
-            <button type="button" class="pay-reject-confirm" :disabled="busy || !reason.trim()" @click="act('undo')">
-              {{ busy ? 'Undoing…' : 'Undo confirmation' }}
-            </button>
-          </div>
-        </div>
-        <button v-else type="button" class="pay-detail-link" @click="mode = 'undo'; reason = ''">Undo this confirmation</button>
-      </template>
+        <p class="mx-foot-note">Amount doesn't match what arrived? Reject it — {{ firstName }} fixes it and sends it again.</p>
+      </div>
     </template>
   </AppModal>
+  <PhotoViewer v-model="viewer" />
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
-import { confirmAction } from '@/utils/confirmAction'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { formatDate, formatPesoExact, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
-import { paymentTitle } from '@/utils/payments'
+import { confirmMoney } from '@/utils/confirmAction'
+import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
+import { signRows } from '@/utils/upload'
+import { formatDate, formatMonth, formatPesoExact, initialsOf, PAYMENT_METHOD_LABEL, PAYMENT_STATUS, statusColor } from '@/utils/format'
+import { BILL_TAG, toLedger, type LedgerRow } from '@/utils/payments'
+import type { UtilityKey } from '@/utils/listings'
 import AppModal from '@/components/shared/AppModal.vue'
+import PhotoViewer from '@/components/shared/PhotoViewer.vue'
 
 // The landlord/landlady's view of one payment, and the only place it is
-// reviewed: confirm as submitted, reject, or undo a recent
-// confirmation. review_payment acts on the whole submission, so one transfer
-// that covered several months is handled as one.
-export interface ReviewPayment {
-  id: string
-  month: string
-  amount: number
-  method: string
-  status: string
-  description: string
-  txnReference: string
-  proofUrl: string
-  paidAt: string | null
-  verifiedByName: string
-  rejectionReason: string
-  note: string
-  promiseDate: string | null
-  claimedAmount: number | null
-  undoReason: string
-  receiptNo: string
-  studentName?: string
-  roomLabel?: string
-  accommodationName?: string
-}
-
-const props = defineProps<{ modelValue: boolean; payment: ReviewPayment | null }>()
+// reviewed. review_payment acts on the whole transfer (every row of its batch),
+// so a payment that covered rent and a bill is confirmed or sent back as one.
+// Confirming can't be undone, so it ends with the typed CONFIRM step; rejecting
+// needs a reason the student reads before they send it again.
+const props = defineProps<{ modelValue: boolean; paymentId: string | null }>()
 const emit = defineEmits<{ 'update:modelValue': [boolean]; changed: [] }>()
 const notify = useNotify()
 
-const mode = ref<'' | 'reject' | 'undo'>('')
-const reason = ref('')
-const busy = ref(false)
-watch(() => props.payment?.id, () => { mode.value = '' })
+const REASONS = [
+  "The amount doesn't match what arrived",
+  "I can't find this reference number",
+  'The screenshot is unclear',
+  'Nothing has arrived yet',
+  'Something else',
+] as const
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-const canUndo = computed(() => {
-  const p = props.payment
-  return p?.status === 'paid' && !!p.paidAt && Date.now() - new Date(p.paidAt).getTime() < WEEK_MS
+interface Row {
+  id: string
+  lease_id: string
+  batch_id: string | null
+  kind: string
+  month: string
+  bill_id: string | null
+  amount: number
+  method: string
+  status: string
+  txn_reference: string | null
+  proof_url: string | null
+  note: string | null
+  promise_date: string | null
+  created_at: string
+  paid_at: string | null
+  rejection_reason: string | null
+  receipt_no: string | null
+  verified_by_user: { full_name: string | null } | null
+}
+
+const loading = ref(false)
+const rows = ref<Row[]>([])
+const ledger = ref<LedgerRow[]>([])
+const billUtility = ref<Record<string, UtilityKey>>({})
+const who = ref({ name: '', place: '', avatar: '', color: '' as string | null })
+const mode = ref<'' | 'reject'>('')
+const reason = ref<string>(REASONS[1])
+const detail = ref('')
+const busy = ref(false)
+const viewer = ref('')
+
+const first = computed(() => rows.value[0] as Row)
+const status = computed(() => first.value?.status ?? '')
+const pending = computed(() => status.value === 'pending_verification')
+const cash = computed(() => first.value?.method === 'cash')
+const methodLabel = computed(() => PAYMENT_METHOD_LABEL[first.value?.method ?? ''] ?? 'Other')
+const total = computed(() => rows.value.reduce((s, r) => s + Number(r.amount), 0))
+const proof = computed(() => (first.value?.proof_url ? resolveAsset(first.value.proof_url) : ''))
+const sentAt = computed(() => first.value?.created_at ?? '')
+const waitDays = computed(() => (sentAt.value ? Math.floor((Date.now() - new Date(sentAt.value).getTime()) / 86400000) : 0))
+const firstName = computed(() => who.value.name.split(' ')[0] || 'The student')
+const reviewer = computed(() => (pending.value ? '' : first.value?.verified_by_user?.full_name ?? ''))
+const headline = computed(() => {
+  if (pending.value) return cash.value ? 'Says they handed you cash' : 'Says they paid'
+  return status.value === 'paid' ? 'Confirmed' : status.value === 'rejected' ? 'Sent back' : status.value === 'withdrawn' ? 'Taken back' : status.value === 'waived' ? 'Forgiven' : status.value
 })
 
-const TITLES = { confirm: 'Confirm this payment?', reject: 'Reject this payment?', undo: 'Undo this confirmation?' } as const
-const DONE = { confirm: 'Payment confirmed.', reject: 'Payment rejected.', undo: 'Confirmation undone.' } as const
+const items = computed(() => rows.value.map((r) => ({
+  id: r.id,
+  amount: Number(r.amount),
+  name: r.kind === 'bill'
+    ? `${BILL_TAG[billUtility.value[r.bill_id ?? ''] ?? 'water'] ?? 'Utility bill'} · ${formatMonth(r.month).split(' ')[0]}`
+    : r.kind === 'deposit' ? 'Deposit' : `${formatMonth(r.month).split(' ')[0]} rent`,
+})))
+const whatList = computed(() => {
+  // "October rent and the water bill"
+  const names = items.value.map((i) => (i.name.includes(' · ') ? `the ${i.name.split(' · ')[0]!.toLowerCase()}` : i.name))
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? 'it'
+})
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+// One item paid only in part: what is still left on it after this payment.
+const partial = computed(() => {
+  if (rows.value.length !== 1 || !pending.value) return null
+  const r = first.value
+  const row = ledger.value.find((x) => (r.kind === 'bill' ? x.billId === r.bill_id : x.kind === r.kind && (r.kind !== 'rent' || x.month?.slice(0, 7) === r.month.slice(0, 7))))
+  return row && row.balance > 0.009 ? { left: row.balance, due: row.due } : null
+})
+const reasonText = computed(() => {
+  const more = detail.value.trim()
+  if (reason.value === 'Something else') return more
+  return more ? `${reason.value}\n${more}` : reason.value
+})
 
-async function act(action: 'confirm' | 'reject' | 'undo') {
-  const p = props.payment
-  if (!p || busy.value) return
-  if (!(await confirmAction({ title: TITLES[action] }))) return
+watch(
+  () => [props.modelValue, props.paymentId] as const,
+  async ([open, id]) => {
+    if (!open || !id) return
+    mode.value = ''
+    detail.value = ''
+    reason.value = REASONS[1]
+    loading.value = true
+    try {
+      const { data: one, error: e1 } = await supabase.from('payments').select('batch_id, lease_id').eq('id', id).single()
+      if (e1) throw e1
+      const cols = 'id,lease_id,batch_id,kind,month,bill_id,amount,method,status,txn_reference,proof_url,note,promise_date,created_at,paid_at,rejection_reason,receipt_no,verified_by_user:users!payments_verified_by_fkey(full_name)'
+      const [{ data: batch, error: e2 }, { data: lease }, { data: led }, { data: bills }] = await Promise.all([
+        one.batch_id ? supabase.from('payments').select(cols).eq('batch_id', one.batch_id) : supabase.from('payments').select(cols).eq('id', id),
+        supabase
+          .from('leases')
+          .select('users!leases_student_id_fkey(full_name,avatar_color,avatar_url),rooms(label,room_number,accommodations(name))')
+          .eq('id', one.lease_id)
+          .single(),
+        supabase.rpc('lease_ledger', { p_lease: one.lease_id }),
+        supabase.from('utility_bills').select('id,utility').eq('lease_id', one.lease_id),
+      ])
+      if (e2) throw e2
+      const list = (batch ?? []) as unknown as Row[]
+      await signRows('payments', list, 'proof_url')
+      rows.value = list.sort((a, b) => a.kind.localeCompare(b.kind) || a.month.localeCompare(b.month))
+      ledger.value = toLedger(led)
+      billUtility.value = Object.fromEntries((bills ?? []).map((b) => [b.id, b.utility as UtilityKey]))
+      const student = lease?.users as unknown as { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
+      const room = lease?.rooms as unknown as { label: string | null; room_number: string | null; accommodations: { name: string | null } | null } | null
+      who.value = {
+        name: student?.full_name || 'A student',
+        place: [room?.label || (room?.room_number ? `Room ${room.room_number}` : ''), room?.accommodations?.name].filter(Boolean).join(' · '),
+        avatar: student?.avatar_url ? resolveAsset(student.avatar_url, AVATAR) : '',
+        color: student?.avatar_color ?? null,
+      }
+    } catch (e) {
+      notify.error(errorMessage(e, 'Could not load this payment.'))
+      emit('update:modelValue', false)
+    } finally {
+      loading.value = false
+    }
+  },
+  { immediate: true },
+)
+
+function startReject() {
+  // A cash payment can't have a reference problem; start on the likelier reason.
+  reason.value = cash.value ? REASONS[3] : REASONS[1]
+  detail.value = ''
+  mode.value = 'reject'
+}
+
+async function run(action: 'confirm' | 'reject') {
   busy.value = true
   try {
     const { error } = await supabase.rpc('review_payment', {
-      p_payment: p.id,
+      p_payment: first.value.id,
       p_action: action,
-      ...(action !== 'confirm' ? { p_reason: reason.value.trim() } : {}),
+      ...(action === 'reject' ? { p_reason: reasonText.value } : {}),
     })
     if (error) throw error
-    notify.success(DONE[action])
-    mode.value = ''
+    notify.success(action === 'confirm' ? 'Payment confirmed.' : `Sent back to ${firstName.value}.`)
     emit('update:modelValue', false)
     emit('changed')
   } catch (e) {
@@ -184,194 +307,185 @@ async function act(action: 'confirm' | 'reject' | 'undo') {
     busy.value = false
   }
 }
+
+async function confirm() {
+  const checks = cash.value
+    ? [`I have ${formatPesoExact(total.value)} in cash from ${firstName.value}`]
+    : [`I see ${formatPesoExact(total.value)} in my ${methodLabel.value}`, ...(first.value.txn_reference ? [`The reference matches ${first.value.txn_reference}`] : [])]
+  const ok = await confirmMoney(
+    `Did ${formatPesoExact(total.value)} really reach you?`,
+    `Confirming marks ${whatList.value} as paid for ${firstName.value}. This can't be undone.`,
+    checks,
+    `Confirm ${formatPesoExact(total.value)}`,
+  )
+  if (ok) await run('confirm')
+}
+
+async function reject() {
+  if (!reasonText.value) return notify.error('Say why, so they can fix it.')
+  await run('reject')
+}
 </script>
 
 <style scoped>
-.pay-detail-head-body {
+.rv-center {
+  align-items: center;
+  justify-content: center;
+}
+.rv-back {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-left: -8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--m-ink);
+  cursor: pointer;
+}
+.rv-avatar {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--m-bg);
+  color: var(--m-ink);
+  font-weight: 700;
+}
+.rv-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rv-name {
+  color: var(--m-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+.rv-wait {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.rv-wait--long {
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+}
+.rv-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.rv-amount {
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
+  gap: 4px;
 }
-.pay-detail-title {
-  margin: 0;
-  line-height: 1.3;
-  color: var(--m-muted);
-  font-size: 13px;
-  font-weight: 700;
+.rv-status--orange,
+.rv-status--amber {
+  color: var(--m-info);
 }
-.pay-detail-amount {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 28px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-}
-.pay-detail-chip {
-  flex: 0 0 auto;
-  margin-top: 2px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.pay-detail-chip--green {
-  background: var(--m-success-soft);
+.rv-status--green {
   color: var(--m-success);
 }
-.pay-detail-chip--amber,
-.pay-detail-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.pay-detail-chip--red {
-  background: var(--m-danger-soft);
+.rv-status--red {
   color: var(--m-danger);
 }
-.pay-detail-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
+.rv-big {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }
-.group {
+.rv-by {
+  color: var(--m-text);
+  font-size: 13px;
+}
+.rv-proof {
+  position: relative;
+  width: 104px;
+  height: 140px;
+  flex: 0 0 auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+  cursor: zoom-in;
+}
+.rv-proof img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rv-proof-zoom {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+}
+.rv-bar-wrap {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  overflow: hidden;
+  gap: 8px;
+  padding: 14px;
 }
-.pay-detail-rule {
+.rv-bar {
   display: flex;
-  align-items: center;
+  height: 8px;
+  gap: 3px;
+}
+.rv-bar-now {
+  border-radius: 6px 2px 2px 6px;
+  background: var(--m-info);
+}
+.rv-bar-left {
+  border-radius: 2px 6px 6px 2px;
+  background: var(--m-border);
+}
+.rv-bar-legend {
+  display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px;
+  color: var(--m-muted);
+  font-size: 13px;
+}
+.rv-bar-legend b {
+  color: var(--m-ink);
+}
+.rv-bar-wrap + .mx-kv {
   border-top: 1px solid var(--m-border);
 }
-.group > .pay-detail-rule:first-child {
-  border-top: 0;
-}
-.pay-detail-rule-label {
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.pay-detail-rule-value {
-  color: var(--m-ink);
+.rv-mono {
+  font-family: var(--m-font-mono);
   font-size: 13px;
-  font-weight: 600;
-  text-align: right;
+  font-weight: 500;
 }
-.pay-detail-label {
-  margin: 4px 0 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.pay-detail-text {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.pay-detail-proof-img {
-  width: 100%;
-  max-height: 360px;
-  object-fit: contain;
-  background: var(--m-bg);
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-}
-.pay-detail-actions,
-.pay-reject-actions {
-  display: flex;
-  gap: 8px;
-}
-.pay-verify-btn {
-  flex: 1;
-  min-height: 48px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-verify-btn:disabled,
-.pay-reject-confirm:disabled {
-  opacity: 0.6;
-}
-.pay-reject-btn {
-  flex: 0 0 auto;
-  min-height: 48px;
-  padding: 0 18px;
-  border: 1px solid var(--m-danger);
-  border-radius: 999px;
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-reject-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pay-reject-textarea {
-  display: block;
-  width: 100%;
-  min-height: 60px;
-  margin-top: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 13.5px;
-  resize: vertical;
-  text-transform: none;
-}
-.pay-reject-cancel {
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-reject-confirm {
-  flex: 1;
-  min-height: 44px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-danger);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-detail-link {
-  min-height: 40px;
-  border: 0;
-  background: none;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
+.rv-light {
+  font-weight: 500;
 }
 </style>

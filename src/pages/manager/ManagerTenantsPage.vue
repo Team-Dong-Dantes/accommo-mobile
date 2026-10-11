@@ -6,7 +6,7 @@
         <div class="desk-card">
           <div class="desk-col">
             <q-skeleton type="rect" height="40px" class="sk sk-pill" />
-            <h2 class="sec-title">By tenant</h2>
+            <h2 class="sec-title">By boarder</h2>
             <div v-for="n in 2" :key="n" class="acc">
               <div class="acc-head">
                 <q-skeleton type="rect" size="36px" />
@@ -55,11 +55,11 @@
         <div class="m-tabbed">
         <div v-if="!split" class="tabs">
           <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'tenants' }" @click="activeTab = 'tenants'">
-            By tenant
+            By boarder
           </button>
           <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
             Payments
-            <span v-if="paymentsNeedingVerification.length" class="tab-dot">{{ paymentsNeedingVerification.length }}</span>
+            <span v-if="toConfirm" class="tab-dot">{{ toConfirm }}</span>
           </button>
         </div>
 
@@ -79,7 +79,7 @@
                 search-label="Search tenants"
                 @open-filters="filtersOpen = true"
               />
-              <h2 class="sec-title">By tenant</h2>
+              <h2 class="sec-title">By boarder</h2>
             </template>
             <div class="top-actions">
               <button type="button" class="top-pay-btn" :class="{ 'top-pay-btn--ghost': pickingPayment }" @click="pickingPayment = !pickingPayment">
@@ -94,7 +94,7 @@
             </div>
             <p v-if="pickingPayment" class="picking-hint">
               <IconifyIcon icon="lucide:pointer" width="14" />
-              Tap a tenant below to log their payment.
+              Tap a boarder below to log their payment.
             </p>
 
             <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
@@ -228,93 +228,7 @@
 
           <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
             <h2 v-if="split" class="sec-title">Payments</h2>
-            <div class="pay-summary">
-              <div class="pay-stat">
-                <span class="pay-stat-value">{{ formatPeso(receivedThisMonth) }}</span>
-                <span class="pay-stat-label">Received in {{ thisMonthLabel }}</span>
-              </div>
-              <div class="pay-stat" :class="{ 'pay-stat--warn': paymentsNeedingVerification.length }">
-                <span class="pay-stat-value">{{ paymentsNeedingVerification.length }}</span>
-                <span class="pay-stat-label">To verify</span>
-              </div>
-            </div>
-
-            <section v-if="paymentsNeedingVerification.length" class="pay-section">
-              <h2 class="sec-title">Needs verification</h2>
-              <div class="group group--warn">
-                <button
-                  v-for="p in paymentsNeedingVerification"
-                  :key="p.id"
-                  type="button"
-                  class="pay-row"
-                  @click="openPaymentDetail(p)"
-                >
-                  <span class="lease-avatar" :class="avatarClass(p)">
-                    <img v-if="avatarOf(p)?.avatarUrl" :src="avatarOf(p)?.avatarUrl ?? ''" alt="" class="lease-avatar-img" />
-                    <template v-else>{{ initialsOf(p.studentName) }}</template>
-                  </span>
-                  <span class="pay-row-body">
-                    <span class="pay-row-main">
-                      <span class="pay-row-name">{{ p.studentName }}</span>
-                      <span class="pay-row-amount">{{ formatPeso(p.amount) }}</span>
-                    </span>
-                    <span class="pay-row-sub">
-                      <span class="pay-row-meta">{{ paySubline(p, true) }}</span>
-                      <span class="pay-row-review">
-                        Review
-                        <IconifyIcon icon="lucide:chevron-right" width="13" />
-                      </span>
-                    </span>
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <section class="pay-section">
-              <div class="sec-head">
-                <h2 class="sec-title">History</h2>
-                <button type="button" class="sec-link" @click="router.push('/manager/profile/history?tab=payments')">View all</button>
-              </div>
-              <template v-if="historyByMonth.length">
-                <div v-for="g in historyByMonth" :key="g.label" class="pay-month">
-                  <div class="pay-month-head">
-                    <span>{{ g.label }}</span>
-                    <span class="pay-month-total">{{ formatPeso(g.received) }}</span>
-                  </div>
-                  <div class="group">
-                    <button
-                      v-for="p in g.rows"
-                      :key="p.id"
-                      type="button"
-                      class="pay-row"
-                      @click="openPaymentDetail(p)"
-                    >
-                      <span class="lease-avatar" :class="avatarClass(p)">
-                        <img v-if="avatarOf(p)?.avatarUrl" :src="avatarOf(p)?.avatarUrl ?? ''" alt="" class="lease-avatar-img" />
-                        <template v-else>{{ initialsOf(p.studentName) }}</template>
-                      </span>
-                      <span class="pay-row-body">
-                        <span class="pay-row-main">
-                          <span class="pay-row-name">{{ p.studentName }}</span>
-                          <span class="pay-row-amount" :class="{ 'pay-row-amount--void': p.status === 'rejected' }">{{ formatPeso(p.amount) }}</span>
-                        </span>
-                        <span class="pay-row-sub">
-                          <span class="pay-row-meta">{{ paySubline(p, false) }}</span>
-                          <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
-                        </span>
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </template>
-              <EmptyState
-                v-else
-                variant="compact"
-                icon="lucide:receipt"
-                title="No payments logged yet"
-                message="Payments you log for any tenant will show up here."
-              />
-            </section>
+            <CollectionsPanel :version="loadVersion" @changed="load(true)" @count="(n) => (toConfirm = n)" />
           </component>
         </component>
         </div>
@@ -403,16 +317,13 @@
 
     <AddStudentSheet v-model="addOpen" @added="refresh" />
 
-    <PaySheet
+    <LogPaymentSheet
       v-model="paymentOpen"
       :lease-id="paymentLease?.id ?? ''"
-      role="landlord"
-      :start-date="paymentLease?.startDate ?? ''"
-      :subtitle="paymentLease ? `${paymentLease.studentName}${paymentLease.monthlyRent ? ` · ${formatPeso(paymentLease.monthlyRent)}/mo` : ''}` : ''"
+      :start-date="paymentLease?.startDate"
+      :subtitle="paymentLease ? `From ${paymentLease.studentName}` : ''"
       @submitted="load(true)"
     />
-
-    <PaymentReviewSheet v-model="paymentDetailOpen" :payment="selectedPayment" @changed="load(true)" />
   </q-page>
 </template>
 
@@ -424,20 +335,18 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatDate, formatMonth, formatPeso, initialsOf, LEASE_STATUS, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
-import { paymentTitle, manilaToday } from '@/utils/payments'
+import { formatDate, formatPeso, initialsOf, LEASE_STATUS, statusText, statusColor } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirmAction'
 import { respondToApplication } from '@/utils/applications'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
-import { signRows } from '@/utils/upload'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import AddStudentSheet from '@/components/manager/AddStudentSheet.vue'
-import PaymentReviewSheet from '@/components/manager/PaymentReviewSheet.vue'
-import PaySheet from '@/components/shared/PaySheet.vue'
+import CollectionsPanel from '@/components/manager/CollectionsPanel.vue'
+import LogPaymentSheet from '@/components/manager/LogPaymentSheet.vue'
 
 interface Lease {
   id: string
@@ -462,29 +371,6 @@ interface Accommodation {
   status: string
   coverUrl: string
   rooms: Room[]
-}
-interface PaymentRow {
-  id: string
-  month: string
-  amount: number
-  method: string
-  status: string
-  accommodationId: string
-  accommodationName: string
-  roomLabel: string
-  studentId: string
-  studentName: string
-  description: string
-  txnReference: string
-  proofUrl: string
-  paidAt: string | null
-  verifiedByName: string
-  rejectionReason: string
-  note: string
-  promiseDate: string | null
-  claimedAmount: number | null
-  undoReason: string
-  receiptNo: string
 }
 
 const FILTERS = [
@@ -515,7 +401,9 @@ watch(
 )
 // Desktop has the room for both panels at once (see useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(activeTab)
-const payments = ref<PaymentRow[]>([])
+// Bumped on every load so the Payments panel reloads with the page.
+const loadVersion = ref(0)
+const toConfirm = ref(0)
 const query = ref('')
 const filter = ref<(typeof FILTERS)[number]['key']>('all')
 const filtersOpen = ref(false)
@@ -605,57 +493,6 @@ const visibleAccommodations = computed(() => {
     .filter((acc) => acc.rooms.length > 0)
 })
 
-// Payments view — tracks only what's actually been logged (this app's own
-// data notes flag `payments` as too sparse to infer who hasn't paid from a
-// missing row, so there's no "unpaid"/overdue view here, only real records).
-const visiblePayments = computed(() =>
-  selectedAccId.value === 'all' ? payments.value : payments.value.filter((p) => p.accommodationId === selectedAccId.value),
-)
-const paymentsNeedingVerification = computed(() => visiblePayments.value.filter((p) => p.status === 'pending_verification'))
-const recentPayments = computed(() => visiblePayments.value.filter((p) => p.status !== 'pending_verification'))
-
-// The summary strip counts only payments marked paid — a record, never an
-// expectation, for the same sparseness reason as above.
-const thisMonth = computed(() => manilaToday().slice(0, 7))
-const thisMonthLabel = computed(() => formatMonth(`${thisMonth.value}-01`).split(' ')[0])
-const receivedThisMonth = computed(() =>
-  visiblePayments.value.filter((p) => p.status === 'paid' && p.month.startsWith(thisMonth.value)).reduce((sum, p) => sum + p.amount, 0),
-)
-
-// History under a header per month. Rows already arrive newest month first.
-const historyByMonth = computed(() => {
-  const groups: { label: string; received: number; rows: PaymentRow[] }[] = []
-  for (const p of recentPayments.value) {
-    const label = formatMonth(p.month)
-    let g = groups[groups.length - 1]
-    if (g?.label !== label) groups.push((g = { label, received: 0, rows: [] }))
-    g.rows.push(p)
-    if (p.status === 'paid') g.received += p.amount
-  }
-  return groups
-})
-
-// Payments carry no avatar of their own; borrow it from the tenant's lease.
-const leaseByStudent = computed(() => {
-  const map = new Map<string, Lease>()
-  for (const acc of accommodations.value) for (const room of acc.rooms) for (const l of room.leases) map.set(l.studentId, l)
-  return map
-})
-function avatarOf(p: PaymentRow) {
-  return leaseByStudent.value.get(p.studentId)
-}
-function avatarClass(p: PaymentRow) {
-  const color = avatarOf(p)?.avatarColor
-  return color ? [`bg-${color}`, 'text-white'] : []
-}
-
-// Under a month header the rent month is already said, so only a non-rent
-// tag (advance, deposit, a bill) is worth repeating on the row.
-function paySubline(p: PaymentRow, withMonth: boolean): string {
-  const title = paymentTitle(p)
-  const what = withMonth ? title : title !== formatMonth(p.month) ? p.description : ''
-  return [what, PAYMENT_METHOD_LABEL[p.method] || p.method, `${p.roomLabel} · ${p.accommodationName}`].filter(Boolean).join(' · ')
-}
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -690,58 +527,14 @@ async function load(silent = false) {
     if (leaseError) throw leaseError
 
     const accIds = (accRows ?? []).map((a) => a.id)
-    // Every stay, ended ones included: a former tenant can still pay what they
-    // owe, and that payment has to show up (and be confirmable) here. Only
-    // current stays go on the room grid.
-    const leaseIds = (leaseRows ?? []).map((l) => l.id)
+    // Only current stays go on the room grid (the Payments panel loads its own).
     const currentLeases = (leaseRows ?? []).filter((l) => ['active', 'pending', 'leave_requested'].includes(l.status))
 
-    // Second wave: rooms key off the accommodation ids, payments off the lease
-    // ids. Both id lists are known now, so the two go out together instead of
-    // one after the other with all the row-shaping work in between. Either is
-    // skipped when its id list is empty rather than round-tripping for nothing.
-    let roomRows: { id: string; label: string | null; room_number: string | null; capacity: number | null; accommodation_id: string }[] = []
-    let paymentRows: {
-      id: string
-      month: string
-      amount: number
-      method: string
-      status: string
-      lease_id: string
-      description: string | null
-      txn_reference: string | null
-      proof_url: string | null
-      paid_at: string | null
-      rejection_reason: string | null
-      note: string | null
-      promise_date: string | null
-      claimed_amount: number | null
-      undo_reason: string | null
-      receipt_no: string | null
-      verified_by_user: { full_name: string | null } | null
-    }[] = []
-    const [roomsResult, paymentsResult] = await Promise.all([
-      accIds.length
-        ? supabase
-            .from('rooms')
-            .select('id,label,room_number,capacity,accommodation_id')
-            .in('accommodation_id', accIds)
-        : null,
-      leaseIds.length
-        ? supabase
-            .from('payments')
-            .select(
-              'id,month,amount,method,status,lease_id,description,txn_reference,proof_url,paid_at,rejection_reason,note,promise_date,claimed_amount,undo_reason,receipt_no,verified_by_user:users!payments_verified_by_fkey(full_name)',
-            )
-            .in('lease_id', leaseIds)
-            .order('month', { ascending: false })
-        : null,
-    ])
-    if (roomsResult?.error) throw roomsResult.error
-    roomRows = roomsResult?.data ?? []
-    if (paymentsResult?.error) throw paymentsResult.error
-    paymentRows = (paymentsResult?.data ?? []) as unknown as typeof paymentRows
-    await signRows('payments', paymentRows, 'proof_url')
+    const { data: roomData, error: roomError } = accIds.length
+      ? await supabase.from('rooms').select('id,label,room_number,capacity,accommodation_id').in('accommodation_id', accIds)
+      : { data: [], error: null }
+    if (roomError) throw roomError
+    const roomRows = roomData ?? []
 
     const leasesByRoom = new Map<string, Lease[]>()
     for (const l of currentLeases) {
@@ -786,48 +579,7 @@ async function load(silent = false) {
     // collapse whatever the landlord/landlady already has open.
     if (!silent) collapsedAccIds.value = new Set(accommodations.value.map((acc) => acc.id))
 
-    const roomInfoById = new Map(roomRows.map((r) => [r.id, r]))
-    const accNameById = new Map((accRows ?? []).map((a) => [a.id, a.name?.trim() || 'Unnamed accommodation']))
-    const leaseInfo = new Map<string, { studentId: string; studentName: string; roomLabel: string; accommodationId: string; accommodationName: string }>()
-    for (const l of leaseRows ?? []) {
-      const student = l.users as unknown as { full_name: string | null } | null
-      const room = roomInfoById.get(l.room_id)
-      const accId = room?.accommodation_id ?? ''
-      leaseInfo.set(l.id, {
-        studentId: l.student_id,
-        studentName: student?.full_name || 'A student',
-        roomLabel: room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Room'),
-        accommodationId: accId,
-        accommodationName: accNameById.get(accId) || 'Accommodation',
-      })
-    }
-
-    payments.value = paymentRows.map((p) => {
-      const info = leaseInfo.get(p.lease_id)
-      return {
-        id: p.id,
-        month: p.month,
-        amount: Number(p.amount),
-        method: p.method,
-        status: p.status,
-        accommodationId: info?.accommodationId ?? '',
-        accommodationName: info?.accommodationName ?? 'Accommodation',
-        roomLabel: info?.roomLabel ?? 'Room',
-        studentId: info?.studentId ?? '',
-        studentName: info?.studentName ?? 'A student',
-        description: p.description || '',
-        txnReference: p.txn_reference || '',
-        proofUrl: p.proof_url || '',
-        paidAt: p.paid_at,
-        verifiedByName: p.verified_by_user?.full_name || '',
-        rejectionReason: p.rejection_reason || '',
-        note: p.note || '',
-        promiseDate: p.promise_date,
-        claimedAmount: p.claimed_amount == null ? null : Number(p.claimed_amount),
-        undoReason: p.undo_reason || '',
-        receiptNo: p.receipt_no || '',
-      }
-    })
+    loadVersion.value++
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
@@ -932,30 +684,19 @@ async function decideApplication(l: Lease, decision: 'active' | 'rejected', reas
   }
 }
 
-const paymentDetailOpen = ref(false)
-const selectedPayment = ref<PaymentRow | null>(null)
-function openPaymentDetail(p: PaymentRow) {
-  selectedPayment.value = p
-  paymentDetailOpen.value = true
-}
-
-// Lets a landlord/landlady log a payment from the top of the page: tapping the top
-// button turns the list itself into the picker — payable rows highlight,
-// everything else (decide/message actions, navigation) is disabled until
-// a tenant is tapped or picking is cancelled.
-const pickingPayment = ref(false)
 function isPayable(l: Lease) {
   return l.status === 'active' || l.status === 'leave_requested'
 }
+
+// Log a payment from the top of the By boarder tab: the list itself becomes the
+// picker — payable rows highlight, everything else is disabled until a boarder
+// is tapped or picking is cancelled.
+const pickingPayment = ref(false)
+const paymentOpen = ref(false)
+const paymentLease = ref<Lease | null>(null)
 function handlePick(l: Lease) {
   if (!isPayable(l)) return
   pickingPayment.value = false
-  openLogPayment(l)
-}
-
-const paymentOpen = ref(false)
-const paymentLease = ref<Lease | null>(null)
-function openLogPayment(l: Lease) {
   paymentLease.value = l
   paymentOpen.value = true
 }
@@ -1041,16 +782,6 @@ function openLogPayment(l: Lease) {
   border: 1px solid var(--m-border);
   background: var(--m-surface);
   color: var(--m-ink);
-}
-.picking-hint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: -4px 2px 0;
-  color: var(--m-muted);
-  font-size: 12px;
-  text-align: center;
 }
 
 /* One connected card — the header and its rooms share this border/radius
@@ -1317,12 +1048,22 @@ function openLogPayment(l: Lease) {
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* While picking a tenant to log a payment for, payable rows highlight so
+/* While picking a boarder to log a payment for, payable rows highlight so
    they're easy to spot against the rest of the (disabled) list. */
 .lease-main--pick {
   padding: 6px 8px;
   margin: 0 -8px;
   background: var(--m-primary-soft);
+}
+.picking-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: -4px 2px 0;
+  color: var(--m-muted);
+  font-size: 12px;
+  text-align: center;
 }
 .lease-actions {
   display: flex;
@@ -1511,7 +1252,12 @@ function openLogPayment(l: Lease) {
   margin-top: -14px;
   border-top: 8px solid var(--m-bg);
 }
-.panel :is(.top-actions, .picking-hint, .pay-summary, .sec-title, .sec-head, .pay-month-head) {
+/* Listed one by one, not as `.panel :is(...)`: in that form Vue scopes .panel
+   instead of the target, and the inset leaks into child components' headers. */
+.panel .top-actions,
+.panel .picking-hint,
+.panel .sec-title,
+.panel .sec-head {
   margin-right: 12px;
   margin-left: 12px;
 }
@@ -1519,64 +1265,6 @@ function openLogPayment(l: Lease) {
   margin: 0;
 }
 
-.pay-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pay-summary {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 8px;
-}
-.pay-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 12px 14px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-bg);
-}
-.pay-stat-value {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 20px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.pay-stat-label {
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 600;
-}
-.pay-stat--warn {
-  border-color: transparent;
-  background: var(--m-warning-soft);
-}
-.pay-stat--warn .pay-stat-value,
-.pay-stat--warn .pay-stat-label {
-  color: var(--m-warning);
-}
-.pay-month {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.pay-month + .pay-month {
-  margin-top: 6px;
-}
-.pay-month-head {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 2px;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-.pay-month-total {
-  font-variant-numeric: tabular-nums;
-}
 .sec-title {
   margin: 0;
   line-height: 1.3;
@@ -1586,128 +1274,5 @@ function openLogPayment(l: Lease) {
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-}
-.sec-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.sec-head .sec-title {
-  padding: 0;
-}
-.sec-link {
-  flex: 0 0 auto;
-  border: 0;
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.group {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  overflow: hidden;
-}
-.pay-row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.group > .pay-row:first-child {
-  border-top: 0;
-}
-.group--warn > .pay-row {
-  box-shadow: inset 3px 0 var(--m-warning);
-}
-.pay-row-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
-.pay-row-main,
-.pay-row-sub {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.pay-row-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pay-row-amount {
-  flex: 0 0 auto;
-  color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.pay-row-amount--void {
-  color: var(--m-muted);
-  text-decoration: line-through;
-}
-.pay-row-meta {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pay-chip {
-  flex: 0 0 auto;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-}
-.pay-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.pay-chip--amber,
-.pay-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.pay-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.pay-row-review {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 1px;
-  padding: 2px 6px 2px 9px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-size: 11px;
-  font-weight: 700;
 }
 </style>
