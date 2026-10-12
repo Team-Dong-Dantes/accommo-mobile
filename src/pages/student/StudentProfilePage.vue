@@ -5,6 +5,7 @@
     <div v-if="loading" :class="isDesktop ? 'desk-card desk-card--profile' : 'stack'">
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <div class="sk-card">
+        <q-skeleton type="rect" height="110px" class="sk-cover" />
         <div class="sk-hero-top">
           <q-skeleton type="circle" size="56px" />
           <div class="sk-hero-meta">
@@ -45,6 +46,7 @@
       <!-- Hero Header -->
       <ProfileHero
         v-model:avatar-url="avatarUrl"
+        v-model:cover-url="coverUrl"
         :initials="me.initials"
         :user-id="userId"
         :name="me.fullName || 'Your name'"
@@ -228,6 +230,7 @@ const editing = ref(false)
 
 const userId = ref('')
 const avatarUrl = ref<string | null>(null)
+const coverUrl = ref<string | null>(null)
 
 const me = reactive({
   fullName: '',
@@ -424,7 +427,7 @@ async function load(silent = false) {
     const [{ data: profile, error: profileError }, { data: studentProfile }] = await Promise.all([
       supabase
         .from('users_full')
-        .select('full_name, email, phone, initials, status, created_at, updated_at, avatar_url')
+        .select('full_name, email, phone, initials, status, created_at, updated_at, avatar_url, cover_url')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -456,6 +459,7 @@ async function load(silent = false) {
     // left the profile stuck on initials even though a photo existed.
     const storedAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url || ''
     avatarUrl.value = resolveAsset(picture || storedAvatar) || null
+    coverUrl.value = profile?.cover_url ?? null
 
     academics.studentId = studentProfile?.student_id || ''
     academics.college = studentProfile?.college || ''
@@ -574,6 +578,11 @@ useLiveData({
 .desk-col > .sk-card {
   border: 0;
   background: transparent;
+}
+/* ProfileHero's cover strip, bled to the card's edges. */
+.sk-cover {
+  margin: -14px -14px 0;
+  border-radius: var(--m-radius) var(--m-radius) 0 0;
 }
 .sk-hero-top,
 .sk-hero-row {

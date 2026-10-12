@@ -673,6 +673,11 @@ body {
   border-radius: 0;
   background: transparent;
 }
+/* ...so the hero's cover strip, now inset in the half, rounds itself. */
+.shell-tablet .desk-col > .p-hero .p-hero-cover {
+  border-radius: var(--m-radius);
+  overflow: hidden;
+}
 
 /* Profile (student and manager): a narrow identity + section-menu half beside
    a wide details half, rather than two equal halves with the left one mostly

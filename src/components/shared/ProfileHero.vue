@@ -4,8 +4,19 @@
       <IconifyIcon :icon="actionIcon" width="18" />
     </button>
 
+    <div class="p-hero-cover">
+      <img v-if="coverSrc && !coverFailed" :src="coverSrc" alt="" class="p-hero-cover-img" @error="coverFailed = true" />
+      <button type="button" class="p-hero-cover-btn" aria-label="Change cover photo" title="Change cover photo" :disabled="coverBusy" @click="coverInput?.click()">
+        <q-spinner v-if="coverBusy" size="16px" />
+        <IconifyIcon v-else icon="lucide:camera" width="16" />
+      </button>
+      <input ref="coverInput" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="onCover" />
+    </div>
+
     <div class="p-hero-top">
-      <AvatarUpload v-model="avatarUrl" :initials="initials" :user-id="userId" :size="avatarSize" :background="avatarBackground" />
+      <span class="p-hero-avatar" :style="{ marginTop: `-${avatarSize / 2}px` }">
+        <AvatarUpload v-model="avatarUrl" :initials="initials" :user-id="userId" :size="avatarSize" :background="avatarBackground" />
+      </span>
       <div class="p-hero-meta">
         <div class="p-hero-row">
           <h1 class="p-hero-name">{{ name }}</h1>
@@ -25,11 +36,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import AvatarUpload from '@/components/shared/AvatarUpload.vue'
+import { uploadCover } from '@/utils/upload'
+import { COVER, resolveAsset } from '@/utils/cloudinaryUrl'
+import { useNotify } from '@/utils/notify'
 
 const avatarUrl = defineModel<string | null>('avatarUrl', { default: null })
+const coverUrl = defineModel<string | null>('coverUrl', { default: null })
 
 const props = withDefaults(
   defineProps<{
@@ -61,6 +76,32 @@ const props = withDefaults(
 
 const emit = defineEmits<{ action: [] }>()
 
+const notify = useNotify()
+const coverInput = ref<HTMLInputElement | null>(null)
+const coverBusy = ref(false)
+// Stored value is the original upload; display a hero-sized copy.
+const coverSrc = computed(() => resolveAsset(coverUrl.value, COVER))
+const coverFailed = ref(false)
+watch(coverUrl, () => {
+  coverFailed.value = false
+})
+
+async function onCover(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  coverBusy.value = true
+  try {
+    coverUrl.value = await uploadCover(file, props.userId)
+    notify.success('Cover photo updated.')
+  } catch (e) {
+    notify.error(e instanceof Error ? e.message : 'Could not upload cover photo.')
+  } finally {
+    coverBusy.value = false
+    input.value = ''
+  }
+}
+
 const statusIcon = computed(() => {
   if (props.statusIconName) return props.statusIconName
   if (props.statusTone === 'good') return 'lucide:check-circle'
@@ -79,6 +120,7 @@ const statusIcon = computed(() => {
 }
 .p-hero-action {
   position: absolute;
+  z-index: 1;
   top: 8px;
   right: 8px;
   display: flex;
@@ -94,15 +136,52 @@ const statusIcon = computed(() => {
 .p-hero-action:hover {
   background: var(--m-primary-soft);
 }
+/* Same empty-state gradient as PersonProfile's hero, so a profile without a
+   cover looks the same from both sides. */
+.p-hero-cover {
+  position: relative;
+  height: 110px;
+  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
+}
+.p-hero-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.p-hero-cover-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.55);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* The avatar rides half over the cover's bottom edge (margin set inline from
+   avatarSize); the name stays below the edge, on the card. */
 .p-hero-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 14px 58px 14px 14px;
+  padding: 0 14px 14px;
+}
+.p-hero-avatar {
+  position: relative;
+  display: flex;
+  flex: none;
 }
 .p-hero-meta {
   flex: 1;
   min-width: 0;
+  padding-top: 8px;
 }
 .p-hero-row {
   display: flex;

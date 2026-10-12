@@ -620,7 +620,7 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,leave_date,deposit_returned_at,monthly_rent,allow_partial,partial_min_pct,rent_due_day,grace_days,student_id,landlord_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,leave_date,deposit_returned_at,monthly_rent,allow_partial,partial_min_pct,rent_due_day,grace_days,student_id,landlord_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url,cover_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
@@ -633,7 +633,7 @@ async function load(silent = false) {
     // E-mail and phone come from users_full, which answers only while the lease
     // is current; a past tenant keeps their name here but not their contacts.
     const contact = data.contact as unknown as { email: string | null; phone: string | null } | null
-    const person = data.users as unknown as { full_name: string | null; initials: string | null; avatar_url: string | null } | null
+    const person = data.users as unknown as { full_name: string | null; initials: string | null; avatar_url: string | null; cover_url: string | null } | null
     const student = person ? { ...person, email: contact?.email ?? null, phone: contact?.phone ?? null } : null
     const room = data.rooms as unknown as {
       label: string | null
@@ -663,7 +663,9 @@ async function load(silent = false) {
     const cover = [...(room?.accommodations?.accommodation_images ?? [])].sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
     )[0]
-    coverUrl.value = cover?.url ? resolveAsset(cover.url, COVER) : ''
+    // The student's own cover photo when they set one; the boarding house otherwise.
+    const coverSrc = student?.cover_url || cover?.url
+    coverUrl.value = coverSrc ? resolveAsset(coverSrc, COVER) : ''
     lease.startDate = data.start_date
     lease.endDate = data.end_date
     lease.leaveDate = data.leave_date

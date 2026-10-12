@@ -221,6 +221,23 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
   return url;
 }
 
+/**
+ * Uploads a new profile cover photo to `users.cover_url`. Unlike the avatar it
+ * never appears in the app chrome, so there is no auth-metadata copy to keep.
+ */
+export async function uploadCover(file: File, userId: string): Promise<string> {
+  if (!ALLOWED_IMAGE.includes(file.type)) {
+    throw new Error('A cover photo must be a JPEG, PNG or WebP image.');
+  }
+
+  const result = await performUpload(file);
+  const url = result.url || result.secureUrl;
+
+  const { error } = await supabase.from('users').update({ cover_url: url }).eq('id', userId);
+  if (error) throw error;
+  return url;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Sensitive documents: Cloudinary `authenticated` delivery                    */
 /* -------------------------------------------------------------------------- */

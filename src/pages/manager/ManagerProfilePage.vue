@@ -5,6 +5,7 @@
     <div v-if="loading" :class="isDesktop ? 'desk-card desk-card--profile' : 'loading-stack'">
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
       <div class="sk-card">
+        <q-skeleton type="rect" height="110px" class="sk-cover" />
         <div class="sk-hero-top">
           <q-skeleton type="circle" size="56px" />
           <div class="sk-hero-meta">
@@ -72,6 +73,7 @@
       <!-- ===== HEADER ===== -->
       <ProfileHero
         v-model:avatar-url="avatarUrl"
+        v-model:cover-url="coverUrl"
         :initials="me.initials"
         :user-id="userId"
         avatar-background="linear-gradient(135deg, #2563eb, #7c3aed)"
@@ -254,6 +256,7 @@ const editing = ref(false)
 
 const userId = ref('')
 const avatarUrl = ref<string | null>(null)
+const coverUrl = ref<string | null>(null)
 
 // User data – must be defined before render
 const me = reactive({
@@ -371,7 +374,7 @@ async function load(silent = false) {
     const [{ data: profile, error: profileError }, { data: managerProfile }] = await Promise.all([
       supabase
         .from('users_full')
-        .select('full_name, email, phone, initials, status, sex, created_at, updated_at, avatar_url')
+        .select('full_name, email, phone, initials, status, sex, created_at, updated_at, avatar_url, cover_url')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -403,6 +406,7 @@ async function load(silent = false) {
           : ''
     const storedAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url || ''
     avatarUrl.value = resolveAsset(picture || storedAvatar, AVATAR) || null
+    coverUrl.value = profile?.cover_url ?? null
     responseRate.value = managerProfile?.response_rate ?? null
 
     // Never clobber an in-progress edit with a silent (realtime-triggered)
@@ -506,6 +510,11 @@ useLiveData({
 .desk-col > .sk-card {
   border: 0;
   background: transparent;
+}
+/* ProfileHero's cover strip, bled to the card's edges. */
+.sk-cover {
+  margin: -14px -14px 0;
+  border-radius: var(--m-radius) var(--m-radius) 0 0;
 }
 .sk-hero-top {
   display: flex;

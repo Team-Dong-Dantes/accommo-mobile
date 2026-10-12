@@ -36,6 +36,7 @@
       :name="person.name"
       :initials="person.initials"
       :avatar-url="person.avatarUrl"
+      :cover-url="person.coverUrl"
       :chip="chip.label"
       :chip-tone="chip.tone"
       :subtitle="subtitle"
@@ -132,7 +133,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useQrStore } from '@/stores/qr'
 import { isDesktop } from '@/utils/useTabletMode'
-import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
+import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import { initialsOf, formatPeso, landlordTitle } from '@/utils/format'
 import PersonProfile from '@/components/shared/PersonProfile.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -176,6 +177,7 @@ const person = reactive({
   name: '',
   initials: '?',
   avatarUrl: null as string | null,
+  coverUrl: null as string | null,
   role: '',
   studentId: null as string | null,
   program: null as string | null,
@@ -243,7 +245,7 @@ onMounted(async () => {
 
     const { data: user } = await supabase
       .from('users')
-      .select('full_name, initials, avatar_url, role, sex')
+      .select('full_name, initials, avatar_url, cover_url, role, sex')
       .eq('id', targetId.value)
       .maybeSingle()
 
@@ -251,6 +253,7 @@ onMounted(async () => {
       person.name = user.full_name || 'Unknown'
       person.initials = user.initials || initialsOf(person.name)
       person.avatarUrl = user.avatar_url ? resolveAsset(user.avatar_url, AVATAR) : null
+      person.coverUrl = user.cover_url ? resolveAsset(user.cover_url, COVER) : null
       person.role = user.role ?? ''
       person.sex = user.sex ?? null
     } else if (scan.value) {
