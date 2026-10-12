@@ -30,7 +30,9 @@
           <!-- Shown on the first screen too, where it leaves the flow rather
                than stepping back through it: picking the wrong role was
                otherwise a dead end, with the only way out being to kill the app. -->
+          <!-- Not on a resubmit's first screen: there is no role to go back to. -->
           <q-btn
+            v-if="stepIndex > 0 || !isResubmit"
             flat
             dense
             round
@@ -373,13 +375,9 @@
             </AuthFieldGroup>
           </template>
 
-          <!-- Proof of enrolment (student, optional) -->
-          <!-- The section head that used to sit here said "Two documents /
-               Optional", which the question above and the count beside it
-               already say between them. -->
-          <template v-else-if="current === 'proof'">
-            <div class="doc-count">{{ proofAdded }} of 2 added</div>
-
+          <!-- Proof of enrolment (student, optional): one document per screen,
+               each skippable on its own. -->
+          <template v-else-if="current === 'schoolId'">
             <AuthDocumentCard
               v-model="form.schoolIdFile"
               v-model:text="form.schoolIdText"
@@ -388,7 +386,9 @@
               hint="The front, with all four corners in the frame."
               icon="lucide:id-card"
             />
+          </template>
 
+          <template v-else-if="current === 'assessment'">
             <AuthDocumentCard
               v-model="form.assessmentFile"
               v-model:text="form.assessmentText"
@@ -396,14 +396,11 @@
               title="Assessment of Fees"
               hint="This term's copy, showing your name."
               icon="lucide:receipt-text"
-              class="q-mt-sm"
             />
           </template>
 
-          <!-- Documents (manager) -->
-          <template v-else-if="current === 'documents'">
-            <div class="doc-count">{{ documentsAdded }} of 2 added · both required</div>
-
+          <!-- Requirements (landlord/landlady, both required), one per screen -->
+          <template v-else-if="current === 'governmentId'">
             <AuthDocumentCard
               v-model="form.governmentIdFile"
               title="Valid Government ID"
@@ -418,13 +415,14 @@
               <span class="doc-expiry-label">Expiry date on this ID</span>
               <DateTimeField v-model="form.governmentIdExpiresAt" mode="date" placeholder="Pick the expiry date" />
             </label>
+          </template>
 
+          <template v-else-if="current === 'businessPermit'">
             <AuthDocumentCard
               v-model="form.businessPermitFile"
               title="Business / Mayor's Permit"
               hint="The current permit for the property you are listing."
               icon="lucide:file-text"
-              class="q-mt-sm"
               :rules="[(val: File | null) => !!val || 'Business Permit is required']"
             />
             <label class="doc-expiry">
@@ -467,12 +465,12 @@
           />
 
           <q-btn
-            v-else-if="current === 'proof' && !isManager"
+            v-else-if="current === 'schoolId' || current === 'assessment'"
             flat
             no-caps
             class="actions-secondary"
             label="Skip for now"
-            @click="skipProof"
+            @click="skipDocument"
           />
 
           <div v-else-if="stepIndex === 0 && !isGoogleMode && !isResubmit" class="actions-note">
@@ -528,8 +526,10 @@ type StepKey =
   | 'verify'
   | 'studies'
   | 'studentId'
-  | 'proof'
-  | 'documents';
+  | 'schoolId'
+  | 'assessment'
+  | 'governmentId'
+  | 'businessPermit';
 
 /** The short name in the step header — what this screen is, for the progress row. */
 const STEP_TITLE: Record<StepKey, string> = {
@@ -540,8 +540,10 @@ const STEP_TITLE: Record<StepKey, string> = {
   verify: 'Confirm e-mail',
   studies: 'Studies',
   studentId: 'Student ID',
-  proof: 'Enrolment',
-  documents: 'Requirements',
+  schoolId: 'School ID',
+  assessment: 'Assessment',
+  governmentId: 'Government ID',
+  businessPermit: 'Permit',
 };
 
 /**
@@ -564,13 +566,21 @@ const STEP_QUESTION: Record<StepKey, { title: string; note?: string }> = {
   // asking a student to justify themselves before it will let them in. This is
   // the same task the landlord/landlady screen calls "Verify your property", and the two
   // should sound like the same app doing the same thing.
-  proof: {
+  schoolId: {
     title: 'Verify your enrolment',
-    note: 'Optional — only OSAS sees these. You can browse Accommo while they check, or add them later from Profile.',
+    note: 'Start with your school ID. Optional — only OSAS sees it, and you can add it later from Profile.',
   },
-  documents: {
+  assessment: {
+    title: 'Verify your enrolment',
+    note: 'Now your Assessment of Fees. Optional — you can browse Accommo while OSAS checks.',
+  },
+  governmentId: {
     title: 'Verify your property',
-    note: 'Only OSAS sees these. They cannot accredit a property without both.',
+    note: 'Start with your government ID. Only OSAS sees it; they cannot accredit a property without it.',
+  },
+  businessPermit: {
+    title: 'Verify your property',
+    note: 'Now the permit for the property. Only OSAS sees it; they cannot accredit a property without it.',
   },
 };
 
@@ -655,32 +665,31 @@ const collegeOptions = Object.keys(collegePrograms);
  * count correct for every path without a second rule.
  */
 const steps = computed<StepKey[]>(() => {
-  if (isResubmit.value) return ['documents'];
+  if (isResubmit.value) return ['governmentId', 'businessPermit'];
   const head: StepKey[] = isGoogleMode.value
     ? ['name', 'phone']
     : ['name', 'phone', 'email', 'password', 'verify'];
   return isManager.value
-    ? [...head, 'documents']
-    : [...head, 'studies', 'studentId', 'proof'];
+    ? [...head, 'governmentId', 'businessPermit']
+    : [...head, 'studies', 'studentId', 'schoolId', 'assessment'];
 });
 
 const current = computed<StepKey>(() => steps.value[stepIndex.value] ?? 'name');
 const stepTitle = computed(() => STEP_TITLE[current.value]);
 const isLastStep = computed(() => stepIndex.value === steps.value.length - 1);
 
-/** The resubmit screen keeps its own wording: it is a correction, not a sign-up. */
+/** The resubmit screens keep their own wording: a correction, not a sign-up. */
 const question = computed(() => {
   if (isResubmit.value) {
-    return { title: 'Update your application', note: 'Replace the requirements OSAS asked about.' };
+    return {
+      title: 'Update your application',
+      note: current.value === 'governmentId'
+        ? 'Replace your government ID if OSAS asked about it.'
+        : 'Replace your permit if OSAS asked about it.',
+    };
   }
   return STEP_QUESTION[current.value];
 });
-
-/** "1 of 2 added" — visible progress on a screen whose two cards look alike. */
-const proofAdded = computed(() => Number(!!form.schoolIdFile) + Number(!!form.assessmentFile));
-const documentsAdded = computed(
-  () => Number(!!form.governmentIdFile) + Number(!!form.businessPermitFile),
-);
 
 const nextLabel = computed(() => {
   // The auth account is created on leaving this screen, so the button says so.
@@ -962,13 +971,7 @@ async function nextStep() {
     return;
   }
 
-  // DateTimeField is a button, not a q-field, so the form's own validate() does
-  // not see the two expiry dates. Checked here rather than left optional: a
-  // document with no expiry is indistinguishable from one that never lapses.
-  if (current.value === 'documents' && (!form.governmentIdExpiresAt || !form.businessPermitExpiresAt)) {
-    notify.error('Add the expiry date printed on each document.');
-    return;
-  }
+  if (expiryMissing()) return;
 
   // Leaving Password: the address and the password are both in hand, so create
   // the account here and the next screen can send its code straight away.
@@ -979,6 +982,22 @@ async function nextStep() {
   }
 
   if (!isLastStep.value) goToStep(stepIndex.value + 1);
+}
+
+/**
+ * DateTimeField is a button, not a q-field, so the form's own validate() does
+ * not see the expiry dates. Checked rather than left optional: a document with
+ * no expiry is indistinguishable from one that never lapses. Called on Continue
+ * and on submit, since the permit screen is the last one and never continues.
+ */
+function expiryMissing(): boolean {
+  const date =
+    current.value === 'governmentId' ? form.governmentIdExpiresAt
+    : current.value === 'businessPermit' ? form.businessPermitExpiresAt
+    : 'n/a';
+  if (date) return false;
+  notify.error('Add the expiry date printed on this document.');
+  return true;
 }
 
 /** Each step starts at its own top; the scroller does not keep the last one's offset. */
@@ -1033,10 +1052,16 @@ const documentExpected = computed<DocExpected>(() => ({
   college: form.college,
 }));
 
-/** Finish without the enrolment documents; `proof` is the student's last screen. */
-function skipProof() {
-  form.schoolIdFile = null;
+/** Leave this enrolment document out; the assessment is the student's last screen, so skipping it finishes. */
+function skipDocument() {
+  if (current.value === 'schoolId') {
+    form.schoolIdFile = null;
+    form.schoolIdText = null;
+    goToStep(stepIndex.value + 1);
+    return;
+  }
   form.assessmentFile = null;
+  form.assessmentText = null;
   void handleRegister(true);
 }
 
@@ -1123,6 +1148,7 @@ async function handleRegister(skipVerification = false) {
       revealFirstError();
       return;
     }
+    if (expiryMissing()) return;
   }
 
   // The backstop. Screen one's form already requires both consents, so this is
@@ -1318,17 +1344,6 @@ function onEmailVerified() {
   justify-content: center;
   color: var(--m-muted);
   font-size: 14px;
-}
-
-/* Says what the step expects of you before the upload boxes do. */
-/* Visible progress on a screen whose two cards are meant to look alike. */
-.doc-count {
-  margin: 0 12px 10px;
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 
 /* Sits under the document card it belongs to, indented to the card's gutter. */
