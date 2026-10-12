@@ -23,6 +23,13 @@ export interface Stay {
   moveIn: { due: number; left: number } | null
 }
 
+/** The next unpaid month of rent, off the ledger. */
+export interface NextPayment {
+  amount: number
+  month: string
+  overdue: boolean
+}
+
 export interface Manager {
   id: string
   name: string

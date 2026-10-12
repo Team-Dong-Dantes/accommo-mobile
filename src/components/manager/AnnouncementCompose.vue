@@ -50,10 +50,10 @@
             <span class="row-label">Banner line</span>
             <span class="count" :class="{ 'count--near': form.summary.length > 120 }">{{ form.summary.length }}/140</span>
           </span>
-          <input v-model="form.summary" type="text" class="row-input" maxlength="140" placeholder="Optional — the one line tenants see first" />
+          <input v-model="form.summary" type="text" class="row-input" maxlength="140" placeholder="Optional — the one line boarders see first" />
         </label>
 
-        <textarea v-model="form.body" class="body" placeholder="The full notice: what is happening, when, and what your tenants need to do." />
+        <textarea v-model="form.body" class="body" placeholder="The full notice: what is happening, when, and what your boarders need to do." />
 
         <!-- A photo of the posted advisory or schedule says more than the body
              usually can, and the reader already renders it as a poster. -->
@@ -137,7 +137,7 @@
       <!-- 4. PREVIEW — the notice as a tenant meets it, so the banner line is
            written for the banner rather than guessed at. -->
       <section class="preview">
-        <span class="preview-cap">What your tenants will see</span>
+        <span class="preview-cap">What your boarders will see</span>
         <div class="pv-banner">
           <IconifyIcon icon="lucide:megaphone" width="14" />
           <span class="pv-banner-text">{{ form.summary.trim() || form.title.trim() || 'Your announcement' }}</span>
@@ -266,8 +266,8 @@ watch(() => [...form.accommodationIds], countTenants, { immediate: true })
 
 const reachText = computed(() => {
   if (!form.accommodationIds.length) return 'Pick at least one house.'
-  if (tenantCount.value === null) return 'Counting tenants…'
-  const who = `${tenantCount.value} ${tenantCount.value === 1 ? 'tenant' : 'tenants'}`
+  if (tenantCount.value === null) return 'Counting boarders…'
+  const who = `${tenantCount.value} ${tenantCount.value === 1 ? 'boarder' : 'boarders'}`
   return form.accommodationIds.length === 1
     ? `${who} will get this`
     : `${who} across ${form.accommodationIds.length} houses will get this`

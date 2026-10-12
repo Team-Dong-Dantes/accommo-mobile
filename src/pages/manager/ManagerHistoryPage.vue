@@ -100,7 +100,7 @@
                   </div>
                   <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
                 </template>
-                <EmptyState v-else variant="compact" icon="lucide:star" title="No ratings yet" message="Ratings from past tenants will show up here." />
+                <EmptyState v-else variant="compact" icon="lucide:star" title="No ratings yet" message="Ratings from past boarders will show up here." />
               </component>
 
               <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
@@ -110,7 +110,7 @@
                   inline
                   class="desk-search"
                   :filter-count="filter !== 'all' ? 1 : 0"
-                  placeholder="Search tenant, room or month"
+                  placeholder="Search boarder, room or month"
                   search-label="Search"
                   @open-filters="openFilters('payments')"
                 />
@@ -163,7 +163,7 @@
                   </div>
                   <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
                 </template>
-                <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Payments you log against a tenant will be listed here." />
+                <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Payments you log against a boarder will be listed here." />
               </component>
             </component>
           </div>
@@ -181,7 +181,7 @@
       v-if="!loading && !error && !split"
       v-model="queries[tab]"
       :filter-count="(tab === 'reviews' ? reviewDateFilter : filter) !== 'all' ? 1 : 0"
-      :placeholder="tab === 'payments' ? 'Search tenant, room or month' : 'Search ratings'"
+      :placeholder="tab === 'payments' ? 'Search boarder, room or month' : 'Search ratings'"
       search-label="Search"
       @open-filters="openFilters(tab)"
     />

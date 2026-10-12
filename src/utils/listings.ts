@@ -41,7 +41,7 @@ export type UtilityKey = (typeof UTILITIES)[number]['key'];
 export const UTILITY_BILLING_LABEL: Record<string, string> = {
   included: 'Included in rent',
   own_meter: 'Own meter',
-  split: 'Split among tenants',
+  split: 'Split among boarders',
   flat_fee: 'Flat fee',
   not_available: 'Not available',
 };

@@ -3,17 +3,11 @@
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="greet">
-          <q-skeleton type="text" width="60px" height="17px" />
-          <q-skeleton type="text" width="100px" height="20px" />
+          <q-skeleton type="text" width="160px" height="24px" />
         </div>
-        <q-skeleton type="rect" height="96px" class="sk" />
-        <q-skeleton type="rect" height="46px" class="sk" />
         <q-skeleton type="rect" height="150px" class="sk" />
-        <section class="sec">
-          <q-skeleton type="text" width="120px" height="16px" />
-          <q-skeleton type="rect" height="42px" class="sk-sm" />
-          <q-skeleton type="rect" height="42px" class="sk-sm" />
-        </section>
+        <q-skeleton type="rect" height="190px" class="sk" />
+        <q-skeleton type="rect" height="150px" class="sk" />
       </div>
 
       <div v-else-if="error" class="stack">
@@ -21,71 +15,61 @@
       </div>
 
       <div v-else class="stack">
-        <!-- Greeting -->
         <div class="greet">
-          <span class="greet-time">{{ greeting }},</span>
-          <span class="greet-name">{{ firstName }}</span>
+          <span class="greet-line">
+            <span class="greet-time">{{ greeting }},</span>
+            <span class="greet-name">{{ firstName }}</span>
+          </span>
+          <span class="greet-date">{{ today }}</span>
         </div>
 
         <!-- Only while OSAS has not verified the account yet. -->
         <VerificationBanner />
 
-        <!-- Occupancy -->
-        <q-card flat class="occ" :class="{ 'occ--empty': !hasProperties }">
-          <div class="occ-left">
+        <!-- Occupancy, rent and rating in one card. Beds are said once, in the bar's caption. -->
+        <div class="occ" :class="{ 'occ--empty': !hasProperties }">
+          <div class="occ-head">
             <span class="occ-cap">Occupancy</span>
-            <span class="occ-pct">
-              {{ hasProperties ? occupancyRate : 0 }}<span class="occ-sign">%</span>
-            </span>
-            <span class="occ-sub">
-              {{ hasProperties ? `${tenants} of ${totalBeds} beds filled` : 'No beds listed yet' }}
+            <span class="occ-beds">
+              {{ hasProperties ? `${tenants} filled · ${vacantBeds} free` : 'No beds listed yet' }}
             </span>
           </div>
-          <div class="occ-right" aria-hidden="true">
-            <svg viewBox="0 0 120 120" class="ring">
-              <circle cx="60" cy="60" r="52" class="ring-track" />
-              <circle
-                cx="60" cy="60" r="52" class="ring-fill"
-                :stroke-dasharray="`${(occupancyRate / 100) * 326.7} 326.7`"
-                transform="rotate(-90 60 60)"
-              />
-            </svg>
-          </div>
-        </q-card>
+          <span class="occ-pct">{{ occupancyRate }}<span class="occ-sign">%</span></span>
+          <span
+            class="occ-bar"
+            role="progressbar"
+            :aria-valuenow="occupancyRate"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-label="Beds filled"
+          >
+            <span class="occ-fill" :style="{ width: `${occupancyRate}%` }" />
+          </span>
 
-        <!-- The rest of the numbers, rating included -->
-        <div class="chips">
-          <div class="chip">
-            <span class="chip-value">{{ formatPeso(expectedMonthly) }}</span>
-            <span class="chip-label">Expected/mo</span>
-          </div>
-          <div class="chip-div" />
-          <div class="chip">
-            <span class="chip-value">{{ vacantBeds }}</span>
-            <span class="chip-label">{{ vacantBeds === 1 ? 'Bed free' : 'Beds free' }}</span>
-          </div>
-          <template v-if="reviewCount > 0">
-            <div class="chip-div" />
-            <div class="chip">
-              <span class="chip-value chip-value--rating">
-                <IconifyIcon icon="lucide:star" width="14" />
-                {{ ratingAvg?.toFixed(1) }}
+          <div v-if="hasProperties" class="occ-stats">
+            <span class="occ-stat">
+              <span class="occ-stat-value">{{ formatPeso(expectedMonthly) }}</span>
+              <span class="occ-stat-label">Expected / month</span>
+            </span>
+            <span class="occ-stat">
+              <span class="occ-stat-value">
+                <IconifyIcon icon="lucide:star" width="15" />
+                {{ reviewCount > 0 ? ratingAvg?.toFixed(1) : '—' }}
               </span>
-              <span class="chip-label">
-                {{ reviewCount }} {{ reviewCount === 1 ? 'rating' : 'ratings' }}
+              <span class="occ-stat-label">
+                {{ reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? 'rating' : 'ratings'}` : 'No ratings yet' }}
               </span>
-            </div>
-          </template>
+            </span>
+          </div>
         </div>
 
-        <!-- Needs attention: the most urgent item stays put, the rest list below it -->
-        <DashPriority
-          :task="priority"
+        <DashTasks
+          :tasks="upNext"
+          :total="attention.length"
           empty-label="Nothing needs you"
           empty-hint="Concerns, applications and accreditation land here"
           @go="go"
         />
-        <DashTodoList title="Needs attention" :tasks="todo" :done-count="0" @go="go" />
 
         <!-- Properties -->
         <section class="sec">
@@ -96,9 +80,8 @@
             </button>
           </div>
 
-          <div class="plist">
-            <PropertyCard v-for="p in topProperties" :key="p.id" :property="p" @open="openProperty" />
-
+          <div v-if="hasProperties" class="plist">
+            <PropertyRow v-for="p in topProperties" :key="p.id" :property="p" @open="openProperty" />
             <button
               v-if="properties.length > topProperties.length"
               type="button"
@@ -106,15 +89,15 @@
               @click="go('/manager/properties')"
             >
               View all ({{ properties.length }})
-              <IconifyIcon icon="lucide:arrow-right" width="15" />
+              <IconifyIcon icon="lucide:arrow-right" width="16" />
             </button>
-
-            <PropertyCard
-              v-if="!hasProperties && auth.isVerifiedLandlord"
-              add-label="Add your first accommodation"
-              @add="go('/manager/properties/new')"
-            />
           </div>
+
+          <PropertyCard
+            v-else-if="auth.isVerifiedLandlord"
+            add-label="Add your first accommodation"
+            @add="go('/manager/properties/new')"
+          />
         </section>
       </div>
     </q-pull-to-refresh>
@@ -131,11 +114,11 @@ import { formatPeso } from '@/utils/format'
 import { ago } from '@/utils/profile'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-import DashPriority from '@/components/shared/DashPriority.vue'
+import DashTasks from '@/components/shared/DashTasks.vue'
 import VerificationBanner from '@/components/manager/VerificationBanner.vue'
 import { useAuthStore } from '@/stores/auth'
-import DashTodoList from '@/components/shared/DashTodoList.vue'
 import PropertyCard from '@/components/manager/PropertyCard.vue'
+import PropertyRow from '@/components/manager/PropertyRow.vue'
 import { healthTone, type Property } from '@/components/manager/property'
 import type { Task } from '@/components/shared/dashboard'
 
@@ -164,19 +147,20 @@ const occupancyRate = computed(() =>
 )
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
 
-// The top item is pinned; the next five list beneath it. Beyond that the
+const today = new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
+
+// The top item leads; the next five list beneath it. Beyond that the
 // dashboard stops being a summary — one expired permit per property adds up
 // fast, and every one of those rows routes to /manager/osas anyway.
-const priority = computed(() => attention.value[0] ?? null)
-const todo = computed(() => attention.value.slice(1, 6))
+const upNext = computed(() => attention.value.slice(0, 6))
 
-// Two cards only, worst health first, since the full set lives on
+// Four rows at most, worst health first, since the full set lives on
 // /manager/properties.
 const HEALTH_RANK = { danger: 0, warn: 1, good: 2 } as const
 const topProperties = computed(() =>
   [...properties.value]
     .sort((a, b) => HEALTH_RANK[healthTone(a)] - HEALTH_RANK[healthTone(b)])
-    .slice(0, 2),
+    .slice(0, 4),
 )
 
 function titleCase(raw: string | null | undefined) {
@@ -423,7 +407,7 @@ async function load(silent = false) {
         users: { full_name: string } | null
         rooms: { accommodations: { name: string } | null } | null
       } | null
-      const who = lease?.users?.full_name || 'A tenant'
+      const who = lease?.users?.full_name || 'A boarder'
       const where = lease?.rooms?.accommodations?.name
       items.push({
         id: `concern-${c.id}`,
@@ -590,17 +574,18 @@ function onPull(done: () => void) {
 </script>
 
 <style scoped>
+/* One type scale: 11 / 12 / 13 / 15 / 17 / 20 / 40. */
 .dash { background: var(--m-bg); }
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 5px var(--m-page-gutter) 16px;
+  gap: 12px;
+  padding: 8px var(--m-page-gutter) 20px;
 }
 .sk { border-radius: var(--m-radius); }
-.sk-sm { border-radius: var(--m-radius-sm); }
 
-.greet { display: flex; align-items: baseline; gap: 5px; padding: 0 2px; flex-wrap: wrap; }
+.greet { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 2px 0; }
+.greet-line { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 6px; }
 .greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }
 .greet-name {
   color: var(--m-ink);
@@ -609,88 +594,89 @@ function onPull(done: () => void) {
   font-weight: 700;
   letter-spacing: -0.02em;
 }
+.greet-date { flex: 0 0 auto; color: var(--m-muted); font-size: 12px; font-weight: 600; }
 
+/* Occupancy: figure, bar, then the money and rating under a hairline */
 .occ {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 13px;
+  flex-direction: column;
+  padding: 14px 14px 0;
   border-radius: var(--m-radius);
   background: var(--m-primary);
   color: #fff;
 }
-.occ--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
-.occ-left { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.occ-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.9; }
-.occ-pct { font-family: var(--m-font-display); font-size: 36px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.occ--empty { padding-bottom: 14px; border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
+.occ-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.occ-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.85; }
+.occ-beds { font-size: 13px; font-weight: 600; opacity: 0.9; }
+.occ--empty .occ-cap, .occ--empty .occ-beds { color: var(--m-muted); opacity: 1; }
+.occ-pct {
+  margin-top: 4px;
+  font-family: var(--m-font-display);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
 .occ-sign { font-size: 20px; font-weight: 600; opacity: 0.8; }
-.occ-sub { font-size: 12.5px; opacity: 0.9; }
-.occ--empty .occ-sub, .occ--empty .occ-cap { color: var(--m-muted); opacity: 1; }
-.occ-right { flex: 0 0 68px; }
-.ring { display: block; width: 68px; height: 68px; }
-.ring-track { fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 11; }
-.occ--empty .ring-track { stroke: var(--m-bg); }
-.ring-fill { fill: none; stroke: #fff; stroke-width: 11; stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
-.occ--empty .ring-fill { stroke: var(--m-border); }
+.occ-bar { display: block; height: 8px; margin-top: 12px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.25); }
+.occ--empty .occ-bar { background: var(--m-bg); }
+.occ-fill { display: block; height: 100%; border-radius: inherit; background: #fff; transition: width 0.5s ease; }
 
-.chips { display: flex; align-items: stretch; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
-.chip { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 8px 11px; }
-.chip-div { width: 1px; background: var(--m-border); }
-.chip-value {
-  color: var(--m-ink);
+.occ-stats { display: flex; margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.22); }
+.occ-stat { display: flex; min-width: 0; flex: 1 1 0; flex-direction: column; gap: 2px; padding: 12px 0; }
+.occ-stat + .occ-stat { padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, 0.22); }
+.occ-stat-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
   font-family: var(--m-font-display);
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chip-value--rating { display: flex; align-items: center; gap: 4px; color: var(--m-warning); }
-.chip-label { color: var(--m-muted); font-size: 11.5px; font-weight: 600; }
+.occ-stat-label { font-size: 12px; font-weight: 600; opacity: 0.85; }
 
-.sec { display: flex; flex-direction: column; gap: 5px; }
-.sec-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 2px 4px;
-}
+.sec { display: flex; flex-direction: column; gap: 6px; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
 .sec-title {
   margin: 0;
   color: var(--m-ink);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.03em;
+  line-height: 1.4;
   text-transform: uppercase;
 }
 .sec-link {
-  padding: 4px 8px;
+  min-height: 32px;
+  padding: 0 8px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--m-primary-dark);
   cursor: pointer;
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   transition: background 0.15s;
 }
 .sec-link:hover { background: var(--m-primary-soft); }
 
-.plist { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.plist { overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
 .more {
-  grid-column: 1 / -1;
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
+  min-height: 48px;
+  border: 0;
+  border-top: 1px solid var(--m-border);
+  background: transparent;
   color: var(--m-primary-dark);
   cursor: pointer;
   font: inherit;
@@ -700,6 +686,6 @@ function onPull(done: () => void) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring-fill, .sec-link { transition: none !important; }
+  .occ-fill, .sec-link { transition: none !important; }
 }
 </style>

@@ -251,6 +251,27 @@ export function formatMonth(dateStr: string | null | undefined): string {
   return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
 }
 
+/**
+ * Where today falls in a stay (YYYY-MM-DD dates): how much of the bar is
+ * filled, and the line under it. Months are 30.44-day steps, so a stay from
+ * Jun 1 to Mar 31 counts as ten.
+ */
+export function stayProgress(start: string, end: string, today: string): { pct: number; label: string } {
+  const days = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00`) - Date.parse(`${a}T00:00:00`)) / 864e5);
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const length = Math.max(days(start, end), 1);
+  const total = Math.max(Math.round(length / 30.44), 1);
+  const gone = days(start, today);
+  if (gone < 0) return { pct: 0, label: `Moves in ${gone === -1 ? 'tomorrow' : plural(-gone, 'day')} · ${plural(total, 'month')}` };
+  if (today >= end) return { pct: 100, label: `Stayed ${plural(total, 'month')}` };
+  const left = days(today, end);
+  const month = Math.min(Math.floor(gone / 30.44) + 1, total);
+  return {
+    pct: Math.round((gone / length) * 100),
+    label: `Month ${month} of ${total} · ${left <= 31 ? plural(left, 'day') : plural(Math.round(left / 30.44), 'month')} left`,
+  };
+}
+
 export interface StatusMeta {
   text: string;
   color: string;

@@ -743,7 +743,7 @@ async function submitApplication() {
 }
 
 async function decideApplication(next: 'active' | 'rejected') {
-  if (next === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the tenant of this room.' }))) return
+  if (next === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the boarder of this room.' }))) return
   if (deciding.value || !application.value) return
   deciding.value = true
   try {

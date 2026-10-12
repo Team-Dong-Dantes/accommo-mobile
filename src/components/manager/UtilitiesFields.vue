@@ -31,7 +31,7 @@
         />
       </label>
       <p v-else-if="isBilledMonthly(modelValue[u.key].billing)" class="uf-hint">
-        You'll post each tenant's {{ u.key === 'wifi' ? u.label : u.label.toLowerCase() }} bill monthly from their profile.
+        You'll post each boarder's {{ u.key === 'wifi' ? u.label : u.label.toLowerCase() }} bill monthly from their profile.
       </p>
     </div>
   </div>

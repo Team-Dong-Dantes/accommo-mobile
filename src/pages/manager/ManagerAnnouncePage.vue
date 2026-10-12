@@ -15,18 +15,17 @@
         v-else-if="!accommodations.length"
         icon="lucide:building-2"
         title="No accommodation yet"
-        message="Add an accommodation first — announcements go to the tenants of one of your houses."
+        message="Add an accommodation first — announcements go to the boarders of one of your houses."
       />
 
       <div v-else class="stack">
         <section class="sec">
-          <h2 class="sec-title">Your announcements</h2>
           <EmptyState
             v-if="!mine.length"
             variant="compact"
             icon="lucide:megaphone"
             title="Nothing sent yet"
-            message="Notices you send your tenants are listed here."
+            message="Notices you send your boarders are listed here."
           />
           <div v-for="a in mine" :key="a.id" class="item" :class="{ 'item--on': a.id === selectedId }">
             <!-- Opens beside the list on a tablet or computer; a phone keeps
@@ -264,7 +263,7 @@ async function send(draft: AnnouncementDraft) {
     notify.success(
       draft.publishAt
         ? houses > 1 ? `Scheduled for ${houses} houses.` : 'Scheduled.'
-        : houses > 1 ? `Sent to ${houses} houses.` : 'Sent to your tenants.',
+        : houses > 1 ? `Sent to ${houses} houses.` : 'Sent to your boarders.',
     )
   } catch (e) {
     notify.error(errorMessage(e, 'Could not send that announcement.'))
@@ -281,7 +280,7 @@ async function remove(a: Mine) {
   }
   mine.value = mine.value.filter((row) => row.id !== a.id)
   if (selectedId.value === a.id) selectedId.value = ''
-  notify.success('Removed. Notifications already delivered stay in your tenants\' inbox.')
+  notify.success('Removed. Notifications already delivered stay in your boarders\' inbox.')
 }
 </script>
 
@@ -369,7 +368,6 @@ button.item-text { cursor: pointer; }
 .sk { border-radius: var(--m-radius); }
 
 .sec { display: flex; flex-direction: column; gap: 6px; }
-.sec-title { margin: 0 2px; color: var(--m-ink); font-size: 14px; font-weight: 700; }
 .item {
   display: flex;
   align-items: center;

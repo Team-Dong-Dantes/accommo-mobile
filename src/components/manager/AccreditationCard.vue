@@ -100,7 +100,7 @@
 
     <div v-else-if="status === 'suspended'" class="box box--danger">
       <span class="box-head"><IconifyIcon icon="lucide:ban" width="16" /> Suspended by OSAS</span>
-      <p class="box-text">It is hidden from students. Your tenants were told. Contact OSAS to find out what to fix.</p>
+      <p class="box-text">It is hidden from students. Your boarders were told. Contact OSAS to find out what to fix.</p>
       <button type="button" class="pill-btn" @click="router.push('/manager/osas')">Contact OSAS</button>
     </div>
 

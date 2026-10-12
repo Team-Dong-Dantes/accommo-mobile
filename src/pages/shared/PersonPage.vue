@@ -109,18 +109,8 @@
       <!-- The right half on desktop; the History tab elsewhere. -->
       <template #right>
       <div v-if="split || tab !== 'overview'" class="sec">
-        <h2 v-if="split" class="desk-col-title">History</h2>
-        <div v-if="history.length" class="hist">
-          <div v-for="h in history" :key="h.id" class="hist-row">
-            <span class="hist-icon"><IconifyIcon icon="lucide:building-2" width="17" /></span>
-            <div class="hist-copy">
-              <strong>{{ h.accommodationName }}</strong>
-              <small>{{ h.roomLabel }}</small>
-              <small>{{ h.period }}</small>
-            </div>
-            <span class="hist-tag" :class="h.current ? 'hist-tag--now' : ''">{{ h.current ? 'Current' : 'Past' }}</span>
-          </div>
-        </div>
+        <h2 v-if="split" class="desk-col-title">Boarding History</h2>
+        <BoardingTimeline v-if="history.length" :stays="history" />
         <EmptyState
           v-else
           variant="compact"
@@ -144,13 +134,13 @@ import { useQrStore } from '@/stores/qr'
 import { isDesktop } from '@/utils/useTabletMode'
 import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { initialsOf, formatPeso, landlordTitle } from '@/utils/format'
-import { period } from '@/utils/profile'
 import PersonProfile from '@/components/shared/PersonProfile.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import PhotoViewer from '@/components/shared/PhotoViewer.vue'
 import { scannedStudentDocs, type ScanDoc } from '@/utils/upload'
 import { openExternal } from '@/utils/openExternal'
 import { fetchSharedLeaseHistory } from '@/api/leases';
+import BoardingTimeline, { type TimelineStay } from '@/components/shared/BoardingTimeline.vue'
 
 // One profile screen for "the other person", reached from a conversation or
 // straight off a QR scan. Academic details come from student_profiles when the
@@ -160,7 +150,7 @@ import { fetchSharedLeaseHistory } from '@/api/leases';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
-  { key: 'history', label: 'History' },
+  { key: 'history', label: 'Boarding History' },
 ] as const
 
 const route = useRoute()
@@ -197,7 +187,9 @@ const person = reactive({
   sex: null as string | null,
 })
 
-const history = ref<{ id: string; accommodationName: string; roomLabel: string; period: string; current: boolean }[]>([])
+// Stays only: an application that was never accepted is not boarding history.
+const STAY_STATUSES = ['active', 'leave_requested', 'ended', 'terminated']
+const history = ref<TimelineStay[]>([])
 const current = ref<{ accommodationName: string; roomLabel: string; rent: number } | null>(null)
 
 // Only when this page was opened by scanning this very person.
@@ -308,17 +300,25 @@ onMounted(async () => {
       status: string
       start_date: string | null
       end_date: string | null
+      ended_reason: string | null
       monthly_rent: number | null
       rooms: { room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
     }[]
 
-    history.value = rows.map((l) => ({
-      id: l.id,
-      accommodationName: l.rooms?.accommodations?.name || 'Accommodation',
-      roomLabel: l.rooms?.label || (l.rooms?.room_number ? `Room ${l.rooms.room_number}` : 'Room'),
-      period: period(l.start_date, l.end_date),
-      current: l.status === 'active',
-    }))
+    history.value = rows
+      .filter((l) => l.start_date && STAY_STATUSES.includes(l.status))
+      .map((l) => {
+        const current = l.status === 'active' || l.status === 'leave_requested'
+        return {
+          id: l.id,
+          name: l.rooms?.accommodations?.name || 'Accommodation',
+          room: l.rooms?.label || (l.rooms?.room_number ? `Room ${l.rooms.room_number}` : 'Room'),
+          start: l.start_date as string,
+          end: current ? null : l.end_date,
+          current,
+          endReason: l.ended_reason ?? (l.status === 'terminated' ? 'terminated' : null),
+        }
+      })
 
     const active = rows.find((l) => l.status === 'active')
     current.value = active
@@ -447,37 +447,4 @@ onMounted(async () => {
 .stay strong { color: var(--m-ink); font-size: 14px; font-weight: 750; }
 .stay-sub { color: var(--m-text); font-size: 12px; font-weight: 600; }
 
-.hist { display: flex; flex-direction: column; gap: 8px; }
-.hist-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-bg);
-}
-.hist-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary);
-}
-.hist-copy { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; }
-.hist-copy strong { color: var(--m-ink); font-size: 13px; font-weight: 700; }
-.hist-copy small { color: var(--m-muted); font-size: 11px; font-weight: 600; }
-.hist-tag {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  font-size: 10.5px;
-  font-weight: 700;
-}
-.hist-tag--now { background: var(--m-success-soft); color: var(--m-success); }
 </style>

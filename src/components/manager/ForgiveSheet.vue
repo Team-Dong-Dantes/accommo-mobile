@@ -75,7 +75,7 @@ const REASONS = ['Away for the break', 'Discount we agreed on', 'Room had a prob
 const pick = ref<string>(REASONS[0])
 const detail = ref('')
 const busy = ref(false)
-const firstName = computed(() => props.studentName.split(' ')[0] || 'The tenant')
+const firstName = computed(() => props.studentName.split(' ')[0] || 'The boarder')
 const reason = computed(() => {
   const more = detail.value.trim()
   if (pick.value === 'Other') return more

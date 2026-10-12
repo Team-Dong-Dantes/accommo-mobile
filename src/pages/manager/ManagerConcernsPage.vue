@@ -10,7 +10,7 @@
         inline
         class="desk-search"
         :filter-count="filter !== 'all' ? 1 : 0"
-        placeholder="Search tenant or concern"
+        placeholder="Search boarder or concern"
         search-label="Search concerns"
         @open-filters="filtersOpen = true"
       />
@@ -38,7 +38,7 @@
         v-else-if="!rows.length"
         icon="lucide:message-square-warning"
         title="No concerns right now"
-        message="Maintenance, safety and billing concerns from your tenants land in this inbox."
+        message="Maintenance, safety and billing concerns from your boarders land in this inbox."
       />
 
       <EmptyState
@@ -76,7 +76,7 @@
       v-if="!loading && !error && !isDesktop"
       v-model="query"
       :filter-count="filter !== 'all' ? 1 : 0"
-      placeholder="Search tenant or concern"
+      placeholder="Search boarder or concern"
       search-label="Search concerns"
       @open-filters="filtersOpen = true"
     />
@@ -128,7 +128,7 @@
         <img v-if="selected.photoUrl" :src="selected.photoUrl" alt="" class="detail-photo" />
 
         <label class="field">
-          <span class="field-label">Response to tenant</span>
+          <span class="field-label">Response to boarder</span>
           <textarea v-model="response" class="field-input field-textarea" rows="3" placeholder="What are you doing about this?" />
         </label>
 

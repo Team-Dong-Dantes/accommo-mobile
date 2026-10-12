@@ -39,7 +39,7 @@ export const PANE_LISTS: readonly string[] = [
  * it names the thing rather than saying "select an item".
  */
 const EMPTY_HINT: Record<string, string> = {
-  '/manager/tenants': 'Pick a tenant to see their details',
+  '/manager/tenants': 'Pick a boarder to see their details',
   '/manager/properties': 'Pick an accommodation to see its rooms and details',
   '/manager/notifications': 'Pick a notification to read it',
   '/student/discover': 'Pick a listing to see its rooms, photos and location',

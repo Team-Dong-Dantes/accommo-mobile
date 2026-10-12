@@ -1,7 +1,7 @@
 <template>
   <AppModal :model-value="modelValue" title="Payment details" @update:model-value="emit('update:modelValue', $event)">
     <div class="po-form">
-      <p class="po-note">Your tenants see these when they pay, with a button to copy the number. Leave out any you don't use.</p>
+      <p class="po-note">Your boarders see these when they pay, with a button to copy the number. Leave out any you don't use.</p>
 
       <p class="po-group">GCash</p>
       <input v-model="form.gcash_number" type="tel" inputmode="numeric" maxlength="11" class="po-input" placeholder="09XXXXXXXXX" />
@@ -16,7 +16,7 @@
       <input v-model="form.bank_account_number" type="text" inputmode="numeric" maxlength="30" class="po-input" placeholder="Account number" />
       <input v-model="form.bank_account_name" type="text" maxlength="100" class="po-input" placeholder="Account name" />
 
-      <p class="po-group">Note for tenants (optional)</p>
+      <p class="po-group">Note for boarders (optional)</p>
       <input v-model="form.note" type="text" maxlength="300" class="po-input" placeholder="e.g. Cash is fine too — I'm home after 5 PM" />
     </div>
 

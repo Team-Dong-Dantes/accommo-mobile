@@ -721,7 +721,7 @@
             <div class="sheet-section">
               <span class="field-label">Utilities</span>
               <p v-if="activeRoomTenants > 0" class="sec-hint">
-                Current tenants keep the terms they moved in with. Changes apply to new tenants.
+                Current boarders keep the terms they moved in with. Changes apply to new boarders.
               </p>
               <UtilitiesFields v-model="roomForm.utilities" />
             </div>

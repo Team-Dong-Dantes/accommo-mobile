@@ -219,7 +219,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: /^\/manager\/person\/[^/]+$/, title: 'Profile', back: '/manager/messages', backLabel: 'messages' },
       { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Tenant', back: '/manager/tenants', backLabel: 'my boarders' },
+      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Boarder', back: '/manager/tenants', backLabel: 'my boarders' },
       { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'properties' },
       { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'properties' },
     ],

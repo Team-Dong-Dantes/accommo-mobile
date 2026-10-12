@@ -55,7 +55,7 @@ export async function fetchCurrentLease(
 export async function fetchSharedLeaseHistory(studentId: string, managerId: string) {
   const { data, error } = await supabase
     .from('leases')
-    .select('id, status, start_date, end_date, monthly_rent, rooms(room_number, label, accommodations(name))')
+    .select('id, status, start_date, end_date, ended_reason, monthly_rent, rooms(room_number, label, accommodations(name))')
     .eq('student_id', studentId)
     .eq('landlord_id', managerId)
     .order('start_date', { ascending: false })

@@ -71,7 +71,7 @@ const notify = useNotify()
 type Mode = 'last_month' | 'owed' | 'return'
 const mode = ref<Mode>('last_month')
 const busy = ref(false)
-const firstName = computed(() => props.studentName.split(' ')[0] || 'The tenant')
+const firstName = computed(() => props.studentName.split(' ')[0] || 'The boarder')
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
 
 const lastMonth = computed(() => (props.endDate ? `${props.endDate.slice(0, 7)}-01` : null))

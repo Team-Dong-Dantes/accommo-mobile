@@ -41,7 +41,7 @@
     </div>
 
     <div v-else-if="error" class="stack">
-      <ErrorCard title="Couldn't load this tenant" :detail="error" :retry="load" />
+      <ErrorCard title="Couldn't load this boarder" :detail="error" :retry="load" />
     </div>
 
     <div v-else class="stack">
@@ -55,10 +55,10 @@
           <div class="hero-scrim" />
           <!-- Desktop only: the app header stays the plain one here (MainLayout),
                so the way back to the tenants list lives on the card itself. -->
-          <button v-if="split" type="button" class="hero-msg hero-back" aria-label="Back to tenants" @click="router.push('/manager/tenants')">
+          <button v-if="split" type="button" class="hero-msg hero-back" aria-label="Back to my boarders" @click="router.push('/manager/tenants')">
             <IconifyIcon icon="lucide:arrow-left" width="16" />
           </button>
-          <button type="button" class="hero-msg" aria-label="Message tenant" @click="router.push(`/manager/messages?to=${lease.studentId}`)">
+          <button type="button" class="hero-msg" aria-label="Message boarder" @click="router.push(`/manager/messages?to=${lease.studentId}`)">
             <IconifyIcon icon="lucide:message-circle" width="16" />
           </button>
         </div>
@@ -140,7 +140,7 @@
               </p>
               <div v-if="decisionReasonFor === 'keep'" class="decide-reason">
                 <label class="decide-reason-label">
-                  Reason for keeping the tenant
+                  Reason for keeping the boarder
                   <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="Let the student know why…" />
                 </label>
                 <div class="decide-reason-actions">
@@ -157,19 +157,63 @@
               </div>
               <div v-else class="decide">
                 <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'keep'; decisionReason = ''">
-                  Keep tenant
+                  Keep boarder
                 </button>
                 <button type="button" class="decide-btn" :disabled="deciding" @click="approveLeave">
                   Approve leave
                 </button>
               </div>
             </div>
-            <div v-else-if="lease.status === 'active'" class="decide-box">
-              <p v-if="lease.leaveDate" class="leave-ask">
-                <IconifyIcon icon="lucide:log-out" width="16" />
-                <span>Moving out on <b>{{ formatDate(lease.leaveDate) }}</b> — you approved it. The stay ends that day.</span>
+            <!-- Asked of the landlord/landlady once the stay is over. -->
+            <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && !tenantReview" class="decide-box decide">
+              <button type="button" class="decide-btn" @click="openReview">Rate this boarder</button>
+            </div>
+
+            <!-- Stay: where today falls between move-in and the lease's end. -->
+            <h2 class="sec-title ov-title">Stay</h2>
+            <div class="ov-card">
+              <div class="tl-ends">
+                <span class="tl-end"><span class="tl-k">Move-in</span>{{ formatDate(lease.startDate) }}</span>
+                <span class="tl-end tl-end--r"><span class="tl-k">Lease ends</span>{{ formatDate(lease.endDate) }}</span>
+              </div>
+              <div class="tl-track" role="progressbar" :aria-valuenow="stay.pct" aria-valuemin="0" aria-valuemax="100" :aria-label="stay.label">
+                <span class="tl-fill" :style="{ width: `${stay.pct}%` }" />
+              </div>
+              <p class="tl-label">{{ stay.label }}</p>
+              <p v-if="lease.status === 'active' && lease.leaveDate" class="tl-note">
+                <IconifyIcon icon="lucide:log-out" width="14" />
+                <span>Moving out on <b>{{ formatDate(lease.leaveDate) }}</b> — you approved it.</span>
               </p>
-              <div v-if="decisionReasonFor === 'end'" class="decide-reason">
+              <div class="ov-rent">
+                <span class="ov-rent-amt">{{ formatPeso(lease.monthlyRent) }}</span>
+                <span class="ov-rent-per">a month</span>
+                <span v-if="tenantReview" class="ov-rated">
+                  <StarRating :model-value="tenantReview.rating" :size="13" />
+                  <span>your rating</span>
+                </span>
+              </div>
+            </div>
+
+            <template v-if="lease.email || lease.phone">
+              <h2 class="sec-title ov-title">Contact</h2>
+              <div class="ov-contact">
+                <a v-if="lease.email" :href="`mailto:${lease.email}`" class="ov-tile">
+                  <span class="ov-tile-ic"><IconifyIcon icon="lucide:mail" width="16" /></span>
+                  <span class="ov-tile-k">Email</span>
+                  <span class="ov-tile-v">{{ lease.email }}</span>
+                </a>
+                <a v-if="lease.phone" :href="`tel:${lease.phone}`" class="ov-tile">
+                  <span class="ov-tile-ic"><IconifyIcon icon="lucide:phone" width="16" /></span>
+                  <span class="ov-tile-k">Call</span>
+                  <span class="ov-tile-v">{{ lease.phone }}</span>
+                </a>
+              </div>
+            </template>
+
+            <!-- Ending a stay is rare and final: a quiet link, not a button
+                 beside everything else. -->
+            <template v-if="lease.status === 'active'">
+              <div v-if="decisionReasonFor === 'end'" class="decide-box decide-reason ov-end-form">
                 <label class="decide-reason-label">
                   Why is this stay ending?
                   <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="The student sees this…" />
@@ -183,52 +227,9 @@
                   </button>
                 </div>
               </div>
-              <div v-else class="decide">
-                <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'end'; decisionReason = ''">
-                  End stay
-                </button>
-              </div>
-            </div>
-            <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && tenantReview" class="decide-box rated">
-              <StarRating :model-value="tenantReview.rating" :size="16" />
-              <span class="rated-label">You rated this tenant</span>
-            </div>
-            <div v-else-if="lease.status === 'ended' || lease.status === 'terminated'" class="decide-box decide">
-              <button type="button" class="decide-btn" @click="openReview">Rate this tenant</button>
-            </div>
-
-            <div class="sec-head">
-              <h2 class="sec-title">Stay</h2>
-            </div>
-            <div class="group">
-              <div class="rule">
-                <span class="rule-label">Move-in</span>
-                <span class="rule-value">{{ formatDate(lease.startDate) }}</span>
-              </div>
-              <div class="rule">
-                <span class="rule-label">Lease ends</span>
-                <span class="rule-value">{{ formatDate(lease.endDate) }}</span>
-              </div>
-              <div class="rule">
-                <span class="rule-label">Monthly rent</span>
-                <span class="rule-value">{{ formatPeso(lease.monthlyRent) }}</span>
-              </div>
-            </div>
-
-            <template v-if="lease.email || lease.phone">
-              <div class="sec-head">
-                <h2 class="sec-title">Contact</h2>
-              </div>
-              <div class="group">
-                <div v-if="lease.email" class="rule">
-                  <span class="rule-label">Email</span>
-                  <span class="rule-value">{{ lease.email }}</span>
-                </div>
-                <div v-if="lease.phone" class="rule">
-                  <span class="rule-label">Phone</span>
-                  <span class="rule-value">{{ lease.phone }}</span>
-                </div>
-              </div>
+              <button v-else type="button" class="ov-end" :disabled="deciding" @click="decisionReasonFor = 'end'; decisionReason = ''">
+                End this stay<IconifyIcon icon="lucide:chevron-right" width="14" />
+              </button>
             </template>
           </component>
 
@@ -288,14 +289,14 @@
           <component :is="panelIs" name="history" class="sec" :class="{ 'sec--moved': split }">
             <Teleport :to="rightCol" :disabled="!split || !rightCol">
             <div class="sec-body">
-            <h2 class="sec-title">Boarding history</h2>
-            <div v-if="history.length" class="group">
-              <div v-for="h in history" :key="h.id" class="rule">
-                <span class="rule-label">{{ h.accommodationName }} · {{ h.roomType || 'Room' }}</span>
-                <span class="rule-value">{{ formatDate(h.periodStart) }} – {{ formatDate(h.periodEnd) }}</span>
-              </div>
-            </div>
-            <p v-else class="none">No prior stays on record.</p>
+            <BoardingTimeline v-if="history.length" :stays="history" />
+            <EmptyState
+              v-else
+              variant="compact"
+              icon="lucide:history"
+              title="No past stays"
+              message="This is their first stay through accommo."
+            />
             </div>
             </Teleport>
           </component>
@@ -320,7 +321,7 @@
       <StarRating v-model="reviewForm.rating" interactive :size="26" />
       <label class="pay-field">
         <span class="pay-label">Notes (optional)</span>
-        <textarea v-model="reviewForm.comment" class="pay-input review-textarea" rows="3" placeholder="How was this tenant to have?" />
+        <textarea v-model="reviewForm.comment" class="pay-input review-textarea" rows="3" placeholder="How was this boarder to have?" />
       </label>
       <template #footer>
         <q-btn
@@ -416,7 +417,7 @@ import { useDeskPanels } from '@/utils/useDeskPanels'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, statusText, statusColor } from '@/utils/format'
+import { formatPeso, formatDate, formatMonth, initialsOf, LEASE_STATUS, statusText, statusColor, stayProgress } from '@/utils/format'
 import { useNotify } from '@/utils/notify'
 import { confirmAction } from '@/utils/confirmAction'
 import { respondToApplication } from '@/utils/applications'
@@ -431,15 +432,16 @@ import BillFixSheet, { type FixBill } from '@/components/manager/BillFixSheet.vu
 import UseDepositSheet from '@/components/manager/UseDepositSheet.vue'
 import PaymentStatement from '@/components/shared/PaymentStatement.vue'
 import { BILL_TAG, isBillSettled, manilaToday, toLedger, type LedgerRow } from '@/utils/payments'
-import { UTILITIES, isBilledMonthly, type UtilityKey } from '@/utils/listings'
+import { UTILITIES, isBilledMonthly, roomTypeLabel, type UtilityKey } from '@/utils/listings'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import BoardingTimeline, { type TimelineStay } from '@/components/shared/BoardingTimeline.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import AppModal from '@/components/shared/AppModal.vue'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'payments', label: 'Payments' },
-  { key: 'history', label: 'History' },
+  { key: 'history', label: 'Boarding History' },
 ] as const
 
 const route = useRoute()
@@ -586,7 +588,7 @@ const payments = ref<
     batchId: string | null
   }[]
 >([])
-const history = ref<{ id: string; accommodationName: string; roomType: string | null; periodStart: string; periodEnd: string }[]>([])
+const history = ref<TimelineStay[]>([])
 const tenantReview = ref<{ rating: number; comment: string } | null>(null)
 
 // Utilities this place bills monthly, and the bills posted against this lease.
@@ -604,6 +606,13 @@ const today = manilaToday()
 
 const leaseId = computed(() => String(route.params.leaseId || ''))
 
+// The Overview's stay bar. A stay that never began has nothing to measure.
+const stay = computed(() =>
+  lease.status === 'pending' ? { pct: 0, label: 'Starts once you accept' }
+    : lease.status === 'rejected' ? { pct: 0, label: 'Declined — this stay never started' }
+      : stayProgress(lease.startDate, lease.endDate, today),
+)
+
 async function load(silent = false) {
   if (!silent) loading.value = true
   error.value = ''
@@ -611,13 +620,13 @@ async function load(silent = false) {
     const { data, error: loadError } = await supabase
       .from('leases')
       .select(
-        'id,status,start_date,end_date,leave_date,deposit_returned_at,monthly_rent,allow_partial,partial_min_pct,rent_due_day,grace_days,student_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
+        'id,status,start_date,end_date,leave_date,deposit_returned_at,monthly_rent,allow_partial,partial_min_pct,rent_due_day,grace_days,student_id,landlord_id,room_id,added_by_landlord,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,initials,avatar_url),contact:users_full!leases_student_id_fkey(email,phone),rooms(label,room_number,room_type,accommodation_id,accommodations(name,accommodation_images(url,sort_order)))',
       )
       .eq('id', leaseId.value)
       .maybeSingle()
     if (loadError) throw loadError
     if (!data) {
-      error.value = 'This tenant record could not be found.'
+      error.value = 'This boarder record could not be found.'
       return
     }
 
@@ -676,7 +685,7 @@ async function load(silent = false) {
         .order('month', { ascending: false }),
       supabase
         .from('boarding_history')
-        .select('id,accommodation_name,room_type,period_start,period_end')
+        .select('id,accommodation_name,room_type,period_start,period_end,end_reason,accommodations(landlord_id)')
         .eq('student_id', data.student_id)
         .order('period_start', { ascending: false }),
       supabase
@@ -714,12 +723,16 @@ async function load(silent = false) {
       createdAt: p.created_at,
       batchId: p.batch_id,
     }))
+    // Only this landlord/landlady's leases are readable here, so the lease's
+    // landlord_id is the viewer — no extra auth round trip.
     history.value = (historyRows ?? []).map((h) => ({
       id: h.id,
-      accommodationName: h.accommodation_name || 'Accommodation',
-      roomType: h.room_type,
-      periodStart: h.period_start,
-      periodEnd: h.period_end,
+      name: h.accommodation_name || 'Accommodation',
+      room: roomTypeLabel(h.room_type),
+      start: h.period_start,
+      end: h.period_end,
+      endReason: h.end_reason,
+      mine: (h.accommodations as { landlord_id: string } | null)?.landlord_id === data.landlord_id,
     }))
 
     if (data.status === 'ended' || data.status === 'terminated') {
@@ -1103,18 +1116,6 @@ useLiveData({
   display: flex;
   gap: 8px;
 }
-.rated {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 0;
-}
-.rated-label {
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
 .decide-note {
   flex: 1;
   align-self: center;
@@ -1226,11 +1227,6 @@ useLiveData({
    moved right. */
 .sec--moved {
   display: none;
-}
-.sec-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 .sec-title {
   margin: 0;
@@ -1363,13 +1359,170 @@ useLiveData({
   margin-top: 2px;
   color: var(--m-warning);
 }
-.none {
-  padding: 14px 12px;
-  margin: 0;
+/* ---- Overview ----
+   Stay and Contact are each one recessed card on the panel (--m-bg on
+   --m-surface, so the card reads as its own). */
+.ov-title {
+  margin-top: 16px;
+}
+.decide-box + .ov-title {
+  margin-top: 18px;
+}
+.ov-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 14px 0;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+}
+.tl-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tl-end {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--m-ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.tl-end--r {
+  text-align: right;
+}
+.tl-k {
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.tl-track {
+  height: 8px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--m-border);
+}
+.tl-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--m-primary);
+}
+.tl-label {
+  margin: 8px 0 0;
+  color: var(--m-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.tl-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--m-text);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.tl-note > :first-child {
+  flex: none;
+  margin-top: 1px;
+  color: var(--m-warning);
+}
+/* Rent closes the card on its own band, the one figure worth reading big. */
+.ov-rent {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 14px -14px 0;
+  padding: 12px 14px;
+  border-top: 1px solid var(--m-border);
+}
+.ov-rent-amt {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 20px;
+  font-weight: 800;
+}
+.ov-rent-per {
   color: var(--m-muted);
   font-size: 12.5px;
-  text-align: center;
+  font-weight: 600;
 }
+.ov-rated {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+/* Contact: a tile per way to reach them, tapping it calls or writes. */
+.ov-contact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.ov-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 10px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.ov-tile-ic {
+  display: grid;
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
+}
+.ov-tile-k {
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.ov-tile-v {
+  overflow: hidden;
+  color: var(--m-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-end {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: 2px;
+  margin-top: 22px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--m-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.ov-end-form {
+  margin-top: 18px;
+}
+
 
 .pay-field {
   display: flex;

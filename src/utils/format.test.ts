@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capitalizeName, composeStudentId, formatPesoExact, initialsOf, isPersonName, isPhMobile, isStudentId } from './format'
+import { capitalizeName, composeStudentId, formatPesoExact, initialsOf, isPersonName, isPhMobile, isStudentId, stayProgress } from './format'
 
 describe('isStudentId', () => {
   it('accepts a year and a student number of four to six digits', () => {
@@ -183,5 +183,17 @@ describe('formatPesoExact', () => {
 
   it('stays whole for whole amounts', () => {
     expect(formatPesoExact(2500)).toBe('₱2,500')
+  })
+})
+
+describe('stayProgress', () => {
+  it('counts the month a stay is in and what is left', () => {
+    expect(stayProgress('2026-06-01', '2027-03-31', '2026-10-12')).toEqual({ pct: 44, label: 'Month 5 of 10 · 6 months left' })
+    expect(stayProgress('2026-06-01', '2027-03-31', '2027-03-20')).toEqual({ pct: 96, label: 'Month 10 of 10 · 11 days left' })
+  })
+
+  it('reads a stay not begun yet and one that is over', () => {
+    expect(stayProgress('2026-10-13', '2027-03-31', '2026-10-12').label).toBe('Moves in tomorrow · 6 months')
+    expect(stayProgress('2026-06-01', '2026-10-01', '2026-10-12')).toEqual({ pct: 100, label: 'Stayed 4 months' })
   })
 })

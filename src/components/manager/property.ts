@@ -20,6 +20,19 @@ export interface Property {
   expiringSoon: number
 }
 
+/** Badge colour per accommodation status, shared by PropertyCard and PropertyRow. */
+export const STATUS_TONE: Record<string, string> = {
+  draft: 'grey',
+  pending: 'warn',
+  reviewing: 'warn',
+  accredited: 'ok',
+  needs_revision: 'warn',
+  rejected: 'danger',
+  expired: 'danger',
+  suspended: 'danger',
+  delisted: 'grey',
+}
+
 export type HealthTone = 'good' | 'warn' | 'danger'
 
 /** Permit trouble first, then accreditation. Also orders the dashboard's list. */

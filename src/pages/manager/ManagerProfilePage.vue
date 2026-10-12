@@ -101,7 +101,7 @@
             </span>
             <div>
               <span class="stat-number">{{ tenantCount }}</span>
-              <span class="stat-label">Tenants</span>
+              <span class="stat-label">Boarders</span>
             </div>
           </div>
           <div class="stat-divider" />
@@ -186,7 +186,7 @@
             </button>
             <button class="link-btn" @click="go('/manager/tenants')">
               <IconifyIcon icon="lucide:users" width="16" />
-              <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'tenant' : 'tenants' }}</span>
+              <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'boarder' : 'boarders' }}</span>
               <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
             </button>
           </ProfileBlock>

@@ -41,13 +41,13 @@
       </div>
 
       <div v-else-if="error" class="stack">
-        <ErrorCard title="Couldn't load your tenants" :detail="error" :retry="load" inset />
+        <ErrorCard title="Couldn't load your boarders" :detail="error" :retry="load" inset />
       </div>
 
       <EmptyState
         v-else-if="!accommodations.length"
         icon="lucide:users"
-        title="No tenants yet"
+        title="No boarders yet"
         message="When a student applies for one of your rooms and you accept them, they show up here grouped by room — empty beds included, plus any applications still waiting on you."
       />
 
@@ -75,8 +75,8 @@
                 inline
                 class="desk-search"
                 :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
-                placeholder="Search tenants or rooms"
-                search-label="Search tenants"
+                placeholder="Search boarders or rooms"
+                search-label="Search boarders"
                 @open-filters="filtersOpen = true"
               />
               <h2 class="sec-title">By boarder</h2>
@@ -181,7 +181,7 @@
                           v-if="!pickingPayment && l.status !== 'pending'"
                           type="button"
                           class="lease-msg"
-                          aria-label="Message tenant"
+                          aria-label="Message boarder"
                           @click="router.push(`/manager/messages?to=${l.studentId}`)"
                         >
                           <IconifyIcon icon="lucide:message-circle" width="15" />
@@ -219,7 +219,7 @@
                         </div>
                       </div>
                     </div>
-                    <p v-else class="room-none">No tenants</p>
+                    <p v-else class="room-none">No boarders</p>
                   </div>
                 </div>
               </q-slide-transition>
@@ -244,8 +244,8 @@
       v-if="!loading && !error && !split"
       v-model="query"
       :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
-      placeholder="Search tenants or rooms"
-      search-label="Search tenants"
+      placeholder="Search boarders or rooms"
+      search-label="Search boarders"
       above-nav
       @open-filters="filtersOpen = true"
     />
@@ -376,7 +376,7 @@ interface Accommodation {
 const FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Applications' },
-  { key: 'active', label: 'Tenants' },
+  { key: 'active', label: 'Boarders' },
   { key: 'leave_requested', label: 'Leave requests' },
 ] as const
 
@@ -622,13 +622,13 @@ function accStatsLine(acc: Accommodation): string {
   const sum = accSummary.value.get(acc.id)
   const rooms = sum?.rooms ?? acc.rooms.length
   const tenants = sum?.tenants ?? 0
-  const parts = [`${rooms} room${rooms === 1 ? '' : 's'}`, `${tenants} tenant${tenants === 1 ? '' : 's'}`]
+  const parts = [`${rooms} room${rooms === 1 ? '' : 's'}`, `${tenants} boarder${tenants === 1 ? '' : 's'}`]
   if (sum?.occupancyPct) parts.push(`${Math.round(sum.occupancyPct)}% full`)
   return parts.join(' · ')
 }
 
 function roomOccupancy(room: { leases: Lease[]; capacity: number | null }) {
-  if (!room.capacity) return { label: `${room.leases.length} tenant${room.leases.length === 1 ? '' : 's'}`, full: false }
+  if (!room.capacity) return { label: `${room.leases.length} boarder${room.leases.length === 1 ? '' : 's'}`, full: false }
   const open = room.capacity - room.leases.length
   return open > 0 ? { label: `${open} open`, full: false } : { label: 'Full', full: true }
 }
@@ -664,7 +664,7 @@ async function confirmDecline() {
 }
 
 async function decideApplication(l: Lease, decision: 'active' | 'rejected', reason?: string) {
-  if (decision === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the tenant of this room.' }))) return
+  if (decision === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the boarder of this room.' }))) return
   if (decidingId.value) return
   decidingId.value = l.id
   try {

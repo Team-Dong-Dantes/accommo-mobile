@@ -3,17 +3,10 @@
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <div class="greet">
-          <q-skeleton type="text" width="60px" height="17px" />
-          <q-skeleton type="text" width="100px" height="20px" />
+          <q-skeleton type="text" width="160px" height="24px" />
         </div>
-        <q-skeleton type="rect" height="150px" class="sk" />
-        <q-skeleton type="rect" height="60px" class="sk" />
-        <section class="sec">
-          <q-skeleton type="text" width="60px" height="16px" />
-          <q-skeleton type="rect" height="42px" class="sk-sm" />
-          <q-skeleton type="rect" height="42px" class="sk-sm" />
-        </section>
-        <q-skeleton type="rect" height="180px" class="sk" />
+        <q-skeleton type="rect" height="190px" class="sk" />
+        <q-skeleton type="rect" height="300px" class="sk" />
       </div>
 
       <div v-else-if="error" class="stack">
@@ -22,38 +15,24 @@
 
       <div v-else class="stack">
         <div class="greet">
-          <span class="greet-time">{{ greeting }},</span>
-          <span class="greet-name">{{ firstName }}</span>
+          <span class="greet-line">
+            <span class="greet-time">{{ greeting }},</span>
+            <span class="greet-name">{{ firstName }}</span>
+          </span>
+          <span class="greet-date">{{ today }}</span>
         </div>
 
-        <DashPriority :task="priority" @go="go" />
+        <DashTasks :tasks="openTasks" :done-count="doneCount" @go="go" />
 
-        <button v-if="stay" type="button" class="money" @click="go('/student/payments')">
-          <span class="money-cell">
-            <span class="money-value">{{ formatPeso(stay.monthlyRent) }}<span class="money-unit">/mo</span></span>
-            <span class="money-cap">Rent</span>
-          </span>
-          <span class="money-div" />
-          <span class="money-cell">
-            <span class="money-value" :class="{ 'money-value--due': nextPayment?.overdue }">
-              {{ nextPayment ? formatPeso(nextPayment.amount) : 'None' }}
-            </span>
-            <span class="money-cap">{{ nextDueLabel }}</span>
-          </span>
-          <IconifyIcon icon="lucide:chevron-right" width="17" class="money-chev" />
-        </button>
-
-        <DashTodoList :tasks="todo" :done-count="doneCount" @go="go" />
-
-        <DashStayCard v-if="stay" :stay="stay" :manager="manager" @go="go" @message="messageManager" />
+        <DashStayCard v-if="stay" :stay="stay" :manager="manager" :next="nextPayment" @go="go" @message="messageManager" />
 
         <div v-else class="stay stay--empty">
-          <span class="stay-cap">No stay yet</span>
+          <span class="stay-icon"><IconifyIcon icon="lucide:house" width="20" /></span>
           <p class="stay-name">Find a place to stay</p>
           <p class="stay-room">Your room, rent and dates land here once your landlord/landlady accepts you</p>
           <button type="button" class="stay-cta" @click="go('/student/discover')">
             Browse rooms
-            <IconifyIcon icon="lucide:arrow-right" width="15" />
+            <IconifyIcon icon="lucide:arrow-right" width="16" />
           </button>
         </div>
       </div>
@@ -73,17 +52,10 @@ import type { UtilityKey } from '@/utils/listings'
 import { ago } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-import DashPriority from '@/components/shared/DashPriority.vue'
-import DashTodoList from '@/components/shared/DashTodoList.vue'
+import DashTasks from '@/components/shared/DashTasks.vue'
 import DashStayCard from '@/components/student/DashStayCard.vue'
 import type { Task } from '@/components/shared/dashboard'
-import type { Manager, Stay } from '@/components/student/dashboard'
-
-interface NextPayment {
-  amount: number
-  month: string
-  overdue: boolean
-}
+import type { Manager, NextPayment, Stay } from '@/components/student/dashboard'
 
 const router = useRouter()
 
@@ -100,20 +72,12 @@ const greeting = computed(() => {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 })
 
-// One ranked list feeds both slots: the most urgent open task becomes the
-// priority card, everything else below it is the to-do list. Finished tasks
-// are kept only so the list can say how many are behind you.
+// One ranked list: DashTasks makes the most urgent open task its lead row.
+// Finished tasks are kept only so the card can say how many are behind you.
 const openTasks = computed(() => tasks.value.filter((t) => t.tone !== 'done'))
-const priority = computed(() => openTasks.value[0] ?? null)
-const todo = computed(() => openTasks.value.slice(1))
 const doneCount = computed(() => tasks.value.length - openTasks.value.length)
 
-const nextDueLabel = computed(() => {
-  const p = nextPayment.value
-  if (!p) return 'Nothing due'
-  const month = formatMonth(p.month)
-  return p.overdue ? `Overdue · ${month}` : `Due · ${month}`
-})
+const today = new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
@@ -452,7 +416,7 @@ async function load(silent = false) {
         })
       }
 
-      // A payment that is merely due is shown by the money row, which is
+      // A payment that is merely due is shown by the stay card's money strip, which is
       // tappable — only an overdue one is a task. Read off the ledger: this
       // used to look for payments rows with status due/overdue, which nothing
       // has written since record_payments, so it always said "Nothing due".
@@ -568,18 +532,18 @@ function onPull(done: () => void) {
 </script>
 
 <style scoped>
+/* One type scale: 12 / 13 / 15 / 20. */
 .dash { background: var(--m-bg); }
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 5px var(--m-page-gutter) 16px;
+  gap: 12px;
+  padding: 8px var(--m-page-gutter) 20px;
 }
 .sk { border-radius: var(--m-radius); }
-.sk-sm { border-radius: var(--m-radius-sm); }
-.sec { display: flex; flex-direction: column; gap: 5px; }
 
-.greet { display: flex; align-items: baseline; gap: 5px; padding: 0 2px; flex-wrap: wrap; }
+.greet { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 2px 0; }
+.greet-line { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 6px; }
 .greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }
 .greet-name {
   color: var(--m-ink);
@@ -588,63 +552,36 @@ function onPull(done: () => void) {
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-
-/* Money row — rent and what's next, in one place */
-.money {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 9px 8px 9px 4px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  cursor: pointer;
-  font: inherit;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-}
-.money-cell { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 1px; padding: 0 6px; }
-.money-div { width: 1px; align-self: stretch; background: var(--m-border); }
-.money-value {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.money-value--due { color: var(--m-danger); }
-.money-unit { font-size: 11px; font-weight: 600; color: var(--m-muted); }
-.money-cap { color: var(--m-muted); font-size: 10.5px; font-weight: 600; }
-.money-chev { flex: 0 0 auto; color: var(--m-muted); }
+.greet-date { flex: 0 0 auto; color: var(--m-muted); font-size: 12px; font-weight: 600; }
 
 /* Stay (empty state) */
-.stay { display: flex; flex-direction: column; padding: 12px 13px; border-radius: var(--m-radius); }
+.stay { display: flex; flex-direction: column; padding: 16px 14px; border-radius: var(--m-radius); }
 .stay--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
-.stay-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--m-muted); }
+.stay-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 999px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
 .stay-name {
-  margin: 5px 0 0;
+  margin: 12px 0 0;
   font-family: var(--m-font-display);
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.15;
+  line-height: 1.2;
 }
-.stay-room { margin: 2px 0 0; font-size: 12.5px; color: var(--m-muted); }
+.stay-room { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; line-height: 1.4; }
 .stay-cta {
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 44px;
-  margin-top: 11px;
-  padding: 0 15px;
+  margin-top: 14px;
+  padding: 0 18px;
   border: 0;
   border-radius: 999px;
   background: var(--m-primary);
   color: #fff;
   cursor: pointer;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 700;
   -webkit-tap-highlight-color: transparent;
 }

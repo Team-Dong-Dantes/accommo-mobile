@@ -15,7 +15,7 @@
 
     <div v-if="loading" class="mx-body pb-center"><q-spinner size="24px" color="primary" /></div>
     <div v-else-if="!utilities.length" class="mx-body pb-center">
-      <p class="mx-hint">None of your tenants' terms bill water, electricity or Wi-Fi monthly, so there's nothing to post.</p>
+      <p class="mx-hint">None of your boarders' terms bill water, electricity or Wi-Fi monthly, so there's nothing to post.</p>
     </div>
 
     <div v-else class="mx-body">
@@ -47,7 +47,7 @@
         </button>
       </div>
 
-      <p class="mx-hint">Shared meters: enter the room's total and it's split evenly. Own meters: enter each tenant's reading.</p>
+      <p class="mx-hint">Shared meters: enter the room's total and it's split evenly. Own meters: enter each boarder's reading.</p>
 
       <!-- A room per card: one total in, each tenant's share out. -->
       <div v-for="room in rooms" :key="room.id" class="pb-room">
@@ -85,7 +85,7 @@
         <button type="button" class="mx-btn" :disabled="busy || !rows.length" @click="post">
           {{ busy ? 'Posting…' : rows.length ? `Post ${rows.length} ${utilityName.toLowerCase()} bill${rows.length === 1 ? '' : 's'} · ${formatPesoExact(sum)}` : 'Enter an amount' }}
         </button>
-        <p class="mx-foot-note">Each tenant sees theirs under Payments and pays it like rent.</p>
+        <p class="mx-foot-note">Each boarder sees theirs under Payments and pays it like rent.</p>
       </div>
     </template>
   </AppModal>
@@ -164,11 +164,11 @@ function shares(total: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => (i === n - 1 ? Math.round((total - each * (n - 1)) * 100) / 100 : each))
 }
 function roomLine(room: (typeof rooms.value)[number]): string {
-  if (!room.split.length) return room.own.length === 1 ? '1 tenant · own meter' : `${room.own.length} tenants · own meters`
+  if (!room.split.length) return room.own.length === 1 ? '1 boarder · own meter' : `${room.own.length} boarders · own meters`
   const total = Number(roomTotals[room.id]) || 0
   const n = room.split.length
-  if (!total) return `${n} tenant${n === 1 ? '' : 's'} · left blank, skipped`
-  return `${n} tenant${n === 1 ? '' : 's'} · ${formatPesoExact(shares(total, n)[0]!)} each`
+  if (!total) return `${n} boarder${n === 1 ? '' : 's'} · left blank, skipped`
+  return `${n} boarder${n === 1 ? '' : 's'} · ${formatPesoExact(shares(total, n)[0]!)} each`
 }
 
 const rows = computed(() => {
@@ -227,7 +227,7 @@ async function load() {
     posted.value = new Map((bills ?? []).map((b) => [`${b.lease_id}:${b.utility}`, Number(b.amount)]))
     if (!properties.value.some((p) => p.id === propertyId.value)) propertyId.value = properties.value[0]?.id ?? ''
   } catch (e) {
-    notify.error(errorMessage(e, 'Could not load your tenants.'))
+    notify.error(errorMessage(e, 'Could not load your boarders.'))
   } finally {
     loading.value = false
   }
