@@ -1,19 +1,12 @@
 import { supabase } from '@/utils/supabase';
 
-// Cloudinary client-side upload helper (unsigned) — mobile.
+// Cloudinary client-side upload helper — mobile.
 //
 // Mirrors the web app's Cloudinary setup (accommo-web/src/utils/cloudinary.ts)
 // so every file/image in the app is stored in Cloudinary instead of Supabase
-// Storage. Unsigned upload: NO API secret is exposed to the client.
-//
-//   VITE_CLOUDINARY_CLOUD_NAME    — e.g. n5mhxcnb
-//   VITE_CLOUDINARY_UPLOAD_PRESET — an UNSIGNED upload preset ('accommo')
-//
-// Images go to /image/upload (auto WebP + q_auto), PDFs/other files go to
-// /file/upload on the same cloud.
-
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
+// Storage. Every upload is signed by the `doc-access` edge function, so the API
+// secret never reaches the client. Public photos used to go through an unsigned
+// preset, which anyone who read its name out of the bundle could upload to.
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/webp'];
@@ -31,27 +24,12 @@ export interface CloudinaryUploadResult {
   bytes: number;
 }
 
-function isConfigured(): boolean {
-  return Boolean(CLOUD_NAME && UPLOAD_PRESET);
-}
-
-function imageEndpoint(): string {
-  return `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
-}
-function fileEndpoint(): string {
-  return `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
-}
-
 /** Appends Cloudinary auto-optimization params (auto format + auto quality). */
 function optimizeUrl(rawUrl: string): string {
   return rawUrl.replace(
     /(https:\/\/res\.cloudinary\.com\/[^/]+\/(?:image)\/upload\/)/,
     (m) => `${m}f_auto,q_auto/`,
   );
-}
-
-function emptyMessage(): string {
-  return 'Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your environment.';
 }
 
 function validateFile(file: File): string | null {
@@ -69,9 +47,8 @@ function validateFile(file: File): string | null {
  *
  * `file.type` comes from the browser's guess at the extension, so a renamed
  * `.exe` announces itself as `image/png` and sails through validateFile(). This
- * is a UX guard, not a security boundary — the real boundary is the Cloudinary
- * unsigned preset, which will accept whatever is POSTed to it by anyone who
- * reads the preset name out of the bundle. What it does buy is that a student
+ * is a UX guard, not a security boundary — the real boundary is the signature's
+ * allowed_formats, which Cloudinary checks. What it does buy is that a student
  * who picks the wrong file is told so here, rather than after the upload
  * succeeds and the document viewer renders nothing.
  */
@@ -100,8 +77,8 @@ async function sniffMismatch(file: File): Promise<string | null> {
 /**
  * A filename no other upload will reuse.
  *
- * The `accommo` unsigned preset derives public_id from the uploaded filename,
- * so the name decides the Cloudinary asset. capturePhoto() names every camera
+ * The old unsigned preset derived public_id from the uploaded filename, so the
+ * name decided the Cloudinary asset. capturePhoto() names every camera
  * shot `photo.jpeg`, which meant each new photo OVERWROTE the last one and
  * returned the identical URL — three chat messages sent across three days all
  * stored `/v1789079624/photo.jpg`, and every one of them displayed whichever
@@ -124,16 +101,24 @@ async function performUpload(file: File): Promise<CloudinaryUploadResult> {
   if (validationError) throw new Error(validationError);
   const sniffError = await sniffMismatch(file);
   if (sniffError) throw new Error(sniffError);
-  if (!isConfigured()) throw new Error(emptyMessage());
+  // Every public upload is a photo; PDFs only ever go up as private documents.
+  if (!ALLOWED_IMAGE.includes(file.type)) throw new Error('Only JPEG, PNG and WebP images can be used here.');
+
+  const { data: params, error } = await supabase.functions.invoke('doc-access', {
+    body: { action: 'public-upload-params' },
+  });
+  if (error) throw error;
 
   const form = new FormData();
   // The third argument sets the filename Cloudinary sees — see uniqueUploadName.
   form.append('file', file, uniqueUploadName(file));
-  form.append('upload_preset', UPLOAD_PRESET!);
+  form.append('api_key', params.apiKey);
+  form.append('timestamp', String(params.timestamp));
+  form.append('public_id', params.publicId);
+  form.append('allowed_formats', params.allowedFormats);
+  form.append('signature', params.signature);
 
-  // Images → image endpoint; PDFs/other files → the generic (resource-aware)
-  // auto endpoint on the same cloud.
-  const endpoint = ALLOWED_IMAGE.includes(file.type) ? imageEndpoint() : fileEndpoint();
+  const endpoint = `https://api.cloudinary.com/v1_1/${params.cloudName}/image/upload`;
 
   const withTimeout = new Promise<CloudinaryUploadResult>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Upload timed out. Please try again.')), 60000);
@@ -252,7 +237,7 @@ export async function uploadCover(file: File, userId: string): Promise<string> {
 // them needs the Cloudinary API secret and that must never reach client code.
 // Payment proofs, chat photos, concern photos and support-ticket photos go the
 // same way — they show receipts, rooms and people. Avatars and listing images
-// deliberately keep using the public, unsigned path above.
+// deliberately stay public, signed through the same function (public-upload-params).
 
 /** What we store in file_url: cld:<resource_type>:<type>:<format>:<public_id> */
 export type DocumentRef = string;

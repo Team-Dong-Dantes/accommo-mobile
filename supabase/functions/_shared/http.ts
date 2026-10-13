@@ -44,3 +44,13 @@ export function reply(req: Request, status: number, body: Record<string, unknown
     headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
   })
 }
+
+/**
+ * The reply for an error nobody anticipated. The detail goes to the function's
+ * logs, not to the caller: a raw message can name tables, columns or internal
+ * state that a stranger probing the endpoint has no business seeing.
+ */
+export function serverError(req: Request, fn: string, e: unknown): Response {
+  console.error(`${fn}: unexpected error`, e);
+  return reply(req, 500, { error: 'Something went wrong. Try again.' });
+}

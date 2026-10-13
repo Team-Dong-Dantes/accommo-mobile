@@ -7,7 +7,7 @@
 // assert_admin_over(), called as the signed-in admin — so the rule "an admin,
 // acting on a student or landlord/landlady" lives in one place.
 
-import { preflight, reply } from '../_shared/http.ts';
+import { preflight, reply, serverError } from '../_shared/http.ts';
 import { generateTempPassword } from '../_shared/password.ts';
 
 /** The same rule as signup (handle_auth_user_sync). */
@@ -99,6 +99,6 @@ Deno.serve(async (req) => {
 
     return fail('Unknown action.');
   } catch (e) {
-    return fail(e instanceof Error ? e.message : String(e), 500);
+    return serverError(req, 'manage-user', e);
   }
 });

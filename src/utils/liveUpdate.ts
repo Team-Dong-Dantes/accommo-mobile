@@ -43,12 +43,22 @@ export function runningVersion(versionCode: number, bundle: Pick<BundleInfo, 'id
   return Number.isFinite(v) ? v : 0;
 }
 
+/**
+ * Where CI publishes releases. The checksum sits in the same `app_release` row
+ * as the link, so it proves the download arrived intact, not who made it —
+ * whoever could edit that row could otherwise send every phone code (or an
+ * APK) from a server of their own. Pinned here, they also need the GitHub repo.
+ */
+const RELEASES = 'https://github.com/Team-Dong-Dantes/accommo-mobile/releases/';
+
 /** What this install should do about `release`. */
 export function updateAction(release: Release, versionCode: number, running: number): 'wall' | 'stage' | 'none' {
   // With no APK to point at, the wall would strand the user — fail open.
-  if (versionCode < release.min_supported_version_code) return release.apk_url?.trim() ? 'wall' : 'none';
+  if (versionCode < release.min_supported_version_code) {
+    return release.apk_url?.trim().startsWith(RELEASES) ? 'wall' : 'none';
+  }
   // The plugin refuses a download without a sha256 checksum, so no checksum means no bundle.
-  if (!release.bundle_url || !release.bundle_checksum || !release.bundle_version) return 'none';
+  if (!release.bundle_url?.startsWith(`${RELEASES}download/`) || !release.bundle_checksum || !release.bundle_version) return 'none';
   return release.bundle_version > running ? 'stage' : 'none';
 }
 

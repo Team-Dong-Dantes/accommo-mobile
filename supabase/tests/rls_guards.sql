@@ -27,6 +27,7 @@
 --   AA1-AA8  PASS
 --   PY1-PY18  PASS
 --   MA1-MA3  PASS
+--   AN1  PASS
 
 -- The guards date things in Manila; current_date here must too. In UTC (CI)
 -- it is yesterday from 16:00 UTC on, so every move-in was "in the past".
@@ -1401,6 +1402,17 @@ begin
   test := 'MA3: OSAS sees the areas'; outcome := o3; return next;
 end $$;
 
+-- 20261014010000: signed-out visitors hold no privilege on private tables, so
+-- RLS is not the only thing standing between them and the rows.
+create or replace function pg_temp.anon_grant_check() returns table(test text, outcome text)
+language sql as $$
+  select 'AN1: anon has no privilege on private tables',
+         coalesce('FAIL - ' || string_agg(t, ', '), 'PASS')
+    from unnest(array['tickets', 'ticket_messages', 'concerns', 'qr_scans', 'verification_requests',
+                      'accommodation_documents', 'accreditation_rounds', 'latest_accommodation_documents']) t
+   where has_table_privilege('anon', 'public.' || t, 'select, insert, update, delete')
+$$;
+
 select * from pg_temp.rls_check()
 union all
 select * from pg_temp.added_check()
@@ -1431,4 +1443,6 @@ select * from pg_temp.access_check()
 union all
 select * from pg_temp.payment_check()
 union all
-select * from pg_temp.map_area_check();
+select * from pg_temp.map_area_check()
+union all
+select * from pg_temp.anon_grant_check();

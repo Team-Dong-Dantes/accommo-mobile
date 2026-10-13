@@ -13,10 +13,10 @@ const row = (over: Partial<Release> = {}): Release => ({
   latest_version_code: 50,
   latest_version_name: '1.68.50',
   min_supported_version_code: 40,
-  apk_url: 'https://example.com/app.apk',
+  apk_url: 'https://github.com/Team-Dong-Dantes/accommo-mobile/releases/latest/download/app-release.apk',
   release_notes: null,
   bundle_version: 50,
-  bundle_url: 'https://example.com/bundle.zip',
+  bundle_url: 'https://github.com/Team-Dong-Dantes/accommo-mobile/releases/download/v50/bundle.zip',
   bundle_checksum: 'ab12',
   ...over,
 })
@@ -54,6 +54,15 @@ describe('updateAction', () => {
 
   it('does nothing before any bundle has been published', () => {
     expect(updateAction(row({ bundle_version: null, bundle_url: null }), 45, 45)).toBe('none')
+  })
+
+  it('refuses a bundle hosted anywhere but the repo’s releases', () => {
+    expect(updateAction(row({ bundle_url: 'https://evil.example/bundle.zip' }), 45, 45)).toBe('none')
+    expect(updateAction(row({ bundle_url: 'https://github.com/Team-Dong-Dantes/accommo-mobile.evil/releases/download/v1/b.zip' }), 45, 45)).toBe('none')
+  })
+
+  it('never walls toward an APK hosted anywhere but the repo’s releases', () => {
+    expect(updateAction(row({ apk_url: 'https://evil.example/app.apk' }), 39, 39)).toBe('none')
   })
 })
 

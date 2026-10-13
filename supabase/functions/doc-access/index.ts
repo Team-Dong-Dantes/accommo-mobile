@@ -9,9 +9,10 @@
 // and the read URLs are signed here.
 //
 // The same goes for payment proofs (bank/e-wallet receipts), chat photos,
-// concern photos and support-ticket photos. Avatars and listing images are NOT
-// routed through this function: they are meant to be public and keep using the
-// unsigned preset.
+// concern photos and support-ticket photos. Avatars and listing images are
+// meant to be public, so they stay on the `upload` delivery type — but their
+// uploads are signed here too (public-upload-params) rather than left to an
+// unsigned preset anyone could use.
 //
 // Authorization deliberately reuses RLS instead of re-implementing it. The
 // caller's own JWT is used to select the document row; if the policies do not
@@ -39,6 +40,7 @@ const PRIVATE_COLUMNS: Record<string, string> = {
 /** Reference we store in file_url: cld:<resource_type>:<type>:<format>:<public_id> */
 const CLD_PREFIX = 'cld:'
 const UPLOAD_FOLDER = 'accommo/docs'
+const PUBLIC_FOLDER = 'accommo/public'
 const VIEW_TTL_SECONDS = 300
 
 
@@ -128,6 +130,19 @@ Deno.serve(async (req) => {
     const allowedFormats = resourceType === 'raw' ? 'pdf' : 'jpg,jpeg,png,webp'
     const signature = await signParams({ allowed_formats: allowedFormats, public_id: publicId, timestamp, type: 'authenticated' })
     return reply(req, 200, { cloudName: CLOUD, apiKey: KEY, timestamp, publicId, allowedFormats, type: 'authenticated', resourceType, signature })
+  }
+
+  // Public photos (avatars, covers, listing, room and announcement images):
+  // delivery type `upload`, so the URL is meant to be shared. They used to go
+  // up through an unsigned preset, which let anyone holding the preset name —
+  // it ships in the app bundle — upload anything to this Cloudinary account.
+  // Signed here instead, one image per signature, under the caller's folder.
+  if (body.action === 'public-upload-params') {
+    const timestamp = Math.floor(Date.now() / 1000)
+    const publicId = `${PUBLIC_FOLDER}/${auth.user.id}/${crypto.randomUUID()}`
+    const allowedFormats = 'jpg,jpeg,png,webp'
+    const signature = await signParams({ allowed_formats: allowedFormats, public_id: publicId, timestamp })
+    return reply(req, 200, { cloudName: CLOUD, apiKey: KEY, timestamp, publicId, allowedFormats, signature })
   }
 
   // A short-lived URL for one file on one row the caller is allowed to read.

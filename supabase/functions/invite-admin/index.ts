@@ -1,4 +1,4 @@
-import { allowedOrigin, preflight, reply } from '../_shared/http.ts';
+import { allowedOrigin, preflight, reply, serverError } from '../_shared/http.ts';
 import { generateTempPassword } from '../_shared/password.ts';
 
 const FALLBACK_APP_URL = 'https://accommo.vercel.app';
@@ -213,6 +213,6 @@ Deno.serve(async (req) => {
 
     return json({ id: newId, invite_link: null, temporary_password });
   } catch (e) {
-    return fail(e instanceof Error ? e.message : String(e), 500);
+    return serverError(req, 'invite-admin', e);
   }
 });

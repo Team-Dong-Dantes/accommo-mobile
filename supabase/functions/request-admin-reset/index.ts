@@ -10,7 +10,7 @@
 // including the localhost and LAN addresses the CORS list allows for
 // development — so building the link from it let a stranger send a real admin
 // a genuine reset e-mail whose token landed on a machine of their choosing.
-import { preflight, reply } from '../_shared/http.ts';
+import { preflight, reply, serverError } from '../_shared/http.ts';
 
 const APP_URL = (Deno.env.get('ADMIN_APP_URL') ?? 'https://accommo.vercel.app').replace(/\/+$/, '');
 
@@ -61,6 +61,6 @@ Deno.serve(async (req) => {
     if (error) console.error('request-admin-reset: send failed', error.message);
     return done();
   } catch (e) {
-    return reply(req, 500, { error: e instanceof Error ? e.message : String(e) });
+    return serverError(req, 'request-admin-reset', e);
   }
 });

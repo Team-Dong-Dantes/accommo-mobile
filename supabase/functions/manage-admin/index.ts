@@ -3,7 +3,7 @@
 // temporary password, or clear a lost two-factor device.
 // Was deployed from outside this repository until 2026-09-26; this is that
 // source, moved onto the shared CORS/reply helpers.
-import { preflight, reply } from '../_shared/http.ts';
+import { preflight, reply, serverError } from '../_shared/http.ts';
 import { generateTempPassword } from '../_shared/password.ts';
 
 
@@ -134,6 +134,6 @@ Deno.serve(async (req) => {
     await audit('admin.removed', { role: 'student' });
     return json(200, { action });
   } catch (e) {
-    return json(500, { error: e instanceof Error ? e.message : String(e) });
+    return serverError(req, 'manage-admin', e);
   }
 });
