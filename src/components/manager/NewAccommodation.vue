@@ -560,7 +560,7 @@ async function submit(asDraft = false) {
   try {
     const { data: authData } = await authUser()
     const user = authData?.user
-    if (!user) throw new Error('Not signed in.')
+    if (!user) throw new Error('Not logged in.')
 
     const { data: accommodation, error: insertError } = await supabase
       .from('accommodations')

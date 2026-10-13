@@ -61,13 +61,13 @@ function sanitizeError(error: unknown): Error {
   ) {
     friendly = 'This Student ID is already registered.';
   } else if (m.includes('already registered') || m.includes('email_exists') || m.includes('User already')) {
-    friendly = 'This email is already registered. Try signing in instead.';
+    friendly = 'This email is already registered. Try logging in instead.';
   } else if (m.includes('PGRST116') || m.includes('0 rows')) {
     friendly = 'Registration failed due to a database conflict. Please try again.';
   } else if (m.includes('Invalid login credentials')) {
     friendly = 'Invalid email or password.';
   } else if (m.includes('Email not confirmed')) {
-    friendly = 'Please confirm your email address before signing in.';
+    friendly = 'Please confirm your email address before logging in.';
   } else if (m.includes('rate limit')) {
     friendly = 'Too many attempts. Please try again later.';
   }

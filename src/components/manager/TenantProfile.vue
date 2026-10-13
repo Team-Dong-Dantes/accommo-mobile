@@ -880,7 +880,7 @@ async function submitTenantReview() {
   try {
     const { data: authData } = await authUser()
     const managerId = authData?.user?.id
-    if (!managerId) throw new Error('Not signed in.')
+    if (!managerId) throw new Error('Not logged in.')
 
     const { error: insertError } = await supabase.from('tenant_reviews').insert({
       lease_id: leaseId.value,

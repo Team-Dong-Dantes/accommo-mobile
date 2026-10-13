@@ -289,7 +289,7 @@ async function load() {
   try {
     const { data: auth } = await authUser()
     const me = auth?.user?.id
-    if (!me) throw new Error('Not signed in.')
+    if (!me) throw new Error('Not logged in.')
     const [{ data: leaseRows, error: e1 }, { data: ledgerRows, error: e2 }] = await Promise.all([
       supabase
         .from('leases')

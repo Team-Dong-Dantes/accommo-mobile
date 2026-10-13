@@ -1,7 +1,7 @@
 <template>
   <AppModal v-model="open" :title="sent ? 'Check your inbox' : 'Change password'" size="sm" @hide="reset">
     <template v-if="!sent">
-      <p class="pw-sub">We'll email you a link to set a new password. You stay signed in on this device.</p>
+      <p class="pw-sub">We'll email you a link to set a new password. You stay logged in on this device.</p>
       <p v-if="problem" class="pw-error">{{ problem }}</p>
     </template>
     <p v-else class="pw-sub">We sent a password reset link to {{ email }}. Follow it to set a new password.</p>

@@ -28,7 +28,7 @@
     </div>
 
     <template #footer>
-      <button type="button" class="gate-out" :disabled="saving" @click="signOutInstead">Sign out</button>
+      <button type="button" class="gate-out" :disabled="saving" @click="signOutInstead">Log out</button>
       <span v-if="!hasRead" class="gate-note">Scroll to the end to accept</span>
       <span v-else-if="!allAccepted" class="gate-note">Tick every box to continue</span>
       <q-btn

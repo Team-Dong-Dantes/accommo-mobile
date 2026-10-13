@@ -567,7 +567,7 @@ async function load(silent = false) {
     const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
-      error.value = 'Not signed in.'
+      error.value = 'Not logged in.'
       return
     }
 
@@ -775,7 +775,7 @@ async function requestLeave() {
   try {
     const { data: authData } = await authUser()
     const user = authData?.user
-    if (!user) throw new Error('Not signed in.')
+    if (!user) throw new Error('Not logged in.')
 
     const { error: updateError } = await supabase
       .from('leases')

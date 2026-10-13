@@ -499,7 +499,7 @@ async function load() {
     const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
-      error.value = 'Not signed in.'
+      error.value = 'Not logged in.'
       return
     }
     myId.value = user.id
@@ -698,7 +698,7 @@ async function submitTicket(draft: TicketDraft) {
   try {
     const { data: authData } = await authUser()
     const user = authData?.user
-    if (!user) throw new Error('Not signed in.')
+    if (!user) throw new Error('Not logged in.')
 
     const { data: created, error: insertError } = await supabase
       .from('tickets')

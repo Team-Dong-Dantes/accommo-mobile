@@ -241,7 +241,7 @@ onMounted(async () => {
   try {
     const { data: auth } = await authUser()
     const me = auth?.user?.id
-    if (!me || !targetId.value) throw new Error('Not signed in.')
+    if (!me || !targetId.value) throw new Error('Not logged in.')
 
     const { data: user } = await supabase
       .from('users')

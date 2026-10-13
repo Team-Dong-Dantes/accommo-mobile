@@ -242,7 +242,7 @@ async function send() {
   try {
     const { data: authData } = await authUser()
     const user = authData?.user
-    if (!user) throw new Error('Not signed in.')
+    if (!user) throw new Error('Not logged in.')
 
     // author_role is constrained to 'student' | 'agent'; every reporter side —
     // student or landlord/landlady — files under 'student'.

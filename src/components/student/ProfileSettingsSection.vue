@@ -62,7 +62,7 @@
     </div>
 
     <div class="settings-group">
-      <SettingsRow icon="lucide:log-out" label="Sign out" danger @click="signOut" />
+      <SettingsRow icon="lucide:log-out" label="Log out" danger @click="signOut" />
     </div>
 
     <ChangePasswordDialog v-model="passwordOpen" />
@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { signOut as endSession } from '@/utils/signOut'
+import { confirmAction } from '@/utils/confirmAction'
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, authUser } from '@/utils/supabase'
@@ -115,6 +116,7 @@ async function savePrefs() {
 }
 
 async function signOut() {
+  if (!(await confirmAction({ title: 'Log out?', message: "You'll need your e-mail and password to get back in.", confirmLabel: 'Log out' }))) return
   await endSession()
   void router.push('/login')
 }

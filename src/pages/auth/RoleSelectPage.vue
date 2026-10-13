@@ -21,7 +21,7 @@
 
       <div class="role-signin col-auto">
         <span>Already have an account?</span>
-        <q-btn flat dense no-caps label="Sign in" class="auth-link q-ml-xs" to="/login" />
+        <q-btn flat dense no-caps label="Log in" class="auth-link q-ml-xs" to="/login" />
       </div>
     </div>
   </q-page>

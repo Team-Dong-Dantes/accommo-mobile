@@ -2,7 +2,7 @@
   <q-page class="login-page">
     <div class="login-container">
       <h3 class="welcome-title">Welcome back</h3>
-      <p class="welcome-subtitle">Sign in to your account</p>
+      <p class="welcome-subtitle">Log in to your account</p>
 
       <template v-if="needsEmailVerify">
         <p class="verify-note">
@@ -36,7 +36,7 @@
         </div>
 
         <AuthButton type="submit" :loading="loading" class="q-mt-md">
-          Sign in
+          Log in
           <IconifyIcon icon="lucide:arrow-right" width="18" class="q-ml-sm" />
         </AuthButton>
       </q-form>
@@ -92,7 +92,7 @@ const verifiedRole = ref<string | null>(null);
 
 onMounted(() => {
   if (route.query.accountExists) {
-    notify.info('You already have an account — sign in to finish submitting your requirements.');
+    notify.info('You already have an account — log in to finish submitting your requirements.');
     void router.replace('/login');
   }
   if (route.query.suspended) {
@@ -104,7 +104,7 @@ onMounted(() => {
     void router.replace('/login');
   }
   if (route.query.adminUsesWeb) {
-    notify.info('Admin accounts sign in on the OSAS web app, not here.');
+    notify.info('Admin accounts log in on the OSAS web app, not here.');
     void router.replace('/login');
   }
   // Bounced here by the router: signed in, but the address was never confirmed.
@@ -245,7 +245,7 @@ async function handleLogin() {
     // pushing to /admin/dashboard used to land them on a 404.
     if (role === 'admin') {
       await supabase.auth.signOut();
-      notify.info('Admin accounts sign in on the OSAS web app, not here.');
+      notify.info('Admin accounts log in on the OSAS web app, not here.');
       return;
     }
 
@@ -261,7 +261,7 @@ async function handleLogin() {
     if (role === 'manager' && (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing')) {
       notify.warning('OSAS needs changes to your application.');
     } else if (role === 'manager' && status === 'pending') {
-      notify.info('Signed in. OSAS is still verifying your account.');
+      notify.info('Logged in. OSAS is still verifying your account.');
     } else if (status === 'needs_resubmission') {
       notify.warning('OSAS asked for new requirements — upload them again.');
     } else if (status === 'rejected') {

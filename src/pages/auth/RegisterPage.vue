@@ -475,7 +475,7 @@
 
           <div v-else-if="stepIndex === 0 && !isGoogleMode && !isResubmit" class="actions-note">
             <span>{{ isManager ? 'Already a partner?' : 'Already have an account?' }}</span>
-            <q-btn to="/login" flat dense no-caps label="Sign in" class="auth-link q-ml-xs" />
+            <q-btn to="/login" flat dense no-caps label="Log in" class="auth-link q-ml-xs" />
           </div>
         </div>
       </q-form>
@@ -1185,7 +1185,7 @@ async function handleRegister(skipVerification = false) {
     }
 
     if (await studentIdTaken()) {
-      notify.error('This Student ID is already registered. Please double check or sign in.');
+      notify.error('This Student ID is already registered. Please double check or log in.');
       return;
     }
 

@@ -18,7 +18,7 @@
 
     <p class="signin">
       Already have an account?
-      <button type="button" class="signin-link" @click="router.push('/login')">Sign in</button>
+      <button type="button" class="signin-link" @click="router.push('/login')">Log in</button>
     </p>
   </q-page>
 </template>

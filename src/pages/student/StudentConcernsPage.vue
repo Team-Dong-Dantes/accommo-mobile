@@ -302,7 +302,7 @@ async function load() {
     const { data: authData } = await authUser()
     const user = authData?.user
     if (!user) {
-      error.value = 'Not signed in.'
+      error.value = 'Not logged in.'
       return
     }
 
