@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { Capacitor } from '@capacitor/core';
 import { SocialLogin } from '@capgo/capacitor-social-login';
 import { supabase } from '@/utils/supabase';
+import { captcha } from '@/utils/captcha';
 import { uploadSecureDocument } from '@/utils/upload';
 import { initialsOf, isPhMobile } from '@/utils/format';
 import type { RegisterForm, StudentRegisterForm } from '@/types/forms';
@@ -212,7 +213,7 @@ export const useAuthStore = defineStore('auth', {
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
-        options: { data: profileData },
+        options: { data: profileData, ...(await captcha()) },
       });
       if (response.error) throw sanitizeError(response.error);
       const userId = response.data.user?.id;
@@ -282,7 +283,7 @@ export const useAuthStore = defineStore('auth', {
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
-        options: { data: profileData },
+        options: { data: profileData, ...(await captcha()) },
       });
 
       if (response.error) throw sanitizeError(response.error);
@@ -380,7 +381,7 @@ export const useAuthStore = defineStore('auth', {
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
-        options: { data: profileData },
+        options: { data: profileData, ...(await captcha()) },
       });
       if (response.error) throw sanitizeError(response.error);
       const userId = response.data.user?.id;
@@ -405,7 +406,7 @@ export const useAuthStore = defineStore('auth', {
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
-        options: { data: profileData },
+        options: { data: profileData, ...(await captcha()) },
       });
 
       if (response.error) throw sanitizeError(response.error);
@@ -498,6 +499,7 @@ export const useAuthStore = defineStore('auth', {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: await captcha(),
       });
 
       if (authError) throw sanitizeError(authError);
@@ -684,7 +686,7 @@ export const useAuthStore = defineStore('auth', {
       // Resend is a no-op guard against accidental double-creation.
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { shouldCreateUser: false, emailRedirectTo: undefined as unknown as string },
+        options: { shouldCreateUser: false, emailRedirectTo: undefined as unknown as string, ...(await captcha()) },
       });
       if (error) throw sanitizeError(error);
     },

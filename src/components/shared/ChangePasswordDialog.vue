@@ -24,6 +24,7 @@
 import AppModal from '@/components/shared/AppModal.vue'
 import { ref } from 'vue'
 import { supabase } from '@/utils/supabase'
+import { captcha } from '@/utils/captcha'
 
 const open = defineModel<boolean>({ default: false })
 
@@ -49,6 +50,7 @@ async function submit() {
 
     const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
       redirectTo: window.location.origin + '/#/login',
+      ...(await captcha()),
     })
     if (error) throw error
 

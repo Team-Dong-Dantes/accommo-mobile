@@ -67,6 +67,7 @@ import type { QForm } from 'quasar';
 import { useAuthStore } from '@/stores/auth';
 import { supabase, readOAuthError, isSignupDatabaseError } from '@/utils/supabase';
 import { useNotify } from '@/utils/notify';
+import { captcha } from '@/utils/captcha';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
@@ -304,7 +305,7 @@ async function handleForgotPassword() {
       const redirectTo = Capacitor.isNativePlatform()
         ? 'com.accommo.app://auth/callback'
         : window.location.origin + '/login';
-      const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo });
+      const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo, ...(await captcha()) });
     if (error) throw error;
     notify.success('Password reset link sent to your email.');
   } catch {

@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
   const done = () => reply(req, 200, {});
 
   try {
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.111.0');
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -29,6 +29,19 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const email = String(body.email ?? '').trim().toLowerCase();
     if (!email) return done();
+
+    // This sends with the service key, which Supabase's own CAPTCHA check
+    // skips, so the Turnstile token is checked here. Enforced only once the
+    // TURNSTILE_SECRET_KEY secret is set, alongside Supabase's switch. A failed
+    // check gets the same silent reply as everything else.
+    const TURNSTILE_SECRET = Deno.env.get('TURNSTILE_SECRET_KEY');
+    if (TURNSTILE_SECRET) {
+      const check = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: String(body.captchaToken ?? '') }),
+      }).then((r) => r.json()).catch(() => ({ success: false }));
+      if (!check.success) return done();
+    }
 
     const service = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
     // Anyone can call this, so cap it per address before touching users.

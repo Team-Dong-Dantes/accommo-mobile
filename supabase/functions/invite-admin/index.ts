@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
   const fail = (message: string, status = 400) => reply(req, status, { error: message });
 
   try {
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.111.0');
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');

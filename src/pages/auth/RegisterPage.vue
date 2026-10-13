@@ -1053,8 +1053,16 @@ async function createAccountNow(): Promise<boolean> {
 async function saveGooglePassword(): Promise<boolean> {
   creatingAccount.value = true;
   try {
-    const { error } = await supabase.auth.updateUser({ password: form.password });
-    if (error && error.code !== 'same_password') throw error;
+    // On a re-save the account already has this password, and Supabase requires
+    // the current one before changing it; sending it lets that land on same_password.
+    const { error } = await supabase.auth.updateUser({ password: form.password, current_password: form.password });
+    const code: string | undefined = error?.code;
+    // A different password typed on resuming: the one saved the first time stays.
+    if (code === 'current_password_mismatch') {
+      notify.info('You already set a password earlier, and it is kept. Use "Forgot password" on the login screen if you need a new one.');
+      return true;
+    }
+    if (error && code !== 'same_password') throw error;
     return true;
   } catch (error: unknown) {
     notify.error(error instanceof Error ? error.message : 'Could not save your password.');

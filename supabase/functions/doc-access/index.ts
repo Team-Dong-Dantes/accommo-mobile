@@ -18,7 +18,7 @@
 // return it, the caller is not entitled to the file. That keeps this function
 // from becoming an oracle that signs any public_id on request, and it cannot
 // drift out of step with the table policies.
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from 'jsr:@supabase/supabase-js@2.111.0'
 import { preflight, reply } from '../_shared/http.ts'
 
 const CLOUD = Deno.env.get('CLOUDINARY_CLOUD_NAME')!
