@@ -8,7 +8,8 @@
 // exempts id_token sign-ins, and Google has already vetted the person.
 //
 // Invisible unless Cloudflare wants a click, in which case its checkbox shows in
-// the middle of the screen. Fails soft: if Cloudflare can't be reached the
+// `host` (the login pages put it under the Log in button) or else in the middle
+// of the screen. Fails soft: if Cloudflare can't be reached the
 // request goes out without a token, which only matters while Supabase enforces
 // CAPTCHA, and then Supabase refuses it with a clear error.
 //
@@ -45,7 +46,7 @@ function load(): Promise<Turnstile> {
 }
 
 /** A one-time token for the next auth request, or undefined when Cloudflare can't be reached. */
-async function captchaToken(timeoutMs = 15000): Promise<string | undefined> {
+async function captchaToken(host?: HTMLElement, timeoutMs = 15000): Promise<string | undefined> {
   let turnstile: Turnstile;
   try {
     turnstile = await load();
@@ -54,8 +55,10 @@ async function captchaToken(timeoutMs = 15000): Promise<string | undefined> {
   }
 
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10000';
-  document.body.appendChild(box);
+  box.style.cssText = host
+    ? 'display:flex;justify-content:center'
+    : 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10000';
+  (host ?? document.body).appendChild(box);
 
   return new Promise((resolve) => {
     let widgetId = '';
@@ -77,7 +80,11 @@ async function captchaToken(timeoutMs = 15000): Promise<string | undefined> {
         appearance: 'interaction-only',
         callback: (token: string) => done(token),
         'error-callback': () => done(undefined),
-        'before-interactive-callback': () => clearTimeout(timer),
+        'before-interactive-callback': () => {
+          clearTimeout(timer);
+          // Spaced only once the checkbox shows, so a silent check doesn't nudge the form.
+          if (host) box.style.marginTop = '16px';
+        },
       });
     } catch {
       done(undefined);
@@ -86,7 +93,7 @@ async function captchaToken(timeoutMs = 15000): Promise<string | undefined> {
 }
 
 /** Options to spread into an auth call: `{ captchaToken }`, or nothing when no token could be had. */
-export async function captcha(): Promise<{ captchaToken?: string }> {
-  const token = await captchaToken();
+export async function captcha(host?: HTMLElement | null): Promise<{ captchaToken?: string }> {
+  const token = await captchaToken(host ?? undefined);
   return token ? { captchaToken: token } : {};
 }

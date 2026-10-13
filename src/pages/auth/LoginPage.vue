@@ -39,6 +39,9 @@
           Log in
           <IconifyIcon icon="lucide:arrow-right" width="18" class="q-ml-sm" />
         </AuthButton>
+
+        <!-- Cloudflare's "Verify you are human" box, only when it asks for a click. -->
+        <div ref="captchaHost" />
       </q-form>
 
       <!-- Google sits below the form: e-mail is the main path here, and leading
@@ -88,6 +91,7 @@ const showPassword = ref(false);
 const loading = ref(false);
 const forgotPasswordLoading = ref(false);
 const loginFormRef = ref<QForm | null>(null);
+const captchaHost = ref<HTMLElement | null>(null);
 const needsEmailVerify = ref(false);
 const verifiedRole = ref<string | null>(null);
 
@@ -240,7 +244,7 @@ async function handleLogin() {
 
   try {
     loading.value = true;
-    const { role, status, emailVerified } = await authStore.login(email.value, password.value);
+    const { role, status, emailVerified } = await authStore.login(email.value, password.value, captchaHost.value);
 
     // Admin/OSAS lives in the web client; this app has no admin surface, and
     // pushing to /admin/dashboard used to land them on a 404.
@@ -305,7 +309,7 @@ async function handleForgotPassword() {
       const redirectTo = Capacitor.isNativePlatform()
         ? 'com.accommo.app://auth/callback'
         : window.location.origin + '/login';
-      const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo, ...(await captcha()) });
+      const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo, ...(await captcha(captchaHost.value)) });
     if (error) throw error;
     notify.success('Password reset link sent to your email.');
   } catch {

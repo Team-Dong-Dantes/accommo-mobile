@@ -495,11 +495,11 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // --- SHARED LOGIN ---
-    async login(email: string, password: string) {
+    async login(email: string, password: string, captchaHost?: HTMLElement | null) {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: await captcha(),
+        options: await captcha(captchaHost),
       });
 
       if (authError) throw sanitizeError(authError);
