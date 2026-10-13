@@ -19,4 +19,14 @@ describe('resolveNotifLink', () => {
   it('does not take a made-up id path as a route', () => {
     expect(resolveNotifLink('/manager/properties/not-an-id', 'accommodation', 'manager')).toBe('/manager/properties')
   })
+
+  it('gives OSAS system notices a screen instead of a dead row', () => {
+    expect(resolveNotifLink('/profile', 'system', 'manager')).toBe('/manager/profile')
+    expect(resolveNotifLink('/profile', 'security', 'student')).toBe('/student/profile')
+  })
+
+  it('opens the tenant a payment or leave request is about', () => {
+    const tenant = '/manager/tenant/00000000-0000-4000-8000-000000000101'
+    expect(resolveNotifLink(tenant, 'payment', 'manager')).toBe(tenant)
+  })
 })

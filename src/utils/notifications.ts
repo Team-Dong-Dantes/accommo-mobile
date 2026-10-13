@@ -31,6 +31,9 @@ const LOOK: Record<string, NotifLook> = {
   concern: { icon: 'lucide:wrench', tone: 'warn' },
   review: { icon: 'lucide:star', tone: 'good' },
   announcement: { icon: 'lucide:megaphone', tone: 'info' },
+  // OSAS restrictions (applications paused, listings hidden) and PIN lockouts.
+  system: { icon: 'lucide:shield-alert', tone: 'warn' },
+  security: { icon: 'lucide:lock', tone: 'danger' },
 };
 
 export function notifLook(type: string | null | undefined): NotifLook {
@@ -57,6 +60,7 @@ const ROUTES = new Set([
   '/student/messages',
   '/student/profile',
   '/student/profile/history',
+  '/student/profile/qr',
   '/student/settings/terms',
   '/student/notifications',
   '/student/support',
@@ -71,6 +75,7 @@ const ROUTES = new Set([
  */
 const ROUTE_PATTERNS: readonly RegExp[] = [
   /^\/manager\/properties\/[0-9a-f-]{36}$/,
+  /^\/manager\/tenant\/[0-9a-f-]{36}$/,
 ];
 
 /** Where each type belongs when its own link_url is unusable here. */
@@ -86,6 +91,10 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/manager/osas',
     concern: '/manager/support',
     review: '/manager/profile',
+    // Written with a bare '/profile' link, which neither app role has; without
+    // these the row had nowhere to go and rendered as a dead, untappable div.
+    system: '/manager/profile',
+    security: '/manager/profile',
   },
   student: {
     message: '/student/messages',
@@ -98,6 +107,8 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/student/support',
     concern: '/student/concerns',
     review: '/student/profile',
+    system: '/student/profile',
+    security: '/student/profile',
   },
 };
 
