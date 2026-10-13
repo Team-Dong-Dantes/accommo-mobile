@@ -1,6 +1,6 @@
 <template>
   <!-- The field surface lives in app.scss as `.auth-field`, shared with
-       AuthSelect and AuthDocumentCard.
+       AuthDocumentCard.
 
        `lazy-rules` sits before `v-bind="$attrs"` so a caller can still override
        it. Without it Quasar validates on every keystroke: typing the first

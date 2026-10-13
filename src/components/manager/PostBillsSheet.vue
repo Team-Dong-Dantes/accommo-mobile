@@ -5,10 +5,9 @@
         <h3 class="mx-head-title">Post {{ monthName }} bills</h3>
         <span class="mx-head-sub">
           {{ propertyName }} · due
-          <label class="pb-due">
+          <DateTimeField v-model="dueDate" mode="date" :min="today" placeholder="Due date" class="pb-due">
             {{ formatDate(dueDate) }}
-            <input v-model="dueDate" type="date" :min="today" class="pb-due-input" aria-label="Due date" />
-          </label>
+          </DateTimeField>
         </span>
       </span>
     </template>
@@ -100,6 +99,7 @@ import { formatDate, formatMonth, formatPesoExact, initialsOf } from '@/utils/fo
 import { manilaToday } from '@/utils/payments'
 import { UTILITIES, type UtilityKey } from '@/utils/listings'
 import AppModal from '@/components/shared/AppModal.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 
 // This month's metered bills for a whole property at once. A shared (split)
 // meter is one total per room, divided evenly between the tenants on it; an own
@@ -284,15 +284,18 @@ async function post() {
   justify-content: center;
   text-align: center;
 }
+/* An inline link in the subtitle rather than a field: the slot replaces the
+   picker's contents with the formatted date. */
 .pb-due {
-  position: relative;
+  display: inline;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--m-primary-dark);
+  font: inherit;
   font-weight: 700;
-}
-.pb-due-input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
+  text-decoration: underline dotted;
 }
 .pb-room {
   overflow: hidden;

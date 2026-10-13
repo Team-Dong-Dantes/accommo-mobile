@@ -40,27 +40,6 @@ export function walkMinutesGuess(lat: number | null, lng: number | null): number
   return Math.max(1, Math.round(((km * 1.3) / 4.8) * 60));
 }
 
-export interface MapChips {
-  vacant: boolean;
-  fitsMe: boolean;
-  under3k: boolean;
-  dorm: boolean;
-  boarding: boolean;
-}
-
-export const UNDER_RENT = 3000;
-
-/** The quick chips on the map. Dorm and Boarding house widen each other (either
- * kind); every other chip narrows. */
-export function passesChips(p: PinFacts, chips: MapChips, sex: string | null): boolean {
-  if (chips.vacant && !p.vacancies) return false;
-  if (chips.fitsMe && !takesSex(p.genderKind, sex)) return false;
-  if (chips.under3k && !(p.minVacantRent && p.minVacantRent <= UNDER_RENT)) return false;
-  const kinds = [chips.dorm && 'dormitory', chips.boarding && 'boarding_house'].filter(Boolean);
-  if (kinds.length && !kinds.includes(p.buildingKind ?? '')) return false;
-  return true;
-}
-
 /** A price pill with a tail. `anchor` goes to mapboxgl.Marker({ element,
  * anchor: 'bottom' }); `pin` is the pill, styled by .price-pin in
  * StudentDiscoverPage. Two elements because Mapbox places a marker by setting

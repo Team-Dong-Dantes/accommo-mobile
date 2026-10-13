@@ -4,7 +4,7 @@
          amenities, room type, roommates, lease term. -->
     <button type="button" class="cover" @click="emit('go', '/student/stay')">
       <img v-if="stay.photoUrl" :src="stay.photoUrl" alt="" class="cover-img" />
-      <span v-else class="cover-mono" aria-hidden="true">{{ monogram }}</span>
+      <PhotoEmpty v-else :size="28" label />
 
       <span class="cover-scrim" aria-hidden="true" />
       <span class="cover-tag">{{ statusLabel }}</span>
@@ -72,9 +72,10 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { reactive, computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { formatDate, formatPeso, initialsOf, LANDLORD_ROLE_LABEL } from '@/utils/format'
+import { formatDate, formatPeso, LANDLORD_ROLE_LABEL } from '@/utils/format'
 import { campusDistanceLabel } from '@/utils/geo'
 import { openExternal } from '@/utils/openExternal'
 import type { Manager, NextPayment, Stay } from './dashboard'
@@ -102,7 +103,6 @@ const nextCap = computed(() => {
   return `${n.overdue ? 'Overdue' : 'Due'} · ${month}`
 })
 
-const monogram = computed(() => initialsOf(props.stay.accommodationName))
 
 const roomLabel = computed(() => {
   const { roomNumber, roomLabel: label } = props.stay
@@ -160,18 +160,6 @@ function openDirections() {
   -webkit-tap-highlight-color: transparent;
 }
 .cover-img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.cover-mono {
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-  background: linear-gradient(160deg, var(--m-primary) 0%, var(--m-primary-dark) 100%);
-  color: rgba(255, 255, 255, 0.55);
-  font-family: var(--m-font-display);
-  font-size: 44px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
 .cover-scrim {
   position: absolute;
   inset: 0;

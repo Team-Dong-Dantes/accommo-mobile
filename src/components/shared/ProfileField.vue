@@ -5,16 +5,15 @@
     <span class="pf-label">{{ label }}</span>
 
     <template v-if="isEditing">
-      <select
+      <AppSelect
         v-if="type === 'select'"
-        class="pf-input app-select"
-        :value="modelValue"
-        :disabled="!options.length"
-        @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
-      >
-        <option value="">{{ placeholder || 'Select…' }}</option>
-        <option v-for="opt in options" :key="opt" :value="opt">{{ opt }}</option>
-      </select>
+        class="pf-input"
+        :model-value="modelValue"
+        :options="options"
+        :placeholder="placeholder || label"
+        :disable="!options.length"
+        @update:model-value="emit('update:modelValue', $event)"
+      />
 
       <input
         v-else
@@ -35,6 +34,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import AppSelect from '@/components/shared/AppSelect.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -97,5 +97,4 @@ const isEditing = computed(() => props.editing && !props.readonly)
   font-weight: 600;
 }
 .pf-input:focus { border-color: var(--m-primary); outline: none; }
-/* appearance + chevron now come from .app-select in app.scss. */
 </style>

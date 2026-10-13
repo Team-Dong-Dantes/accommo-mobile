@@ -27,7 +27,7 @@
 
     <label class="field">
       <span class="field-label">Expires on</span>
-      <input v-model="expiresAt" type="date" class="field-input" :min="today" />
+      <DateTimeField v-model="expiresAt" mode="date" :min="today" placeholder="Pick the expiry date" class="field-input" />
     </label>
 
     <template #footer>
@@ -48,6 +48,7 @@ import { useNotify } from '@/utils/notify'
 import { expiryProblem, permitLabel, savePermitVersion, uploadPermitFile } from '@/utils/permits'
 import { manilaToday } from '@/utils/payments'
 import AppModal from '@/components/shared/AppModal.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 
 const props = defineProps<{
   modelValue: boolean

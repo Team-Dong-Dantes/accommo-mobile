@@ -213,7 +213,7 @@ describe('dateOfBirthProblem', () => {
     expect(dateOfBirthProblem('1899-06-01', TODAY)).toMatch(/valid/)
   })
   it('enforces the minimum age on the birthday itself', () => {
-    expect(dateOfBirthProblem('2011-10-13', TODAY)).toBeNull()
-    expect(dateOfBirthProblem('2011-10-14', TODAY)).toMatch(/at least 15/)
+    expect(dateOfBirthProblem('2008-10-13', TODAY)).toBeNull()
+    expect(dateOfBirthProblem('2008-10-14', TODAY)).toMatch(/at least 18/)
   })
 })

@@ -45,7 +45,7 @@
       <div
         v-if="hasMapToken"
         class="map-region"
-        :class="{ 'map-region--full': mapExpanded, 'map-region--desk': deskMap }"
+        :class="{ 'map-region--full': mapExpanded, 'map-region--desk': deskMap, 'map-region--picked': selectedId }"
         :style="mapRegionStyle"
       >
         <div ref="mapEl" class="map-el" aria-label="Map of accommodations" />
@@ -56,44 +56,39 @@
       </div>
 
       <!-- Full map: the preview button above is now covered by the fixed
-           full-screen map, so this is the way back — parked just under the
-           header where the rail/info card below can never cover it. -->
-      <button
-        v-if="hasMapToken && mapExpanded"
-        type="button"
-        class="map-collapse-btn"
-        :style="{ top: (headerReservedPx + 16) + 'px' }"
-        @click="toggleMapExpanded(false)"
-      >
-        <IconifyIcon icon="lucide:x" width="16" />
-        <span>List view</span>
-      </button>
-
-      <!-- Quick chips: the questions a student asks of a map, one tap each.
-           They narrow the pins and cards only; the full filter sheet still
-           drives the list. -->
+           full-screen map, so "List view" is the way back — parked just under
+           the header where the rail/info card below can never cover it, with
+           "my location" beside it. Desktop has no list view to go back to, so
+           only the locate button, in the map's top-right corner. -->
       <div
         v-if="hasMapToken && (mapExpanded || deskMap)"
-        class="map-chips"
-        :class="{ 'map-chips--desk': deskMap }"
-        :style="deskMap ? undefined : { top: (headerReservedPx + 60) + 'px' }"
+        class="map-top"
+        :class="{ 'map-top--desk': deskMap }"
+        :style="deskMap ? undefined : { top: (headerReservedPx + 16) + 'px' }"
       >
+        <button v-if="!deskMap" type="button" class="map-collapse-btn" @click="toggleMapExpanded(false)">
+          <IconifyIcon icon="lucide:x" width="16" />
+          <span>List view</span>
+        </button>
         <button
-          v-for="chip in visibleChips"
-          :key="chip.key"
           type="button"
-          class="map-chip"
-          :class="{ 'map-chip--on': mapChips[chip.key] }"
-          :aria-pressed="mapChips[chip.key]"
-          @click="mapChips[chip.key] = !mapChips[chip.key]"
+          class="map-locate-btn"
+          :class="{ 'map-locate-btn--on': located }"
+          :disabled="locating"
+          aria-label="Show my location"
+          @click="locateMe"
         >
-          <IconifyIcon :icon="chip.icon" width="13" />
-          {{ chip.label }}
+          <IconifyIcon
+            :icon="locating ? 'lucide:loader-circle' : 'lucide:locate-fixed'"
+            :class="{ 'map-locate-spin': locating }"
+            width="17"
+          />
         </button>
       </div>
 
       <!-- One carousel, synced both ways with the pins: swiping a card flies
-           the map to its pin, tapping a pin scrolls to its card. Desktop has
+           the map to its pin, tapping a pin scrolls to its card. Picking one
+           hides the other pins; the card's X brings them back. Desktop has
            the list beside it, so it shows only the picked place. -->
       <div
         v-if="hasMapToken && (mapExpanded || (deskMap && selected))"
@@ -101,21 +96,35 @@
         :class="{ 'map-float--desk': deskMap }"
       >
         <div ref="mapRailEl" class="map-rail" @scrollend="onRailSettled">
-          <button
+          <!-- A div, not a button: it holds the X button, and buttons can't nest. -->
+          <div
             v-for="item in railItems"
             :key="item.id"
             :data-id="item.id"
-            type="button"
+            role="button"
+            tabindex="0"
             class="map-card"
             :class="{ 'map-card--on': item.id === selectedId, 'map-card--dim': !fitsMe(item) }"
             @click="open(item.id)"
+            @keydown.enter="open(item.id)"
           >
-            <span class="map-card-shot" :class="{ 'map-card-shot--empty': !item.image }">
+            <span class="map-card-shot">
               <img v-if="item.image" :src="item.image" :alt="item.name" loading="lazy" />
-              <IconifyIcon v-else icon="lucide:image-off" width="20" />
+              <PhotoEmpty v-else :size="20" />
             </span>
             <span class="map-card-body">
-              <span class="map-card-name">{{ item.name }}</span>
+              <span class="map-card-head">
+                <span class="map-card-name">{{ item.name }}</span>
+                <button
+                  v-if="item.id === selectedId"
+                  type="button"
+                  class="map-card-x"
+                  aria-label="Show all pins"
+                  @click.stop="clearSelectedPin"
+                >
+                  <IconifyIcon icon="lucide:x" width="14" />
+                </button>
+              </span>
               <span class="map-card-rent" :class="{ 'map-card-rent--full': !item.vacancies }">
                 <template v-if="!item.vacancies">Full right now</template>
                 <template v-else-if="item.minVacantRent">from {{ formatPeso(item.minVacantRent) }}<span class="map-card-per">/mo</span></template>
@@ -131,8 +140,7 @@
                 <span v-if="item.buildingType" class="map-card-tag">{{ item.buildingType }}</span>
               </span>
             </span>
-          </button>
-          <p v-if="!railItems.length" class="map-rail-none">No places match these chips.</p>
+          </div>
         </div>
       </div>
       </Teleport>
@@ -211,12 +219,9 @@
             class="tile"
             @click="openRoom(room.id)"
           >
-            <span class="tile-shot" :class="{ 'tile-shot--empty': !room.image }">
+            <span class="tile-shot">
               <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
-              <span v-else class="shot-empty">
-                <IconifyIcon icon="lucide:image-off" width="22" />
-                <span class="shot-empty-label">No photo</span>
-              </span>
+              <PhotoEmpty v-else :size="22" label />
               <span class="tile-flag">{{ room.label }}</span>
             </span>
             <span class="tile-body">
@@ -318,7 +323,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { Dark } from 'quasar'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -332,7 +338,7 @@ import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, kmBetween, geolocationErrorMessage, CAMPUS } from '@/utils/geo'
 import { SEARCH_FEATURES, isUtilityAvailable, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
 import { useNotify } from '@/utils/notify'
-import { pinLabel, takesSex, passesChips, walkMinutesGuess, pricePinElement, campusBadgeElement, UNDER_RENT, type MapChips } from '@/utils/mapPins'
+import { pinLabel, takesSex, walkMinutesGuess, pricePinElement, campusBadgeElement } from '@/utils/mapPins'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
@@ -446,10 +452,6 @@ const mapUnderHeaderPx = computed(() => (isDesktop.value ? 0 : headerReservedPx.
 const mapRegionStyle = computed(() => ({
   height: mapFillHeight.value,
   marginTop: mapExpanded.value ? '0px' : `-${mapUnderHeaderPx.value}px`,
-  // The map runs up behind the floating header, so mapbox's own controls
-  // land underneath it and can't be tapped at all. Push them clear by the
-  // same amount the header reserves.
-  '--map-ctrl-top': `${mapUnderHeaderPx.value + 8}px`,
 }))
 
 // The place picked on the map, by pin or by swiping to its card.
@@ -470,17 +472,6 @@ async function loadMySex() {
 function fitsMe(p: Property) {
   return takesSex(p.genderKind, mySex.value)
 }
-
-const mapChips = reactive<MapChips>({ vacant: false, fitsMe: false, under3k: false, dorm: false, boarding: false })
-const CHIPS: { key: keyof MapChips; label: string; icon: string }[] = [
-  { key: 'vacant', label: 'Has vacancy', icon: 'lucide:door-open' },
-  { key: 'fitsMe', label: 'Fits me', icon: 'lucide:user-check' },
-  { key: 'under3k', label: `Under ${formatPeso(UNDER_RENT)}`, icon: 'lucide:wallet' },
-  { key: 'dorm', label: 'Dorm', icon: 'lucide:school' },
-  { key: 'boarding', label: 'Boarding house', icon: 'lucide:house' },
-]
-// "Fits me" means nothing without a known sex.
-const visibleChips = computed(() => CHIPS.filter((c) => c.key !== 'fitsMe' || mySex.value === 'M' || mySex.value === 'F'))
 
 function walkText(p: Property) {
   const min = routeMinutes[p.id] ?? walkMinutesGuess(p.lat, p.lng)
@@ -539,7 +530,7 @@ const filteredRooms = computed(() => {
  * set (activeFilterCount treats the default "vacant only" as unset), which
  * keeps the untouched default view showing everything, full places included. */
 const mapProperties = computed(() => {
-  const matching = filterByHaystack(properties.value).filter((p) => passesChips(p, mapChips, mySex.value))
+  const matching = filterByHaystack(properties.value)
   if (activeFilterCount.value === 0) return matching
   const withMatchingRooms = new Set(filteredRooms.value.map((r) => r.propertyId))
   return matching.filter((p) => withMatchingRooms.has(p.id))
@@ -594,6 +585,13 @@ function toggleMapExpanded(expanded: boolean) {
   mapExpanded.value = expanded
 }
 
+let locateCtl: mapboxgl.GeolocateControl | null = null
+const locating = ref(false)
+const located = ref(false)
+function locateMe() {
+  locating.value = Boolean(locateCtl?.trigger())
+}
+
 function initMap() {
   if (!mapEl.value || map || !hasMapToken) return
   mapboxgl.accessToken = MAPBOX_TOKEN!
@@ -603,24 +601,27 @@ function initMap() {
     center: [CAMPUS.lng, CAMPUS.lat],
     zoom: 13,
   })
-  map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
-
   // "Where am I?" — Mapbox's own control, so the user dot, accuracy ring and
-  // permission prompt come for free. One-shot rather than trackUserLocation,
-  // which would keep re-centring on the student and fight the framing below.
-  const locate = new mapboxgl.GeolocateControl({
+  // permission prompt come for free. Its button is hidden (see the CSS) and
+  // our own beside "List view" calls trigger(). One-shot rather than
+  // trackUserLocation, which would keep re-centring on the student and fight
+  // the framing below.
+  locateCtl = new mapboxgl.GeolocateControl({
     positionOptions: { enableHighAccuracy: true, timeout: 20000 },
     trackUserLocation: false,
     showUserLocation: true,
   })
-  map.addControl(locate, 'top-right')
+  map.addControl(locateCtl)
   // Centring on the student alone would push the listings off screen, and the
   // point is seeing yourself *and* the places at once.
-  locate.on('geolocate', (position) => {
+  locateCtl.on('geolocate', (position) => {
     const p = position as GeolocationPosition
+    locating.value = false
+    located.value = true
     frameAround([p.coords.longitude, p.coords.latitude])
   })
-  locate.on('error', (err) => {
+  locateCtl.on('error', (err) => {
+    locating.value = false
     notify.error(geolocationErrorMessage(err as GeolocationPositionError))
   })
 
@@ -800,12 +801,18 @@ function syncMarkers(reframe = !mapExpanded.value && !deskMap.value) {
   for (const property of located) {
     const { anchor, pin: el } = pricePinElement(property.name, pinLabel(property), { full: !property.vacancies, dim: !fitsMe(property) })
     if (property.id === selectedId.value) el.classList.add('price-pin--on')
-    // Full map: tapping a pin selects it and scrolls its card into view
-    // instead of leaving the map. The preview strip still jumps straight to it.
+    // Tapping a pin selects it and scrolls its card into view instead of
+    // leaving the map. On the preview strip it opens the full map first.
     el.addEventListener('click', (e) => {
       e.stopPropagation()
-      if (mapExpanded.value || deskMap.value) selectPin(property, true)
-      else open(property.id)
+      if (mapExpanded.value || deskMap.value) return selectPin(property, true)
+      toggleMapExpanded(true)
+      // Wait for the rail to render and the map to take its new size, so the
+      // card can be scrolled to and the framing fits the full screen.
+      void nextTick(() => {
+        map?.resize()
+        selectPin(property, true)
+      })
     })
     markers.push(new mapboxgl.Marker({ element: anchor, anchor: 'bottom', offset: [0, -5] }).setLngLat([property.lng, property.lat]).addTo(map))
     pinEls.set(property.id, el)
@@ -825,9 +832,10 @@ function syncMarkers(reframe = !mapExpanded.value && !deskMap.value) {
   }
 }
 
-/** Picks a place: highlights its pin, draws its walk to campus and frames
- * both. `scrollCard` brings its card into view — wanted when the pin was
- * tapped, not when the card was swiped to (it's already there). */
+/** Picks a place: highlights its pin (the others hide, see
+ * .map-region--picked), draws its walk to campus and frames both.
+ * `scrollCard` brings its card into view — wanted when the pin was tapped,
+ * not when the card was swiped to (it's already there). */
 function selectPin(property: Property, scrollCard = false) {
   pinEls.get(selectedId.value ?? '')?.classList.remove('price-pin--on')
   selectedId.value = property.id
@@ -1136,6 +1144,8 @@ function destroyMap() {
   markers = []
   map?.remove()
   map = null
+  locateCtl = null
+  locating.value = located.value = false
   pinEls.clear()
   selectedId.value = null
 }
@@ -1178,10 +1188,10 @@ function destroyMap() {
   width: 100%;
   height: 100%;
 }
-/* Zoom + locate buttons, cleared of the floating header that was covering
-   them (they were unreachable before). */
+/* Mapbox's own control buttons — replaced by .map-locate-btn; the geolocate
+   control stays mounted only for its user dot and accuracy ring. */
 :deep(.mapboxgl-ctrl-top-right) {
-  top: var(--map-ctrl-top, 0);
+  display: none;
 }
 
 /* Accommodation pins: a price pill with a tail. Grey "Full" and faded
@@ -1233,6 +1243,11 @@ function destroyMap() {
 }
 :deep(.mapboxgl-marker:has(.price-pin--on)) {
   z-index: 2;
+}
+/* A place is picked: only its pin stays, so it and its walk to campus read
+   clearly. The card's X un-picks and brings the rest back. */
+.map-region--picked :deep(.mapboxgl-marker:has(.price-pin):not(:has(.price-pin--on))) {
+  visibility: hidden;
 }
 :deep(.price-pin--on) {
   background: var(--m-primary);
@@ -1306,30 +1321,63 @@ function destroyMap() {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* Floating "list view" button — the expanded map covers everything below
-   the header, so this is the way back: parked just under it, always in
+/* Floating "List view" + "my location" — the expanded map covers everything
+   below the header, so this is the way back: parked just under it, always in
    reach regardless of scroll position. */
-.map-collapse-btn {
+.map-top {
   position: fixed;
   left: 50%;
   z-index: 65;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px 8px 12px;
+  gap: 8px;
   transform: translateX(-50%);
+}
+.map-top--desk {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  left: auto;
+  z-index: 6;
+  transform: none;
+}
+.map-collapse-btn,
+.map-locate-btn {
+  display: flex;
+  align-items: center;
   border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--m-surface) 62%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   backdrop-filter: blur(16px) saturate(160%);
   color: var(--m-ink);
-  font-size: 12.5px;
-  font-weight: 700;
-  white-space: nowrap;
   box-shadow: 0 3px 12px rgba(15, 23, 42, 0.35);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+.map-collapse-btn {
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px 0 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.map-locate-btn {
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.map-locate-btn--on {
+  color: var(--m-primary);
+}
+.map-locate-spin {
+  animation: map-locate-spin 0.8s linear infinite;
+}
+@keyframes map-locate-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Floating recommendations rail — full-map mode only, sitting just above
@@ -1353,54 +1401,6 @@ function destroyMap() {
   z-index: 6;
   padding: 0;
 }
-/* Quick chips — glass, like the rest of the map chrome. */
-.map-chips {
-  position: fixed;
-  right: 0;
-  left: 0;
-  z-index: 60;
-  display: flex;
-  gap: 6px;
-  padding: 0 var(--m-page-gutter);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.map-chips::-webkit-scrollbar {
-  display: none;
-}
-.map-chips--desk {
-  position: absolute;
-  top: 14px;
-  padding: 0 14px;
-  z-index: 6;
-}
-.map-chip {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 5px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--m-border) 55%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--m-surface) 78%, transparent);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
-  color: var(--m-ink);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
-  -webkit-tap-highlight-color: transparent;
-}
-.map-chip--on {
-  border-color: var(--m-primary-dark);
-  background: var(--m-primary-dark);
-  color: #fff;
-}
-
 /* The synced carousel: one card centred at a time, its neighbours peeking. */
 .map-rail {
   display: flex;
@@ -1422,6 +1422,9 @@ function destroyMap() {
 .map-card {
   display: flex;
   flex: 0 0 300px;
+  /* Without this a flex item never shrinks below its content, so a long
+     name stretched the card instead of truncating. */
+  min-width: 0;
   gap: 10px;
   padding: 8px;
   scroll-snap-align: center;
@@ -1447,6 +1450,7 @@ function destroyMap() {
   opacity: 0.6;
 }
 .map-card-shot {
+  position: relative;
   display: grid;
   width: 92px;
   height: 92px;
@@ -1454,8 +1458,7 @@ function destroyMap() {
   place-items: center;
   overflow: hidden;
   border-radius: var(--m-radius-sm, 10px);
-  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
-  color: var(--m-muted);
+  background: var(--m-border);
 }
 .map-card-shot img {
   width: 100%;
@@ -1469,13 +1472,35 @@ function destroyMap() {
   flex-direction: column;
   gap: 3px;
 }
+.map-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
 .map-card-name {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--m-ink);
   font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.map-card-x {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: -2px -2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-ink) 8%, transparent);
+  color: var(--m-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .map-card-rent {
   color: var(--m-primary-dark);
@@ -1516,16 +1541,6 @@ function destroyMap() {
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
 }
-.map-rail-none {
-  margin: 0 auto;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--m-surface) 88%, transparent);
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
 .stack {
   display: flex;
   flex-direction: column;
@@ -1723,17 +1738,6 @@ function destroyMap() {
   height: 100%;
   object-fit: cover;
 }
-.tile-shot--empty {
-  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
-}
-.shot-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--m-muted);
-}
-.shot-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
 .tile-flag {
   position: absolute;
   top: 7px;

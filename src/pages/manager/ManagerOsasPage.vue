@@ -240,6 +240,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
+import { closeOverlay } from '@/utils/closeOverlay'
 import { since } from '@/utils/notifications'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument, secureDocUrl, signRows } from '@/utils/upload'
@@ -677,7 +678,7 @@ function showTicket(t: Ticket) {
   void router.push({ path: route.path, query: { t: t.id } })
 }
 function closeTicket() {
-  void router.push({ path: route.path })
+  closeOverlay(router, 't')
 }
 
 // An open thread covers the screen, so the shell's nav and FAB step aside.

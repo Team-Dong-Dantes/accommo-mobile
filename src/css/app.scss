@@ -1332,7 +1332,7 @@ select,
 /* ===== Auth form surface =====
    The sign-in and registration fields are one grouped list, not a stack of
    separate boxes: `.auth-group` draws the single border and the hairlines
-   between rows, and `.auth-field` (AuthInput, AuthSelect) is a transparent row
+   between rows, and `.auth-field` (AuthInput) is a transparent row
    inside it. Six 56px boxes with gaps between them read as six competing
    rectangles; one container reads as one form.
 
@@ -1378,11 +1378,24 @@ select,
   color: var(--m-primary);
 }
 
-.auth-field.q-field--error .q-field__control {
+/* The tint covers the whole field, message included, so the message reads as
+   part of the row rather than a caption under it. */
+.auth-field.q-field--error {
   background: color-mix(in srgb, var(--m-danger-soft) 55%, transparent);
+}
+.auth-field.q-field--error .q-field__control {
+  background: transparent;
 }
 .auth-field.q-field--error .q-field__label {
   color: var(--m-danger);
+}
+.auth-field .q-field__bottom {
+  justify-content: center;
+  margin-top: -8px;
+  padding: 0 16px 10px;
+}
+.auth-field .q-field__messages {
+  text-align: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1391,122 +1404,108 @@ select,
   }
 }
 
-/* The dropdown the auth selects open — Sex and Ext. for both roles, College,
-   Program and Year Level for students.
+/* ===== Picker fields: DateTimeField and AppSelect =====
+   Every date, time, month and dropdown in the app is one of these two: a field
+   that opens a sheet. They replaced the native <select>/<input type="date">
+   controls, AuthSelect and the raw q-selects, which looked different on every
+   screen and every platform.
 
-   It had no styling at all, so it rendered with Quasar's defaults: 4px corners,
-   Quasar's own greys, Roboto, inside a screen built from 14px radii, the `--m-*`
-   tokens and Hanken Grotesk. It was the one surface in the flow that looked like
-   it came from a different app, and on the dark palette it followed Quasar's
-   dark rather than `--m-surface`.
-
-   Global rather than scoped because the popup is teleported to the body, out of
-   AuthSelect's tree — the class is put on by `popup-content-class` there. */
-.auth-select-menu {
-  padding: 6px;
+   The box belongs to the screen, not the component: a screen passes the class
+   its text inputs already use (`field-input`, `mx-input`, `pf-input`, …) so the
+   picker matches the input standing next to it. Hence `:where()` — zero
+   specificity, so any such class wins and this is only the fallback for a
+   picker with no class of its own. */
+:where(.picker-field) {
+  min-height: 38px;
+  padding: 0 12px;
   border: 1px solid var(--m-border);
-  border-radius: 14px;
-  background: var(--m-surface);
-  box-shadow: var(--m-shadow);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 13px;
 }
-
-/* 48px so a thumb has something to aim at, and each row rounded inside the
-   menu's own radius rather than running square into its corners. */
-.auth-select-menu .q-item {
-  min-height: 48px;
-  padding: 8px 12px;
-  border-radius: 9px;
-  color: var(--m-ink);
-  font-size: 14px;
+:where(.picker-field) {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
-.auth-select-menu .q-item + .q-item {
-  margin-top: 2px;
-}
-/* Beats the global `.q-item__label { overflow: hidden; text-overflow: ellipsis }`
-   above, which otherwise clipped a 79-character college name in the open list
-   as well as in the field. */
-.auth-select-menu .q-item__label {
-  overflow: visible;
-  line-height: 1.35;
-  text-overflow: clip;
-  white-space: normal;
-}
-
-/* Ten colleges on a short phone: scroll inside the menu rather than letting it
-   run off the screen. */
-.auth-select-menu {
-  max-height: 46vh;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Same fight, in the collapsed field. `.q-select .q-field__native` is set to
-   nowrap + ellipsis globally, which silently defeated the wrapping AuthSelect
-   renders for a long value with no acronym to fall back on. */
-.auth-field.q-select .q-field__native {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-}
-
-/* The current choice, named by its own tint and the check AuthSelect renders. */
-.auth-select-menu .auth-select-option.is-selected {
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-weight: 700;
-}
-
-/* Every native <select> in the app — eleven of them across seven screens.
-
-   This adds only what a <select> needs and nothing a field already has. The box
-   stays whatever its own screen gives it: `field-input`, `pay-input` and
-   `submit-input` are three identical copies of the same 44px field, and
-   ProfileField's `pf-input` is a slightly smaller row for a denser context. An
-   earlier pass restated that geometry here at 48px, which made every select
-   disagree with the text input standing next to it. The inputs were never what
-   needed fixing.
-
-   What did: the browser's own arrow, which matches neither Lucide nor anything
-   else on screen — and which ProfileField had already removed without putting
-   anything in its place, leaving a dropdown with no affordance at all. So
-   `appearance: none` everywhere, and Lucide's chevron-down inlined as a
-   background image, a <select> having no slot to hang an icon in. Those screens
-   set `background-color` rather than the `background` shorthand now, so they
-   stop clearing it back out.
-
-   Only the closed control is ours. The open list stays the operating system's
-   picker, which is better than anything we would build for it on a phone —
-   familiar, accessible, and it handles a long list without us reimplementing
-   scrolling.
-
-   `currentColor` cannot be used inside a data: URI, so the arrow's stroke is
-   restated per palette below. */
-.app-select {
-  padding-right: 38px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.app-select:disabled {
+.picker-field:disabled {
+  cursor: default;
   opacity: 0.6;
 }
-
-/* An empty <input type="time"> is not blank. Blink draws its own mask inside the
-   box — "--:--" — so a curfew nobody has set yet reads as a field already
-   containing something, and the colon in it is the only one the app renders
-   inside any input.
-
-   Hidden rather than removed: the mask is the browser's, and it has to come back
-   the moment the field is focused or the person is typing into a box with no
-   visible cursor position. The label above the field carries the meaning while
-   it is empty, which is what an empty field should look like. */
-.app-time--empty:not(:focus)::-webkit-datetime-edit {
-  color: transparent;
+/* Empty reads as a hint even when the screen's class paints its text ink. */
+.picker-field:not(.picker-field--set) .picker-field__text {
+  color: var(--m-muted);
+}
+.picker-field--set {
+  color: var(--m-ink);
+}
+.picker-field--error {
+  border-color: var(--m-danger);
+}
+.picker-field__body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+/* Wraps rather than ellipsising: a long college name with no acronym is better
+   read over two lines than cut in half. */
+.picker-field__text {
+  min-width: 0;
+  line-height: 1.3;
+}
+.picker-field__icon {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+}
+.picker-field__label {
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.picker-field__error {
+  margin-top: 2px;
+  color: var(--m-danger);
+  font-size: 12px;
+  font-weight: 600;
 }
 
-:root.dark .app-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+/* Inside the register flow's grouped list a picker is one more row, drawn like
+   AuthInput's `.auth-field`: no box of its own, a stacked label, and a tinted
+   row rather than a red border when it fails. */
+.picker-field.auth-row {
+  min-height: 64px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 16px;
+}
+/* Put back the group's hairline between rows, which the border reset above removes. */
+.auth-group > * + .picker-field.auth-row {
+  border-top: 1px solid var(--m-border);
+}
+.picker-field.auth-row.picker-field--error {
+  background: color-mix(in srgb, var(--m-danger-soft) 55%, transparent);
+}
+.picker-field.auth-row.picker-field--error .picker-field__label {
+  color: var(--m-danger);
+}
+/* Centred on the whole row: the negative margin reaches under the icon
+   (16px wide + 8px gap) so the icon doesn't pull the message left of centre. */
+.picker-field.auth-row .picker-field__error {
+  margin-right: -24px;
+  text-align: center;
 }
 
 /* The auth sheet, and the question that opens it.

@@ -79,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onUnmounted } from 'vue'
+import { ref, reactive, computed, onActivated, onDeactivated } from 'vue'
 import { pageTitleOverride } from '@/utils/pageTitle'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -110,7 +110,11 @@ const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
-onUnmounted(() => { pageTitleOverride.value = null })
+// Kept alive (MainLayout's KEEP_ALIVE_PAGES), so leaving deactivates rather than
+// unmounts: the header title must follow activation, or it sticks on the next screen.
+let active = false
+onActivated(() => { active = true; if (manager.name) pageTitleOverride.value = manager.title })
+onDeactivated(() => { active = false; pageTitleOverride.value = null })
 const manager = reactive({
   name: '',
   title: landlordTitle(null),
@@ -164,7 +168,7 @@ async function load(silent = false) {
 
     manager.title = landlordTitle(person.sex)
     manager.name = person.full_name?.trim() || manager.title
-    pageTitleOverride.value = manager.title
+    if (active) pageTitleOverride.value = manager.title
     manager.initials = person.initials || initialsOf(manager.name)
     manager.avatarColor = person.avatar_color
     manager.avatarUrl = person.avatar_url ? resolveAsset(person.avatar_url) : null

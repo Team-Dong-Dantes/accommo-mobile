@@ -1,11 +1,8 @@
 <template>
   <button v-if="property" type="button" class="pcard" @click="emit('open', property.id)">
-    <span class="pcard-photo" :class="{ 'pcard-photo--empty': !property.image }">
+    <span class="pcard-photo">
       <img v-if="property.image" :src="property.image" :alt="property.name" loading="lazy" />
-      <span v-else class="pcard-photo-empty">
-        <IconifyIcon icon="lucide:image-off" width="24" />
-        <span class="pcard-photo-empty-label">No photo</span>
-      </span>
+      <PhotoEmpty v-else :size="24" label />
       <span class="pcard-status" :class="`pcard-status--${STATUS_TONE[property.status] || 'grey'}`">
         <IconifyIcon :icon="STATUS_ICON[property.status] || 'lucide:circle'" width="10" />
         {{ STATUS_LABEL[property.status] || property.status }}
@@ -60,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { healthTone, STATUS_TONE, type Property } from './property'
 import { ACCOMMODATION_STATUS_LABEL } from '@/utils/listings'
@@ -115,15 +113,6 @@ const STATUS_ICON: Record<string, string> = {
   color: var(--m-primary-dark);
 }
 .pcard-photo img { width: 100%; height: 100%; object-fit: cover; }
-.pcard-photo--empty { background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%); }
-.pcard-photo-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--m-muted);
-}
-.pcard-photo-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
 
 .pcard-status {
   position: absolute;

@@ -169,15 +169,14 @@ export function isPhMobile(raw: string | number | null | undefined): boolean {
   return digits !== '9000000000'
 }
 
-/** Youngest age Accommo accepts at sign-up; catches a slipped decade (2018 for 2008). */
-export const MIN_SIGNUP_AGE = 15
+/** Only adults may use Accommo; matches users_date_of_birth_plausible. */
+export const MIN_SIGNUP_AGE = 18
 
 /**
  * Why a date of birth is unusable, or null. `today` is YYYY-MM-DD (manilaToday()).
  * Parsed strictly rather than string-compared: a desktop date input lets the year
  * run past four digits ('20085-05-08' sorts after today), and '2008-02-30' passed
- * every string check. Bounds match users_date_of_birth_plausible, plus MIN_SIGNUP_AGE,
- * which the database does not carry.
+ * every string check. Bounds match users_date_of_birth_plausible.
  */
 export function dateOfBirthProblem(val: string | null | undefined, today: string): string | null {
   if (!val) return 'Please enter your date of birth'
@@ -211,7 +210,7 @@ export function dateOfBirthProblem(val: string | null | undefined, today: string
 // canonical shape ("10:00 PM", "10:00 PM – 6:00 AM") and read older,
 // hand-typed values back as best they can.
 
-/** "22:00" (an <input type="time"> value) -> "10:00 PM". */
+/** "22:00" (a time-picker value) -> "10:00 PM". */
 export function to12Hour(value: string): string {
   const [h, m] = (value || '').split(':');
   const hour = Number(h);
@@ -221,7 +220,7 @@ export function to12Hour(value: string): string {
   return `${hour12}:${m} ${suffix}`;
 }
 
-/** "10:00 PM" / "10PM" / "22:00" -> "22:00" for an <input type="time">. */
+/** "10:00 PM" / "10PM" / "22:00" -> "22:00" for a time picker. */
 export function to24Hour(value: string): string {
   const text = (value || '').trim();
   const match = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/.exec(text);

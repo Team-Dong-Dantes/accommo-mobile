@@ -16,7 +16,7 @@
             round
             dense
             class="setup-back-button"
-            :aria-label="`Back to ${subPage.backLabel}`"
+            aria-label="Back"
             @click="goBack"
           >
             <IconifyIcon icon="lucide:arrow-left" width="20" />
@@ -380,12 +380,6 @@ const discoverNeedCheck = ref(false)
 const menuOpen = ref(false)
 const scrolled = ref(false)
 const activeBottomTab = ref('home')
-// Where the user actually was before landing on the current sub-page — a
-// sub-page like Settings or Concerns is reachable from anywhere via the
-// hamburger menu, so its back button must return there, not to a fixed
-// parent. Falls back to the sub-page's configured `back` route when there's
-// no prior in-session path (a fresh load or deep link straight into it).
-const lastPath = ref<string | null>(null)
 
 function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undefined {
   return shell.secondaryPages.find((entry) =>
@@ -467,8 +461,12 @@ function goToNotifications() {
   void router.push(config.value.notifications)
 }
 
+// Back steps one page up the way the user came (Listing → Landlord → back is
+// the Listing, not Discover), the same as the phone's own back button. Only a
+// fresh load or deep link, with nothing behind it, uses the configured `back`.
 function goBack() {
-  void router.push(lastPath.value ?? subPage.value?.back ?? config.value.home)
+  if (window.history.state?.back) router.back()
+  else void router.push(subPage.value?.back ?? config.value.home)
 }
 
 function navigateMenuAction(path: string) {
@@ -504,19 +502,11 @@ onUnmounted(() => {
 
 watch(
   () => route.path,
-  (path, previousPath) => {
+  (path) => {
     const shell = SHELLS[path.startsWith('/manager') ? 'manager' : 'student']
 
-    // Slide when moving between the main shell and a sub-page; fade otherwise.
+    // Opening a sub-page closes the menu it may have been picked from.
     const entering = Boolean(matchSecondary(path, shell))
-    const leaving = Boolean(previousPath && matchSecondary(previousPath, shell))
-
-    // Only refresh "where the user was" when arriving from a main-shell page.
-    // A sub-page reached from another sub-page (Profile → Settings, Profile →
-    // History) doesn't overwrite it, so back from Settings skips the Profile
-    // stepping-stone and returns to the real page underneath both.
-    if (previousPath && !leaving) lastPath.value = previousPath
-
     if (entering) menuOpen.value = false
 
     const active = shell.tabs.find((tab) =>

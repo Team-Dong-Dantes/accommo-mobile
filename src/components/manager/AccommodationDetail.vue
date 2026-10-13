@@ -49,12 +49,9 @@
       <div :class="split ? 'desk-card' : 'tabbed'">
         <div :class="split ? 'desk-col' : 'col-left'">
         <div class="hero">
-          <div class="hero-media" :class="{ 'hero-media--empty': !coverUrl }">
+          <div class="hero-media">
             <img v-if="coverUrl" :src="coverUrl" alt="" class="hero-img" />
-            <span v-else class="shot-empty hero-empty">
-              <IconifyIcon icon="lucide:image-off" width="28" />
-              <span class="shot-empty-label">No photo</span>
-            </span>
+            <PhotoEmpty v-else :size="28" label />
             <div class="hero-scrim" />
           </div>
           <button type="button" class="hero-edit" aria-label="Manage property photos" @click="coverSheetOpen = true">
@@ -213,9 +210,9 @@
               </div>
               <div v-if="grp.rooms.length" class="group">
                 <button v-for="r in grp.rooms" :key="r.id" type="button" class="room-row" @click="openRoomDialog(r)">
-                  <span class="room-shot" :class="{ 'room-shot--empty': !r.photoUrl }">
+                  <span class="room-shot">
                     <img v-if="r.photoUrl" :src="r.photoUrl" alt="" />
-                    <IconifyIcon v-else icon="lucide:image-off" width="18" />
+                    <PhotoEmpty v-else />
                   </span>
                   <span class="room-body">
                     <span class="room-name">{{ r.roomNumber ? `Room ${r.roomNumber}` : 'Room' }}</span>
@@ -232,9 +229,9 @@
 
               <div v-if="grp.facilities.length" class="group">
                 <button v-for="f in grp.facilities" :key="f.id" type="button" class="room-row" @click="openFacilityDetails(f)">
-                  <span class="room-shot" :class="{ 'room-shot--empty': !f.images.length }">
+                  <span class="room-shot">
                     <img v-if="f.images[0]" :src="f.images[0].url" alt="" />
-                    <IconifyIcon v-else :icon="FACILITY_META[f.facilityType]?.icon || 'lucide:box'" width="18" />
+                    <PhotoEmpty v-else />
                   </span>
                   <span class="room-body">
                     <span class="room-name">{{ f.label || FACILITY_META[f.facilityType]?.label || f.facilityType }}</span>
@@ -448,20 +445,23 @@
             ? 'OSAS checked this. Your change goes to OSAS, and students keep seeing the current value until it is approved.'
             : 'OSAS checked this, and it can’t change while OSAS is reviewing the listing or it is not accredited.' }}
         </p>
-        <select v-if="editingField && FIELD_META[editingField].type === 'select'" v-model="fieldDraft" class="field-input app-select">
-          <option value="">Select {{ FIELD_META[editingField].label.toLowerCase() }}</option>
-          <option v-for="(label, key) in FIELD_META[editingField].options" :key="key" :value="key">{{ label }}</option>
-        </select>
+        <AppSelect
+          v-if="editingField && FIELD_META[editingField].type === 'select'"
+          v-model="fieldDraft"
+          :options="FIELD_META[editingField].options ?? {}"
+          :placeholder="`Select ${FIELD_META[editingField].label.toLowerCase()}`"
+          class="field-input"
+        />
         <textarea
           v-else-if="editingField && FIELD_META[editingField].type === 'textarea'"
           v-model="fieldDraft"
           class="field-input field-textarea"
           rows="4"
         />
-        <input
+        <DateTimeField
           v-else-if="editingField && FIELD_META[editingField].type === 'time'"
           v-model="fieldDraft"
-          type="time"
+          mode="time"
           class="field-input"
         />
         <!-- Quiet hours is a range, so it takes two pickers and is stored
@@ -469,11 +469,11 @@
         <div v-else-if="editingField && FIELD_META[editingField].type === 'timerange'" class="field-row">
           <label class="field">
             <span class="field-label">From</span>
-            <input v-model="fieldDraft" type="time" class="field-input" />
+            <DateTimeField v-model="fieldDraft" mode="time" class="field-input" />
           </label>
           <label class="field">
             <span class="field-label">Until</span>
-            <input v-model="fieldDraftTo" type="time" class="field-input" />
+            <DateTimeField v-model="fieldDraftTo" mode="time" class="field-input" />
           </label>
         </div>
         <input v-else v-model="fieldDraft" type="text" class="field-input" />
@@ -617,19 +617,24 @@
               </label>
               <label class="field">
                 <span class="field-label">Floor</span>
-                <select v-model.number="roomForm.floor" class="field-input app-select" @change="onRoomFloorChange">
-                  <option v-for="f in floorOptions" :key="f" :value="f">{{ floorName(f) }}</option>
-                </select>
+                <AppSelect
+                  v-model="roomForm.floor"
+                  :options="floorOptions.map((f) => ({ label: floorName(f), value: f }))"
+                  class="field-input"
+                  @update:model-value="onRoomFloorChange"
+                />
               </label>
             </div>
 
             <div class="field-row">
               <label class="field">
                 <span class="field-label">Room type</span>
-                <select v-model="roomForm.roomType" class="field-input app-select" @change="onRoomTypeChange">
-                  <option v-for="(label, key) in ROOM_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
-                  <option value="custom">Custom</option>
-                </select>
+                <AppSelect
+                  v-model="roomForm.roomType"
+                  :options="{ ...ROOM_TYPE_LABEL, custom: 'Custom' }"
+                  class="field-input"
+                  @update:model-value="onRoomTypeChange"
+                />
               </label>
               <label v-if="roomForm.roomType === 'custom'" class="field">
                 <span class="field-label">Custom type name</span>
@@ -785,9 +790,9 @@
             </div>
             <div v-if="currentRoomFacilities.length" class="group">
               <button v-for="f in currentRoomFacilities" :key="f.id" type="button" class="room-row" @click="openFacilityDetails(f)">
-                <span class="room-shot" :class="{ 'room-shot--empty': !f.images.length }">
+                <span class="room-shot">
                   <img v-if="f.images[0]" :src="f.images[0].url" alt="" />
-                  <IconifyIcon v-else :icon="FACILITY_META[f.facilityType]?.icon || 'lucide:box'" width="18" />
+                  <PhotoEmpty v-else />
                 </span>
                 <span class="room-body">
                   <span class="room-name">{{ f.label || FACILITY_META[f.facilityType]?.label || f.facilityType }}</span>
@@ -999,9 +1004,7 @@
           <template v-else>
             <label class="field">
               <span class="field-label">Type</span>
-              <select v-model="facilityForm.facilityType" class="field-input app-select">
-                <option v-for="(meta, key) in facilityTypeOptions" :key="key" :value="key">{{ meta.label }}</option>
-              </select>
+              <AppSelect v-model="facilityForm.facilityType" :options="facilityTypeOptions" class="field-input" />
             </label>
             <label class="field">
               <span class="field-label">Label (optional)</span>
@@ -1014,9 +1017,7 @@
             <template v-if="facilityScope === 'shared'">
               <label class="field">
                 <span class="field-label">Status</span>
-                <select v-model="facilityForm.status" class="field-input app-select">
-                  <option v-for="(label, key) in FACILITY_STATUS_LABEL" :key="key" :value="key">{{ label }}</option>
-                </select>
+                <AppSelect v-model="facilityForm.status" :options="FACILITY_STATUS_LABEL" class="field-input" />
               </label>
               <div class="field">
                 <span class="field-label">Shared by</span>
@@ -1102,6 +1103,7 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { reactive, ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -1133,6 +1135,8 @@ import {
 } from '@/utils/roomInventory'
 import { manilaToday } from '@/utils/payments'
 import AppModal from '@/components/shared/AppModal.vue'
+import AppSelect from '@/components/shared/AppSelect.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
@@ -1372,9 +1376,9 @@ const facilityForm = reactive({
 // Retired types (parking, now an amenity) are offered by neither.
 const facilityTypeOptions = computed(() =>
   Object.fromEntries(
-    Object.entries(FACILITY_META).filter(
-      ([k]) => !RETIRED_FACILITY_TYPES.includes(k) && (facilityScope.value !== 'shared' || !PRIVATE_ONLY_FACILITY_TYPES.includes(k)),
-    ),
+    Object.entries(FACILITY_META)
+      .filter(([k]) => !RETIRED_FACILITY_TYPES.includes(k) && (facilityScope.value !== 'shared' || !PRIVATE_ONLY_FACILITY_TYPES.includes(k)))
+      .map(([k, meta]) => [k, meta.label]),
   ),
 )
 const FACILITY_STATUS_LABEL: Record<FacilityStatus, string> = { available: 'Available', under_repair: 'Under repair' }
@@ -2294,7 +2298,7 @@ function roomProblem(): string {
   return utilitiesProblem(roomForm.utilities)
 }
 
-// Fires only on an actual pick in the <select> — never during openRoomDialog's
+// Fires only on an actual pick in the dropdown — never during openRoomDialog's
 // programmatic population — so an existing room's saved capacity is never
 // silently overwritten just because its type happens to be Solo/Duo/Triple.
 function onRoomTypeChange() {

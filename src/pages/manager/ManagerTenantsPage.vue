@@ -101,7 +101,7 @@
               <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
                 <span class="acc-thumb" :class="`acc-thumb--${occupancyTone(accSummary.get(acc.id)?.occupancyPct ?? 0)}`">
                   <img v-if="acc.coverUrl" :src="acc.coverUrl" alt="" />
-                  <IconifyIcon v-else icon="lucide:building-2" width="18" />
+                  <PhotoEmpty v-else />
                 </span>
                 <span class="acc-head-body">
                   <span class="acc-title-row">
@@ -328,6 +328,7 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -824,6 +825,7 @@ function handlePick(l: Lease) {
   transition: width 0.3s ease;
 }
 .acc-thumb {
+  position: relative;
   display: grid;
   width: 46px;
   height: 46px;

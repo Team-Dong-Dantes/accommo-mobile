@@ -121,6 +121,10 @@ export default defineConfig((ctx) => {
       // on every interface so both work.
       extendViteConf(viteConf) {
         if (ctx.dev && ctx.mode.capacitor) viteConf.server = { ...viteConf.server, host: '0.0.0.0' };
+        // Pre-bundled at startup: mapbox-gl is only imported by lazy pages, so Vite
+        // otherwise finds it mid-session, re-optimises, and the open tab's lazy
+        // imports fail with "504 (Outdated Optimize Dep)" until it reloads.
+        viteConf.optimizeDeps = { ...viteConf.optimizeDeps, include: [...(viteConf.optimizeDeps?.include ?? []), 'mapbox-gl'] };
       },
     },
 

@@ -22,16 +22,13 @@
     <div v-else class="page">
       <!-- Edge-to-edge hero — one photo at a time, not a boxed thumbnail strip -->
       <div v-if="images.length" class="hero">
-        <span class="hero-fallback"><IconifyIcon icon="lucide:image" width="24" /></span>
+        <PhotoEmpty :size="26" label />
         <img v-for="(src, i) in images" :key="i" :src="src" :alt="listing.name" class="hero-img" />
         <span v-if="images.length > 1" class="hero-count">
           <IconifyIcon icon="lucide:image" width="11" />{{ images.length }}
         </span>
       </div>
-      <div v-else class="hero hero--none">
-        <IconifyIcon icon="lucide:image-off" width="26" />
-        <span class="hero-none-label">No photos yet</span>
-      </div>
+      <div v-else class="hero"><PhotoEmpty :size="26" label /></div>
 
       <div class="body">
         <h1 class="name">{{ listing.name }}</h1>
@@ -71,7 +68,7 @@
             >
               <span class="room-card-photo">
                 <img v-if="room.image" :src="room.image" :alt="room.type" loading="lazy" />
-                <span v-else class="room-card-mono">{{ monogram }}</span>
+                <PhotoEmpty v-else :size="22" label />
                 <span class="room-card-type">{{ room.label }}</span>
               </span>
               <span class="room-card-name-row">
@@ -165,6 +162,7 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -173,7 +171,7 @@ import { errorMessage } from '@/utils/errors'
 import { formatPeso, initialsOf, landlordTitle } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
-import { AMENITY_META, FACILITY_META, utilitiesFromRow, utilitiesHint, type UtilityColumns, roomTypeLabel, buildingTypeLabel, genderPolicyLabel, listingMonogram } from '@/utils/listings'
+import { AMENITY_META, FACILITY_META, utilitiesFromRow, utilitiesHint, type UtilityColumns, roomTypeLabel, buildingTypeLabel, genderPolicyLabel } from '@/utils/listings'
 import MessageManagerCta from '@/components/student/MessageManagerCta.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { POLICY_FULL, ROOM_CARD } from '@/api/selects'
@@ -218,7 +216,6 @@ const rules = ref<{ label: string; value: string }[]>([])
 const manager = reactive({ id: '', name: '', title: landlordTitle(null), initials: '?', avatarUrl: null as string | null, replyMinutes: null as number | null })
 
 const id = computed(() => String(route.params.id || ''))
-const monogram = computed(() => listingMonogram(listing.name))
 const buildingType = computed(() => buildingTypeLabel(listing.type))
 const genderPolicy = computed(() => genderPolicyLabel(listing.genderPolicy))
 const distance = computed(() => campusDistanceLabel(listing.lat, listing.lng))
@@ -450,14 +447,6 @@ onMounted(load)
   -webkit-overflow-scrolling: touch;
   background: var(--m-primary-soft);
 }
-.hero-fallback {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  display: grid;
-  place-items: center;
-  color: var(--m-primary-dark);
-}
 .hero-img {
   position: relative;
   z-index: 1;
@@ -466,19 +455,6 @@ onMounted(load)
   flex: 0 0 100%;
   object-fit: cover;
   scroll-snap-align: start;
-}
-.hero--none {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: linear-gradient(160deg, var(--m-border), var(--m-bg) 85%);
-  color: var(--m-muted);
-}
-.hero-none-label {
-  font-size: 13px;
-  font-weight: 700;
 }
 .hero-count {
   position: absolute;
@@ -661,12 +637,6 @@ onMounted(load)
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-.room-card-mono {
-  color: var(--m-primary-dark);
-  font-family: var(--m-font-display);
-  font-size: 20px;
-  font-weight: 800;
 }
 .room-card-type {
   position: absolute;

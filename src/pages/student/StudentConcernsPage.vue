@@ -171,9 +171,7 @@
     <AppModal v-model="newOpen" title="Report a concern">
       <label class="field">
         <span class="field-label">Category</span>
-        <select v-model="form.category" class="field-input app-select">
-          <option v-for="(label, key) in CONCERN_CATEGORY_LABEL" :key="key" :value="key">{{ label }}</option>
-        </select>
+        <AppSelect v-model="form.category" :options="CONCERN_CATEGORY_LABEL" placeholder="Category" class="field-input" />
       </label>
       <label class="field">
         <span class="field-label">Description</span>
@@ -213,6 +211,7 @@ import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { fetchCurrentLease } from '@/api/leases';
 import { useMyLandlordTitle } from '@/utils/myLandlordTitle'
 import AppModal from '@/components/shared/AppModal.vue'
+import AppSelect from '@/components/shared/AppSelect.vue'
 
 const FILTERS = [
   { key: 'all', label: 'All' },

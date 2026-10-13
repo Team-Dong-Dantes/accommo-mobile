@@ -44,17 +44,11 @@
         </label>
         <label class="field">
           <span class="field-label">Type <span class="req">*</span></span>
-          <select v-model="form.accommodationType" class="field-input app-select">
-            <option value="">Select type</option>
-            <option v-for="(label, key) in BUILDING_TYPE_LABEL" :key="key" :value="key">{{ label }}</option>
-          </select>
+          <AppSelect v-model="form.accommodationType" :options="BUILDING_TYPE_LABEL" placeholder="Select type" class="field-input" />
         </label>
         <label class="field">
           <span class="field-label">Accepts <span class="req">*</span></span>
-          <select v-model="form.genderPolicy" class="field-input app-select">
-            <option value="">Select who you accept</option>
-            <option v-for="(label, key) in GENDER_POLICY_LABEL" :key="key" :value="key">{{ label }}</option>
-          </select>
+          <AppSelect v-model="form.genderPolicy" :options="GENDER_POLICY_LABEL" placeholder="Select who you accept" class="field-input" />
         </label>
         <!-- Location leads: picking on the map fills the two fields below it,
              so they're a check-and-correct rather than something to type out. -->
@@ -110,16 +104,16 @@
         <h2 class="sec-title">House rules <span class="req">*</span></h2>
         <label class="field">
           <span class="field-label">Curfew <span class="req">*</span></span>
-          <input v-model="form.curfewTime" type="time" class="field-input" />
+          <DateTimeField v-model="form.curfewTime" mode="time" class="field-input" />
         </label>
         <div class="field-row">
           <label class="field">
             <span class="field-label">Quiet hours from <span class="req">*</span></span>
-            <input v-model="form.quietFrom" type="time" class="field-input" />
+            <DateTimeField v-model="form.quietFrom" mode="time" class="field-input" />
           </label>
           <label class="field">
             <span class="field-label">until <span class="req">*</span></span>
-            <input v-model="form.quietTo" type="time" class="field-input" />
+            <DateTimeField v-model="form.quietTo" mode="time" class="field-input" />
           </label>
         </div>
         <p v-if="quietHoursLabel" class="sec-hint">Students will see “{{ quietHoursLabel }}”.</p>
@@ -178,7 +172,7 @@
                    file, and the nightly sweep hides the listing when it passes. -->
               <label v-if="permits[d.key]" class="permit-date">
                 <span>Expires</span>
-                <input v-model="permitExpiry[d.key]" type="date" :min="today" />
+                <DateTimeField :model-value="permitExpiry[d.key] ?? ''" mode="date" @update:model-value="permitExpiry[d.key] = $event" :min="today" placeholder="Pick the date" class="permit-date-input" />
               </label>
             </span>
             <IconifyIcon v-if="uploadingPermit === d.key" icon="lucide:loader" width="15" class="permit-spin" />
@@ -206,9 +200,9 @@
         <!-- Leads with what the student will actually see, so mistakes in the
              photo or the name are obvious before this goes to OSAS. -->
         <div class="rv-card">
-          <span class="rv-shot" :class="{ 'rv-shot--empty': !photos.length }">
+          <span class="rv-shot">
             <img v-if="photos.length" :src="photos[0]!.url" alt="" />
-            <IconifyIcon v-else icon="lucide:image-off" width="20" />
+            <PhotoEmpty v-else :size="20" />
           </span>
           <span class="rv-head">
             <strong class="rv-name">{{ form.name }}</strong>
@@ -348,6 +342,7 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { reactive, ref, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -362,6 +357,8 @@ import { to12Hour } from '@/utils/format'
 import { capturePhoto } from '@/utils/camera'
 import type { Database } from '@/types/database.gen'
 import { manilaToday } from '@/utils/payments'
+import AppSelect from '@/components/shared/AppSelect.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 
 // Loaded on demand — mapbox-gl (pulled in only by this component) is by far
 // the heaviest dependency in the app, and the picker is opened rarely.
@@ -445,7 +442,7 @@ const form = reactive({
   lat: null as number | null,
   lng: null as number | null,
   amenities: [] as string[],
-  // Times come from <input type="time">, so they're always "HH:MM" (24h)
+  // Times come from DateTimeField's time mode, so they're always "HH:MM" (24h)
   // here and get formatted for storage — the columns are free text and the
   // handful of existing rows disagree with each other ("10:00PM" vs
   // "10:00 PM", "10PM - 6AM"), so the picker is what makes them consistent.
@@ -870,7 +867,8 @@ async function submit(asDraft = false) {
   font-size: 11.5px;
   font-weight: 700;
 }
-.permit-date input {
+.permit-date-input {
+  width: auto;
   min-height: 34px;
   padding: 0 8px;
   border: 1px solid var(--m-border);
@@ -941,6 +939,7 @@ async function submit(asDraft = false) {
   background: var(--m-surface);
 }
 .rv-shot {
+  position: relative;
   display: grid;
   width: 64px;
   height: 64px;
@@ -955,10 +954,6 @@ async function submit(asDraft = false) {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-.rv-shot--empty {
-  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
-  color: var(--m-muted);
 }
 .rv-head {
   display: flex;

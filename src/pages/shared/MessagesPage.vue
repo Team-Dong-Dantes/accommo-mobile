@@ -89,6 +89,7 @@ import { ref, computed, watch, onMounted, onUnmounted, onActivated, onDeactivate
 import { useRoute, useRouter } from 'vue-router'
 import { authUser } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
+import { closeOverlay } from '@/utils/closeOverlay'
 import { useMessagesStore } from '@/stores/messages'
 import { chatFullscreen } from '@/utils/chatFullscreen'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
@@ -128,7 +129,7 @@ function openThread(id: string) {
 }
 
 function closeThread() {
-  void router.push({ path: route.path })
+  closeOverlay(router, 'c')
 }
 
 // ?p=<userId> alongside ?c= — desktop only, where the profile shares the

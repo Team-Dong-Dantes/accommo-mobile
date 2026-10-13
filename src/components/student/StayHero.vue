@@ -4,7 +4,7 @@
        it heads the stay half. The page sets the geometry for each. -->
   <div class="stay-hero">
     <img v-if="photoUrl && !broken" :src="photoUrl" alt="" class="stay-hero-img" @error="broken = true" />
-    <span v-else class="stay-hero-mono" aria-hidden="true">{{ initialsOf(name) }}</span>
+    <PhotoEmpty v-else :size="28" label />
     <span class="stay-hero-scrim" aria-hidden="true" />
 
     <div class="stay-hero-head">
@@ -18,8 +18,9 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { computed, ref } from 'vue'
-import { initialsOf, LEASE_STATUS, statusColor, statusText } from '@/utils/format'
+import { LEASE_STATUS, statusColor, statusText } from '@/utils/format'
 
 const props = defineProps<{ name: string; room: string; address: string; status: string; photoUrl: string }>()
 
@@ -41,18 +42,6 @@ const subtitle = computed(() => [props.room, props.address].filter(Boolean).join
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-.stay-hero-mono {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(160deg, var(--m-primary) 0%, var(--m-primary-dark) 100%);
-  color: rgba(255, 255, 255, 0.4);
-  font-family: var(--m-font-display);
-  font-size: 56px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
 }
 /* Dark at the top, where the name sits; the bottom is left to the tab strip. */
 .stay-hero-scrim {

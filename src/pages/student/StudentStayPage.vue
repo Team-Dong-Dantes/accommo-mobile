@@ -229,7 +229,7 @@
       </p>
       <label class="mx-field leave-date">
         <span class="mx-label">When will you move out?</span>
-        <input v-model="leaveDate" type="date" :min="manilaToday()" :max="lease?.endDate || undefined" class="mx-input" />
+        <DateTimeField v-model="leaveDate" mode="date" :min="manilaToday()" :max="lease?.endDate || ''" placeholder="Pick your move-out date" class="mx-input" />
       </label>
       <template #footer>
         <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
@@ -381,6 +381,7 @@ import PaymentStatement from '@/components/shared/PaymentStatement.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { POLICY_FULL } from '@/api/selects'
 import AppModal from '@/components/shared/AppModal.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 
 function yesNo(value: boolean | null | undefined): string {
   if (value === null || value === undefined) return ''

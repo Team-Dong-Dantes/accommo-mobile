@@ -365,26 +365,25 @@
       <div class="terms-form">
         <label class="mx-field">
           <span class="mx-label">Rent is due</span>
-          <select
-            class="mx-input app-select"
-            :value="lease.rentDueDay ?? 0"
-            :disabled="savingTerms"
-            @change="setDueTerms(Number(($event.target as HTMLSelectElement).value) || null, lease.graceDays)"
-          >
-            <option :value="0">on the move-in day ({{ ordinal(moveInDay) }})</option>
-            <option v-for="d in 28" :key="d" :value="d">every {{ ordinal(d) }}</option>
-          </select>
+          <AppSelect
+            class="mx-input"
+            placeholder="Rent is due"
+            :model-value="lease.rentDueDay ?? 0"
+            :options="dueDayOptions"
+            :disable="savingTerms"
+            @update:model-value="(d) => setDueTerms(d || null, lease.graceDays)"
+          />
         </label>
         <label class="mx-field">
           <span class="mx-label">Late after</span>
-          <select
-            class="mx-input app-select"
-            :value="lease.graceDays"
-            :disabled="savingTerms"
-            @change="setDueTerms(lease.rentDueDay, Number(($event.target as HTMLSelectElement).value))"
-          >
-            <option v-for="g in [0, 3, 5, 7, 15]" :key="g" :value="g">{{ g ? `${g} days of grace` : 'no grace — late the next day' }}</option>
-          </select>
+          <AppSelect
+            class="mx-input"
+            placeholder="Late after"
+            :model-value="lease.graceDays"
+            :options="[0, 3, 5, 7, 15].map((g) => ({ label: g ? `${g} days of grace` : 'no grace — late the next day', value: g }))"
+            :disable="savingTerms"
+            @update:model-value="(g) => setDueTerms(lease.rentDueDay, g)"
+          />
         </label>
         <div class="terms-toggle">
           <span class="terms-body">
@@ -395,14 +394,14 @@
         </div>
         <label v-if="lease.allowPartial" class="mx-field">
           <span class="mx-label">At least</span>
-          <select
-            class="mx-input app-select"
-            :value="lease.partialMinPct"
-            :disabled="savingPartial"
-            @change="setPartial(true, Number(($event.target as HTMLSelectElement).value))"
-          >
-            <option v-for="p in [10, 25, 50, 75]" :key="p" :value="p">{{ p }}% of the item</option>
-          </select>
+          <AppSelect
+            class="mx-input"
+            placeholder="At least"
+            :model-value="lease.partialMinPct"
+            :options="[10, 25, 50, 75].map((p) => ({ label: `${p}% of the item`, value: p }))"
+            :disable="savingPartial"
+            @update:model-value="(p) => setPartial(true, p)"
+          />
         </label>
       </div>
     </AppModal>
@@ -437,6 +436,7 @@ import EmptyState from '@/components/shared/EmptyState.vue'
 import BoardingTimeline, { type TimelineStay } from '@/components/shared/BoardingTimeline.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import AppModal from '@/components/shared/AppModal.vue'
+import AppSelect from '@/components/shared/AppSelect.vue'
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -504,6 +504,10 @@ function ordinal(n: number): string {
   const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
   return `${n}${s}`
 }
+const dueDayOptions = computed(() => [
+  { label: `on the move-in day (${ordinal(moveInDay.value)})`, value: 0 },
+  ...Array.from({ length: 28 }, (_, i) => ({ label: `every ${ordinal(i + 1)}`, value: i + 1 })),
+])
 const savingTerms = ref(false)
 async function setDueTerms(day: number | null, grace: number) {
   if (savingTerms.value) return

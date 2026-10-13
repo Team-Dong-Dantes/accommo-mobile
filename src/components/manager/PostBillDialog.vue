@@ -4,7 +4,7 @@
 
     <label class="pb-field">
       <span class="pb-label">Month</span>
-      <input v-model="month" type="month" class="pb-input" />
+      <DateTimeField v-model="month" mode="month" placeholder="Month" class="pb-input" />
     </label>
     <label v-for="u in utilities" :key="u.key" class="pb-field">
       <span class="pb-label">{{ u.label }} (₱) · {{ UTILITY_BILLING_LABEL[u.billing] }}</span>
@@ -12,7 +12,7 @@
     </label>
     <label class="pb-field">
       <span class="pb-label">Due date</span>
-      <input v-model="dueDate" type="date" :min="today" class="pb-input" />
+      <DateTimeField v-model="dueDate" mode="date" :min="today" placeholder="Due date" class="pb-input" />
     </label>
     <label class="pb-field">
       <span class="pb-label">Note (optional)</span>
@@ -34,6 +34,7 @@ import { formatMonth } from '@/utils/format'
 import { UTILITY_BILLING_LABEL, type UtilityKey } from '@/utils/listings'
 import { manilaToday } from '@/utils/payments'
 import AppModal from '@/components/shared/AppModal.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 
 // The landlord/landlady's side of a metered or split utility: one month's
 // amount per utility, posted as utility_bills rows. The student pays each one

@@ -1,11 +1,8 @@
 <template>
   <button v-if="variant === 'carousel'" type="button" class="car" @click="emit('open', id)">
-    <span class="car-shot" :class="{ 'car-shot--empty': !image }">
+    <span class="car-shot">
       <img v-if="image" :src="image" :alt="name" loading="lazy" />
-      <span v-else class="shot-empty">
-        <IconifyIcon icon="lucide:image-off" width="24" />
-        <span class="shot-empty-label">No photo</span>
-      </span>
+      <PhotoEmpty v-else :size="24" label />
       <span v-if="typeLine" class="car-type">{{ typeLine }}</span>
       <span class="car-flag" :class="vacancies ? 'car-flag--ok' : 'car-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
@@ -18,12 +15,9 @@
   </button>
 
   <button v-else type="button" class="tile" @click="emit('open', id)">
-    <span class="tile-shot" :class="{ 'tile-shot--empty': !image }">
+    <span class="tile-shot">
       <img v-if="image" :src="image" :alt="name" loading="lazy" />
-      <span v-else class="shot-empty">
-        <IconifyIcon icon="lucide:image-off" width="22" />
-        <span class="shot-empty-label">No photo</span>
-      </span>
+      <PhotoEmpty v-else :size="22" label />
       <span v-if="typeLine" class="tile-type">{{ typeLine }}</span>
       <span class="tile-flag" :class="vacancies ? 'tile-flag--ok' : 'tile-flag--none'">
         {{ vacancies ? `${vacancies} free` : 'Full' }}
@@ -37,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { computed } from 'vue'
 
 const props = withDefaults(
@@ -91,9 +86,6 @@ const emit = defineEmits<{ open: [id: string] }>()
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-.tile-shot--empty {
-  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
 }
 .tile-type {
   position: absolute;
@@ -180,9 +172,6 @@ const emit = defineEmits<{ open: [id: string] }>()
   height: 100%;
   object-fit: cover;
 }
-.car-shot--empty {
-  background: linear-gradient(160deg, var(--m-border), var(--m-surface) 85%);
-}
 .car-type {
   position: absolute;
   top: 8px;
@@ -239,13 +228,4 @@ const emit = defineEmits<{ open: [id: string] }>()
   white-space: nowrap;
 }
 
-/* Shared "no photo" placeholder for both variants */
-.shot-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--m-muted);
-}
-.shot-empty-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
 </style>

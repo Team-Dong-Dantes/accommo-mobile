@@ -138,29 +138,32 @@
                   />
                 </div>
                 <div class="col-4 name-split">
-                  <AuthSelect
+                  <AppSelect
                     v-model="form.nameExtension"
                     :options="nameExtensions"
                     label="Ext."
+                    class="auth-row"
                   />
                 </div>
               </div>
 
-              <AuthSelect
+              <AppSelect
                 v-model="form.sex"
                 :options="sexOptions"
                 label="Sex"
-                :rules="[(val: string) => !!val || 'Please select your sex']"
+                class="auth-row"
+                :rules="[(val) => !!val || 'Please select your sex']"
               />
 
-              <!-- Native date input: on Android this is the platform picker, and
-                   OSAS checks what is typed here against the birth date printed
-                   on the school or government ID that gets uploaded later. -->
-              <AuthInput
+              <!-- OSAS checks this against the birth date printed on the school or
+                   government ID uploaded later. The same calendar as the permit
+                   expiry dates; its month/year header jumps to a year grid. -->
+              <DateTimeField
                 v-model="form.dateOfBirth"
+                mode="date"
                 label="Date of Birth"
-                type="date"
-                :max="today"
+                class="auth-row"
+                :max="adultCutoff"
                 :rules="dateOfBirthRules"
               />
             </AuthFieldGroup>
@@ -174,16 +177,16 @@
               <!-- The +63 prefix stays: unlike the icons this replaced, it is
                    part of the value rather than decoration. -->
               <AuthInput
-                :model-value="form.phoneDigits"
+                :model-value="spacedPhone(form.phoneDigits)"
                 label="Phone Number"
-                maxlength="10"
+                maxlength="12"
                 inputmode="numeric"
-                placeholder="9123456789"
+                placeholder="912 345 6789"
                 autofocus
                 :rules="[
                   (val: string) => !!val || 'Phone number is required',
-                  (val: string) => /^\d{10}$/.test(val) || 'Enter exactly 10 digits',
-                  (val: string) => /^9\d{9}$/.test(val) || 'Must start with 9 (e.g. 9123456789)',
+                  (val: string) => /^\d{10}$/.test(val.replace(/ /g, '')) || 'Enter exactly 10 digits',
+                  (val: string) => /^9\d{9}$/.test(val.replace(/ /g, '')) || 'Must start with 9 (e.g. 912 345 6789)',
                   // The shared rule, so this screen and the profile editors
                   // cannot drift apart on what counts as a number again.
                   (val: string) => isPhMobile(val) || 'That is not a usable mobile number',
@@ -212,19 +215,16 @@
                 <template #append>
                   <div class="row items-center no-wrap">
                     <span class="text-grey-7 text-weight-medium q-mr-xs" style="font-size: 16px">@</span>
-                    <!-- A raw q-select rather than AuthSelect, because it sits
-                         inside another field. It still borrows the same popup
-                         styling so the two dropdowns on this flow match. -->
-                    <q-select
-                      v-model="form.emailDomain"
-                      :options="emailDomains"
-                      borderless
-                      dense
-                      hide-bottom-space
-                      popup-content-class="auth-select-menu"
-                      class="email-domain-select"
-                      style="min-width: 105px"
-                    />
+                    <!-- Sits inside the e-mail field, so it carries no box of its
+                         own; .stop keeps the tap from also focusing the input. -->
+                    <span @click.stop>
+                      <AppSelect
+                        v-model="form.emailDomain"
+                        :options="emailDomains"
+                        placeholder="E-mail domain"
+                        class="email-domain"
+                      />
+                    </span>
                   </div>
                 </template>
               </AuthInput>
@@ -310,27 +310,32 @@
           <!-- Studies (student only) -->
           <template v-else-if="current === 'studies'">
             <AuthFieldGroup>
-              <AuthSelect
+              <AppSelect
                 v-model="form.college"
                 :options="collegeOptions"
                 label="College"
-                :rules="[(val: string) => !!val || 'Please select your college']"
+                class="auth-row"
+                :rules="[(val) => !!val || 'Please select your college']"
+                acronym
                 @update:model-value="onCollegeChange"
               />
 
-              <AuthSelect
+              <AppSelect
                 v-model="form.program"
                 :options="filteredPrograms"
                 label="Program"
-                :rules="[(val: string) => !!val || 'Please select your program']"
+                class="auth-row"
+                :rules="[(val) => !!val || 'Please select your program']"
+                acronym
                 :disable="!form.college"
               />
 
-              <AuthSelect
+              <AppSelect
                 v-model="form.yearLevel"
                 :options="yearOptions"
                 label="Year Level"
-                :rules="[(val: string) => !!val || 'Please select your year level']"
+                class="auth-row"
+                :rules="[(val) => !!val || 'Please select your year level']"
               />
             </AuthFieldGroup>
           </template>
@@ -413,7 +418,7 @@
                  holding the document. -->
             <label class="doc-expiry">
               <span class="doc-expiry-label">Expiry date on this ID</span>
-              <DateTimeField v-model="form.governmentIdExpiresAt" mode="date" placeholder="Pick the expiry date" />
+              <DateTimeField v-model="form.governmentIdExpiresAt" mode="date" placeholder="Pick the expiry date" :rules="expiryRules" />
             </label>
           </template>
 
@@ -427,7 +432,7 @@
             />
             <label class="doc-expiry">
               <span class="doc-expiry-label">Expiry date on this permit</span>
-              <DateTimeField v-model="form.businessPermitExpiresAt" mode="date" placeholder="Pick the expiry date" />
+              <DateTimeField v-model="form.businessPermitExpiresAt" mode="date" placeholder="Pick the expiry date" :rules="expiryRules" />
             </label>
           </template>
         </div>
@@ -484,7 +489,8 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, nextTick, onMounted } from 'vue';
+import { reactive, ref, computed, nextTick, onMounted, watch } from 'vue';
+import type { Session } from '@supabase/supabase-js';
 import { useRouter, useRoute } from 'vue-router';
 import type { QForm } from 'quasar';
 import { Icon as IconifyIcon } from '@iconify/vue';
@@ -493,7 +499,7 @@ import { supabase, readOAuthError, isSignupDatabaseError } from '@/utils/supabas
 import { useNotify } from '@/utils/notify';
 
 import AuthInput from '@/components/auth/AuthInput.vue';
-import AuthSelect from '@/components/auth/AuthSelect.vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import AuthDocumentCard from '@/components/auth/AuthDocumentCard.vue';
 import DateTimeField from '@/components/shared/DateTimeField.vue';
 import AuthButton from '@/components/auth/AuthButton.vue';
@@ -517,6 +523,9 @@ const authStore = useAuthStore();
 /** The path is the role. Routes are unchanged, so every existing redirect still lands correctly. */
 const isManager = computed(() => route.path.startsWith('/register/manager'));
 const registerPath = computed(() => (isManager.value ? '/register/manager' : '/register'));
+
+/** "9123456789" → "912 345 6789" for display; form.phoneDigits stays bare digits. */
+const spacedPhone = (d: string) => [d.slice(0, 3), d.slice(3, 6), d.slice(6)].filter(Boolean).join(' ');
 
 type StepKey =
   | 'name'
@@ -606,8 +615,9 @@ let createdUserId: string | null = null;
 
 const sexOptions = ['Male', 'Female'];
 
-/** Today, as yyyy-mm-dd, for the date input's own upper bound. */
+/** The latest birth date of someone who is 18 today, as yyyy-mm-dd. Only adults may use the app. */
 const today = manilaToday();
+const adultCutoff = `${Number(today.slice(0, 4)) - 18}${today.slice(4)}`;
 
 // The database carries the same bounds (users_date_of_birth_plausible); these
 // exist so the person is told before the request is made, not after it fails.
@@ -656,15 +666,15 @@ const collegeOptions = Object.keys(collegePrograms);
 
 /**
  * The visible screens, which is all the branching the flow needs. Google already
- * owns the address and the password, so its path simply has a shorter list —
- * this replaces the old `if (step === 1) step = 4` jumps, and makes the progress
+ * owns the address, so its path skips e-mail and verify — but it still sets a
+ * password, so the account can also sign in with e-mail and password. This replaces the old `if (step === 1) step = 4` jumps, and makes the progress
  * count correct for every path without a second rule.
  */
 const steps = computed<StepKey[]>(() => {
   if (isResubmit.value) return ['governmentId', 'businessPermit'];
   const head: StepKey[] = isGoogleMode.value
-    ? ['name', 'phone']
-    : ['name', 'phone', 'email', 'password', 'verify'];
+    ? ['name', 'phone', 'password']
+    :['name', 'phone', 'email', 'password', 'verify'];
   return isManager.value
     ? [...head, 'governmentId', 'businessPermit']
     : [...head, 'studies', 'studentId', 'schoolId', 'assessment'];
@@ -684,12 +694,16 @@ const question = computed(() => {
         : 'Replace your permit if OSAS asked about it.',
     };
   }
+  if (current.value === 'password' && isGoogleMode.value) {
+    return { title: 'Choose a password', note: 'So you can also sign in with your e-mail and password.' };
+  }
   return STEP_QUESTION[current.value];
 });
 
 const nextLabel = computed(() => {
   // The auth account is created on leaving this screen, so the button says so.
-  if (current.value === 'password') return 'Create account';
+  // A Google account already exists; leaving only saves the password onto it.
+  if (current.value === 'password') return isGoogleMode.value ? 'Set password' : 'Create account';
   return 'Continue';
 });
 
@@ -731,6 +745,84 @@ const form = reactive({
   businessPermitFile: null as File | null,
   businessPermitExpiresAt: '',
 });
+
+/**
+ * The half-filled registration, kept on the device so a reload, the app being
+ * killed, or a dropped connection does not throw it away. One per role, so the
+ * student and landlord/landlady forms never fill each other in.
+ *
+ * Not everything is kept: the password is never written to disk, and the
+ * document files cannot be serialised — nor should uploaded IDs sit on the
+ * device (see persistCache.ts) — so those two are re-entered. A week-old draft
+ * is dropped rather than greeting the next person on a shared phone.
+ */
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const UNSAVED_FIELDS = [
+  'password', 'confirmPassword',
+  'schoolIdFile', 'schoolIdText', 'assessmentFile', 'assessmentText',
+  'governmentIdFile', 'businessPermitFile',
+];
+const draftKey = `accommo.register.draft.${isManager.value ? 'manager' : 'student'}`;
+type Draft = { savedAt: number; step: StepKey; agreed: boolean; form: Partial<typeof form> };
+
+function readDraft(): Draft | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(draftKey) ?? 'null') as Draft | null;
+    if (saved && Date.now() - saved.savedAt < DRAFT_TTL_MS) return saved;
+    localStorage.removeItem(draftKey);
+  } catch {
+    // Unreadable or blocked storage: start fresh.
+  }
+  return null;
+}
+
+function saveDraft() {
+  // A resubmission edits an existing application, not a sign-up in progress.
+  if (isResubmit.value) return;
+  const fields = Object.fromEntries(Object.entries(form).filter(([key]) => !UNSAVED_FIELDS.includes(key)));
+  try {
+    localStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), step: current.value, agreed: agreedToTerms.value, form: fields }));
+  } catch {
+    // Storage full: best effort, the form itself still works.
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(draftKey);
+  } catch {
+    // ignore
+  }
+}
+
+// Fields come back before the first paint; the screen waits for onMounted,
+// which is when it is known whether an account already exists.
+const draft = readDraft();
+if (draft) {
+  Object.assign(form, draft.form);
+  agreedToTerms.value = draft.agreed;
+}
+watch([form, agreedToTerms, current], saveDraft, { deep: true });
+
+/**
+ * Returns to the screen the draft was on. The account is created on leaving the
+ * password screen, so a live e-mail session means that already happened and is
+ * picked up here — otherwise finishing would try to create it a second time,
+ * with no password. Without one, nobody goes past the password screen.
+ */
+function restoreDraftStep(session: Session | null) {
+  if (!draft) return;
+  const savedAt = steps.value.indexOf(draft.step);
+  if (session?.user.app_metadata?.provider === 'email') {
+    createdUserId = session.user.id;
+    emailCreated.value = true;
+    // Continue is disabled on the verify screen until the code checks out, so
+    // a draft past it was verified.
+    emailVerified.value = savedAt > steps.value.indexOf('verify');
+  }
+  const target = session ? savedAt : Math.min(savedAt, steps.value.indexOf('password'));
+  if (target > 0) goToStep(target);
+}
 
 const filteredPrograms = computed(() => {
   if (!form.college) return [];
@@ -782,9 +874,13 @@ function syncFullName() {
 function fillFromGoogleSession(user: { id: string; email?: string | undefined; user_metadata?: Record<string, unknown> }) {
   googleUserId.value = user.id;
   form.email = user.email || '';
-  const split = splitFullName(String(user.user_metadata?.full_name || ''));
-  form.firstName = split.firstName;
-  form.lastName = split.lastName;
+  // Only into empty fields: a name already typed, or brought back by the draft
+  // after a reload, is the person's own correction and outranks Google's.
+  if (!form.firstName && !form.lastName) {
+    const split = splitFullName(String(user.user_metadata?.full_name || ''));
+    form.firstName = split.firstName;
+    form.lastName = split.lastName;
+  }
   syncFullName();
 }
 
@@ -835,6 +931,8 @@ onMounted(async () => {
   }
 
   await adoptGoogleSession(session, !!profile, registered);
+  // Re-read: adoptGoogleSession signs out a Google account on a refused domain.
+  restoreDraftStep((await supabase.auth.getSession()).data.session);
 });
 
 /**
@@ -948,13 +1046,32 @@ async function createAccountNow(): Promise<boolean> {
 }
 
 /**
+ * Gives a Google-connected account a password too, so the login screen's e-mail
+ * and password form works for it. Re-saving the same password — going back and
+ * forward, or resuming an unfinished registration — is not an error here.
+ */
+async function saveGooglePassword(): Promise<boolean> {
+  creatingAccount.value = true;
+  try {
+    const { error } = await supabase.auth.updateUser({ password: form.password });
+    if (error && error.code !== 'same_password') throw error;
+    return true;
+  } catch (error: unknown) {
+    notify.error(error instanceof Error ? error.message : 'Could not save your password.');
+    return false;
+  } finally {
+    creatingAccount.value = false;
+  }
+}
+
+/**
  * Bring the first failing field into view. Validation paints the field red, but
  * on a step taller than the scroller that happens off-screen — pressing Continue
  * then looked like it had done nothing at all.
  */
 function revealFirstError() {
   void nextTick(() => {
-    const field = stepsEl.value?.querySelector('.q-field--error');
+    const field = stepsEl.value?.querySelector('.q-field--error, .picker-field--error');
     field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 }
@@ -967,12 +1084,11 @@ async function nextStep() {
     return;
   }
 
-  if (expiryMissing()) return;
-
   // Leaving Password: the address and the password are both in hand, so create
   // the account here and the next screen can send its code straight away.
+  // Google mode already has the account, so the password goes onto it instead.
   if (current.value === 'password') {
-    const ok = await createAccountNow();
+    const ok = isGoogleMode.value ? await saveGooglePassword() : await createAccountNow();
     if (ok) goToStep(stepIndex.value + 1);
     return;
   }
@@ -981,20 +1097,11 @@ async function nextStep() {
 }
 
 /**
- * DateTimeField is a button, not a q-field, so the form's own validate() does
- * not see the expiry dates. Checked rather than left optional: a document with
- * no expiry is indistinguishable from one that never lapses. Called on Continue
- * and on submit, since the permit screen is the last one and never continues.
+ * Required rather than optional: a document with no expiry is indistinguishable
+ * from one that never lapses. DateTimeField joins the QForm, so Continue and
+ * submit check it like any other field.
  */
-function expiryMissing(): boolean {
-  const date =
-    current.value === 'governmentId' ? form.governmentIdExpiresAt
-    : current.value === 'businessPermit' ? form.businessPermitExpiresAt
-    : 'n/a';
-  if (date) return false;
-  notify.error('Add the expiry date printed on this document.');
-  return true;
-}
+const expiryRules = [(val: string) => !!val || 'Add the expiry date printed on this document.'];
 
 /** Each step starts at its own top; the scroller does not keep the last one's offset. */
 function goToStep(index: number) {
@@ -1144,7 +1251,6 @@ async function handleRegister(skipVerification = false) {
       revealFirstError();
       return;
     }
-    if (expiryMissing()) return;
   }
 
   // The backstop. Screen one's form already requires both consents, so this is
@@ -1179,6 +1285,7 @@ async function handleRegister(skipVerification = false) {
       // Every path ends signed in. The app is theirs straight away; adding
       // accommodations and rooms is what waits for OSAS (the dashboard banner
       // says so, and the database enforces it).
+      clearDraft();
       notify.success('Account created. OSAS will verify your requirements — you can add accommodations once they do.');
       void router.push('/manager/dashboard');
       return;
@@ -1201,6 +1308,7 @@ async function handleRegister(skipVerification = false) {
       notify.success('Account created successfully!');
     }
 
+    clearDraft();
     void router.push('/student/home');
   } catch (error: unknown) {
     notify.error(error instanceof Error ? error.message : 'An unexpected error occurred');
@@ -1403,22 +1511,14 @@ function onEmailVerified() {
   color: var(--m-success);
 }
 
-.email-domain-select :deep(.q-field__control) {
-  min-height: unset;
-  height: auto;
+.email-domain {
+  min-height: 36px;
+  padding: 0 2px;
+  border: 0;
   background: transparent;
-  padding: 0;
-}
-.email-domain-select :deep(.q-field__native) {
-  padding: 0;
-  min-height: unset;
-}
-.email-domain-select :deep(.q-field__append) {
-  padding-left: 2px;
-}
-.email-domain-select :deep(.q-field__before),
-.email-domain-select :deep(.q-field__prepend) {
-  display: none;
+  color: var(--m-ink);
+  font-size: 16px;
+  gap: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {

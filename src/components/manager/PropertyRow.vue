@@ -4,7 +4,7 @@
   <button type="button" class="prow" @click="emit('open', property.id)">
     <span class="prow-thumb">
       <img v-if="property.image" :src="property.image" alt="" loading="lazy" />
-      <IconifyIcon v-else icon="lucide:house" width="18" />
+      <PhotoEmpty v-else />
     </span>
 
     <span class="prow-text">
@@ -29,6 +29,7 @@
 </template>
 
 <script setup lang="ts">
+import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
 import { computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { healthTone, STATUS_TONE, type Property } from './property'
@@ -65,6 +66,7 @@ const permitLine = computed(() => {
 .prow:active { background: var(--m-bg); }
 
 .prow-thumb {
+  position: relative;
   display: grid;
   width: 44px;
   height: 44px;

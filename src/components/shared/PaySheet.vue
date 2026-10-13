@@ -39,7 +39,7 @@
         <span class="mx-hint">Your {{ who }} allows part payments of at least {{ formatPesoExact(minAmount) }}.</span>
         <label v-if="Number(amount) + 0.009 < total" class="mx-field ps-promise">
           <span class="mx-label">When will you pay the other {{ formatPesoExact(total - (Number(amount) || 0)) }}?</span>
-          <input v-model="promiseDate" type="date" :min="manilaToday()" class="mx-input" />
+          <DateTimeField v-model="promiseDate" mode="date" :min="manilaToday()" placeholder="Pick a date" class="mx-input" />
           <span class="mx-hint">Optional. We'll remind you that day.</span>
         </label>
       </div>
@@ -169,6 +169,7 @@ import { formatPesoExact, landlordTitle, PAYMENT_METHOD_LABEL } from '@/utils/fo
 import { fileFingerprint, manilaToday, minPayment, normalizeReference, referenceProblem } from '@/utils/payments'
 import { usePayItems, type PayPick } from '@/utils/usePayItems'
 import AppModal from '@/components/shared/AppModal.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
 import PayItemList from '@/components/shared/PayItemList.vue'
 
 // The student's Pay: step 1 picks what to pay and shows where to send it;
