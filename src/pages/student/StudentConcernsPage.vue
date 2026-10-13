@@ -96,7 +96,8 @@
           aria-label="Report a concern"
           @click="openNew"
         >
-          <IconifyIcon icon="lucide:plus" width="18" />
+          <IconifyIcon icon="lucide:plus" width="17" />
+          <span class="dock-btn-label">Report a concern</span>
         </button>
       </template>
     </SearchDock>

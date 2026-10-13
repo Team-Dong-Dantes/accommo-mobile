@@ -1,7 +1,8 @@
 // Presentation helpers shared by the two profile pages, so a landlord/landlady and a
 // student never see the same underlying status described two different ways.
 
-import { parseServerTime } from '@/utils/format';
+import { formatDate, parseServerTime } from '@/utils/format';
+import { supabase } from '@/utils/supabase';
 
 /** Friendly names for the doc_type strings written during registration. */
 export const DOC_LABEL: Record<string, string> = {
@@ -76,4 +77,68 @@ export function period(start: string | null | undefined, end: string | null | un
     return date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
   };
   return `${fmt(start)} — ${fmt(end)}`;
+}
+
+// ── Complete your profile ───────────────────────────────────────────────────
+// The one definition of "what is still blank", shared by both dashboards, the
+// Menu dot, the profile strip and the step flow, so they never disagree.
+
+export type ProfileGapKey = 'photo' | 'sex' | 'dob' | 'studentId' | 'emergency';
+
+export interface ProfileGap {
+  key: ProfileGapKey;
+  /** Lower-case noun for "Add your …" sentences. */
+  label: string;
+  /** A missing photo is a step in the flow but never raises the dot or task: initials stand in fine. */
+  needed: boolean;
+}
+
+export interface ProfileGapSource {
+  avatar_url?: string | null;
+  sex?: string | null;
+  date_of_birth?: string | null;
+  student_id?: string | null;
+  emergency_contact_json?: unknown;
+}
+
+/** Missing items in the order the flow asks for them. Students also owe a student ID and an emergency contact. */
+export function profileGaps(row: ProfileGapSource, isStudent: boolean): ProfileGap[] {
+  const gaps: ProfileGap[] = [];
+  if (!row.avatar_url) gaps.push({ key: 'photo', label: 'profile photo', needed: false });
+  if (!row.sex) gaps.push({ key: 'sex', label: 'sex', needed: true });
+  if (!row.date_of_birth) gaps.push({ key: 'dob', label: 'date of birth', needed: true });
+  if (isStudent) {
+    if (!row.student_id) gaps.push({ key: 'studentId', label: 'student ID', needed: true });
+    const contact = row.emergency_contact_json as { name?: string; phone?: string } | null | undefined;
+    if (!contact?.name || !contact?.phone) gaps.push({ key: 'emergency', label: 'emergency contact', needed: true });
+  }
+  return gaps;
+}
+
+/** "student ID, emergency contact and date of birth" */
+export function listGaps(gaps: ProfileGap[]): string {
+  const names = gaps.map((g) => g.label);
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+export async function loadProfileGaps(userId: string, isStudent: boolean): Promise<ProfileGap[]> {
+  const [{ data: user }, { data: student }] = await Promise.all([
+    supabase.from('users_full').select('avatar_url, sex, date_of_birth').eq('id', userId).maybeSingle(),
+    isStudent
+      ? supabase.from('student_profiles').select('student_id, emergency_contact_json').eq('user_id', userId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  // A failed read says nothing is missing rather than nagging about everything.
+  if (!user) return [];
+  return profileGaps({ ...user, ...(student ?? {}) }, isStudent);
+}
+
+/** users.sex holds only M/F when set; '' lets ProfileField show "Not set". */
+export function sexLabel(sex: string | null | undefined): string {
+  return sex === 'M' ? 'Male' : sex === 'F' ? 'Female' : '';
+}
+
+/** "Mar 4, 2001", or '' when blank. */
+export function birthDateLabel(iso: string | null | undefined): string {
+  return iso ? formatDate(iso) : '';
 }

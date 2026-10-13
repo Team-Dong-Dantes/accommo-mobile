@@ -49,7 +49,7 @@ import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, landlordTitle, LANDLORD_ROLE_LABEL } from '@/utils/format'
 import { BILL_TAG, isBillSettled, manilaToday, nextLedgerRent, toLedger, type LedgerRow } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
-import { ago } from '@/utils/profile'
+import { ago, listGaps, loadProfileGaps } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import DashTasks from '@/components/shared/DashTasks.vue'
@@ -313,23 +313,20 @@ async function load(silent = false) {
       })
     }
 
-    // Skippable at registration ("I don't have it right now") because freshmen
-    // sign up before ISU issues one, so it is chased from here until it is set.
-    const { data: studentProfile } = await supabase
-      .from('student_profiles')
-      .select('student_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (!studentProfile?.student_id) {
+    // Whatever is still blank on the profile — student ID (freshmen register before
+    // ISU issues one), emergency contact, and sex/birth date on older accounts —
+    // chased as one row that opens the step-by-step flow.
+    const missing = (await loadProfileGaps(user.id, true)).filter((g) => g.needed)
+    if (missing.length) {
       list.push({
-        id: 'student-id',
-        icon: 'lucide:id-card',
+        id: 'profile',
+        icon: 'lucide:user-round-pen',
         kind: 'Profile',
-        label: 'Add your student ID',
-        hint: 'Once ISU gives you one, add it from your profile',
+        label: 'Complete your profile',
+        hint: `Add your ${listGaps(missing)}`,
         when: '',
-        action: 'Add student ID',
-        route: '/student/profile',
+        action: 'Continue',
+        route: '/student/profile/complete',
         tone: 'warn',
         rank: 3,
       })

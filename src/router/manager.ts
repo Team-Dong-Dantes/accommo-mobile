@@ -34,6 +34,10 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/manager/ManagerHistoryPage.vue'),
   },
   {
+    path: '/manager/profile/complete',
+    component: () => import('@/pages/shared/CompleteProfilePage.vue'),
+  },
+  {
     path: '/manager/settings/terms',
     component: () => import('@/pages/manager/ManagerTermsPage.vue'),
   },

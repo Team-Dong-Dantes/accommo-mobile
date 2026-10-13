@@ -399,14 +399,14 @@ button.item-text { cursor: pointer; }
    a primary control on these screens. */
 .fab {
   position: fixed;
-  right: var(--m-page-gutter);
+  left: var(--m-page-gutter);
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   z-index: 60;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 46px;
-  padding: 0 20px;
+  min-height: 52px;
+  padding: 0 18px;
   border: 0;
   border-radius: 999px;
   background: var(--m-primary);

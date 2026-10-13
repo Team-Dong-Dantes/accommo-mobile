@@ -123,6 +123,7 @@
 
       <!-- ===== PROFILE ===== -->
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
+      <ProfileCompleteStrip :gaps="gaps" to="/manager/profile/complete" />
       <ProfileCard :open="isDesktop">
         <template #always>
           <ProfileBlock id="ps-details" icon="lucide:user" title="Personal details">
@@ -132,6 +133,9 @@
             <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
             <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
             <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
+            <!-- Filled in through Complete your profile; changed after that by OSAS only. -->
+            <ProfileField :model-value="sexLabel(me.sex)" label="Sex" readonly :editing="editing" />
+            <ProfileField :model-value="birthDateLabel(me.dob)" label="Date of birth" readonly :editing="editing" />
             <template v-if="editing" #foot>
               <div class="card-actions">
                 <button class="btn-cancel" :disabled="saving" @click="cancelEdit">Cancel</button>
@@ -213,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import VerificationBanner from '@/components/manager/VerificationBanner.vue'
@@ -231,7 +235,8 @@ import ProfileCard from '@/components/shared/ProfileCard.vue'
 import ProfileBlock from '@/components/shared/ProfileBlock.vue'
 import ProfileSectionNav from '@/components/shared/ProfileSectionNav.vue'
 import EditButton from '@/components/shared/EditButton.vue'
-import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
+import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago, birthDateLabel, profileGaps, sexLabel } from '@/utils/profile'
+import ProfileCompleteStrip from '@/components/shared/ProfileCompleteStrip.vue'
 
 // ----- Types -----
 interface DocRow {
@@ -268,7 +273,9 @@ const me = reactive({
   // Drives the Landlord / Landlady title on this header. Null is normal — the
   // column is optional — and falls back to the neutral compound.
   sex: null as string | null,
+  dob: '',
 })
+const gaps = computed(() => profileGaps({ avatar_url: avatarUrl.value, sex: me.sex, date_of_birth: me.dob }, false))
 
 // Draft for editing
 const draft = reactive({
@@ -374,7 +381,7 @@ async function load(silent = false) {
     const [{ data: profile, error: profileError }, { data: managerProfile }] = await Promise.all([
       supabase
         .from('users_full')
-        .select('full_name, email, phone, initials, status, sex, created_at, updated_at, avatar_url, cover_url')
+        .select('full_name, email, phone, initials, status, sex, date_of_birth, created_at, updated_at, avatar_url, cover_url')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -391,6 +398,7 @@ async function load(silent = false) {
     me.initials = profile?.initials || initialsOf(me.fullName)
     me.status = profile?.status || 'unverified'
     me.sex = profile?.sex ?? null
+    me.dob = profile?.date_of_birth || ''
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
 
@@ -467,6 +475,11 @@ async function load(silent = false) {
 // OSAS verification decision pushes here instead of the page re-asking on
 // return. utils/useLiveData.ts owns the whole policy — first load, the
 // subscription's lifetime, and how stale the data may be on return.
+// Kept alive, so a step saved in Complete your profile has to tell this page.
+const onProfileChange = () => void load(true)
+onMounted(() => window.addEventListener('accommo:profile-change', onProfileChange))
+onUnmounted(() => window.removeEventListener('accommo:profile-change', onProfileChange))
+
 useLiveData({
   key: 'manager-profile',
   load,

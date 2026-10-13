@@ -111,7 +111,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso } from '@/utils/format'
-import { ago } from '@/utils/profile'
+import { ago, listGaps, loadProfileGaps } from '@/utils/profile'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import DashTasks from '@/components/shared/DashTasks.vue'
@@ -498,6 +498,23 @@ async function load(silent = false) {
         route: '/manager/support',
         tone: 'danger',
         rank: 0,
+      })
+    }
+
+    // Sex and birth date are blank on older accounts; one row opens the step-by-step flow.
+    const missing = (await loadProfileGaps(user.id, false)).filter((g) => g.needed)
+    if (missing.length) {
+      items.push({
+        id: 'profile',
+        icon: 'lucide:user-round-pen',
+        kind: 'Profile',
+        label: 'Complete your profile',
+        hint: `Add your ${listGaps(missing)}`,
+        when: '',
+        action: 'Continue',
+        route: '/manager/profile/complete',
+        tone: 'warn',
+        rank: 3,
       })
     }
 

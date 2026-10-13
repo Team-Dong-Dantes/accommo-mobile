@@ -57,9 +57,10 @@
 
       <!-- Full map: the preview button above is now covered by the fixed
            full-screen map, so "List view" is the way back — parked just under
-           the header where the rail/info card below can never cover it, with
-           "my location" beside it. Desktop has no list view to go back to, so
-           only the locate button, in the map's top-right corner. -->
+           the header where the rail/info card below can never cover it. "My
+           location" lives at the left end of the search dock instead. Desktop
+           has no list view or dock, so only the locate button, in the map's
+           top-right corner. -->
       <div
         v-if="hasMapToken && (mapExpanded || deskMap)"
         class="map-top"
@@ -71,6 +72,7 @@
           <span>List view</span>
         </button>
         <button
+          v-if="deskMap"
           type="button"
           class="map-locate-btn"
           :class="{ 'map-locate-btn--on': located }"
@@ -260,7 +262,25 @@
       search-label="Search accommodations, rooms, landlords/landladies"
       above-nav
       @open-filters="filtersOpen = true"
-    />
+    >
+      <!-- Full map: "my location" at the dock's left end, in thumb reach. -->
+      <template v-if="mapExpanded && hasMapToken" #action>
+        <button
+          type="button"
+          class="map-locate-btn map-locate-btn--dock"
+          :class="{ 'map-locate-btn--on': located }"
+          :disabled="locating"
+          @click="locateMe"
+        >
+          <IconifyIcon
+            :icon="locating ? 'lucide:loader-circle' : 'lucide:locate-fixed'"
+            :class="{ 'map-locate-spin': locating }"
+            width="20"
+          />
+          <span class="dock-btn-label">My location</span>
+        </button>
+      </template>
+    </SearchDock>
 
     <!-- Filters — apply to the room grid, the page's main content -->
     <BottomSheet
@@ -1367,6 +1387,19 @@ function destroyMap() {
   width: 36px;
   height: 36px;
   padding: 0;
+}
+/* In the search dock: the dock's 52px height, and its shadow rather than the
+   heavier one the map-top buttons need over busy map tiles. The label is the
+   dock's .dock-btn-label, which folds away while the search field is open. */
+.map-locate-btn--dock {
+  width: auto;
+  height: 52px;
+  flex: 0 0 auto;
+  padding: 0 16px;
+  box-shadow: var(--m-shadow);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
 }
 .map-locate-btn--on {
   color: var(--m-primary);

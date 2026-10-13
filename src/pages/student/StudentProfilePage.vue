@@ -74,6 +74,7 @@
       </div>
 
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
+      <ProfileCompleteStrip :gaps="gaps" to="/student/profile/complete" />
       <!-- Profile -->
       <ProfileCard :open="isDesktop">
         <template #always>
@@ -84,6 +85,9 @@
             <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
             <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
             <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
+            <!-- Filled in through Complete your profile; changed after that by OSAS only. -->
+            <ProfileField :model-value="sexLabel(me.sex)" label="Sex" readonly :editing="editing" />
+            <ProfileField :model-value="birthDateLabel(me.dob)" label="Date of birth" readonly :editing="editing" />
           </ProfileBlock>
         </template>
 
@@ -176,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { isDesktop } from '@/utils/useTabletMode'
@@ -193,7 +197,8 @@ import ProfileBlock from '@/components/shared/ProfileBlock.vue'
 import ProfileSectionNav from '@/components/shared/ProfileSectionNav.vue'
 import EditButton from '@/components/shared/EditButton.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago } from '@/utils/profile'
+import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago, birthDateLabel, profileGaps, sexLabel } from '@/utils/profile'
+import ProfileCompleteStrip from '@/components/shared/ProfileCompleteStrip.vue'
 import { fetchCurrentLease } from '@/api/leases';
 import { useMyLandlordTitle } from '@/utils/myLandlordTitle'
 import {
@@ -238,6 +243,8 @@ const me = reactive({
   phone: '',
   initials: '?',
   status: 'unverified',
+  sex: '',
+  dob: '',
 })
 const academics = reactive({
   studentId: '',
@@ -271,6 +278,18 @@ const myLandlord = useMyLandlordTitle()
 const documents = ref<DocRow[]>([])
 
 const status = computed(() => statusPresentation(me.status))
+const gaps = computed(() =>
+  profileGaps(
+    {
+      avatar_url: avatarUrl.value,
+      sex: me.sex,
+      date_of_birth: me.dob,
+      student_id: academics.studentId,
+      emergency_contact_json: { name: emergency.name, phone: emergency.phone },
+    },
+    true,
+  ),
+)
 const stayStatusNote = computed(() => {
   if (stay.value?.status === 'pending') return `Application pending — awaiting your ${myLandlord.value}'s decision`
   if (stay.value?.status === 'leave_requested') return `Leave requested — awaiting your ${myLandlord.value}'s decision`
@@ -427,7 +446,7 @@ async function load(silent = false) {
     const [{ data: profile, error: profileError }, { data: studentProfile }] = await Promise.all([
       supabase
         .from('users_full')
-        .select('full_name, email, phone, initials, status, created_at, updated_at, avatar_url, cover_url')
+        .select('full_name, email, phone, initials, status, sex, date_of_birth, created_at, updated_at, avatar_url, cover_url')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -443,6 +462,8 @@ async function load(silent = false) {
     me.phone = profile?.phone || ''
     me.initials = profile?.initials || initialsOf(me.fullName)
     me.status = profile?.status || 'unverified'
+    me.sex = profile?.sex || ''
+    me.dob = profile?.date_of_birth || ''
     createdAt.value = profile?.created_at ?? null
     updatedAt.value = profile?.updated_at ?? null
 
@@ -538,6 +559,11 @@ async function load(silent = false) {
 // OSAS verification decision pushes here instead of the page re-asking on
 // return. utils/useLiveData.ts owns the whole policy — first load, the
 // subscription's lifetime, and how stale the data may be on return.
+// Kept alive, so a step saved in Complete your profile has to tell this page.
+const onProfileChange = () => void load(true)
+onMounted(() => window.addEventListener('accommo:profile-change', onProfileChange))
+onUnmounted(() => window.removeEventListener('accommo:profile-change', onProfileChange))
+
 useLiveData({
   key: 'student-profile',
   load,

@@ -179,6 +179,7 @@ import ConfirmGate from '@/components/shared/ConfirmGate.vue'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
 import { countLeasesAwaitingManager } from '@/api/leases';
 import { pageTitleOverride } from '@/utils/pageTitle'
+import { loadProfileGaps } from '@/utils/profile'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -212,6 +213,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/manager/settings', title: 'Settings', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
+      { path: '/manager/profile/complete', title: 'Complete profile', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/settings/terms', title: 'Terms & Privacy', back: '/manager/settings', backLabel: 'settings' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: '/manager/announcements', title: 'Announcements', back: '/manager/dashboard', backLabel: 'dashboard' },
@@ -245,6 +247,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/student/settings', title: 'Settings', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/profile/qr', title: 'My QR', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/profile/history', title: 'History', back: '/student/profile', backLabel: 'profile' },
+      { path: '/student/profile/complete', title: 'Complete profile', back: '/student/profile', backLabel: 'profile' },
       { path: '/student/settings/terms', title: 'Terms & Privacy', back: '/student/settings', backLabel: 'settings' },
       { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
       { path: /^\/student\/announcement\/[^/]+$/, title: 'Announcement', back: '/student/notifications', backLabel: 'notifications' },
@@ -528,6 +531,7 @@ watch(
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, true)
   window.addEventListener('accommo:avatar-change', onAvatarChange)
+  window.addEventListener('accommo:profile-change', onProfileChange)
   document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
   onScroll()
   try {
@@ -568,6 +572,7 @@ onMounted(async () => {
       void supabase.from('users').update({ avatar_url: picture }).eq('id', user.id).then(() => undefined, () => undefined)
     }
 
+    shellUserId = user.id
     void loadNeedsCheckDots(user.id)
 
     // Subscribes once for the session; the notifications page reuses the same
@@ -590,6 +595,7 @@ onUnmounted(() => {
   messagesStore.stop()
   window.removeEventListener('scroll', onScroll, true)
   window.removeEventListener('accommo:avatar-change', onAvatarChange)
+  window.removeEventListener('accommo:profile-change', onProfileChange)
   document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
 })
 
@@ -610,7 +616,7 @@ const LISTING_WINDOW_DAYS = 7
 
 async function loadNeedsCheckDots(userId: string) {
   const isManager = role.value === 'manager'
-  const [tenants, docs, concerns, listings] = await Promise.all([
+  const [tenants, docs, concerns, listings, gaps] = await Promise.all([
     isManager
       ? countLeasesAwaitingManager(userId).then((count) => ({ count }))
       : Promise.resolve({ count: 0 }),
@@ -638,11 +644,19 @@ async function loadNeedsCheckDots(userId: string) {
           .select('id', { count: 'exact', head: true })
           .eq('status', 'accredited')
           .gte('accredited_at', new Date(Date.now() - LISTING_WINDOW_DAYS * 86400000).toISOString()),
+    loadProfileGaps(userId, !isManager),
   ])
   tenantsNeedCheck.value = Boolean(tenants.count)
-  profileNeedsCheck.value = Boolean(docs.count)
+  // A rejected document, or something on the profile still blank (see CompleteProfilePage).
+  profileNeedsCheck.value = Boolean(docs.count) || gaps.some((g) => g.needed)
   concernsNeedCheck.value = Boolean(concerns.count)
   discoverNeedCheck.value = Boolean(listings.count)
+}
+
+// CompleteProfilePage fires this after each saved step, so the dot clears without a relaunch.
+let shellUserId = ''
+function onProfileChange() {
+  if (shellUserId) void loadNeedsCheckDots(shellUserId)
 }
 
 function onAvatarChange(event: Event) {
