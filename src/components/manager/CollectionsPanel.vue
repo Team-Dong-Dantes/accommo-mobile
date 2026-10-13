@@ -3,7 +3,22 @@
        teal hero and stat strip, its "Needs attention" list, and the By boarder
        tab's flat sections (grey band header, edge-to-edge rows, small pills). -->
   <div class="cp">
-    <div v-if="loading && !col" class="cp-center"><q-spinner size="26px" color="primary" /></div>
+    <!-- The loaded layout's shape: the month hero, then one flat section of rows. -->
+    <template v-if="loading && !col">
+      <div class="cp-inset"><q-skeleton type="rect" height="120px" class="cp-sk" /></div>
+      <section class="cp-block">
+        <div class="room-head"><q-skeleton type="text" width="90px" height="14px" /></div>
+        <div v-for="n in 3" :key="n" class="lease-row">
+          <span class="lease-main cp-static">
+            <q-skeleton type="circle" size="36px" />
+            <span class="lease-body">
+              <q-skeleton type="text" width="55%" height="15px" />
+              <q-skeleton type="text" width="35%" height="12px" />
+            </span>
+          </span>
+        </div>
+      </section>
+    </template>
     <ErrorCard v-else-if="error" title="Couldn't load payments" :detail="error" :retry="load" inset />
 
     <EmptyState
@@ -404,10 +419,8 @@ function changed() {
   flex-direction: column;
   gap: 14px;
 }
-.cp-center {
-  display: flex;
-  justify-content: center;
-  padding: 40px 0;
+.cp-sk {
+  border-radius: var(--m-radius);
 }
 .cp-inset {
   display: flex;

@@ -205,7 +205,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
     quickActions: [
       { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas' },
       { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
-      { icon: 'lucide:megaphone', label: 'Announce', route: '/manager/announcements' },
+      { icon: 'lucide:megaphone', label: 'Announcements', route: '/manager/announcements' },
     ],
     secondaryPages: [
       { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
@@ -214,7 +214,7 @@ const SHELLS: Record<'manager' | 'student', ShellConfig> = {
       { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
       { path: '/manager/settings/terms', title: 'Terms & Privacy', back: '/manager/settings', backLabel: 'settings' },
       { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: '/manager/announcements', title: 'Announce', back: '/manager/dashboard', backLabel: 'dashboard' },
+      { path: '/manager/announcements', title: 'Announcements', back: '/manager/dashboard', backLabel: 'dashboard' },
       { path: /^\/manager\/announcement\/[^/]+$/, title: 'Announcement', back: '/manager/notifications', backLabel: 'notifications' },
       { path: /^\/manager\/person\/[^/]+$/, title: 'Profile', back: '/manager/messages', backLabel: 'messages' },
       { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
@@ -400,7 +400,7 @@ function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undef
 // Includes /manager/properties/new: the add-property form carries its own back
 // button above its card. Both History pages carry theirs across the card's top.
 const OWN_BACK = /^\/(manager\/(tenant\/[^/]+|properties\/[^/]+)|(manager|student)\/profile\/history)$/
-// Everything the desktop rail links to straight (OSAS, Concerns, Announce,
+// Everything the desktop rail links to straight (OSAS, Concerns, Announcements,
 // Profile, Settings, My QR — and the tabs) is a destination there, not a
 // step down from somewhere, so it gets no back button either.
 const railRoutes = computed(() => [

@@ -106,9 +106,10 @@
 
     <!-- Every past decision, newest first: what was asked, what OSAS said. -->
     <div v-if="history.length" class="hist">
-      <button type="button" class="hist-toggle" @click="showHistory = !showHistory">
-        <IconifyIcon :icon="showHistory ? 'lucide:chevron-down' : 'lucide:chevron-right'" width="15" />
+      <button type="button" class="hist-toggle" :aria-expanded="showHistory" @click="showHistory = !showHistory">
+        <IconifyIcon icon="lucide:history" width="16" />
         Review history ({{ history.length }})
+        <IconifyIcon :icon="showHistory ? 'lucide:chevron-up' : 'lucide:chevron-down'" width="15" />
       </button>
       <ol v-if="showHistory" class="hist-list">
         <li v-for="r in history" :key="r.id" class="hist-item">
@@ -496,19 +497,24 @@ defineExpose({ reload: load, flagged, permitReplaced })
 .change-label { color: var(--m-muted); }
 .change-value { color: var(--m-ink); font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 .hist { display: flex; flex-direction: column; gap: 6px; }
+/* A centred pill like .pill-btn, tinted so it reads as an action rather than
+   fine print under the status box. */
 .hist-toggle {
   display: inline-flex;
-  align-self: flex-start;
+  align-self: center;
   align-items: center;
-  gap: 4px;
-  padding: 4px 2px;
-  border: 0;
-  background: transparent;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--m-primary);
+  border-radius: 999px;
+  background: var(--m-primary-soft);
   color: var(--m-primary-dark);
   cursor: pointer;
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
 }
 .hist-list { display: flex; flex-direction: column; margin: 0; padding: 0 0 0 6px; list-style: none; }
 .hist-item {

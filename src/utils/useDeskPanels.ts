@@ -30,6 +30,10 @@ export function useDeskPanels<T extends string>(tab: Ref<T>) {
           'onUpdate:modelValue': (v: T) => (tab.value = v),
           animated: true,
           swipeable: true,
+          // Without it QTabPanels unmounts the tab you leave, so a panel that
+          // loads its own data (Tenants → Payments) refetched behind a skeleton
+          // on every switch back. Kept in memory only; nothing goes to disk.
+          keepAlive: true,
         },
   )
   return { split, panelsIs, panelIs, panelsProps }
