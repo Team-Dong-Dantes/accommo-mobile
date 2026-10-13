@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capitalizeName, composeStudentId, formatPesoExact, initialsOf, isPersonName, isPhMobile, isStudentId, stayProgress } from './format'
+import { capitalizeName, composeStudentId, dateOfBirthProblem, formatPesoExact, initialsOf, isPersonName, isPhMobile, isStudentId, stayProgress } from './format'
 
 describe('isStudentId', () => {
   it('accepts a year and a student number of four to six digits', () => {
@@ -195,5 +195,25 @@ describe('stayProgress', () => {
   it('reads a stay not begun yet and one that is over', () => {
     expect(stayProgress('2026-10-13', '2027-03-31', '2026-10-12').label).toBe('Moves in tomorrow · 6 months')
     expect(stayProgress('2026-06-01', '2026-10-01', '2026-10-12')).toEqual({ pct: 100, label: 'Stayed 4 months' })
+  })
+})
+
+describe('dateOfBirthProblem', () => {
+  const TODAY = '2026-10-13'
+  it('accepts a real past date', () => {
+    expect(dateOfBirthProblem('2008-05-08', TODAY)).toBeNull()
+    expect(dateOfBirthProblem('1975-12-31', TODAY)).toBeNull()
+  })
+  it('rejects empty, malformed, impossible, future, and ancient dates', () => {
+    expect(dateOfBirthProblem('', TODAY)).toMatch(/enter your/)
+    expect(dateOfBirthProblem('20085-05-08', TODAY)).toMatch(/valid/)
+    expect(dateOfBirthProblem('05/08/2008', TODAY)).toMatch(/valid/)
+    expect(dateOfBirthProblem('2008-02-30', TODAY)).toMatch(/valid/)
+    expect(dateOfBirthProblem('2026-10-14', TODAY)).toMatch(/future/)
+    expect(dateOfBirthProblem('1899-06-01', TODAY)).toMatch(/valid/)
+  })
+  it('enforces the minimum age on the birthday itself', () => {
+    expect(dateOfBirthProblem('2011-10-13', TODAY)).toBeNull()
+    expect(dateOfBirthProblem('2011-10-14', TODAY)).toMatch(/at least 15/)
   })
 })

@@ -169,6 +169,31 @@ export function isPhMobile(raw: string | number | null | undefined): boolean {
   return digits !== '9000000000'
 }
 
+/** Youngest age Accommo accepts at sign-up; catches a slipped decade (2018 for 2008). */
+export const MIN_SIGNUP_AGE = 15
+
+/**
+ * Why a date of birth is unusable, or null. `today` is YYYY-MM-DD (manilaToday()).
+ * Parsed strictly rather than string-compared: a desktop date input lets the year
+ * run past four digits ('20085-05-08' sorts after today), and '2008-02-30' passed
+ * every string check. Bounds match users_date_of_birth_plausible, plus MIN_SIGNUP_AGE,
+ * which the database does not carry.
+ */
+export function dateOfBirthProblem(val: string | null | undefined, today: string): string | null {
+  if (!val) return 'Please enter your date of birth'
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val)
+  if (!m) return 'Please enter a valid date of birth'
+  const [y, mo, d] = m.slice(1).map(Number) as [number, number, number]
+  const date = new Date(Date.UTC(y, mo - 1, d))
+  if (date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return 'Please enter a valid date of birth'
+  if (val > today) return 'Date of birth cannot be in the future'
+  if (val <= '1900-01-01') return 'Please enter a valid date of birth'
+  const [ty, tm, td] = today.split('-').map(Number) as [number, number, number]
+  const age = ty - y - (tm < mo || (tm === mo && td < d) ? 1 : 0)
+  if (age < MIN_SIGNUP_AGE) return `You must be at least ${MIN_SIGNUP_AGE} years old`
+  return null
+}
+
 // Some tables (messages.sent_at, conversations.last_time, etc.) are
 // Postgres `timestamp without time zone` columns. The DB actually stores
 // UTC, but PostgREST serializes these with no timezone suffix, e.g.

@@ -44,9 +44,16 @@ export function isBillSettled(payments: { status: string; amount: number | strin
   return covered + 0.009 >= amount
 }
 
-/** Today in Manila as YYYY-MM-DD — what a bill's due_date is compared with. */
+/**
+ * Today in Manila as YYYY-MM-DD — what a bill's due_date is compared with.
+ * Assembled from parts rather than trusting toLocaleDateString('en-CA') to be
+ * ISO-shaped: a WebView without en-CA locale data falls back to '10/13/2026',
+ * and every '2…' date then string-compared as later than today.
+ */
 export function manilaToday(now: Date = new Date()): string {
-  return now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' })
+  const part = (type: string) => fmt.formatToParts(now).find((p) => p.type === type)?.value
+  return `${part('year')}-${part('month')}-${part('day')}`
 }
 
 /** The flat fees that ride on each rent payment. */

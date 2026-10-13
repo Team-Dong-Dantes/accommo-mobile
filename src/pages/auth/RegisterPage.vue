@@ -503,7 +503,7 @@ import AuthDivider from '@/components/auth/AuthDivider.vue';
 import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
 import ConnectedGoogleBox from '@/components/auth/ConnectedGoogleBox.vue';
 import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue';
-import { capitalizeName, composeStudentId, isPersonName, isPhMobile, normalizePhPhone, phNationalDigits } from '@/utils/format';
+import { capitalizeName, composeStudentId, dateOfBirthProblem, isPersonName, isPhMobile, normalizePhPhone, phNationalDigits } from '@/utils/format';
 import { ALLOWED_EMAIL_DOMAINS, ALLOWED_EMAIL_DOMAINS_TEXT, isAllowedEmailDomain } from '@/utils/config';
 import { yearOptions, collegePrograms } from '@/constants/academics';
 import { checkDocument, type DocExpected } from '@/utils/docReading';
@@ -611,11 +611,7 @@ const today = manilaToday();
 
 // The database carries the same bounds (users_date_of_birth_plausible); these
 // exist so the person is told before the request is made, not after it fails.
-const dateOfBirthRules = [
-  (val: string) => !!val || 'Please enter your date of birth',
-  (val: string) => val <= today || 'Date of birth cannot be in the future',
-  (val: string) => val > '1900-01-01' || 'Please enter a valid date of birth',
-];
+const dateOfBirthRules = [(val: string) => dateOfBirthProblem(val, today) ?? true];
 /** N/A leads and is the default: most people have no extension. */
 const NAME_EXT_NONE = 'N/A';
 const nameExtensions = [NAME_EXT_NONE, 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
