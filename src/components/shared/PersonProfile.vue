@@ -30,8 +30,8 @@
         v-for="t in tabs"
         :key="t.key"
         type="button"
-        class="tab"
-        :class="{ 'tab--on': modelValue === t.key }"
+        class="m-tab"
+        :class="{ 'm-tab--on': modelValue === t.key }"
         @click="emit('update:modelValue', t.key)"
       >
         {{ t.label }}
@@ -39,8 +39,19 @@
     </div>
 
     <div class="panel">
-      <slot />
-      <slot v-if="!split" name="right" />
+      <q-tab-panels
+        v-if="!split"
+        :model-value="modelValue"
+        animated
+        swipeable
+        keep-alive
+        class="m-panels"
+        @update:model-value="emit('update:modelValue', String($event))"
+      >
+        <q-tab-panel :name="tabs[0]!.key"><slot /></q-tab-panel>
+        <q-tab-panel :name="tabs[1]!.key"><slot name="right" /></q-tab-panel>
+      </q-tab-panels>
+      <slot v-else />
     </div>
     </div>
 
@@ -195,25 +206,6 @@ watch(() => avatarFailed.value, () => {})
      (non-@1x) device pixel ratios and leave a hairline gap under the active
      tab. Same value as TenantProfile and ManagerTenantsPage. */
   margin: 14px var(--m-page-gutter) -2px;
-}
-.tab {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--m-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.tab--on {
-  background: var(--m-surface);
-  color: var(--m-primary-dark);
 }
 .panel {
   display: flex;

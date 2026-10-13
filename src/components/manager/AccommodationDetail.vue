@@ -68,8 +68,8 @@
             v-for="t in TABS"
             :key="t.key"
             type="button"
-            class="tab"
-            :class="{ 'tab--on': tab === t.key }"
+            class="m-tab"
+            :class="{ 'm-tab--on': tab === t.key }"
             @click="tab = t.key"
           >
             {{ t.label }}

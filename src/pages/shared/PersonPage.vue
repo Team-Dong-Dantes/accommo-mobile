@@ -44,7 +44,7 @@
       :split="split"
       @message="message"
     >
-      <div v-if="split || tab === 'overview'" class="sec">
+      <div class="sec">
         <template v-if="scan">
           <!-- Straight off a scan: this is the answer to "is this a real ISU
                student", so it leads. -->
@@ -109,7 +109,7 @@
 
       <!-- The right half on desktop; the History tab elsewhere. -->
       <template #right>
-      <div v-if="split || tab !== 'overview'" class="sec">
+      <div class="sec">
         <h2 v-if="split" class="desk-col-title">Boarding History</h2>
         <BoardingTimeline v-if="history.length" :stays="history" />
         <EmptyState

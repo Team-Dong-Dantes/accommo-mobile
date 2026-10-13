@@ -55,12 +55,10 @@
           </div>
 
           <div :class="isDesktop ? 'desk-card' : 'panel'">
-            <!-- Not QTabPanels: it mounts only the active panel, which is exactly
-                 what has to stop happening here. v-show keeps both in the DOM and
-                 lets CSS decide, and v-touch-swipe puts back the one thing the
-                 component was giving us that the phone actually used. -->
-            <div v-touch-swipe.mouse.horizontal="onTabSwipe" :class="isDesktop ? 'desk-contents' : 'm-panels'">
-              <div v-show="isTablet || activeTab === 'stay'" :class="isDesktop ? 'desk-col' : 'tab-panel'">
+            <!-- Sliding QTabPanels on a phone; on a tablet, where both halves are
+                 up side by side, plain divs (useDeskPanels keyed on isTablet). -->
+            <component :is="panelsIs" v-bind="panelsProps" :class="isDesktop ? 'desk-contents' : 'm-panels'">
+              <component :is="panelIs" name="stay" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isTablet" class="split-head">My Stay</h2>
                 <template v-if="lease">
                   <StayHero
@@ -179,9 +177,9 @@
                     <q-btn unelevated rounded no-caps color="primary" label="Browse rooms" @click="router.push('/student/discover')" />
                   </template>
                 </EmptyState>
-              </div>
+              </component>
 
-              <div v-show="isTablet || activeTab === 'payments'" :class="isDesktop ? 'desk-col' : 'tab-panel'">
+              <component :is="panelIs" name="payments" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isTablet" class="split-head">Payments</h2>
                 <!-- Moved out, still owing: it blocks applying for a new room. -->
                 <div v-for="o in pastOwed" :key="o.leaseId" class="past-owed">
@@ -216,8 +214,8 @@
                   All my payments
                   <IconifyIcon icon="lucide:chevron-right" width="16" class="all-pay-chev" />
                 </button>
-              </div>
-            </div>
+              </component>
+            </component>
           </div>
         </div>
       </div>
@@ -345,6 +343,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
+import { useDeskPanels } from '@/utils/useDeskPanels'
 import { useRouter, useRoute } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
@@ -493,12 +492,7 @@ const depositHeld = computed(() => {
 // Payments tab instead of needing a separate page.
 const activeTab = ref<'stay' | 'payments'>(route.path === '/student/payments' ? 'payments' : 'stay')
 
-// Replaces QTabPanels' `swipeable`. Inert on a tablet, where both panels are
-// already on screen and activeTab is not driving anything.
-function onTabSwipe({ direction }: { direction?: string }) {
-  if (isTablet.value) return
-  activeTab.value = direction === 'left' ? 'payments' : 'stay'
-}
+const { panelsIs, panelIs, panelsProps } = useDeskPanels(activeTab, isTablet)
 
 const leaveDialog = ref(false)
 const leaveDate = ref('')

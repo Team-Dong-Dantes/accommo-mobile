@@ -18,8 +18,7 @@ import { isDesktop } from '@/utils/useTabletMode'
  * div has no v-model, and `animated` / `swipeable` would land on it as stray
  * attributes.
  */
-export function useDeskPanels<T extends string>(tab: Ref<T>) {
-  const split = isDesktop
+export function useDeskPanels<T extends string>(tab: Ref<T>, split: Ref<boolean> = isDesktop) {
   const panelsIs = computed(() => (split.value ? 'div' : QTabPanels))
   const panelIs = computed(() => (split.value ? 'div' : QTabPanel))
   const panelsProps = computed(() =>
