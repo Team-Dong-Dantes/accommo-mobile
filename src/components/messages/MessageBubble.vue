@@ -14,48 +14,61 @@
       Message removed
     </span>
 
-    <span
-      v-else
-      class="msg-bubble"
-      :class="{ 'msg-bubble--media': isPhoto, 'msg-bubble--card': msg.accommodationId }"
-      v-on="msg.pending ? {} : press.on(msg.id)"
-    >
-      <button
-        v-if="msg.accommodationId"
-        type="button"
-        class="msg-card"
-        :disabled="!listing"
-        @click="tap(() => emit('listing', msg.accommodationId!))"
+    <span v-else class="msg-row">
+      <span
+        ref="bubbleRef"
+        class="msg-bubble"
+        :class="{ 'msg-bubble--media': isPhoto, 'msg-bubble--card': msg.accommodationId }"
+        v-on="msg.pending ? {} : press.on(msg.id)"
       >
-        <img v-if="listing?.cover" :src="listing.cover" alt="" class="msg-card-img" />
-        <span v-else class="msg-card-img msg-card-img--none"><IconifyIcon icon="lucide:house" width="22" /></span>
-        <span class="msg-card-body">
-          <span class="msg-card-name">{{ listing === null ? 'Listing no longer available' : listing?.name ?? 'Loading…' }}</span>
-          <span v-if="listing?.place" class="msg-card-place">{{ listing.place }}</span>
-        </span>
-      </button>
+        <button
+          v-if="msg.accommodationId"
+          type="button"
+          class="msg-card"
+          :disabled="!listing"
+          @click="tap(() => emit('listing', msg.accommodationId!))"
+        >
+          <img v-if="listing?.cover" :src="listing.cover" alt="" class="msg-card-img" />
+          <span v-else class="msg-card-img msg-card-img--none"><IconifyIcon icon="lucide:house" width="22" /></span>
+          <span class="msg-card-body">
+            <span class="msg-card-name">{{ listing === null ? 'Listing no longer available' : listing?.name ?? 'Loading…' }}</span>
+            <span v-if="listing?.place" class="msg-card-place">{{ listing.place }}</span>
+          </span>
+        </button>
+        <button
+          v-else-if="msg.file"
+          type="button"
+          class="msg-file"
+          @click="tap(() => msg.attachmentUrl && emit('file', msg.attachmentUrl))"
+        >
+          <IconifyIcon icon="lucide:file-text" width="22" />
+          <span class="msg-file-text">
+            <span class="msg-file-name">PDF document</span>
+            <span class="msg-file-hint">{{ msg.pending ? 'Uploading…' : 'Tap to open' }}</span>
+          </span>
+        </button>
+        <button
+          v-else-if="msg.attachmentUrl"
+          type="button"
+          class="msg-img-btn"
+          aria-label="View photo"
+          @click="tap(() => emit('photo', msg.attachmentUrl!))"
+        >
+          <img :src="msg.attachmentUrl" alt="Photo" class="msg-img" />
+        </button>
+        <template v-if="msg.body"><template v-for="(s, i) in segments" :key="i"><a v-if="s.href" :href="s.href" class="msg-link" @click="onLink($event, s)">{{ s.text }}</a><template v-else>{{ s.text }}</template></template></template>
+      </span>
+      <!-- Long-press is a touch gesture; with a mouse the same menu hangs off
+           this, shown on hover only where the device can hover. -->
       <button
-        v-else-if="msg.file"
+        v-if="!msg.pending"
         type="button"
-        class="msg-file"
-        @click="tap(() => msg.attachmentUrl && emit('file', msg.attachmentUrl))"
+        class="msg-more"
+        aria-label="Message actions"
+        @click="bubbleRef && emit('menu', bubbleRef)"
       >
-        <IconifyIcon icon="lucide:file-text" width="22" />
-        <span class="msg-file-text">
-          <span class="msg-file-name">PDF document</span>
-          <span class="msg-file-hint">{{ msg.pending ? 'Uploading…' : 'Tap to open' }}</span>
-        </span>
+        <IconifyIcon icon="lucide:ellipsis" width="16" />
       </button>
-      <button
-        v-else-if="msg.attachmentUrl"
-        type="button"
-        class="msg-img-btn"
-        aria-label="View photo"
-        @click="tap(() => emit('photo', msg.attachmentUrl!))"
-      >
-        <img :src="msg.attachmentUrl" alt="Photo" class="msg-img" />
-      </button>
-      <template v-if="msg.body"><template v-for="(s, i) in segments" :key="i"><a v-if="s.href" :href="s.href" class="msg-link" @click="onLink($event, s)">{{ s.text }}</a><template v-else>{{ s.text }}</template></template></template>
     </span>
 
     <span v-if="chips.length" class="msg-reacts">
@@ -90,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { linkify, longPress, reactionChips, type ChatMsg, type ListingCard, type Segment } from '@/utils/chat'
 import { openExternal } from '@/utils/openExternal'
@@ -117,6 +130,7 @@ const emit = defineEmits<{
 }>()
 
 const press = longPress<string>((_, el) => emit('menu', el))
+const bubbleRef = ref<HTMLElement | null>(null)
 
 const isPhoto = computed(() => !!props.msg.attachmentUrl && !props.msg.file)
 const segments = computed(() => linkify(props.msg.body))
@@ -161,7 +175,44 @@ function onLink(e: MouseEvent, s: Segment) {
   position: relative;
   z-index: 21;
 }
+/* Bubble plus its ⋯ button; mine mirror so the button stays on the inside. */
+.msg-row {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+}
+.msg--mine .msg-row {
+  flex-direction: row-reverse;
+}
+.msg-more {
+  display: none;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-muted);
+  cursor: pointer;
+}
+.msg-more:hover {
+  background: var(--m-border);
+}
+@media (hover: hover) and (pointer: fine) {
+  .msg-more {
+    display: grid;
+    opacity: 0;
+  }
+  .msg:hover .msg-more,
+  .msg--lifted .msg-more,
+  .msg-more:focus-visible {
+    opacity: 1;
+  }
+}
 .msg-bubble {
+  min-width: 0;
   padding: 8px 12px;
   border: 1px solid var(--m-border);
   border-radius: 16px 16px 16px 4px;

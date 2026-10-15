@@ -32,36 +32,45 @@
     />
 
     <div v-else class="stack">
-      <button
-        v-for="thread in visibleThreads"
-        :key="thread.id"
-        type="button"
-        class="thread"
-        :class="{ 'thread--menu': menu?.id === thread.id }"
-        v-on="press.on(thread.id)"
-        @click="!press.swallow() && emit('open', thread.id)"
-      >
-        <span class="thread-avatar" :class="thread.otherColor ? [`bg-${thread.otherColor}`, 'text-white'] : []">
-          <img v-if="thread.otherAvatarUrl" :src="thread.otherAvatarUrl" alt="" class="thread-avatar-img" @error="thread.otherAvatarUrl = null" />
-          <template v-else>{{ thread.otherInitials }}</template>
-        </span>
-        <span class="thread-body">
-          <span class="thread-top">
-            <span class="thread-name">{{ thread.otherName }}</span>
-            <span class="thread-when">
-              <IconifyIcon v-if="thread.muted" icon="lucide:bell-off" width="12" aria-label="Muted" />
-              <IconifyIcon v-if="thread.pinned" icon="lucide:pin" width="12" aria-label="Pinned" />
-              {{ since(thread.lastTime) }}
+      <div v-for="thread in visibleThreads" :key="thread.id" class="thread-wrap">
+        <button
+          type="button"
+          class="thread"
+          :class="{ 'thread--menu': menu?.id === thread.id }"
+          v-on="press.on(thread.id)"
+          @click="!press.swallow() && emit('open', thread.id)"
+        >
+          <span class="thread-avatar" :class="thread.otherColor ? [`bg-${thread.otherColor}`, 'text-white'] : []">
+            <img v-if="thread.otherAvatarUrl" :src="thread.otherAvatarUrl" alt="" class="thread-avatar-img" @error="thread.otherAvatarUrl = null" />
+            <template v-else>{{ thread.otherInitials }}</template>
+          </span>
+          <span class="thread-body">
+            <span class="thread-top">
+              <span class="thread-name">{{ thread.otherName }}</span>
+              <span class="thread-when">
+                <IconifyIcon v-if="thread.muted" icon="lucide:bell-off" width="12" aria-label="Muted" />
+                <IconifyIcon v-if="thread.pinned" icon="lucide:pin" width="12" aria-label="Pinned" />
+                {{ since(thread.lastTime) }}
+              </span>
+            </span>
+            <span class="thread-bottom">
+              <span class="thread-last" :class="{ 'thread-last--none': !preview(thread).real }">
+                {{ preview(thread).text }}
+              </span>
+              <span v-if="thread.unread" class="thread-badge">{{ thread.unread }}</span>
             </span>
           </span>
-          <span class="thread-bottom">
-            <span class="thread-last" :class="{ 'thread-last--none': !preview(thread).real }">
-              {{ preview(thread).text }}
-            </span>
-            <span v-if="thread.unread" class="thread-badge">{{ thread.unread }}</span>
-          </span>
-        </span>
-      </button>
+        </button>
+        <!-- The mouse's way into the long-press menu; hover-capable devices only. -->
+        <button
+          type="button"
+          class="thread-more"
+          aria-label="Conversation options"
+          @click="openMenu(thread.id, $event)"
+        >
+          <IconifyIcon icon="lucide:ellipsis" width="16" />
+        </button>
+      </div>
     </div>
 
     <!-- Out to <body>, above the bottom nav and FAB, which outrank the page. -->
@@ -99,6 +108,12 @@ const menu = ref<{ id: string; rect: DOMRect } | null>(null)
 const press = longPress<string>((id, el) => {
   menu.value = { id, rect: el.getBoundingClientRect() }
 })
+
+/** Anchored to the whole row, so the menu drops below it as with a long-press. */
+function openMenu(id: string, e: MouseEvent) {
+  const row = (e.currentTarget as HTMLElement).previousElementSibling as HTMLElement | null
+  if (row) menu.value = { id, rect: row.getBoundingClientRect() }
+}
 
 const menuActions = computed<MenuAction[]>(() => {
   const t = store.threads.find((x) => x.id === menu.value?.id)
@@ -228,6 +243,37 @@ const visibleThreads = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.thread-wrap {
+  position: relative;
+}
+.thread-more {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: none;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.thread-more:hover {
+  color: var(--m-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .thread-more {
+    display: grid;
+    opacity: 0;
+  }
+  .thread-wrap:hover .thread-more,
+  .thread-more:focus-visible {
+    opacity: 1;
+  }
 }
 .thread--menu {
   border-color: var(--m-primary);
