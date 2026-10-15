@@ -527,8 +527,8 @@ begin
   exception when others then
     get stacked diagnostics v_msg = message_text;
   end;
-  outcome := case when v_msg <> 'rollback' then 'FAIL - ' || v_msg when v_plain then 'PASS' else 'FAIL - admin without MFA lost access' end;
-  test := 'F1: admin without MFA is an admin'; return next;
+  outcome := case when v_msg <> 'rollback' then 'FAIL - ' || v_msg when not v_plain then 'PASS' else 'FAIL - admin with no factor still passes' end;
+  test := 'F1: admin with no factor must enrol first'; return next;
   outcome := case when v_msg <> 'rollback' then 'FAIL - ' || v_msg when not v_aal1 and v_role is null then 'PASS' else 'FAIL - enrolled admin at aal1 still passes' end;
   test := 'F2: enrolled admin before the code'; return next;
   outcome := case when v_msg <> 'rollback' then 'FAIL - ' || v_msg when v_aal2 then 'PASS' else 'FAIL - enrolled admin at aal2 refused' end;
