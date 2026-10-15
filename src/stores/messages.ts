@@ -17,6 +17,18 @@ export interface Thread {
   lastSenderId: string | null;
   lastTime: string | null;
   unread: number;
+  /** This person's own view of the thread — conversation_prefs. */
+  pinned: boolean;
+  muted: boolean;
+  /** Archived until something newer than this arrives. */
+  archivedAt: string | null;
+}
+
+export type ThreadPref = Partial<Pick<Thread, 'pinned' | 'muted' | 'archivedAt'>>;
+
+/** An archived thread comes back on its own when a newer message lands. */
+export function isArchived(t: Thread): boolean {
+  return !!t.archivedAt && new Date(t.archivedAt).getTime() >= toMs(t.lastTime);
 }
 
 interface Person {
@@ -51,8 +63,9 @@ function toMs(lastTime: string | null): number {
   return lastTime ? parseServerTime(lastTime).getTime() : 0;
 }
 
+/** Pinned threads first, then by latest message. */
 function newestFirst(a: Thread, b: Thread) {
-  return toMs(b.lastTime) - toMs(a.lastTime);
+  return Number(b.pinned) - Number(a.pinned) || toMs(b.lastTime) - toMs(a.lastTime);
 }
 
 export const useMessagesStore = defineStore('messages', {
@@ -74,14 +87,21 @@ export const useMessagesStore = defineStore('messages', {
       this.error = '';
       try {
         requireUuid(userId, 'account');
-        const { data, error } = await supabase
-          .from('conversations')
-          // One string literal: postgrest-js parses the select at type level,
-          // and a concatenated expression widens to `string` and stops typing.
-          // eslint-disable-next-line max-len
-          .select('id,user_a_id,user_b_id,last_message,last_sender_id,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color,avatar_url)')
-          .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`);
+        // Whatever arrived while this device was offline counts as delivered now.
+        void supabase.rpc('mark_messages_delivered').then(() => undefined, () => undefined);
+        const [{ data, error }, { data: prefRows }] = await Promise.all([
+          supabase
+            .from('conversations')
+            // One string literal: postgrest-js parses the select at type level,
+            // and a concatenated expression widens to `string` and stops typing.
+            // eslint-disable-next-line max-len
+            .select('id,user_a_id,user_b_id,last_message,last_sender_id,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color,avatar_url)')
+            .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`),
+          // Prefs are a nicety: if they fail the inbox still loads, unpinned.
+          supabase.from('conversation_prefs').select('conversation_id,pinned,muted,archived_at'),
+        ]);
         if (error) throw error;
+        const prefs = new Map((prefRows ?? []).map((p) => [p.conversation_id, p]));
 
         this.threads = (data ?? [])
           .map((row) => {
@@ -99,6 +119,9 @@ export const useMessagesStore = defineStore('messages', {
               lastSenderId: row.last_sender_id ?? null,
               lastTime: row.last_time,
               unread: Number((mine ? row.unread_a : row.unread_b) || 0),
+              pinned: prefs.get(row.id)?.pinned ?? false,
+              muted: prefs.get(row.id)?.muted ?? false,
+              archivedAt: prefs.get(row.id)?.archived_at ?? null,
             };
           })
           .sort(newestFirst);
@@ -164,7 +187,10 @@ export const useMessagesStore = defineStore('messages', {
       // Marks an incoming message 'delivered' the moment this device receives
       // it, even outside the thread it belongs to (ChatThread's own listener
       // already marks 'read' when that specific thread is open — the
-      // status='sent' guard here means this can never clobber that).
+      // status='sent' guard in the RPC means this can never clobber that).
+      //
+      // This was a plain update, which messages_update_own (sender only)
+      // refused without an error, so the double tick only ever showed on read.
       deliveryChannel = supabase
         .channel(`deliveries:${userId}`)
         .on(
@@ -174,7 +200,7 @@ export const useMessagesStore = defineStore('messages', {
             const row = payload.new as { id: string; conversation_id: string; sender_id: string };
             if (row.sender_id === userId) return;
             if (!this.threads.some((t) => t.id === row.conversation_id)) return;
-            void supabase.from('messages').update({ status: 'delivered' }).eq('id', row.id).eq('status', 'sent').then(() => undefined, () => undefined);
+            void supabase.rpc('mark_messages_delivered').then(() => undefined, () => undefined);
           },
         )
         .subscribe();
@@ -191,6 +217,27 @@ export const useMessagesStore = defineStore('messages', {
       }
       this.userId = '';
       this.ready = false;
+    },
+
+    /** Pin, mute or archive — mine only; optimistic, reverted if the write fails. */
+    async setPref(conversationId: string, patch: ThreadPref) {
+      const thread = this.threads.find((t) => t.id === conversationId);
+      if (!thread) return;
+      const before = { pinned: thread.pinned, muted: thread.muted, archivedAt: thread.archivedAt };
+      Object.assign(thread, patch);
+      this.threads.sort(newestFirst);
+      const { error } = await supabase.from('conversation_prefs').upsert({
+        conversation_id: conversationId,
+        user_id: requireUuid(this.userId, 'account'),
+        pinned: thread.pinned,
+        muted: thread.muted,
+        archived_at: thread.archivedAt,
+      });
+      if (error) {
+        Object.assign(thread, before);
+        this.threads.sort(newestFirst);
+        throw error;
+      }
     },
 
     /** Clears the local badge; the RPC has already zeroed it server-side. */

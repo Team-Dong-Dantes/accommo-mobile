@@ -39,59 +39,75 @@
         Say hello — this is the start of your conversation.
       </div>
 
+      <button v-if="hasMore && !loading" type="button" class="feed-older" :disabled="loadingOlder" @click="loadOlder">
+        {{ loadingOlder ? 'Loading…' : 'Load earlier messages' }}
+      </button>
+
       <template v-for="group in grouped" :key="group.day">
         <div class="day"><span>{{ group.day }}</span></div>
-        <div
+        <MessageBubble
           v-for="msg in group.items"
           :key="msg.id"
-          class="msg"
-          :class="{ 'msg--mine': msg.mine, 'msg--pending': msg.pending }"
-        >
-          <span class="msg-bubble" :class="{ 'msg-bubble--media': msg.attachmentUrl }">
-            <button
-              v-if="msg.attachmentUrl"
-              type="button"
-              class="msg-img-btn"
-              aria-label="View photo"
-              @click="viewerUrl = msg.attachmentUrl ?? ''"
-            >
-              <img :src="msg.attachmentUrl" alt="Photo" class="msg-img" />
-            </button>
-            <template v-if="msg.body">{{ msg.body }}</template>
-          </span>
-          <!-- Only on the last message of a same-sender, same-minute run — see
-               `showMeta` in the grouped computed. A still-sending bubble always
-               shows its own clock so the pending state stays visible. -->
-          <span v-if="msg.showMeta || msg.pending" class="msg-meta">
-            {{ msg.time }}
-            <IconifyIcon
-              v-if="msg.mine"
-              :icon="msg.pending ? 'lucide:clock' : msg.read || msg.delivered ? 'lucide:check-check' : 'lucide:check'"
-              width="13"
-              :class="{ 'tick-read': msg.read }"
-            />
-          </span>
-        </div>
+          :msg="msg"
+          :me="me"
+          :reply="replyOf(msg)"
+          :listing="msg.accommodationId ? listings.get(msg.accommodationId) : undefined"
+          :lifted="menu?.msg.id === msg.id"
+          @menu="openMenu(msg.id, $event)"
+          @photo="viewerUrl = $event"
+          @file="openExternal"
+          @listing="openListing"
+          @jump="jumpTo"
+          @react="react(msg.id, $event)"
+        />
       </template>
     </div>
 
+    <MessageMenu
+      v-if="menu"
+      :anchor="menu.rect"
+      :actions="menuActions"
+      :align="menu.msg.senderId === me ? 'end' : 'start'"
+      :mine="menu.msg.reactions?.[me]"
+      react
+      dim
+      @close="menu = null"
+      @pick="onPick"
+      @react="onMenuReact"
+    />
+
+    <ListingPicker v-model="pickerOpen" :landlord-id="landlordId" @pick="shareListing" />
+
     <p v-if="otherTyping" class="typing-note">{{ other.name }} is typing…</p>
 
-    <form class="composer" @submit.prevent="send">
+    <div v-if="replyTo || editing" class="compose-ctx">
+      <IconifyIcon :icon="editing ? 'lucide:pencil' : 'lucide:reply'" width="16" class="compose-ctx-icon" />
+      <span class="compose-ctx-body">
+        <span class="compose-ctx-title">
+          {{ editing ? 'Editing message' : `Replying to ${replyTo?.senderId === me ? 'yourself' : other.name}` }}
+        </span>
+        <span class="compose-ctx-text">{{ snippet((editing ?? replyTo)!) }}</span>
+      </span>
+      <button type="button" class="compose-ctx-x" aria-label="Cancel" @click="cancelCompose">
+        <IconifyIcon icon="lucide:x" width="16" />
+      </button>
+    </div>
+
+    <form class="composer" @submit.prevent="submit">
       <div class="composer-attach-wrap">
         <button
           type="button"
           class="composer-attach"
           :class="{ 'composer-attach--open': attachMenuOpen }"
-          aria-label="Add a photo"
-          :disabled="sending || loading"
+          aria-label="Attach"
+          :disabled="sending || loading || !!editing"
           @click="attachMenuOpen = !attachMenuOpen"
         >
           <IconifyIcon icon="lucide:plus" width="20" />
         </button>
         <template v-if="attachMenuOpen">
           <div class="composer-attach-backdrop" @click="attachMenuOpen = false" />
-          <div class="composer-attach-menu" role="menu" aria-label="Add a photo">
+          <div class="composer-attach-menu" role="menu" aria-label="Attach">
             <button type="button" role="menuitem" @click="onTakePhotoClick">
               <IconifyIcon icon="lucide:camera" width="16" />
               Take photo
@@ -99,6 +115,14 @@
             <button type="button" role="menuitem" @click="onUploadClick">
               <IconifyIcon icon="lucide:image-plus" width="16" />
               Upload photo
+            </button>
+            <button type="button" role="menuitem" @click="onFileClick">
+              <IconifyIcon icon="lucide:file-text" width="16" />
+              Send a PDF
+            </button>
+            <button type="button" role="menuitem" @click="onListingClick">
+              <IconifyIcon icon="lucide:house" width="16" />
+              Share a listing
             </button>
           </div>
         </template>
@@ -110,23 +134,33 @@
           :disabled="sending || loading"
           @change="onAttach"
         />
+        <input
+          ref="pdfInputRef"
+          type="file"
+          accept="application/pdf"
+          class="composer-attach-input-hidden"
+          :disabled="sending || loading"
+          @change="onAttach"
+        />
       </div>
       <textarea
+        ref="inputRef"
         v-model="outgoing"
         class="composer-input"
         rows="1"
         placeholder="Message…"
         :disabled="sending || loading"
-        @keydown.enter.exact.prevent="send"
+        @keydown.enter.exact.prevent="submit"
+        @keydown.esc="cancelCompose"
         @input="notifyTyping"
       />
       <button
         type="submit"
         class="composer-send"
         :disabled="!outgoing.trim() || sending || loading"
-        aria-label="Send"
+        :aria-label="editing ? 'Save edit' : 'Send'"
       >
-        <IconifyIcon icon="lucide:send-horizontal" width="18" />
+        <IconifyIcon :icon="editing ? 'lucide:check' : 'lucide:send-horizontal'" width="18" />
       </button>
     </form>
 
@@ -147,7 +181,13 @@ import { useNotify } from '@/utils/notify'
 import { isDesktop } from '@/utils/useTabletMode'
 import { uploadSecureDocument, signRows, signRef } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
+import { openExternal } from '@/utils/openExternal'
+import { confirmAction } from '@/utils/confirmAction'
+import { isFileRef, snippet, LISTING_COLS, toListingCard, type ChatMsg, type ListingCard } from '@/utils/chat'
 import ApplicationCard from '@/components/messages/ApplicationCard.vue'
+import MessageBubble, { type BubbleMsg } from '@/components/messages/MessageBubble.vue'
+import MessageMenu, { type MenuAction } from '@/components/messages/MessageMenu.vue'
+import ListingPicker from '@/components/messages/ListingPicker.vue'
 import PhotoViewer from '@/components/shared/PhotoViewer.vue'
 
 const props = defineProps<{ conversationId: string; role: 'manager' | 'student'; roomId?: string | undefined }>()
@@ -166,31 +206,74 @@ function openProfile() {
 }
 const emit = defineEmits<{ close: []; profile: [userId: string] }>()
 
-interface Msg {
+/** Newest page first; older pages on request. */
+const PAGE = 50
+// One literal, so postgrest-js can type the rows.
+const MSG_COLS = 'id, body, sender_id, sent_at, status, attachment_url, edited_at, deleted_at, reply_to_id, reactions, accommodation_id'
+
+interface MsgRow {
   id: string
   body: string
-  senderId: string
-  sentAt: string
+  sender_id: string
+  sent_at: string
   status: string
-  pending?: boolean
-  attachmentUrl?: string | undefined
+  attachment_url: string | null
+  edited_at: string | null
+  deleted_at: string | null
+  reply_to_id: string | null
+  reactions: unknown
+  accommodation_id: string | null
+}
+
+/** `file` is passed in because signing replaces the ref that says so. */
+function toMsg(r: MsgRow, attachmentUrl: string | null | undefined, file: boolean): ChatMsg {
+  return {
+    id: r.id,
+    body: r.body,
+    senderId: r.sender_id,
+    sentAt: r.sent_at,
+    status: r.status,
+    attachmentUrl: attachmentUrl || undefined,
+    file,
+    editedAt: r.edited_at,
+    deletedAt: r.deleted_at,
+    replyToId: r.reply_to_id,
+    reactions: (r.reactions ?? {}) as Record<string, string>,
+    accommodationId: r.accommodation_id,
+  }
 }
 
 const store = useMessagesStore()
 const notify = useNotify()
 
 const loading = ref(true)
+const loadingOlder = ref(false)
+const hasMore = ref(false)
 const error = ref('')
 const sending = ref(false)
 const outgoing = ref('')
-const pendingFile = ref<File | null>(null)
 const attachMenuOpen = ref(false)
+const pickerOpen = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const pdfInputRef = ref<HTMLInputElement | null>(null)
+const inputRef = ref<HTMLTextAreaElement | null>(null)
 const scroller = ref<HTMLElement | null>(null)
 const me = ref('')
 const otherId = ref('')
-const messages = ref<Msg[]>([])
+const messages = ref<ChatMsg[]>([])
 const other = reactive({ name: 'Conversation', initials: '?', role: '', color: '' as string | null, avatarUrl: '' as string | null })
+
+/** Reply targets older than the loaded page, fetched on demand. */
+const replyCache = reactive(new Map<string, ChatMsg>())
+/** Shared listings by id; null once RLS no longer shows one. */
+const listings = reactive(new Map<string, ListingCard | null>())
+
+/** The listings in this chat are always the landlord/landlady's own. */
+const landlordId = computed(() => (props.role === 'manager' ? me.value : otherId.value))
+
+const replyTo = ref<ChatMsg | null>(null)
+const editing = ref<ChatMsg | null>(null)
+const menu = ref<{ msg: ChatMsg; rect: DOMRect } | null>(null)
 
 // The tenancy handshake lives in its own component; the thread only tells it
 // when something may have changed, and posts the transcript lines it asks for.
@@ -219,11 +302,8 @@ let channel: RealtimeChannel | null = null
 let typingSendAt = 0
 let typingClearTimer: ReturnType<typeof setTimeout> | null = null
 
-
-type Row = Msg & { mine: boolean; read: boolean; delivered: boolean; time: string; showMeta: boolean }
-
 const grouped = computed(() => {
-  const out: { day: string; items: Row[] }[] = []
+  const out: { day: string; items: BubbleMsg[] }[] = []
   for (const m of messages.value) {
     const day = dayLabel(m.sentAt)
     let bucket = out[out.length - 1]
@@ -257,27 +337,44 @@ const grouped = computed(() => {
   return out
 })
 
+function findMsg(id: string) {
+  return messages.value.find((m) => m.id === id)
+}
+
+function replyOf(m: ChatMsg) {
+  if (!m.replyToId) return null
+  const target = findMsg(m.replyToId) ?? replyCache.get(m.replyToId)
+  if (!target) return { who: '', text: 'Original message' }
+  return { who: target.senderId === me.value ? 'You' : other.name, text: snippet(target) }
+}
+
 async function toBottom() {
   await nextTick()
   const el = scroller.value
   if (el) el.scrollTop = el.scrollHeight
 }
 
+function jumpTo(id: string) {
+  document.getElementById(`msg-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
+function openListing(id: string) {
+  void router.push(props.role === 'manager' ? `/manager/properties/${id}` : `/student/listing/${id}`)
+}
+
+/* ---- Composer ------------------------------------------------------------ */
+
 function onAttach(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file) return
-  pendingFile.value = file
-  void send()
+  if (file) void send({ file })
 }
 
 async function takePhoto() {
   const { file, error } = await capturePhoto()
   if (error) notify.error(error)
-  if (!file) return
-  pendingFile.value = file
-  void send()
+  if (file) void send({ file })
 }
 
 function onTakePhotoClick() {
@@ -290,20 +387,51 @@ function onUploadClick() {
   fileInputRef.value?.click()
 }
 
-async function send() {
+function onFileClick() {
+  attachMenuOpen.value = false
+  pdfInputRef.value?.click()
+}
+
+function onListingClick() {
+  attachMenuOpen.value = false
+  pickerOpen.value = true
+}
+
+function shareListing(id: string) {
+  pickerOpen.value = false
+  void send({ accommodationId: id })
+}
+
+function cancelCompose() {
+  if (editing.value) outgoing.value = ''
+  editing.value = null
+  replyTo.value = null
+}
+
+function submit() {
+  void (editing.value ? saveEdit() : send())
+}
+
+/**
+ * Text, a photo, a PDF or a listing card — whatever is typed goes along with
+ * the attachment, as it always has for photos.
+ */
+async function send(extra: { file?: File; accommodationId?: string } = {}) {
   const body = outgoing.value.trim()
-  const file = pendingFile.value
-  if ((!body && !file) || sending.value || !me.value) return
+  const { file, accommodationId } = extra
+  if ((!body && !file && !accommodationId) || sending.value || !me.value) return
 
   sending.value = true
   outgoing.value = ''
-  pendingFile.value = null
+  const reply = replyTo.value
+  replyTo.value = null
+  const isFile = file?.type === 'application/pdf'
 
   // Optimistic: the bubble appears at once (a local object URL stands in for
   // the attachment until the real Cloudinary URL comes back) and is replaced
   // by the row the insert returns, so a slow network never looks dropped.
   const tempId = `pending-${Date.now()}`
-  const localPreview = file ? URL.createObjectURL(file) : undefined
+  const localPreview = file && !isFile ? URL.createObjectURL(file) : undefined
   messages.value.push({
     id: tempId,
     body,
@@ -312,8 +440,12 @@ async function send() {
     status: 'sent',
     pending: true,
     attachmentUrl: localPreview,
+    file: isFile,
+    replyToId: reply?.id ?? null,
+    accommodationId: accommodationId ?? null,
   })
   void toBottom()
+  if (accommodationId) void fillListings()
 
   try {
     let attachmentUrl: string | null = null
@@ -325,23 +457,22 @@ async function send() {
 
     const { data, error: sendError } = await supabase
       .from('messages')
-      .insert({ conversation_id: props.conversationId, sender_id: me.value, body, attachment_url: attachmentUrl })
-      .select('id, body, sender_id, sent_at, status, attachment_url')
+      .insert({
+        conversation_id: props.conversationId,
+        sender_id: me.value,
+        body,
+        attachment_url: attachmentUrl,
+        reply_to_id: reply?.id ?? null,
+        accommodation_id: accommodationId ?? null,
+      })
+      .select(MSG_COLS)
       .single()
     if (sendError) throw sendError
 
-    upsertMessage(
-      {
-        id: data.id,
-        body: data.body,
-        senderId: data.sender_id,
-        sentAt: data.sent_at,
-        status: data.status,
-        // Keep showing the local copy: the stored value is a ref, not a URL.
-        attachmentUrl: data.attachment_url ? localPreview : undefined,
-      },
-      tempId,
-    )
+    // Keep showing the local copy of a photo: the stored value is a ref, not a
+    // URL. A PDF has no local copy worth opening, so it gets its signed link.
+    const shown = isFile ? await signRef('messages', data.id, data.attachment_url) : localPreview
+    upsertMessage(toMsg(data, data.attachment_url ? shown : undefined, isFile), tempId)
 
     // No notification row for a chat message. tg_message_after_insert already
     // bumps conversations.unread_a/unread_b, which is what the Messages tab
@@ -351,9 +482,187 @@ async function send() {
     messages.value = messages.value.filter((m) => m.id !== tempId)
     if (localPreview) URL.revokeObjectURL(localPreview)
     outgoing.value = body
-    error.value = errorMessage(e, file ? 'Photo not sent.' : 'Message not sent.')
+    replyTo.value = reply
+    error.value = errorMessage(e, file ? (isFile ? 'File not sent.' : 'Photo not sent.') : accommodationId ? 'Listing not shared.' : 'Message not sent.')
   } finally {
     sending.value = false
+  }
+}
+
+async function saveEdit() {
+  const target = editing.value
+  const body = outgoing.value.trim()
+  if (!target || !body || sending.value) return
+  if (body === target.body) {
+    cancelCompose()
+    return
+  }
+  sending.value = true
+  try {
+    const { data, error: e } = await supabase
+      .from('messages')
+      .update({ body })
+      .eq('id', target.id)
+      .select('body, edited_at')
+      .single()
+    if (e) throw e
+    target.body = data.body
+    target.editedAt = data.edited_at
+    editing.value = null
+    outgoing.value = ''
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not edit that message.'))
+  } finally {
+    sending.value = false
+  }
+}
+
+/* ---- Message actions ----------------------------------------------------- */
+
+function openMenu(id: string, el: HTMLElement) {
+  const msg = findMsg(id)
+  if (!msg || msg.pending || msg.deletedAt) return
+  menu.value = { msg, rect: el.getBoundingClientRect() }
+}
+
+const menuActions = computed<MenuAction[]>(() => {
+  const m = menu.value?.msg
+  if (!m) return []
+  const mine = m.senderId === me.value
+  const actions: MenuAction[] = [{ key: 'reply', label: 'Reply', icon: 'lucide:reply' }]
+  if (m.body) actions.push({ key: 'copy', label: 'Copy', icon: 'lucide:copy' })
+  if (mine && m.body) actions.push({ key: 'edit', label: 'Edit', icon: 'lucide:pencil' })
+  if (mine) actions.push({ key: 'unsend', label: 'Unsend', icon: 'lucide:trash-2', danger: true })
+  return actions
+})
+
+function onPick(key: string) {
+  const m = menu.value?.msg
+  menu.value = null
+  if (!m) return
+  if (key === 'reply') {
+    editing.value = null
+    replyTo.value = m
+    inputRef.value?.focus()
+  } else if (key === 'copy') {
+    void copy(m.body)
+  } else if (key === 'edit') {
+    replyTo.value = null
+    editing.value = m
+    outgoing.value = m.body
+    inputRef.value?.focus()
+  } else if (key === 'unsend') {
+    void unsend(m)
+  }
+}
+
+function onMenuReact(emoji: string) {
+  const m = menu.value?.msg
+  menu.value = null
+  if (m) void react(m.id, emoji)
+}
+
+async function copy(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    notify.success('Copied')
+  } catch {
+    notify.error('Could not copy that message.')
+  }
+}
+
+async function unsend(m: ChatMsg) {
+  const ok = await confirmAction({
+    title: 'Unsend this message?',
+    message: 'It is removed for both of you. This cannot be undone.',
+    confirmLabel: 'Unsend',
+  })
+  if (!ok) return
+  // The trigger stamps the real time and clears the content; this just asks.
+  const { error: e } = await supabase.from('messages').update({ deleted_at: new Date().toISOString() }).eq('id', m.id)
+  if (e) {
+    notify.error(errorMessage(e, 'Could not unsend that message.'))
+    return
+  }
+  if (editing.value?.id === m.id) cancelCompose()
+  Object.assign(m, { deletedAt: new Date().toISOString(), body: '', attachmentUrl: undefined, accommodationId: null, reactions: {} })
+}
+
+/** '' takes my reaction off. Optimistic; rolled back if the RPC refuses. */
+async function react(id: string, emoji: string) {
+  const m = findMsg(id)
+  if (!m || m.pending || m.deletedAt) return
+  const before = m.reactions ?? {}
+  const next = { ...before }
+  if (emoji) next[me.value] = emoji
+  else delete next[me.value]
+  m.reactions = next
+  const { error: e } = await supabase.rpc('react_to_message', { p_message: id, p_emoji: emoji })
+  if (e) {
+    m.reactions = before
+    notify.error(errorMessage(e, 'Could not react to that message.'))
+  }
+}
+
+/* ---- Loading ------------------------------------------------------------- */
+
+/** One page of messages ending just before `before` (or the newest), oldest first. */
+async function fetchPage(before?: string) {
+  let query = supabase
+    .from('messages')
+    .select(MSG_COLS)
+    .eq('conversation_id', props.conversationId)
+    .order('sent_at', { ascending: false })
+    .limit(PAGE)
+  if (before) query = query.lt('sent_at', before)
+  const { data, error: e } = await query
+  if (e) throw e
+  const rows = (data ?? []).reverse()
+  const files = new Set(rows.filter((r) => isFileRef(r.attachment_url)).map((r) => r.id))
+  await signRows('messages', rows, 'attachment_url')
+  return { msgs: rows.map((r) => toMsg(r, r.attachment_url, files.has(r.id))), more: rows.length === PAGE }
+}
+
+/** Quotes and cards that point outside what's loaded. */
+async function fillReplies() {
+  const missing = [...new Set(messages.value.map((m) => m.replyToId))].filter(
+    (id): id is string => !!id && !findMsg(id) && !replyCache.has(id),
+  )
+  if (!missing.length) return
+  const { data } = await supabase.from('messages').select(MSG_COLS).in('id', missing)
+  // The unsigned ref is enough here: a quote only needs to know there was a photo.
+  for (const r of data ?? []) replyCache.set(r.id, toMsg(r, r.attachment_url, isFileRef(r.attachment_url)))
+}
+
+async function fillListings() {
+  const missing = [...new Set(messages.value.map((m) => m.accommodationId))].filter(
+    (id): id is string => !!id && !listings.has(id),
+  )
+  if (!missing.length) return
+  const { data } = await supabase.from('accommodations').select(LISTING_COLS).in('id', missing)
+  for (const id of missing) listings.set(id, null)
+  for (const row of data ?? []) listings.set(row.id, toListingCard(row))
+}
+
+async function loadOlder() {
+  const first = messages.value[0]
+  if (!first || loadingOlder.value) return
+  loadingOlder.value = true
+  try {
+    const el = scroller.value
+    const height = el?.scrollHeight ?? 0
+    const { msgs, more } = await fetchPage(first.sentAt)
+    messages.value = [...msgs, ...messages.value]
+    hasMore.value = more
+    void fillReplies()
+    void fillListings()
+    // Keep the message that was on screen where it was, rather than jumping.
+    await nextTick()
+    if (el) el.scrollTop += el.scrollHeight - height
+  } catch (e) {
+    notify.error(errorMessage(e, 'Could not load earlier messages.'))
+  } finally {
+    loadingOlder.value = false
   }
 }
 
@@ -393,23 +702,14 @@ async function load() {
       other.avatarUrl = person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : null
     }
 
-    const { data: rows, error: rowsError } = await supabase
-      .from('messages')
-      .select('id, body, sender_id, sent_at, status, attachment_url')
-      .eq('conversation_id', props.conversationId)
-      .order('sent_at', { ascending: true })
-      .limit(200)
-    if (rowsError) throw rowsError
-    await signRows('messages', rows, 'attachment_url')
-
-    messages.value = (rows ?? []).map((m) => ({
-      id: m.id,
-      body: m.body,
-      senderId: m.sender_id,
-      sentAt: m.sent_at,
-      status: m.status,
-      attachmentUrl: m.attachment_url ?? undefined,
-    }))
+    // This used to be the OLDEST 200, ascending — a long thread opened on
+    // months-old messages and never showed the newest. Newest page now, older
+    // ones on request.
+    const { msgs, more } = await fetchPage()
+    messages.value = msgs
+    hasMore.value = more
+    void fillReplies()
+    void fillListings()
 
     // Zeroes my counter and flips the other side's messages to read, which
     // reaches their device as a realtime UPDATE and lights their ticks.
@@ -425,11 +725,6 @@ async function load() {
   }
 }
 
-
-
-
-
-
 /**
  * The one way a row enters the list. Three paths deliver the same message and
  * any of them can arrive first: the insert's own response, the realtime INSERT
@@ -438,7 +733,7 @@ async function load() {
  * optimistic row that has no real id yet — so a realtime row arriving mid-send
  * was appended as a second bubble and stayed.
  */
-function upsertMessage(msg: Msg, tempId?: string) {
+function upsertMessage(msg: ChatMsg, tempId?: string) {
   if (tempId) {
     const temp = messages.value.findIndex((m) => m.id === tempId)
     if (temp !== -1) {
@@ -462,20 +757,12 @@ async function postSystemMessage(body: string) {
   const { data, error: sendError } = await supabase
     .from('messages')
     .insert({ conversation_id: props.conversationId, sender_id: me.value, body })
-    .select('id, body, sender_id, sent_at, status')
+    .select(MSG_COLS)
     .single()
   if (sendError) throw sendError
-  upsertMessage({
-    id: data.id,
-    body: data.body,
-    senderId: data.sender_id,
-    sentAt: data.sent_at,
-    status: data.status,
-  })
+  upsertMessage(toMsg(data, null, false))
   void toBottom()
 }
-
-
 
 async function listen() {
   if (typeof supabase.channel !== 'function') return
@@ -510,22 +797,12 @@ async function listen() {
       },
       async (payload) => {
         if (payload.eventType === 'INSERT') {
-          const row = payload.new as {
-            id: string
-            body: string
-            sender_id: string
-            sent_at: string
-            status: string
-            attachment_url: string | null
-          }
-          upsertMessage({
-            id: row.id,
-            body: row.body,
-            senderId: row.sender_id,
-            sentAt: row.sent_at,
-            status: row.status,
-            attachmentUrl: (await signRef('messages', row.id, row.attachment_url)) || undefined,
-          })
+          const row = payload.new as MsgRow
+          upsertMessage(
+            toMsg(row, await signRef('messages', row.id, row.attachment_url), isFileRef(row.attachment_url)),
+          )
+          void fillReplies()
+          void fillListings()
           void toBottom()
           // Their message arrived while the thread is open, so it is read.
           if (row.sender_id !== me.value) {
@@ -540,9 +817,20 @@ async function listen() {
             refreshCardSoon()
           }
         } else if (payload.eventType === 'UPDATE') {
-          const row = payload.new as { id: string; status: string }
-          const found = messages.value.find((m) => m.id === row.id)
-          if (found) found.status = row.status
+          // Ticks, edits, unsends and reactions. The signed photo link is kept:
+          // the stored value is a ref, and it only ever changes by being removed.
+          const row = payload.new as MsgRow
+          const found = findMsg(row.id)
+          if (!found) return
+          Object.assign(found, {
+            status: row.status,
+            body: row.body,
+            editedAt: row.edited_at,
+            deletedAt: row.deleted_at,
+            reactions: (row.reactions ?? {}) as Record<string, string>,
+          })
+          if (row.deleted_at) Object.assign(found, { attachmentUrl: undefined, accommodationId: null })
+          if (row.deleted_at && menu.value?.msg.id === row.id) menu.value = null
         }
       },
     )
@@ -716,78 +1004,63 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.msg {
-  display: flex;
-  max-width: 82%;
-  flex-direction: column;
-  align-items: flex-start;
-  align-self: flex-start;
-  gap: 2px;
-}
-.msg--mine {
-  align-items: flex-end;
-  align-self: flex-end;
-}
-.msg--pending {
-  opacity: 0.65;
-}
-.msg-bubble {
-  padding: 8px 12px;
+.feed-older {
+  align-self: center;
+  margin: 4px 0 8px;
+  padding: 6px 14px;
   border: 1px solid var(--m-border);
-  border-radius: 16px 16px 16px 4px;
+  border-radius: 999px;
   background: var(--m-surface);
-  color: var(--m-ink);
-  font-size: 13.5px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-/* A photo is its own bubble — no frame, no padding, no fill behind it. The
-   `.msg--mine` selector has to be repeated here or its border-colour and
-   primary background win on specificity and put a coloured edge back. */
-.msg-bubble--media,
-.msg--mine .msg-bubble--media {
-  padding: 0;
-  border: 0;
-  background: none;
-  overflow: hidden;
-}
-.msg-img-btn {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: none;
+  color: var(--m-text);
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
 }
-/* Keeps the bubble silhouette now that the wrapper no longer draws it. */
-.msg-img {
-  display: block;
-  max-width: 100%;
-  max-height: 260px;
-  border-radius: 16px 16px 16px 4px;
-  object-fit: cover;
-}
-.msg--mine .msg-img {
-  border-radius: 16px 16px 4px 16px;
-}
-.msg--mine .msg-bubble {
-  border-color: transparent;
-  border-radius: 16px 16px 4px 16px;
-  background: var(--m-primary);
-  color: #fff;
-}
-.msg-meta {
+
+/* What the composer is doing besides a new message: replying, or editing. */
+.compose-ctx {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 3px;
-  padding: 0 3px;
-  color: var(--m-muted);
-  font-size: 10.5px;
-  font-weight: 600;
+  gap: 10px;
+  padding: 8px var(--m-page-gutter);
+  border-top: 1px solid var(--m-border);
+  background: var(--m-surface);
 }
-.tick-read {
-  color: var(--m-info);
+.compose-ctx-icon {
+  flex: 0 0 auto;
+  color: var(--m-primary);
+}
+.compose-ctx-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+.compose-ctx-title {
+  color: var(--m-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.compose-ctx-text {
+  overflow: hidden;
+  color: var(--m-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compose-ctx-x {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-muted);
+  cursor: pointer;
 }
 
 .composer {

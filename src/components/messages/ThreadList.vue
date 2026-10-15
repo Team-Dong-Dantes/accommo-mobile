@@ -37,7 +37,9 @@
         :key="thread.id"
         type="button"
         class="thread"
-        @click="emit('open', thread.id)"
+        :class="{ 'thread--menu': menu?.id === thread.id }"
+        v-on="press.on(thread.id)"
+        @click="!press.swallow() && emit('open', thread.id)"
       >
         <span class="thread-avatar" :class="thread.otherColor ? [`bg-${thread.otherColor}`, 'text-white'] : []">
           <img v-if="thread.otherAvatarUrl" :src="thread.otherAvatarUrl" alt="" class="thread-avatar-img" @error="thread.otherAvatarUrl = null" />
@@ -46,7 +48,11 @@
         <span class="thread-body">
           <span class="thread-top">
             <span class="thread-name">{{ thread.otherName }}</span>
-            <span class="thread-when">{{ since(thread.lastTime) }}</span>
+            <span class="thread-when">
+              <IconifyIcon v-if="thread.muted" icon="lucide:bell-off" width="12" aria-label="Muted" />
+              <IconifyIcon v-if="thread.pinned" icon="lucide:pin" width="12" aria-label="Pinned" />
+              {{ since(thread.lastTime) }}
+            </span>
           </span>
           <span class="thread-bottom">
             <span class="thread-last" :class="{ 'thread-last--none': !preview(thread).real }">
@@ -57,23 +63,63 @@
         </span>
       </button>
     </div>
+
+    <!-- Out to <body>, above the bottom nav and FAB, which outrank the page. -->
+    <Teleport to="body">
+      <div v-if="menu" class="thread-menu-layer">
+        <MessageMenu :anchor="menu.rect" :actions="menuActions" @close="menu = null" @pick="onPick" />
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useMessagesStore, type Thread } from '@/stores/messages'
+import { computed, ref } from 'vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
+import { useMessagesStore, isArchived, type Thread, type ThreadPref } from '@/stores/messages'
 import { since } from '@/utils/notifications'
+import { longPress } from '@/utils/chat'
+import { errorMessage } from '@/utils/errors'
+import { useNotify } from '@/utils/notify'
+import MessageMenu, { type MenuAction } from '@/components/messages/MessageMenu.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const props = withDefaults(
-  defineProps<{ emptyMessage: string; query?: string; filter?: 'all' | 'unread' }>(),
+  defineProps<{ emptyMessage: string; query?: string; filter?: 'all' | 'unread' | 'archived' }>(),
   { query: '', filter: 'all' },
 )
 const emit = defineEmits<{ open: [string] }>()
 
 const store = useMessagesStore()
+const notify = useNotify()
+
+// Pin, mute and archive are each person's own; the other side never sees them.
+const menu = ref<{ id: string; rect: DOMRect } | null>(null)
+const press = longPress<string>((id, el) => {
+  menu.value = { id, rect: el.getBoundingClientRect() }
+})
+
+const menuActions = computed<MenuAction[]>(() => {
+  const t = store.threads.find((x) => x.id === menu.value?.id)
+  if (!t) return []
+  return [
+    { key: 'pin', label: t.pinned ? 'Unpin' : 'Pin', icon: t.pinned ? 'lucide:pin-off' : 'lucide:pin' },
+    { key: 'mute', label: t.muted ? 'Unmute' : 'Mute', icon: t.muted ? 'lucide:bell' : 'lucide:bell-off' },
+    { key: 'archive', label: isArchived(t) ? 'Unarchive' : 'Archive', icon: 'lucide:archive' },
+  ]
+})
+
+function onPick(key: string) {
+  const t = store.threads.find((x) => x.id === menu.value?.id)
+  menu.value = null
+  if (!t) return
+  const patch: ThreadPref =
+    key === 'pin' ? { pinned: !t.pinned }
+    : key === 'mute' ? { muted: !t.muted }
+    : { archivedAt: isArchived(t) ? null : new Date().toISOString() }
+  store.setPref(t.id, patch).catch((e: unknown) => notify.error(errorMessage(e, 'Could not update that conversation.')))
+}
 
 /**
  * What the inbox row says under the name.
@@ -99,6 +145,7 @@ function preview(thread: Thread): { text: string; real: boolean } {
 const visibleThreads = computed(() => {
   const q = props.query.trim().toLowerCase()
   return store.threads.filter((t) => {
+    if (isArchived(t) !== (props.filter === 'archived')) return false
     if (props.filter === 'unread' && !t.unread) return false
     if (!q) return true
     return t.otherName.toLowerCase().includes(q) || t.lastMessage.toLowerCase().includes(q)
@@ -182,8 +229,18 @@ const visibleThreads = computed(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.thread--menu {
+  border-color: var(--m-primary);
+}
+.thread-menu-layer {
+  position: fixed;
+  z-index: 3000;
+}
 .thread-when {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
   color: var(--m-muted);
   font-size: 11px;
   font-weight: 600;

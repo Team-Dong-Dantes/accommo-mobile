@@ -103,6 +103,7 @@ import BottomSheet from '@/components/shared/BottomSheet.vue'
 const FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'unread', label: 'Unread' },
+  { key: 'archived', label: 'Archived' },
 ] as const
 
 const props = defineProps<{ role: 'manager' | 'student'; emptyMessage: string }>()
