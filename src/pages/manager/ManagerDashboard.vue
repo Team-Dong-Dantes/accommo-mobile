@@ -745,7 +745,9 @@ type DashboardCache = {
 }
 
 const { refresh } = useLiveData({
-  key: 'manager-dashboard',
+  // -v2: the 2026-10 redesign changed the cached shape (rent, tiles); an old
+  // cache restored into it crashed the render on first launch after updating.
+  key: 'manager-dashboard-v2',
   load,
   // leases/payments are not in the realtime publication; every payment and
   // lease event notifies this user, so their notifications are the signal.

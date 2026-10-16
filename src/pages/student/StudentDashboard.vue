@@ -620,7 +620,8 @@ async function load(silent = false) {
 type DashboardCache = { firstName: string; tasks: Task[]; manager: Manager | null; ver: typeof ver.value }
 
 const { refresh } = useLiveData({
-  key: 'student-dashboard',
+  // -v2: the 2026-10 redesign added `ver` to the cached shape.
+  key: 'student-dashboard-v2',
   load,
   watch: (uid) => [{ table: 'leases', filter: `student_id=eq.${uid}` }],
   cache: {
