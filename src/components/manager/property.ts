@@ -20,7 +20,7 @@ export interface Property {
   expiringSoon: number
 }
 
-/** Badge colour per accommodation status, shared by PropertyCard and PropertyRow. */
+/** Badge colour per accommodation status, used by PropertyCard and DashPropertyCard. */
 export const STATUS_TONE: Record<string, string> = {
   draft: 'grey',
   pending: 'warn',

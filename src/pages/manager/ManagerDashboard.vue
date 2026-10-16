@@ -2,12 +2,10 @@
   <q-page class="dash">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
-        <div class="greet">
-          <q-skeleton type="text" width="160px" height="24px" />
-        </div>
-        <q-skeleton type="rect" height="150px" class="sk" />
-        <q-skeleton type="rect" height="190px" class="sk" />
-        <q-skeleton type="rect" height="150px" class="sk" />
+        <q-skeleton type="text" width="160px" height="26px" />
+        <q-skeleton type="rect" height="132px" class="sk" />
+        <q-skeleton type="rect" height="64px" class="sk" />
+        <q-skeleton type="rect" height="176px" class="sk" />
       </div>
 
       <div v-else-if="error" class="stack">
@@ -15,89 +13,94 @@
       </div>
 
       <div v-else class="stack">
-        <div class="greet">
-          <span class="greet-line">
-            <span class="greet-time">{{ greeting }},</span>
-            <span class="greet-name">{{ firstName }}</span>
-          </span>
-          <span class="greet-date">{{ today }}</span>
-        </div>
+        <!-- The one-screen rule (390x844, no scroll): greeting, hero, one action, four tiles, two properties. -->
+        <h1 class="greet">{{ unverified && !verification.inReview ? 'Welcome' : 'Hi' }}, {{ firstName }}</h1>
 
-        <!-- Only while OSAS has not verified the account yet. -->
-        <VerificationBanner />
-
-        <!-- Occupancy, rent and rating in one card. Beds are said once, in the bar's caption. -->
-        <div class="occ" :class="{ 'occ--empty': !hasProperties }">
-          <div class="occ-head">
-            <span class="occ-cap">Occupancy</span>
-            <span class="occ-beds">
-              {{ hasProperties ? `${tenants} filled · ${vacantBeds} free` : 'No beds listed yet' }}
-            </span>
-          </div>
-          <span class="occ-pct">{{ occupancyRate }}<span class="occ-sign">%</span></span>
-          <span
-            class="occ-bar"
-            role="progressbar"
-            :aria-valuenow="occupancyRate"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            aria-label="Beds filled"
-          >
-            <span class="occ-fill" :style="{ width: `${occupancyRate}%` }" />
-          </span>
-
-          <div v-if="hasProperties" class="occ-stats">
-            <span class="occ-stat">
-              <span class="occ-stat-value">{{ formatPeso(expectedMonthly) }}</span>
-              <span class="occ-stat-label">Expected / month</span>
-            </span>
-            <span class="occ-stat">
-              <span class="occ-stat-value">
-                <IconifyIcon icon="lucide:star" width="15" />
-                {{ reviewCount > 0 ? ratingAvg?.toFixed(1) : '—' }}
-              </span>
-              <span class="occ-stat-label">
-                {{ reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? 'rating' : 'ratings'}` : 'No ratings yet' }}
-              </span>
-            </span>
-          </div>
-        </div>
-
-        <DashTasks
-          :tasks="upNext"
-          :total="attention.length"
-          empty-label="Nothing needs you"
-          empty-hint="Concerns, applications and accreditation land here"
-          @go="go"
+        <!-- Unverified: where the OSAS check stands (D-LE1 / D-LE2). Verified: this month's rent (D-L5 / D-LE3). -->
+        <DashHero
+          v-if="unverified"
+          label="OSAS verification"
+          :right="verification.inReview ? `Sent ${sentLabel}` : `Step ${Math.min(verification.done + 1, 3)} of 3`"
+          :big="String(verification.done)"
+          of="/ 3 steps done"
+          :segments="verifySegments"
+          :legend="verifyLegend"
+          to="/manager/osas"
+        />
+        <DashHero
+          v-else
+          :label="`${monthName} rent`"
+          :right="`${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`"
+          :big="formatPeso(rent.collected)"
+          :of="`/ ${formatPeso(rent.total)}`"
+          :segments="[
+            { value: rent.collected, tone: 'success' },
+            { value: rent.coming, tone: 'info' },
+            { value: rent.late, tone: 'danger' },
+          ]"
+          :legend="[
+            { label: 'Paid', value: formatPeso(rent.collected), tone: 'success' },
+            { label: 'Coming', value: formatPeso(rent.coming), tone: 'info' },
+            { label: 'Late', value: formatPeso(rent.late), tone: 'danger' },
+          ]"
+          to="/manager/tenants?tab=payments"
         />
 
-        <!-- Properties -->
-        <section class="sec">
+        <DashAction
+          v-if="action"
+          :icon="action.icon"
+          :tone="action.tone"
+          :title="action.title"
+          :sub="action.sub"
+          :button="action.button"
+          @action="go(action.route)"
+        />
+
+        <div class="tiles">
+          <component
+            :is="unverified ? 'div' : 'button'"
+            v-for="t in tiles"
+            :key="t.label"
+            :type="unverified ? undefined : 'button'"
+            class="tile"
+            :class="{ 'tile--off': unverified, [`tile--${t.tone}`]: !unverified && t.tone }"
+            @click="unverified || go(t.route)"
+          >
+            <span class="tile-val">{{ t.value }}</span>
+            <span class="tile-label">{{ t.label }}</span>
+            <span class="tile-sub">{{ t.sub }}</span>
+          </component>
+        </div>
+
+        <section class="sec" aria-labelledby="myprops">
           <div class="sec-head">
-            <h2 class="sec-title">Your properties</h2>
-            <button v-if="hasProperties" type="button" class="sec-link" @click="go('/manager/properties')">
-              Manage
+            <h2 id="myprops" class="sec-title">My properties</h2>
+            <button v-if="properties.length > shownProperties.length" type="button" class="sec-link" @click="go('/manager/properties')">
+              See all
             </button>
           </div>
 
           <div v-if="hasProperties" class="plist">
-            <PropertyRow v-for="p in topProperties" :key="p.id" :property="p" @open="openProperty" />
-            <button
-              v-if="properties.length > topProperties.length"
-              type="button"
-              class="more"
-              @click="go('/manager/properties')"
-            >
-              View all ({{ properties.length }})
-              <IconifyIcon icon="lucide:arrow-right" width="16" />
-            </button>
+            <DashPropertyCard
+              v-for="p in shownProperties"
+              :key="p.id"
+              :property="p"
+              :paid="propRent[p.id]?.paid ?? 0"
+              :due="propRent[p.id]?.due ?? 0"
+              :dot="propRent[p.id]?.dot ?? false"
+              @open="openProperty"
+            />
           </div>
 
-          <PropertyCard
-            v-else-if="auth.isVerifiedLandlord"
-            add-label="Add your first accommodation"
-            @add="go('/manager/properties/new')"
-          />
+          <PropertyCard v-else-if="auth.isVerifiedLandlord" add-label="Add your first accommodation" @add="go('/manager/properties/new')" />
+
+          <div v-else class="locked">
+            <span class="locked-icon"><IconifyIcon icon="lucide:lock" width="18" /></span>
+            <span class="locked-text">
+              <span class="locked-title">Add property</span>
+              <span class="locked-sub">After OSAS verifies you</span>
+            </span>
+          </div>
         </section>
       </div>
     </q-pull-to-refresh>
@@ -114,11 +117,15 @@ import { formatPeso } from '@/utils/format'
 import { ago, listGaps, loadProfileGaps } from '@/utils/profile'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-import DashTasks from '@/components/shared/DashTasks.vue'
-import VerificationBanner from '@/components/manager/VerificationBanner.vue'
+import DashHero from '@/components/shared/DashHero.vue'
+import DashAction from '@/components/shared/DashAction.vue'
+import DashPropertyCard from '@/components/manager/DashPropertyCard.vue'
+import { fetchLandlordMoney } from '@/api/landlordMoney'
+import { buildCollections, monthEndOf, type Collections } from '@/utils/collections'
+import { BILL_TAG, manilaToday } from '@/utils/payments'
+import { verificationSteps } from '@/utils/verificationSteps'
 import { useAuthStore } from '@/stores/auth'
 import PropertyCard from '@/components/manager/PropertyCard.vue'
-import PropertyRow from '@/components/manager/PropertyRow.vue'
 import { healthTone, type Property } from '@/components/manager/property'
 import type { Task } from '@/components/shared/dashboard'
 
@@ -132,36 +139,153 @@ const properties = ref<Property[]>([])
 const attention = ref<Task[]>([])
 const totalBeds = ref(0)
 const tenants = ref(0)
-const expectedMonthly = ref(0)
-const ratingAvg = ref<number | null>(null)
-const reviewCount = ref(0)
 
-const greeting = computed(() => {
-  const h = new Date().getHours()
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
-})
+// Money, worked out in load() so the kept-alive page and its cache hold plain numbers.
+interface Rent { collected: number; coming: number; late: number; total: number }
+interface LateAction { studentId: string; name: string; days: number; amount: number; property: string }
+interface Tile { value: string; label: string; sub: string; route: string; tone?: 'warning' | undefined }
+const rent = ref<Rent>({ collected: 0, coming: 0, late: 0, total: 0 })
+const propRent = ref<Record<string, { paid: number; due: number; dot: boolean }>>({})
+const lateAction = ref<LateAction | null>(null)
+const confirmCount = ref(0)
+const unpaidBills = ref<{ amount: number; sub: string }>({ amount: 0, sub: 'All paid' })
+const applicants = ref<{ count: number; sub: string; route: string }>({ count: 0, sub: 'None new', route: '/manager/tenants' })
+const docsSentAt = ref<string | null>(null)
+const profileComplete = ref(true)
 
 const hasProperties = computed(() => properties.value.length > 0)
-const occupancyRate = computed(() =>
-  totalBeds.value === 0 ? 0 : Math.min(100, Math.round((tenants.value / totalBeds.value) * 100)),
-)
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
 
-const today = new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
-
-// The top item leads; the next five list beneath it. Beyond that the
-// dashboard stops being a summary — one expired permit per property adds up
-// fast, and every one of those rows routes to /manager/osas anyway.
-const upNext = computed(() => attention.value.slice(0, 6))
-
-// Four rows at most, worst health first, since the full set lives on
-// /manager/properties.
-const HEALTH_RANK = { danger: 0, warn: 1, good: 2 } as const
-const topProperties = computed(() =>
-  [...properties.value]
-    .sort((a, b) => HEALTH_RANK[healthTone(a)] - HEALTH_RANK[healthTone(b)])
-    .slice(0, 4),
+// Verified accounts see the rent dashboard; everyone else sees where the OSAS
+// check stands (users.status is the truth, accountStatus mirrors it). An unknown
+// status (still loading, demo mode) counts as verified so nothing flashes.
+const unverified = computed(() => !!auth.accountStatus && auth.accountStatus !== 'verified')
+const verification = computed(() =>
+  verificationSteps({
+    role: 'manager',
+    status: auth.accountStatus ?? '',
+    docsSentAt: docsSentAt.value,
+    profileComplete: profileComplete.value,
+  }),
 )
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+const sentLabel = computed(() => (docsSentAt.value ? shortDate(docsSentAt.value) : ''))
+const verifySegments = computed(() => {
+  const v = verification.value
+  return [
+    { value: v.done, tone: 'primary' },
+    { value: v.inReview ? 1 : 0, tone: 'info' },
+    { value: v.total - v.done - (v.inReview ? 1 : 0), tone: 'border' },
+  ]
+})
+const verifyLegend = computed(() => {
+  const v = verification.value
+  return [
+    { label: 'Done', value: String(v.done), tone: 'primary' },
+    v.inReview
+      ? { label: 'In review', value: '1', tone: 'info' }
+      : { label: 'Left', value: String(v.total - v.done), tone: 'muted' },
+  ]
+})
+
+const monthName = new Date().toLocaleDateString('en-PH', { month: 'long' })
+const daysLeft = Math.max(0, Number(monthEndOf(manilaToday()).slice(8, 10)) - Number(manilaToday().slice(8, 10)))
+
+// The attention list is ranked (0 = concern / hidden listings … 3 = chores). A rank-0 or
+// 1 item outranks a late boarder; a late boarder outranks everything below that.
+const SHORT_TONE = { danger: 'danger', warn: 'warning', info: 'info', done: 'success' } as const
+const action = computed(() => {
+  if (unverified.value) {
+    const v = verification.value
+    return v.next
+      ? { icon: 'lucide:file-up', tone: 'warning', title: v.next.label, sub: 'Next step', button: 'Open', route: v.next.route }
+      : { icon: 'lucide:hourglass', tone: 'info', title: 'OSAS is reviewing', sub: 'We’ll notify you', button: 'Ask OSAS', route: '/manager/support' }
+  }
+  const top = attention.value[0]
+  const l = lateAction.value
+  if (l && !(top && top.rank <= 1)) {
+    return {
+      icon: 'lucide:clock-alert',
+      tone: 'danger',
+      title: `${l.name} is ${l.days} ${l.days === 1 ? 'day' : 'days'} late`,
+      sub: `${formatPeso(l.amount)} · ${l.property}`,
+      button: 'Remind',
+      route: `/manager/messages?to=${l.studentId}`,
+    }
+  }
+  if (top) {
+    return {
+      icon: top.icon,
+      tone: SHORT_TONE[top.tone],
+      title: top.label,
+      sub: top.kind,
+      button: top.action.split(' ')[0] ?? '',
+      route: top.route,
+    }
+  }
+  const [y, m] = manilaToday().split('-').map(Number) as [number, number]
+  const next = new Date(y, m, 1)
+  return {
+    icon: 'lucide:circle-check',
+    tone: 'success',
+    title: 'Nothing needs you',
+    sub: `Next: ${next.toLocaleDateString('en-PH', { month: 'long' })} rent · ${next.toLocaleDateString('en-PH', { month: 'short' })} 1`,
+    button: '',
+    route: '',
+  }
+})
+
+const todoCount = computed(() => attention.value.filter((t) => t.id !== 'payments-to-verify').length + confirmCount.value)
+const tiles = computed<Tile[]>(() => {
+  const off = unverified.value
+  const open = vacantBeds.value
+  return [
+    {
+      value: off ? '0' : String(todoCount.value),
+      label: 'To do',
+      sub: off ? 'Nothing yet' : confirmCount.value ? `${confirmCount.value} payment${confirmCount.value === 1 ? '' : 's'} to check` : todoCount.value ? 'Tap to start' : 'All done',
+      route: confirmCount.value ? '/manager/tenants?tab=payments' : (attention.value[0]?.route ?? '/manager/properties'),
+      tone: !off && todoCount.value ? 'warning' : undefined,
+    },
+    {
+      value: `${tenants.value}/${totalBeds.value}`,
+      label: 'Beds filled',
+      sub: off || !totalBeds.value ? 'No rooms yet' : `${open} open`,
+      route: '/manager/properties',
+    },
+    {
+      value: formatPeso(unpaidBills.value.amount),
+      label: 'Unpaid bills',
+      sub: off ? 'No bills yet' : unpaidBills.value.sub,
+      route: '/manager/tenants?tab=payments',
+    },
+    {
+      value: String(applicants.value.count),
+      label: 'Applicants',
+      sub: off ? 'None yet' : applicants.value.sub,
+      route: applicants.value.route,
+    },
+  ]
+})
+
+// Two property cards fit the screen; the rest are one tap away. Worst health first.
+const HEALTH_RANK = { danger: 0, warn: 1, good: 2 } as const
+const shownProperties = computed(() =>
+  [...properties.value].sort((a, b) => HEALTH_RANK[healthTone(a)] - HEALTH_RANK[healthTone(b)]).slice(0, 2),
+)
+
+/** The boarder who is furthest behind, for the action card. */
+function lateOf(col: Collections): LateAction | null {
+  const o = [...col.late].sort((a, b) => (b.daysLate ?? 0) - (a.daysLate ?? 0))[0]
+  if (!o) return null
+  return {
+    studentId: o.lease.studentId,
+    name: o.lease.studentName.split(' ')[0] || 'A boarder',
+    days: o.daysLate ?? 0,
+    amount: o.amount,
+    property: o.lease.accommodationName,
+  }
+}
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
@@ -196,8 +320,9 @@ async function load(silent = false) {
       { data: leaseRows, error: leaseError },
       { data: concernRows },
       { data: peopleRows },
-      { data: reviewRows },
       { count: paymentsToVerify },
+      { data: docRowsSent },
+      money,
     ] = await Promise.all([
       supabase.from('users').select('full_name').eq('id', user.id).maybeSingle(),
       supabase
@@ -226,15 +351,24 @@ async function load(silent = false) {
         .eq('landlord_id', user.id)
         .in('status', ['pending', 'leave_requested'])
         .limit(6),
-      // Own rating, via the anonymous inbox view — the base table is no longer
-      // readable, and the reviewer's identity is not this screen's business.
-      supabase.from('review_inbox').select('rating').eq('kind', 'manager'),
       // Only the number: the list itself lives on Tenants → Payments.
       supabase
         .from('payments')
         .select('id, leases!inner(landlord_id)', { count: 'exact', head: true })
         .eq('leases.landlord_id', user.id)
         .eq('status', 'pending_verification'),
+      // "Sent Oct 13" on the verification hero: the newest upload.
+      supabase
+        .from('verification_documents')
+        .select('uploaded_at')
+        .eq('user_id', user.id)
+        .order('uploaded_at', { ascending: false })
+        .limit(1),
+      // A failed money read leaves the rent card at zero rather than blanking the whole screen.
+      fetchLandlordMoney(user.id).catch((e) => {
+        console.warn('dashboard: money read failed', e)
+        return null
+      }),
     ])
     if (accError) throw accError
     if (leaseError) throw leaseError
@@ -304,9 +438,7 @@ async function load(silent = false) {
 
     totalBeds.value = roomRows.reduce((n, r) => n + Number(r.capacity || 0), 0)
     tenants.value = leases.filter((l) => l.status === 'active').length
-    expectedMonthly.value = leases
-      .filter((l) => l.status === 'active')
-      .reduce((n, l) => n + Number(l.monthly_rent || 0), 0)
+    docsSentAt.value = (Array.isArray(docRowsSent) ? docRowsSent[0]?.uploaded_at : null) ?? null
 
     // A photo per accommodation, fetched once for the whole portfolio.
     const photoByAcc = new Map<string, string>()
@@ -520,11 +652,71 @@ async function load(silent = false) {
 
     attention.value = items.sort((a, b) => a.rank - b.rank)
 
-    // Self rating — hidden until at least one review exists.
-    const reviews = reviewRows || []
-    reviewCount.value = reviews.length
-    ratingAvg.value =
-      reviews.length > 0 ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length : null
+    profileComplete.value = missing.length === 0
+
+    // Applicants: pending leases, named from the first-wave people query.
+    const pendingCount = leases.filter((l) => l.status === 'pending').length
+    const firstPending = (peopleRows || []).find((l) => l.status === 'pending')
+    const pRoom = firstPending?.rooms as unknown as { room_number: string | null } | null
+    const pName = (firstPending?.users as unknown as { full_name: string } | null)?.full_name?.split(' ')[0]
+    applicants.value = {
+      count: pendingCount,
+      sub: pName ? `${pName}${pRoom?.room_number ? ` · Room ${pRoom.room_number}` : ''}` : pendingCount ? 'Waiting on you' : 'None new',
+      route: firstPending ? `/manager/tenant/${firstPending.id}` : '/manager/tenants',
+    }
+
+    // Rent card, late boarder, bills and per-property rent: all the same buildCollections the
+    // Payments tab uses, so the numbers cannot disagree with it.
+    if (money) {
+      const day = manilaToday()
+      const col = buildCollections(money.leases, money.ledger, money.payments, money.billUtility, money.billed, day)
+      rent.value = {
+        collected: col.collected,
+        coming: col.toConfirm + col.toCome,
+        late: col.overdue,
+        total: col.collected + col.toConfirm + col.toCome + col.overdue,
+      }
+      confirmCount.value = col.confirm.length
+      lateAction.value = lateOf(col)
+
+      // Bill rows with something left to pay, on stays that are still running.
+      const current = new Set(money.leases.filter((l) => l.status === 'active' || l.status === 'leave_requested').map((l) => l.id))
+      const bills = money.ledger
+        .filter((r) => r.kind === 'bill' && r.balance > 0.009 && current.has(r.leaseId))
+        .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+      const first = bills[0]
+      unpaidBills.value = {
+        amount: bills.reduce((n, r) => n + r.balance, 0),
+        sub: first
+          ? `${(BILL_TAG[money.billUtility[first.billId ?? ''] ?? 'water'] ?? 'Bill').replace(' bill', '')}${first.dueDate ? ` · due ${shortDate(first.dueDate)}` : ''}`
+          : 'All paid',
+      }
+
+      const per: typeof propRent.value = {}
+      for (const p of properties.value) {
+        const ids = new Set(money.leases.filter((l) => l.accommodationId === p.id).map((l) => l.id))
+        const c = buildCollections(
+          money.leases.filter((l) => ids.has(l.id)),
+          money.ledger.filter((r) => ids.has(r.leaseId)),
+          money.payments.filter((x) => ids.has(x.leaseId)),
+          money.billUtility,
+          money.billed,
+          day,
+        )
+        per[p.id] = {
+          paid: c.collected,
+          due: c.collected + c.toConfirm + c.toCome + c.overdue,
+          dot: c.late.length > 0 || c.confirm.length > 0 || p.expired > 0,
+        }
+      }
+      propRent.value = per
+    } else {
+      rent.value = { collected: 0, coming: 0, late: 0, total: 0 }
+      propRent.value = {}
+      lateAction.value = null
+      confirmCount.value = 0
+      unpaidBills.value = { amount: 0, sub: 'All paid' }
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -542,9 +734,14 @@ type DashboardCache = {
   attention: Task[]
   totalBeds: number
   tenants: number
-  expectedMonthly: number
-  ratingAvg: number | null
-  reviewCount: number
+  rent: Rent
+  propRent: Record<string, { paid: number; due: number; dot: boolean }>
+  lateAction: LateAction | null
+  confirmCount: number
+  unpaidBills: { amount: number; sub: string }
+  applicants: { count: number; sub: string; route: string }
+  docsSentAt: string | null
+  profileComplete: boolean
 }
 
 const { refresh } = useLiveData({
@@ -563,9 +760,14 @@ const { refresh } = useLiveData({
       attention: attention.value,
       totalBeds: totalBeds.value,
       tenants: tenants.value,
-      expectedMonthly: expectedMonthly.value,
-      ratingAvg: ratingAvg.value,
-      reviewCount: reviewCount.value,
+      rent: rent.value,
+      propRent: propRent.value,
+      lateAction: lateAction.value,
+      confirmCount: confirmCount.value,
+      unpaidBills: unpaidBills.value,
+      applicants: applicants.value,
+      docsSentAt: docsSentAt.value,
+      profileComplete: profileComplete.value,
     }),
     set: (d) => {
       const c = d as DashboardCache
@@ -574,9 +776,14 @@ const { refresh } = useLiveData({
       attention.value = c.attention
       totalBeds.value = c.totalBeds
       tenants.value = c.tenants
-      expectedMonthly.value = c.expectedMonthly
-      ratingAvg.value = c.ratingAvg
-      reviewCount.value = c.reviewCount
+      rent.value = c.rent
+      propRent.value = c.propRent
+      lateAction.value = c.lateAction
+      confirmCount.value = c.confirmCount
+      unpaidBills.value = c.unpaidBills
+      applicants.value = c.applicants
+      docsSentAt.value = c.docsSentAt
+      profileComplete.value = c.profileComplete
       loading.value = false
     },
   },
@@ -591,83 +798,58 @@ function onPull(done: () => void) {
 </script>
 
 <style scoped>
-/* One type scale: 11 / 12 / 13 / 15 / 17 / 20 / 40. */
 .dash { background: var(--m-bg); }
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 8px var(--m-page-gutter) 20px;
+  gap: 10px;
+  padding: 4px var(--m-page-gutter) 12px;
 }
 .sk { border-radius: var(--m-radius); }
 
-.greet { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 2px 0; }
-.greet-line { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 6px; }
-.greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }
-.greet-name {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.greet-date { flex: 0 0 auto; color: var(--m-muted); font-size: 12px; font-weight: 600; }
-
-/* Occupancy: figure, bar, then the money and rating under a hairline */
-.occ {
-  display: flex;
-  flex-direction: column;
-  padding: 14px 14px 0;
-  border-radius: var(--m-radius);
-  background: var(--m-primary);
-  color: #fff;
-}
-.occ--empty { padding-bottom: 14px; border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
-.occ-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.occ-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.85; }
-.occ-beds { font-size: 13px; font-weight: 600; opacity: 0.9; }
-.occ--empty .occ-cap, .occ--empty .occ-beds { color: var(--m-muted); opacity: 1; }
-.occ-pct {
-  margin-top: 4px;
-  font-family: var(--m-font-display);
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1;
-}
-.occ-sign { font-size: 20px; font-weight: 600; opacity: 0.8; }
-.occ-bar { display: block; height: 8px; margin-top: 12px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.25); }
-.occ--empty .occ-bar { background: var(--m-bg); }
-.occ-fill { display: block; height: 100%; border-radius: inherit; background: #fff; transition: width 0.5s ease; }
-
-.occ-stats { display: flex; margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.22); }
-.occ-stat { display: flex; min-width: 0; flex: 1 1 0; flex-direction: column; gap: 2px; padding: 12px 0; }
-.occ-stat + .occ-stat { padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, 0.22); }
-.occ-stat-value {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.occ-stat-label { font-size: 12px; font-weight: 600; opacity: 0.85; }
-
-.sec { display: flex; flex-direction: column; gap: 6px; }
-.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.sec-title {
+.greet {
   margin: 0;
+  padding: 0 2px;
   color: var(--m-ink);
-  font-size: 13px;
+  font-family: var(--m-font-display);
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  line-height: 1.4;
-  text-transform: uppercase;
+  letter-spacing: -0.02em;
 }
+
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--m-surface);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.tile--warning { background: var(--m-warning-soft); }
+.tile-val {
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.tile-label { color: var(--m-ink); font-size: 14px; font-weight: 600; }
+.tile-sub { overflow: hidden; color: var(--m-muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+/* Before OSAS verifies there is nothing to count: the tiles show their shape, greyed. */
+.tile--off { cursor: default; }
+.tile--off .tile-val { color: var(--m-muted); opacity: 0.6; }
+
+.sec { display: flex; flex-direction: column; gap: 8px; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
+.sec-title { margin: 0; color: var(--m-ink); font-family: var(--m-font-display); font-size: 18px; font-weight: 700; }
 .sec-link {
   min-height: 32px;
   padding: 0 8px;
@@ -679,30 +861,20 @@ function onPull(done: () => void) {
   font: inherit;
   font-size: 13px;
   font-weight: 700;
-  transition: background 0.15s;
 }
-.sec-link:hover { background: var(--m-primary-soft); }
+.plist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 
-.plist { overflow: hidden; border: 1px solid var(--m-border); border-radius: var(--m-radius); background: var(--m-surface); }
-.more {
+.locked {
   display: flex;
-  width: 100%;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 48px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
+  gap: 14px;
+  min-height: 76px;
+  padding: 0 18px;
+  border: 1.5px dashed var(--m-border);
+  border-radius: 20px;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .occ-fill, .sec-link { transition: none !important; }
-}
+.locked-icon { display: grid; flex: 0 0 40px; width: 40px; height: 40px; place-items: center; border-radius: 999px; background: var(--m-bg); color: var(--m-muted); }
+.locked-text { display: flex; flex-direction: column; }
+.locked-title { color: var(--m-ink); font-size: 15px; font-weight: 600; }
+.locked-sub { color: var(--m-muted); font-size: 12.5px; }
 </style>
