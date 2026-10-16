@@ -130,8 +130,10 @@ button { font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  height: min(260px, 30dvh);
-  min-height: 190px;
+  /* Takes whatever the dashboard has left (StudentDashboard fits the page to the screen). */
+  flex: 1 1 260px;
+  min-height: 160px;
+  max-height: 320px;
 }
 .stay {
   grid-row: span 2;
@@ -176,7 +178,7 @@ button { font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.stay-room { color: var(--m-muted); font-size: 12.5px; }
+.stay-room { overflow: hidden; color: var(--m-muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
 .stay--empty {
   justify-content: center;
   align-items: flex-start;
@@ -228,9 +230,9 @@ button { font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight
   background: var(--m-danger);
 }
 .txt { display: flex; min-width: 0; flex-direction: column; }
-.t { color: var(--m-ink); font-size: 15px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
-.s { color: var(--m-muted); font-size: 12.5px; line-height: 1.3; overflow-wrap: anywhere; }
+.t { display: -webkit-box; overflow: hidden; color: var(--m-ink); font-size: 15px; font-weight: 700; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.s { display: -webkit-box; overflow: hidden; color: var(--m-muted); font-size: 12.5px; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.card--tile { flex-direction: column; gap: 12px; min-height: 112px; padding: 16px; }
+.card--tile { flex-direction: column; gap: 10px; padding: 14px 16px; }
 </style>

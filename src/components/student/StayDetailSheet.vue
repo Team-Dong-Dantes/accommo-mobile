@@ -166,6 +166,7 @@ const payLine = computed(() => {
   font-family: var(--m-font-display);
   font-size: 18px;
   font-weight: 700;
+  line-height: 1.25;
 }
 .sd-addr {
   color: var(--m-muted);

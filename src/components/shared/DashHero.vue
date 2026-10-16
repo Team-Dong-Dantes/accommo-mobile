@@ -70,8 +70,10 @@ defineProps<{
 }
 .hero-legend {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
+  /* One line: the hero's height must not depend on the amounts. */
+  overflow: hidden;
+  gap: 14px;
+  white-space: nowrap;
   color: var(--m-muted);
   font-size: 12.5px;
 }

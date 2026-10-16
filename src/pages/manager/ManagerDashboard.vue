@@ -1,5 +1,5 @@
 <template>
-  <q-page class="dash">
+  <q-page class="dash" :style-fn="fitScreen">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <q-skeleton type="text" width="160px" height="26px" />
@@ -130,6 +130,11 @@ import { healthTone, type Property } from '@/components/manager/property'
 import type { Task } from '@/components/shared/dashboard'
 
 const router = useRouter()
+
+// One-screen rule: the page is exactly the space between header and bottom nav
+// (QPage's style-fn gets both), and the layout below flexes inside it instead of
+// scrolling. The flexible card (stay / property photos) absorbs the difference.
+const fitScreen = (offset: number, height: number) => ({ height: `${height - offset}px` })
 const auth = useAuthStore()
 
 const loading = ref(true)
@@ -800,12 +805,18 @@ function onPull(done: () => void) {
 </script>
 
 <style scoped>
-.dash { background: var(--m-bg); }
+.dash { overflow: hidden; background: var(--m-bg); }
+.dash :deep(.q-pull-to-refresh),
+.dash :deep(.q-pull-to-refresh__content) { height: 100%; }
 .stack {
   display: flex;
+  height: 100%;
+  box-sizing: border-box;
   flex-direction: column;
+  overflow: hidden;
   gap: 10px;
-  padding: 4px var(--m-page-gutter) 12px;
+  /* Bottom room for BottomNav's raised centre button. */
+  padding: 4px var(--m-page-gutter) 26px;
 }
 .sk { border-radius: var(--m-radius); }
 
@@ -816,8 +827,14 @@ function onPull(done: () => void) {
   font-family: var(--m-font-display);
   font-size: 22px;
   font-weight: 700;
+  /* Quasar's global h1 line-height is 6rem; without this the greeting sits in a 96px band. */
+  line-height: 1.2;
   letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.stack > * { flex-shrink: 0; }
 
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tile {
@@ -849,9 +866,9 @@ function onPull(done: () => void) {
 .tile--off { cursor: default; }
 .tile--off .tile-val { color: var(--m-muted); opacity: 0.6; }
 
-.sec { display: flex; flex-direction: column; gap: 8px; }
+.stack > .sec { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 8px; }
 .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.sec-title { margin: 0; color: var(--m-ink); font-family: var(--m-font-display); font-size: 18px; font-weight: 700; }
+.sec-title { margin: 0; color: var(--m-ink); font-family: var(--m-font-display); font-size: 18px; font-weight: 700; line-height: 1.2; }
 .sec-link {
   min-height: 32px;
   padding: 0 8px;
@@ -864,7 +881,7 @@ function onPull(done: () => void) {
   font-size: 13px;
   font-weight: 700;
 }
-.plist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.plist { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); gap: 10px; }
 
 .locked {
   display: flex;

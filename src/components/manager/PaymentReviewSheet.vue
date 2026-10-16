@@ -403,6 +403,7 @@ async function reject() {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  line-height: 1.25;
 }
 .rv-status--blue {
   color: var(--m-info);

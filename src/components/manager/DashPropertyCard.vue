@@ -44,6 +44,8 @@ const bars = computed(() => {
 .dpc {
   display: flex;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
@@ -59,7 +61,10 @@ const bars = computed(() => {
 .dpc-photo {
   position: relative;
   display: flex;
-  height: 76px;
+  /* Fills what the dashboard has left; never shrinks past the name pill. */
+  flex: 1 1 76px;
+  min-height: 40px;
+  max-height: 150px;
   align-items: flex-end;
   box-sizing: border-box;
   padding: 8px;

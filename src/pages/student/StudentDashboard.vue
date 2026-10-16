@@ -1,5 +1,5 @@
 <template>
-  <q-page class="dash">
+  <q-page class="dash" :style-fn="fitScreen">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
         <q-skeleton type="text" width="160px" height="28px" />
@@ -45,6 +45,11 @@ import type { Task } from '@/components/shared/dashboard'
 import type { DashTile, Manager, NextPayment, Stay } from '@/components/student/dashboard'
 import { stayMonthSummary } from '@/utils/collections'
 import { verificationSteps } from '@/utils/verificationSteps'
+
+// One-screen rule: the page is exactly the space between header and bottom nav
+// (QPage's style-fn gets both), and the layout below flexes inside it instead of
+// scrolling. The flexible card (stay / property photos) absorbs the difference.
+const fitScreen = (offset: number, height: number) => ({ height: `${height - offset}px` })
 
 const router = useRouter()
 
@@ -647,12 +652,18 @@ function onPull(done: () => void) {
 
 <style scoped>
 /* One screen at 390x844: greeting, hero, action, stay row, two tiles — no scroll. */
-.dash { background: var(--m-bg); }
+.dash { overflow: hidden; background: var(--m-bg); }
+.dash :deep(.q-pull-to-refresh),
+.dash :deep(.q-pull-to-refresh__content) { height: 100%; }
 .stack {
   display: flex;
+  height: 100%;
+  box-sizing: border-box;
   flex-direction: column;
+  overflow: hidden;
   gap: 12px;
-  padding: 8px var(--m-page-gutter) 12px;
+  /* Bottom room for BottomNav's raised centre button. */
+  padding: 8px var(--m-page-gutter) 26px;
 }
 .sk { border-radius: var(--m-radius); }
 .greet {
@@ -663,5 +674,9 @@ function onPull(done: () => void) {
   font-size: 22px;
   font-weight: 700;
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.stack > * { flex-shrink: 0; }
 </style>

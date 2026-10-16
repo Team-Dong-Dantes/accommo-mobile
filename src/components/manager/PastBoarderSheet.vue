@@ -129,6 +129,7 @@ const rate = () => props.lease && go(`/manager/tenant/${props.lease.id}`)
   font-family: var(--m-font-display);
   font-size: 18px;
   font-weight: 700;
+  line-height: 1.25;
 }
 .pbs-chip {
   padding: 2px 8px;

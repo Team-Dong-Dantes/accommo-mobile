@@ -45,6 +45,12 @@ const emit = defineEmits<{ action: [] }>()
   flex: 1;
   flex-direction: column;
 }
+.act-title,
+.act-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .act-title {
   color: var(--m-ink);
   font-size: 15px;
