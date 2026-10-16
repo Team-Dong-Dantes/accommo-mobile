@@ -8,9 +8,6 @@
   --m-text: #374151;
   --m-muted: #6b7280;
   --m-bg: #f6f7f8;
-  /* The ground beside the shell column on a screen wider than the column.
-     A shade under --m-bg so the column reads as a surface sitting on it. */
-  --m-backdrop: #e4e7ea;
   --m-surface: #ffffff;
   --m-border: #e5e7eb;
   --m-success: #15803d;
@@ -49,7 +46,6 @@
   --m-text: #cbd5e1;
   --m-muted: #94a3b8;
   --m-bg: #101216;
-  --m-backdrop: #07080a;
   --m-surface: #1a1d23;
   --m-border: #2a2e37;
   --m-success: #4ade80;
@@ -278,47 +274,13 @@ body {
 }
 
 /* =========================================================================
-   The shell column — phone mode on a screen wider than a phone.
+   The shell column — phone mode on any screen that is not tablet landscape.
 
-   This app is 36 screens of phone layout with no breakpoints in them. Given a
-   tablet held in portrait, the honest thing is not to stretch a 60-character
-   line to 160 but to keep the column the screens were drawn for and put the
-   backdrop either side. Landscape is the case that gets a real tablet layout
-   (see useTabletMode.ts); this is everything else.
-
-   `transform` is the load-bearing declaration, not a paint hint. A transformed
-   element becomes the containing block for `position: fixed` descendants, so
-   the twenty-odd fixed overlays in this app — the bottom nav, the chat thread,
-   the confirm card, the search dock, the map float, the quick-actions layer — land
-   inside the column without one of them being edited. They all pin themselves
-   with `inset: 0` or `left/right: 0`, which now means the column's edges.
-
-   Quasar portals its dialogs and menus to <body>, outside this element, so they
-   stay measured against the viewport. That is what they should do: a dialog is
-   the system talking, not the app's column.
-
-   Below 560px the column IS the viewport, so the transform stays off there:
-   .shell-column is a normal in-flow block that grows to the page's full
-   height, not a viewport-height box, so making it the containing block for
-   `position: fixed` descendants would carry the header/footer along as the
-   document scrolls instead of pinning them — exactly the bug this guard
-   avoids. */
-.shell-column {
-  max-width: 520px;
-  margin-inline: auto;
-}
-
-/* The ground either side of the column. Deliberately not --m-bg: the column is
-   already --m-bg, and matching it would erase the column's edge on the one
-   screen size where the edge is the point. */
-@media (min-width: 560px) {
-  body:has(.shell-column) {
-    background: var(--m-backdrop);
-  }
-  .shell-column {
-    transform: translateZ(0);
-  }
-}
+   It used to be capped at 520px with a backdrop either side, on the theory that
+   a portrait tablet should keep the column the screens were drawn for. On a
+   real 800px tablet that read as two empty gutters, so the phone shell now
+   fills the width, as it does on a phone. No rules hang off .shell-column any
+   more; the layouts still set it so the phone shell is findable. */
 
 /* =========================================================================
    Tablet mode — the shell in landscape on a 10" screen and up.
@@ -350,7 +312,7 @@ body {
    Discover map, the Room and Landlord/Landlady call-to-action bars, the profile
    edit bar — and on a phone the window's left edge is the page's. Here it is
    under the rail. The transform makes this container the box those elements pin
-   to instead (the same trick .shell-column uses), and the margin puts that box's
+   to instead, and the margin puts that box's
    left edge at the rail, so every one of them lands beside it with no per-page
    rule. The container itself never scrolls (the stage inside it does), so what
    is pinned stays pinned. */
@@ -364,115 +326,53 @@ body {
   margin-left: 0;
   padding-left: calc(var(--m-rail) + 12px);
 }
-/* The announcement banner becomes a popover hanging off the bell.
-
-   On a phone it is a strip pinned to both edges, which is right there: the
-   window is 400px wide, so the strip IS roughly a card. Stretched across a
-   1440px header the same rule gave a 1300px ribbon holding one line of 12.5px
-   text, with its dismiss button a full screen away from the notice it closes
-   and nothing tying it to the bell the notice also lands in.
+/* The announcement banner and the in-app notification become popovers hanging
+   off the bell. On a phone the card is pinned to both edges, which is right
+   there: the window is 400px wide, so the strip IS roughly a card. Stretched
+   across a 1440px header the same rule gave a 1300px ribbon with its dismiss
+   button a full screen away from the notice it closes, and nothing tying it to
+   the bell the notice also lands in.
 
    `left: auto` releases the phone's left edge; `right` then sets how far in it
-   hangs. Worth knowing what that number is measured from: this box is
-   positioned against the header's PADDING box, and the header is already inset
-   12px by its own margin, so `right: 0` is the bell's right edge, not the
-   window's. 12px therefore pulls the popover a further 12px inboard of the
-   bell, which is the nudge it wants — flush with the button looked pinned to
-   the window's corner. */
-.shell-tablet .app-header .broadcast {
+   hangs. This box is positioned against the header's PADDING box, and the
+   header is already inset 12px by its own margin, so `right: 0` is the bell's
+   right edge, not the window's; 12px pulls it a further 12px inboard. */
+.shell-tablet .app-header .fcard {
   right: 12px;
   left: auto;
   width: min(380px, calc(100vw - var(--m-rail) - 36px));
   margin-top: 10px;
-  /* The component's own 16px radius is kept deliberately — bumping it to the
-     24px card radius put the corner curve under the caret, which then read as a
-     notch bitten out of the corner rather than a pointer on a flat edge. The
-     caret is centred 22px in; the curve has to end before that. */
-  /* The caret sits outside the box; the corners it would otherwise clip are on
-     children that paint no background of their own. */
-  overflow: visible;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 14%), 0 2px 6px rgb(0 0 0 / 8%);
+  transform-origin: top right;
 }
-
-/* The pointer. A rotated square rather than a border triangle so it inherits
-   the popover's own fill and edge, including the soft-info tint. Its two lit
-   sides are the ones that face the bell.
-
-   17px, and it stays there whatever `right` above is: a 10px square at 17px
-   spans 17-27px in from the corner, which is the first flat ground past the
-   16px border radius. Chasing the bell's exact centre once the popover moved
-   inboard would have put the caret at 4px — on the curve, where it reads as a
-   notch bitten out of the corner rather than a pointer. As it is the caret
-   lands about 7px inside the bell's left edge: still unmistakably on the
-   button, just not on its middle. */
-.shell-tablet .app-header .broadcast::before {
+/* The pointer. A rotated square rather than a border triangle so it takes the
+   card's own fill and edge; its two lit sides face the bell. 17px in is the
+   first flat ground past the 16px corner radius — any nearer and it sits on
+   the curve, reading as a notch bitten out of the corner. */
+.shell-tablet .app-header .fcard::before {
   position: absolute;
   z-index: 1;
   top: -6px;
   right: 17px;
   width: 10px;
   height: 10px;
-  border: 1px solid color-mix(in srgb, var(--m-info) 30%, var(--m-border));
+  border: 1px solid var(--m-border);
   border-width: 1px 0 0 1px;
-  background: var(--m-info-soft);
+  background: var(--m-surface);
   content: '';
   transform: rotate(45deg);
 }
-
-/* Room to read. The strip had to hold everything on one 28px line; a 380px card
-   can give the notice two lines of summary and a target worth clicking. */
-.shell-tablet .app-header .broadcast-main {
-  align-items: flex-start;
-  gap: 11px;
-  padding: 13px 12px 13px 14px;
-}
-.shell-tablet .app-header .broadcast-icon {
-  width: 28px;
-  height: 28px;
-  flex-basis: 28px;
-  margin-top: 1px;
-}
-.shell-tablet .app-header .broadcast-title {
-  font-size: 13.5px;
-}
-.shell-tablet .app-header .broadcast-sub {
+/* Room to read: two lines of body instead of the phone's one. */
+.shell-tablet .app-header .fcard-body {
   display: -webkit-box;
-  overflow: hidden;
-  margin-top: 2px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font-size: 12px;
-  line-height: 1.4;
-  /* The clamp does the eliding now, and it can only do it across lines if the
-     text is allowed to wrap. */
   white-space: normal;
 }
-.shell-tablet .app-header .broadcast-count {
-  margin-top: 1px;
-  font-size: 11px;
-}
-/* Aligned with the icon rather than floating in the middle of a two-line card,
-   and given a hit area instead of a column of padding. */
-.shell-tablet .app-header .broadcast-x {
-  align-self: flex-start;
-  margin: 9px 9px 0 0;
-  padding: 4px;
-  border-radius: 8px;
-}
-.shell-tablet .app-header .broadcast-x:hover {
-  background: color-mix(in srgb, var(--m-ink) 8%, transparent);
-  color: var(--m-ink);
-}
-
-/* It now arrives from the bell, so it should come from it — downward and
-   slightly toward the corner it hangs off, rather than the strip's flat drop. */
-.shell-tablet .app-header .broadcast-enter-from,
-.shell-tablet .app-header .broadcast-leave-to {
+/* It arrives from the bell, so it should come from it. */
+.shell-tablet .app-header .fcard-enter-from,
+.shell-tablet .app-header .fcard-leave-to {
   opacity: 0;
   transform: translateY(-8px) scale(0.97);
-}
-.shell-tablet .app-header .broadcast {
-  transform-origin: top right;
 }
 /* With the wordmark hidden (below) the bell is the row's only child, and
    space-between parks a lone child at the start. Push it to the far right. */
@@ -698,6 +598,11 @@ body {
 .shell-tablet .desk-card.desk-card--profile {
   grid-template-columns: 320px minmax(0, 1fr);
 }
+/* ...and that half shows one block at a time (ProfileSectionNav), so the
+   blocks hidden before it must not hand it their divider. */
+.shell-tablet .desk-col > .profile-card > .p-block {
+  border-top: 0;
+}
 /* The details half is too wide for one label-left, value-right row per field:
    a block made only of fields lays them out two to a row. Rules go on top of
    each row past the first instead of under each field, so a short last row
@@ -718,22 +623,6 @@ body {
   scroll-margin-top: 4px;
 }
 
-/* A tab's content moved (by Teleport) into another half on desktop — e.g.
-   ratings below payments. On a phone the wrapper is transparent, so the tab
-   lays out exactly as it did without it. */
-.desk-moved {
-  display: contents;
-}
-.shell-tablet .desk-col .desk-moved {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 10px;
-}
-/* The emptied tab shell left behind once its content has moved. */
-.shell-tablet .desk-hidden {
-  display: none;
-}
 /* A half's own title, where a tab label used to name it. */
 .shell-tablet .desk-col-title {
   margin: 0;
@@ -765,10 +654,7 @@ body {
 .shell-tablet .desk-col > * {
   flex-shrink: 0;
 }
-/* The second form skips an emptied tab shell (.desk-hidden) left between the
-   halves, as on student History. */
-.shell-tablet .desk-col + .desk-col,
-.shell-tablet .desk-col + .desk-hidden + .desk-col {
+.shell-tablet .desk-col + .desk-col {
   border-left: 1px solid var(--m-border);
 }
 
@@ -776,13 +662,16 @@ body {
    so rows never show through round the rounded field. Pulled out over the
    half's padding to sit flush with the card's edge. The class is doubled to
    outrank SearchDock's own scoped `.dock--inline { position: static }`, which
-   ties on specificity and loads later, so it used to win and nothing stuck. */
+   ties on specificity and loads later, so it used to win and nothing stuck.
+   top is -14px, not 0: Chrome measures sticky offsets from the half's content
+   edge, so top: 0 pushed the field 14px down, below Messages' search. With
+   12px of padding the field sits exactly where Messages' does. */
 .shell-tablet .desk-search.desk-search {
   position: sticky;
-  top: 0;
+  top: -14px;
   z-index: 3;
   margin: -14px -18px 0;
-  padding: 14px 18px 10px;
+  padding: 12px 18px 10px;
   background: var(--m-surface);
 }
 /* In a shell pane (Discover's list, Properties) there is no column padding to
@@ -790,6 +679,20 @@ body {
 .shell-tablet .pane .desk-search {
   margin: 0;
   padding: 12px 14px 10px;
+}
+
+/* History (student and manager): the card shows one tab's panel at a time
+   under the page's tabs, not its panels as halves side by side. */
+.shell-tablet .desk-card.desk-card--tabbed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.shell-tablet .desk-card--tabbed .desk-col {
+  border-left: 0;
+}
+/* The tabs above it start in line with the panel's content (the half's 18px
+   padding), not flush with the card's rounded corner. */
+.shell-tablet .tabs:has(+ .desk-card--tabbed) {
+  padding-left: calc(var(--m-page-gutter) + 18px);
 }
 
 /* The way back to a list, just above a card's left half (an accommodation,
@@ -1931,4 +1834,145 @@ textarea.mx-input {
   border-radius: 50%;
   background: var(--m-primary);
   content: "";
+}
+
+/* ---- Floating card: the announcement banner and the in-app notification ----
+   (BroadcastBanner.vue, InAppNotice.vue). Global because the two share it, and
+   because the tablet popover rules above restyle both from outside.
+
+   Parked just under whichever header is on screen (`top: 100%` of the fixed
+   header), so it overlays the page instead of pushing it down. */
+.fcard {
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: flex-start;
+  margin-top: 6px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%), 0 1px 3px rgb(0 0 0 / 6%);
+}
+/* The transient one wins when both are up: the banner steps aside rather than
+   peeking out from under a card of a different height. */
+.fcard--notice {
+  z-index: 2;
+}
+.fcard--notice ~ .broadcast {
+  visibility: hidden;
+}
+/* More notices waiting: the edge of the next card peeks out underneath. */
+.fcard--stacked::after {
+  position: absolute;
+  z-index: -1;
+  right: 10px;
+  bottom: -6px;
+  left: 10px;
+  height: 12px;
+  border: 1px solid var(--m-border);
+  border-top: 0;
+  border-radius: 0 0 var(--m-radius) var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 8%);
+  content: '';
+}
+.fcard-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.fcard-tile {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.fcard-tile--primary { background: var(--m-primary-soft); color: var(--m-primary); }
+.fcard-tile--info { background: var(--m-info-soft); color: var(--m-info); }
+.fcard-tile--good { background: var(--m-success-soft); color: var(--m-success); }
+.fcard-tile--warn { background: var(--m-warning-soft); color: var(--m-warning); }
+.fcard-tile--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.fcard-text {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+.fcard-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.fcard-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fcard-when {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fcard-body {
+  overflow: hidden;
+  color: var(--m-text);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fcard-meta {
+  margin-top: 1px;
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fcard-x {
+  display: grid;
+  flex: 0 0 auto;
+  margin: 8px 8px 0 0;
+  padding: 5px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--m-muted);
+  cursor: pointer;
+}
+.fcard-x:hover {
+  background: color-mix(in srgb, var(--m-ink) 8%, transparent);
+  color: var(--m-ink);
+}
+.fcard-enter-active,
+.fcard-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.fcard-enter-from,
+.fcard-leave-to { opacity: 0; transform: translateY(-8px); }
+@media (prefers-reduced-motion: reduce) {
+  .fcard-enter-active,
+  .fcard-leave-active { transition: none; }
 }

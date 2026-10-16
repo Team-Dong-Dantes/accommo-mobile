@@ -18,13 +18,14 @@
         'splash-mode': isSplash,
         'login-mode': isLogin,
         'register-mode': isRegister,
+        'logo-linked': logoLinked,
       }">
         <div class="hero-photo shadow-5" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
           <div class="hero-overlay hero-overlay--band" />
           <div class="hero-overlay hero-overlay--splash" />
         </div>
         <div class="hero-content">
-          <div class="logo-text">accommo</div>
+          <component :is="logoLinked ? 'a' : 'div'" class="logo-text" :href="logoLinked ? EXTERNAL_URLS.LANDING_PAGE : undefined">accommo</component>
           <div class="hero-subtitle">Verified boarding houses · ISU Echague</div>
         </div>
         <!-- Landscape only (app.scss). The photograph half carries the pitch
@@ -54,6 +55,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { Capacitor } from '@capacitor/core';
 import { EXTERNAL_URLS, PITCH_LINE } from '@/utils/config';
 import { isTablet } from '@/utils/useTabletMode';
 
@@ -117,6 +119,10 @@ const isLogin = computed(() => route.path === '/login');
 
 // CHANGED: Now triggers for BOTH '/register' and '/register/manager'
 const isRegister = computed(() => route.path.startsWith('/register'));
+// Browser only: the APK has no landing page to go back to. On register the
+// wordmark sits in the strip under the sheet, which .content-wrapper (fixed,
+// full-screen, z-index 10) covers — see .logo-linked below.
+const logoLinked = computed(() => isRegister.value && !Capacitor.isNativePlatform());
 
 // Controls the direction of the animation
 const transitionName = ref('splash-to-login');
@@ -317,6 +323,12 @@ watch(
 .hero-section.register-mode .hero-content {
   transform: translateY(calc(var(--auth-vh) - 94px));
 }
+
+.hero-section.logo-linked .logo-text { pointer-events: auto; color: inherit; text-decoration: none; cursor: pointer; }
+/* Let clicks fall through the empty strip to the wordmark; the sheet itself
+   stays interactive (the q-page between them is viewport-tall, so it is switched off too) and still scrolls the wrapper. */
+.hero-section.logo-linked ~ .content-wrapper { pointer-events: none; }
+.hero-section.logo-linked ~ .content-wrapper :deep(.auth-sheet) { pointer-events: auto; }
 
 /* Always laid out at 38px; the splash's 26px is a scale, so the text never
    re-flows mid-move. Scaled from its top-left, where it is anchored. */

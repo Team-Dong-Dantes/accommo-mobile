@@ -1,8 +1,7 @@
 <template>
-  <!-- .shell-column in phone mode only: on a portrait tablet it keeps the app
-       in the column its screens were drawn for, and pulls every fixed overlay in
-       with it (see app.scss). In tablet mode the shell is the full screen,
-       because the panes are what fills it. -->
+  <!-- .shell-column in phone mode, which includes a portrait tablet: one
+       full-width column (see app.scss). Tablet landscape gets .shell-tablet and
+       its panes. -->
   <q-layout view="hHh Lpr fFf" :class="isTablet ? 'shell-tablet' : 'shell-column'">
     <q-header
       v-if="!immersive"
@@ -42,6 +41,8 @@
         </template>
       </div>
 
+      <!-- Notice first: while it is up it hides the banner (app.scss, .fcard). -->
+      <InAppNotice :role="role" />
       <BroadcastBanner :role="role" />
     </q-header>
 
@@ -174,6 +175,7 @@ import BottomNav from '@/components/layout/BottomNav.vue'
 import SideRail from '@/components/layout/SideRail.vue'
 import TermsGate from '@/components/shared/TermsGate.vue'
 import BroadcastBanner from '@/components/shared/BroadcastBanner.vue'
+import InAppNotice from '@/components/shared/InAppNotice.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
 import ConfirmGate from '@/components/shared/ConfirmGate.vue'
 import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'

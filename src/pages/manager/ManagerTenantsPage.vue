@@ -6,7 +6,6 @@
         <div class="desk-card">
           <div class="desk-col">
             <q-skeleton type="rect" height="40px" class="sk sk-pill" />
-            <h2 class="sec-title">Boarders</h2>
             <div v-for="n in 2" :key="n" class="acc">
               <div class="acc-head">
                 <q-skeleton type="rect" size="36px" />
@@ -71,18 +70,16 @@
         <div :class="split ? 'desk-card' : 'panel'">
         <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
           <component :is="panelIs" name="tenants" :class="split ? 'desk-col' : 'tab-panel'">
-            <template v-if="split">
-              <SearchDock
-                v-model="query"
-                inline
-                class="desk-search"
-                :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
-                placeholder="Search boarders or rooms"
-                search-label="Search boarders"
-                @open-filters="filtersOpen = true"
-              />
-              <h2 class="sec-title">Boarders</h2>
-            </template>
+            <SearchDock
+              v-if="split"
+              v-model="query"
+              inline
+              class="desk-search"
+              :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
+              placeholder="Search boarders or rooms"
+              search-label="Search boarders"
+              @open-filters="filtersOpen = true"
+            />
             <!-- Walk-in tenants, accepted later by scanning their QR. Logging a
                  payment lives on Monthly rent and the boarder's own page. -->
             <div class="top-actions">
@@ -1204,9 +1201,22 @@ function isPayable(l: Lease) {
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
 }
+/* The half's header, like the search beside it: pulled out to the half's
+   edges and stuck to its top, with a rule under it that the active tab covers,
+   so the folder opens into the panel instead of floating above it. */
 .desk-tabs {
+  position: sticky;
+  top: -14px;
+  z-index: 3;
   display: flex;
   gap: 4px;
+  margin: -14px -18px 0;
+  padding: 12px 18px 0;
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+.desk-tabs .m-tab {
+  margin-bottom: -1px;
 }
 .tab-panel {
   display: flex;

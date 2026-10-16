@@ -4,8 +4,13 @@
     class="msg"
     :class="{ 'msg--mine': msg.mine, 'msg--pending': msg.pending, 'msg--lifted': lifted }"
   >
+    <!-- The message being answered, as a faded bubble tucked behind this one
+         (Messenger-style). Tapping it scrolls to the original. -->
     <button v-if="reply" type="button" class="msg-quote" @click="msg.replyToId && emit('jump', msg.replyToId)">
-      <span class="msg-quote-who">{{ reply.who }}</span>
+      <span class="msg-quote-cap">
+        <IconifyIcon icon="lucide:reply" width="12" />
+        {{ reply.caption }}
+      </span>
       <span class="msg-quote-text">{{ reply.text }}</span>
     </button>
 
@@ -15,6 +20,9 @@
     </span>
 
     <span v-else class="msg-row">
+      <!-- Holds the bubble and its reactions, so the chips can sit on the
+           bubble's own bottom-end corner rather than under the whole column. -->
+      <span class="msg-bubble-wrap" :class="{ 'msg-bubble-wrap--reacted': chips.length }">
       <span
         ref="bubbleRef"
         class="msg-bubble"
@@ -58,6 +66,20 @@
         </button>
         <template v-if="msg.body"><template v-for="(s, i) in segments" :key="i"><a v-if="s.href" :href="s.href" class="msg-link" @click="onLink($event, s)">{{ s.text }}</a><template v-else>{{ s.text }}</template></template></template>
       </span>
+      <span v-if="chips.length" class="msg-reacts">
+        <button
+          v-for="c in chips"
+          :key="c.emoji"
+          type="button"
+          class="msg-react"
+          :class="{ 'msg-react--mine': c.mine }"
+          :aria-label="c.mine ? `Remove ${c.emoji}` : `React ${c.emoji}`"
+          @click="emit('react', c.mine ? '' : c.emoji)"
+        >
+          {{ c.emoji }}<span v-if="c.count > 1" class="msg-react-n">{{ c.count }}</span>
+        </button>
+      </span>
+      </span>
       <!-- Long-press is a touch gesture; with a mouse the same menu hangs off
            this, shown on hover only where the device can hover. -->
       <button
@@ -68,20 +90,6 @@
         @click="bubbleRef && emit('menu', bubbleRef)"
       >
         <IconifyIcon icon="lucide:ellipsis" width="16" />
-      </button>
-    </span>
-
-    <span v-if="chips.length" class="msg-reacts">
-      <button
-        v-for="c in chips"
-        :key="c.emoji"
-        type="button"
-        class="msg-react"
-        :class="{ 'msg-react--mine': c.mine }"
-        :aria-label="c.mine ? `Remove ${c.emoji}` : `React ${c.emoji}`"
-        @click="emit('react', c.mine ? '' : c.emoji)"
-      >
-        {{ c.emoji }}<span v-if="c.count > 1" class="msg-react-n">{{ c.count }}</span>
       </button>
     </span>
 
@@ -113,7 +121,7 @@ export type BubbleMsg = ChatMsg & { mine: boolean; read: boolean; delivered: boo
 const props = defineProps<{
   msg: BubbleMsg
   me: string
-  reply: { who: string; text: string } | null
+  reply: { caption: string; text: string } | null
   /** undefined while loading, null when RLS no longer shows it. */
   listing?: ListingCard | null | undefined
   /** The menu is open on this one: drawn above the dim backdrop. */
@@ -352,34 +360,83 @@ function onLink(e: MouseEvent, s: Segment) {
   display: flex;
   max-width: 100%;
   flex-direction: column;
-  margin-bottom: -6px;
-  padding: 6px 12px 10px;
+  align-items: inherit;
+  gap: 3px;
+  /* The reply's own bubble overlaps the ghost's bottom edge. */
+  margin-bottom: -12px;
+  padding: 0;
   border: 0;
-  border-left: 3px solid var(--m-primary);
-  border-radius: 12px 12px 0 0;
-  background: var(--m-border);
-  color: var(--m-text);
+  background: none;
+  color: var(--m-muted);
   font: inherit;
-  font-size: 12px;
   text-align: left;
   cursor: pointer;
-  opacity: 0.85;
 }
-.msg-quote-who {
-  font-weight: 700;
+.msg-quote-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
 }
 .msg-quote-text {
   display: -webkit-box;
+  max-width: 100%;
   overflow: hidden;
+  /* The room the reply overlaps is a transparent border, not padding: the
+     clamp clips at the padding edge, so a third line can't peek into it. */
+  padding: 7px 12px 0;
+  border-bottom: 19px solid transparent;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--m-border) 70%, transparent);
+  color: var(--m-muted);
+  font-size: 12.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+/* Mine sit right, so the ghost's inset goes left (and the other way round). */
+.msg .msg-quote-text {
+  margin-left: 10px;
+}
+.msg--mine .msg-quote-text {
+  margin-right: 10px;
+  margin-left: 0;
+}
+/* Drawn over the ghost it overlaps. */
+.msg-quote ~ .msg-row,
+.msg-quote ~ .msg-bubble--removed {
+  position: relative;
+  z-index: 1;
+}
 
+.msg-bubble-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+/* Room under the bubble for the chips hanging off its corner. */
+.msg-bubble-wrap--reacted {
+  margin-bottom: 14px;
+}
+/* Overlapping the bubble's bottom corner on the side facing the middle of the
+   screen: right for theirs, left for mine. Pinned by the edge facing into the
+   bubble, 22px in, so it straddles that corner even when the chip is wider
+   than a one-word bubble (a plain right/left inset slid it to the far side). */
 .msg-reacts {
+  position: absolute;
+  left: calc(100% - 22px);
+  bottom: -16px;
+  z-index: 1;
   display: flex;
   gap: 3px;
-  margin-top: -6px;
-  padding: 0 6px;
+}
+.msg--mine .msg-reacts {
+  right: calc(100% - 22px);
+  left: auto;
 }
 .msg-react {
   display: inline-flex;

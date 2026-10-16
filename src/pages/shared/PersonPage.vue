@@ -12,7 +12,7 @@
           <q-skeleton type="text" width="72px" height="18px" />
           <q-skeleton type="text" width="160px" height="12px" />
         </div>
-        <div v-if="!split" class="sk-tabs">
+        <div v-if="!split && role === 'manager'" class="sk-tabs">
           <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
           <q-skeleton type="rect" width="92px" height="38px" class="m-sk-tab" />
         </div>
@@ -29,16 +29,23 @@
       :message="error"
     />
 
+    <!-- A student's landlord/landlady: the same profile Discover opens, shown
+         here in place. -->
+    <StudentManagerPage v-else-if="landlordView" :manager-id="targetId" />
+
     <PersonProfile
       v-else
       v-model="tab"
-      :tabs="TABS"
+      :tabs="showHistory ? TABS : TABS.slice(0, 1)"
       :name="person.name"
       :initials="person.initials"
       :avatar-url="person.avatarUrl"
       :cover-url="person.coverUrl"
       :chip="chip.label"
       :chip-tone="chip.tone"
+      :role="person.role === 'landlord'
+        ? { label: landlordTitle(person.sex), icon: 'lucide:house' }
+        : { label: 'Student', icon: 'lucide:graduation-cap' }"
       :subtitle="subtitle"
       message-to
       :split="split"
@@ -85,30 +92,38 @@
           </div>
         </template>
 
-        <dl class="rows">
-          <div v-if="person.studentId"><dt>Student number</dt><dd>{{ person.studentId }}</dd></div>
-          <div v-if="person.program"><dt>Program</dt><dd>{{ person.program }}</dd></div>
-          <div v-if="person.college"><dt>College</dt><dd>{{ person.college }}</dd></div>
-          <div v-if="person.yearLevel"><dt>Year level</dt><dd>{{ person.yearLevel }}</dd></div>
-          <div><dt>Role</dt><dd>{{ person.role === 'landlord' ? landlordTitle(person.sex) : 'Student' }}</dd></div>
-        </dl>
+        <section class="grp">
+          <h2 class="sec-title">About</h2>
+          <dl class="rows box">
+            <div v-if="person.studentId"><dt>Student number</dt><dd>{{ person.studentId }}</dd></div>
+            <div v-if="person.program"><dt>Program</dt><dd>{{ person.program }}</dd></div>
+            <div v-if="person.college"><dt>College</dt><dd>{{ person.college }}</dd></div>
+            <div v-if="person.yearLevel"><dt>Year level</dt><dd>{{ person.yearLevel }}</dd></div>
+          </dl>
+        </section>
 
-        <div v-if="current" class="stay">
-          <span class="stay-label">Currently boarding with you</span>
-          <strong>{{ current.accommodationName }}</strong>
-          <span class="stay-sub">{{ current.roomLabel }} · {{ formatPeso(current.rent) }}/mo</span>
-        </div>
-        <EmptyState
-          v-else-if="person.role === 'student'"
-          variant="compact"
-          icon="lucide:door-closed"
-          title="No active lease with you"
-          message="This student does not currently board at your accommodation."
-        />
+        <section v-if="person.role === 'student' && role === 'manager'" class="grp">
+          <h2 class="sec-title">Current stay</h2>
+          <div v-if="current" class="stay box">
+            <span class="stay-icon"><IconifyIcon icon="lucide:house" width="18" /></span>
+            <span class="stay-copy">
+              <strong>{{ current.accommodationName }}</strong>
+              <span class="stay-sub">{{ current.roomLabel }} · {{ formatPeso(current.rent) }}/mo</span>
+            </span>
+          </div>
+          <EmptyState
+            v-else
+            variant="compact"
+            icon="lucide:door-closed"
+            title="No active lease with you"
+            message="This student does not currently board at your accommodation."
+          />
+        </section>
       </div>
 
-      <!-- The right half on desktop; the History tab elsewhere. -->
-      <template #right>
+      <!-- The right half on desktop; the History tab elsewhere. Only a manager
+           looking at a student has one. -->
+      <template v-if="showHistory" #right>
       <div class="sec">
         <h2 v-if="split" class="desk-col-title">Boarding History</h2>
         <BoardingTimeline v-if="history.length" :stays="history" />
@@ -136,6 +151,7 @@ import { isDesktop } from '@/utils/useTabletMode'
 import { resolveAsset, AVATAR, COVER } from '@/utils/cloudinaryUrl'
 import { initialsOf, formatPeso, landlordTitle } from '@/utils/format'
 import PersonProfile from '@/components/shared/PersonProfile.vue'
+import StudentManagerPage from '@/pages/student/StudentManagerPage.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import PhotoViewer from '@/components/shared/PhotoViewer.vue'
 import { scannedStudentDocs, type ScanDoc } from '@/utils/upload'
@@ -168,6 +184,11 @@ const targetId = computed(() => props.personId || String(route.params.id ?? ''))
 // Desktop, as a page of its own: profile and overview on the left, history on
 // the right. Not inside the Messages panel, which is already a half.
 const split = computed(() => isDesktop.value && !props.personId)
+
+// Boarding history is the manager's view of a tenant. Gated on viewer *and*
+// subject: a student opening anyone's profile never gets it.
+const showHistory = computed(() => role.value === 'manager' && person.role === 'student')
+const landlordView = computed(() => role.value === 'student' && person.role === 'landlord')
 
 const loading = ref(true)
 const error = ref('')
@@ -221,7 +242,8 @@ async function loadScanDocs() {
 }
 
 const chip = computed<{ label: string; tone: 'good' | 'warn' | 'idle' }>(() => {
-  if (person.role !== 'student') return { label: landlordTitle(person.sex), tone: 'idle' }
+  // The role capsule already says Landlord/Landlady.
+  if (person.role !== 'student') return { label: '', tone: 'idle' }
   return person.osasVerified
     ? { label: 'OSAS verified', tone: 'good' }
     : { label: 'Not verified', tone: 'warn' }
@@ -256,6 +278,7 @@ onMounted(async () => {
       person.coverUrl = user.cover_url ? resolveAsset(user.cover_url, COVER) : null
       person.role = user.role ?? ''
       person.sex = user.sex ?? null
+      if (landlordView.value) return
     } else if (scan.value) {
       // users RLS (can_notify) hides anyone without a shared lease or
       // conversation — exactly who a manager scans. The scan payload stands in.
@@ -419,7 +442,23 @@ onMounted(async () => {
 .doc-name { padding: 0 10px; color: var(--m-ink); font-size: 12.5px; font-weight: 700; }
 .doc-none { padding: 0 10px; color: var(--m-muted); font-size: 11px; font-weight: 600; }
 
-.rows { margin: 0; }
+.grp { display: flex; flex-direction: column; gap: 6px; }
+.sec-title {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--m-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.box {
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+}
+.rows { margin: 0; padding: 0 12px; }
 .rows > div {
   display: flex;
   align-items: baseline;
@@ -431,22 +470,18 @@ onMounted(async () => {
 .rows dt { color: var(--m-muted); font-size: 12px; font-weight: 600; }
 .rows dd { margin: 0; color: var(--m-ink); font-size: 13px; font-weight: 700; text-align: right; }
 
-.stay {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 11px 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-bg);
+.stay { display: flex; align-items: center; gap: 10px; padding: 11px 12px; }
+.stay-icon {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--m-primary-soft);
+  color: var(--m-primary-dark);
 }
-.stay-label {
-  color: var(--m-muted);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
+.stay-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
 .stay strong { color: var(--m-ink); font-size: 14px; font-weight: 750; }
 .stay-sub { color: var(--m-text); font-size: 12px; font-weight: 600; }
 

@@ -2,7 +2,7 @@
   <q-page class="history-page" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
       <!-- Desktop: the loaded shape — the way back live already above a card
-           of two halves, each with its own search. -->
+           showing one tab at a time, with its own search. -->
       <div v-if="loading && split" class="stack">
         <div class="desk-back-row">
           <button type="button" class="desk-panel-back" :aria-label="backLabel" @click="goBack">
@@ -10,10 +10,9 @@
           </button>
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
-        <div class="desk-card">
-          <div v-for="title in ['Boarding history', 'Payments']" :key="title" class="desk-col">
+        <div class="desk-card desk-card--tabbed">
+          <div class="desk-col">
             <q-skeleton type="rect" height="40px" class="sk sk-search" />
-            <h2 class="desk-col-title">{{ title }}</h2>
             <q-skeleton type="rect" height="90px" class="sk" />
             <q-skeleton type="rect" height="90px" class="sk" />
           </div>
@@ -41,7 +40,7 @@
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
         <div class="m-tabbed">
-          <div v-if="!split" class="tabs" role="tablist" aria-label="History">
+          <div class="tabs" role="tablist" aria-label="History">
             <button
               v-for="t in TABS"
               :key="t.key"
@@ -56,30 +55,23 @@
             </button>
           </div>
 
-          <div :class="split ? 'desk-card' : 'panel'">
+          <!-- Desktop: still tabs, not halves side by side (ratings used to be
+               moved in below payments). -->
+          <div :class="split ? 'desk-card desk-card--tabbed' : 'panel'">
             <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
-              <component :is="panelIs" name="history" :class="split ? 'desk-col' : 'tab-panel'">
-                <!-- Desktop: each half searches only itself. -->
+              <component :is="panelIs" v-show="!split || tab === 'history'" name="history" :class="split ? 'desk-col' : 'tab-panel'">
+                <!-- Desktop: each tab searches only itself. -->
                 <SearchDock v-if="split" v-model="queries.history" inline no-filters class="desk-search" :filter-count="0" placeholder="Search boarding history" search-label="Search" />
-                <h2 v-if="split" class="desk-col-title">Boarding history</h2>
                 <BoardingHistoryTab :stays="stays" :query="queries.history" @rate="openReview" @payments="showPayments" />
               </component>
 
-              <!-- Desktop: ratings sit below payments in the right half, moved there by
-                   the Teleport (inside the panel, so QTabPanels still finds it). -->
-              <component :is="panelIs" name="reviews" :class="split ? 'desk-hidden' : 'tab-panel'">
-                <Teleport :to="paymentsCol" :disabled="!split || !paymentsCol">
-                  <div class="desk-moved">
-                    <h2 v-if="split" class="desk-col-title">Ratings</h2>
-                    <StudentRatingsTab :reviews="reviewsFromManagers" :query="split ? queries.payments : queries.reviews" />
-                  </div>
-                </Teleport>
+              <component :is="panelIs" v-show="!split || tab === 'reviews'" name="reviews" :class="split ? 'desk-col' : 'tab-panel'">
+                <SearchDock v-if="split" v-model="queries.reviews" inline no-filters class="desk-search" :filter-count="0" placeholder="Search ratings" search-label="Search" />
+                <StudentRatingsTab :reviews="reviewsFromManagers" :query="queries.reviews" />
               </component>
 
-              <component :is="panelIs" :ref="setPaymentsCol" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
-                <!-- The right half's search covers the ratings below payments too. -->
-                <SearchDock v-if="split" v-model="queries.payments" inline no-filters class="desk-search" :filter-count="0" placeholder="Search payments and ratings" search-label="Search" />
-                <h2 v-if="split" class="desk-col-title">Payments</h2>
+              <component :is="panelIs" v-show="!split || tab === 'payments'" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
+                <SearchDock v-if="split" v-model="queries.payments" inline no-filters class="desk-search" :filter-count="0" placeholder="Search month or method" search-label="Search" />
                 <StudentPaymentsTab :payments="payments" :owed="owed" :query="queries.payments" :expand="expandLease" />
               </component>
             </component>
@@ -183,13 +175,8 @@ const loading = ref(true)
 const error = ref('')
 // `?tab=payments` (the Payments tab's "All my payments" link).
 const tab = ref<Tab>(useRoute().query.tab === 'payments' ? 'payments' : 'history')
-// Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
+// Desktop puts the panels in a card, still one tab at a time (useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
-// The right half is the payments panel itself; ratings are moved in below them.
-const paymentsCol = ref<HTMLElement | null>(null)
-function setPaymentsCol(el: unknown) {
-  paymentsCol.value = el instanceof HTMLElement ? el : null
-}
 
 const stays = ref<Stay[]>([])
 const reviewsFromManagers = ref<ManagerReview[]>([])

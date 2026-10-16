@@ -183,7 +183,7 @@ import { uploadSecureDocument, signRows, signRef } from '@/utils/upload'
 import { capturePhoto } from '@/utils/camera'
 import { openExternal } from '@/utils/openExternal'
 import { confirmAction } from '@/utils/confirmAction'
-import { isFileRef, snippet, LISTING_COLS, toListingCard, type ChatMsg, type ListingCard } from '@/utils/chat'
+import { canChange, isFileRef, snippet, LISTING_COLS, toListingCard, type ChatMsg, type ListingCard } from '@/utils/chat'
 import ApplicationCard from '@/components/messages/ApplicationCard.vue'
 import MessageBubble, { type BubbleMsg } from '@/components/messages/MessageBubble.vue'
 import MessageMenu, { type MenuAction } from '@/components/messages/MessageMenu.vue'
@@ -344,8 +344,11 @@ function findMsg(id: string) {
 function replyOf(m: ChatMsg) {
   if (!m.replyToId) return null
   const target = findMsg(m.replyToId) ?? replyCache.get(m.replyToId)
-  if (!target) return { who: '', text: 'Original message' }
-  return { who: target.senderId === me.value ? 'You' : other.name, text: snippet(target) }
+  const replier = m.senderId === me.value ? 'You' : other.name
+  if (!target) return { caption: `${replier} replied to a message`, text: 'Original message' }
+  const toMine = target.senderId === me.value
+  const to = m.senderId === target.senderId ? (toMine ? 'yourself' : 'their message') : toMine ? 'you' : other.name
+  return { caption: `${replier} replied to ${to}`, text: snippet(target) }
 }
 
 async function toBottom() {
@@ -528,7 +531,8 @@ function openMenu(id: string, el: HTMLElement) {
 const menuActions = computed<MenuAction[]>(() => {
   const m = menu.value?.msg
   if (!m) return []
-  const mine = m.senderId === me.value
+  // Edit and unsend close CHANGE_WINDOW_MS after sending (DB-enforced too).
+  const mine = m.senderId === me.value && canChange(m)
   const actions: MenuAction[] = [{ key: 'reply', label: 'Reply', icon: 'lucide:reply' }]
   if (m.body) actions.push({ key: 'copy', label: 'Copy', icon: 'lucide:copy' })
   if (mine && m.body) actions.push({ key: 'edit', label: 'Edit', icon: 'lucide:pencil' })
@@ -1043,10 +1047,17 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 700;
 }
+/* The same faded ghost bubble the sent reply shows above itself. */
 .compose-ctx-text {
+  max-width: 100%;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 5px 12px;
   overflow: hidden;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--m-border) 70%, transparent);
   color: var(--m-muted);
-  font-size: 12px;
+  font-size: 12.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

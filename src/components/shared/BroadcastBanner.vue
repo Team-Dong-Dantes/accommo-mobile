@@ -1,15 +1,17 @@
 <template>
-  <transition name="broadcast">
-    <div v-if="current" class="broadcast" role="status">
-      <button type="button" class="broadcast-main" @click="open">
-        <span class="broadcast-icon"><IconifyIcon icon="lucide:megaphone" width="15" /></span>
-        <span class="broadcast-text">
-          <span class="broadcast-title">{{ current.title }}</span>
-          <span class="broadcast-sub">{{ current.summary || current.body }}</span>
+  <transition name="fcard">
+    <div v-if="current" class="fcard broadcast" :class="{ 'fcard--stacked': queue.length > 1 }" role="status">
+      <button type="button" class="fcard-main" @click="open">
+        <span class="fcard-tile fcard-tile--primary"><IconifyIcon icon="lucide:megaphone" width="17" /></span>
+        <span class="fcard-text">
+          <span class="fcard-title">{{ current.title }}</span>
+          <span class="fcard-body">{{ current.summary || current.body }}</span>
+          <span class="fcard-meta">
+            {{ current.accommodation_id ? current.accommodations?.name ?? 'Your accommodation' : 'OSAS' }}<template v-if="queue.length > 1"> · 1 of {{ queue.length }}</template>
+          </span>
         </span>
-        <span v-if="queue.length > 1" class="broadcast-count">{{ queue.length }}</span>
       </button>
-      <button type="button" class="broadcast-x" aria-label="Dismiss" @click="dismiss">
+      <button type="button" class="fcard-x" aria-label="Dismiss" @click="dismiss">
         <IconifyIcon icon="lucide:x" width="15" />
       </button>
     </div>
@@ -40,7 +42,15 @@ import { supabase } from '@/utils/supabase'
 
 const props = defineProps<{ role: 'manager' | 'student' }>()
 
-type Broadcast = { id: string; title: string; body: string; summary: string | null }
+type Broadcast = {
+  id: string
+  title: string
+  body: string
+  summary: string | null
+  /** Null for an OSAS broadcast; a house notice names the house it is from. */
+  accommodation_id: string | null
+  accommodations: { name: string } | null
+}
 
 const SEEN_KEY = 'accommo:seen-broadcasts'
 /** Nobody works through a stack deeper than this in a banner. */
@@ -80,7 +90,7 @@ async function refresh() {
   // banner did not.
   let query = supabase
     .from('announcements')
-    .select('id, title, body, summary')
+    .select('id, title, body, summary, accommodation_id, accommodations(name)')
     .order('published_at', { ascending: false })
     .limit(LIMIT)
   if (me.value) query = query.neq('author_id', me.value)
@@ -137,96 +147,3 @@ function open() {
   void router.push(`/${props.role}/announcement/${row.id}`)
 }
 </script>
-
-<style scoped>
-.broadcast {
-  /* The header is fixed, so `top: 100%` parks this just under whichever header
-     variant is on screen — main or sub-page — without contributing any height
-     to it. The page below keeps its own layout and scrolls under the banner. */
-  position: absolute;
-  z-index: 1;
-  top: 100%;
-  right: 12px;
-  left: 12px;
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--m-info) 30%, var(--m-border));
-  border-radius: var(--m-radius);
-  background: var(--m-info-soft);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-  backdrop-filter: blur(12px) saturate(150%);
-}
-.broadcast-main {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.broadcast-icon {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-info);
-}
-.broadcast-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
-.broadcast-title {
-  overflow: hidden;
-  color: var(--m-ink);
-  font-size: 12.5px;
-  font-weight: 700;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.broadcast-sub {
-  overflow: hidden;
-  color: var(--m-text);
-  font-size: 11px;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.broadcast-count {
-  flex: 0 0 auto;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--m-surface);
-  color: var(--m-info);
-  font-size: 10.5px;
-  font-weight: 700;
-}
-.broadcast-x {
-  display: grid;
-  flex: 0 0 auto;
-  padding: 0 10px;
-  place-items: center;
-  border: 0;
-  background: none;
-  color: var(--m-muted);
-  cursor: pointer;
-}
-.broadcast-enter-active,
-.broadcast-leave-active { transition: opacity .18s ease, transform .18s ease; }
-.broadcast-enter-from,
-.broadcast-leave-to { opacity: 0; transform: translateY(-6px); }
-
-@media (prefers-reduced-motion: reduce) {
-  .broadcast-enter-active,
-  .broadcast-leave-active { transition: none; }
-}
-</style>

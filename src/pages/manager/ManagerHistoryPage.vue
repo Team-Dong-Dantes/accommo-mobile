@@ -2,7 +2,7 @@
   <q-page class="history-page" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
       <!-- Desktop: the loaded shape — the way back live already above a card
-           of halves, each with its own search. -->
+           showing one tab at a time, with its own search. -->
       <div v-if="loading && split" class="stack">
         <div class="desk-back-row">
           <button type="button" class="desk-panel-back" :aria-label="backLabel" @click="goBack">
@@ -10,10 +10,9 @@
           </button>
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
-        <div class="desk-card">
-          <div v-for="t in TABS" :key="t.key" class="desk-col">
+        <div class="desk-card desk-card--tabbed">
+          <div class="desk-col">
             <q-skeleton type="rect" height="40px" class="sk sk-search" />
-            <h2 class="desk-col-title">{{ t.label }}</h2>
             <q-skeleton type="rect" height="90px" class="sk" />
             <q-skeleton type="rect" height="90px" class="sk" />
           </div>
@@ -41,7 +40,7 @@
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
         <div class="m-tabbed">
-          <div v-if="!split" class="tabs" role="tablist" aria-label="History">
+          <div class="tabs" role="tablist" aria-label="History">
             <button
               v-for="t in TABS"
               :key="t.key"
@@ -56,10 +55,12 @@
             </button>
           </div>
 
-          <div :class="split ? 'desk-card' : 'panel'">
+          <!-- Desktop: still tabs, not halves side by side — three lists squeezed
+               into a third of the card each were too narrow to read. -->
+          <div :class="split ? 'desk-card desk-card--tabbed' : 'panel'">
             <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
-              <component :is="panelIs" v-for="t in TABS" :key="t.key" :name="t.key" :class="split ? 'desk-col' : 'tab-panel'">
-                <!-- Desktop: each half searches and filters only itself. -->
+              <component :is="panelIs" v-for="t in TABS" v-show="!split || tab === t.key" :key="t.key" :name="t.key" :class="split ? 'desk-col' : 'tab-panel'">
+                <!-- Desktop: each tab searches and filters only itself. -->
                 <SearchDock
                   v-if="split"
                   v-model="queries[t.key]"
@@ -71,7 +72,6 @@
                   search-label="Search"
                   @open-filters="openFilters(t.key)"
                 />
-                <h2 v-if="split" class="desk-col-title">{{ t.label }}</h2>
                 <BoarderHistoryTab v-if="t.key === 'boarders'" :money="money" :reviews="written" :query="queries.boarders" />
                 <ManagerRatingsTab v-else-if="t.key === 'reviews'" :reviews="reviews" :query="queries.reviews" :date-filter="reviewDateFilter" />
                 <ManagerPaymentsTab v-else :payments="payments" :leases="money.leases" :query="queries.payments" :status="filter" />
@@ -197,7 +197,7 @@ const tab = ref<TabKey>(tabFromRoute())
 watch(() => route.query.tab, () => {
   if (route.path === '/manager/profile/history') tab.value = tabFromRoute()
 })
-// Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
+// Desktop puts the panels in a card, still one tab at a time (useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
 
 const reviews = ref<Review[]>([])
