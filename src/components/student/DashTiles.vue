@@ -133,7 +133,8 @@ button { font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight
   /* Takes whatever the dashboard has left (StudentDashboard fits the page to the screen). */
   flex: 1 1 260px;
   min-height: 160px;
-  max-height: 320px;
+  /* Taller on a portrait tablet, where the phone column has height to spare. */
+  max-height: 440px;
 }
 .stay {
   grid-row: span 2;
@@ -188,7 +189,8 @@ button { font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight
   background: transparent;
 }
 .stay--empty .stay-body { padding: 0; gap: 2px; }
-.stay--empty .stay-name { white-space: normal; }
+.stay--empty .stay-name,
+.stay--empty .stay-room { white-space: normal; }
 
 .card {
   display: flex;

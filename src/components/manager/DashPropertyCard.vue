@@ -46,6 +46,8 @@ const bars = computed(() => {
   min-width: 0;
   min-height: 0;
   height: 100%;
+  /* A portrait tablet has far more height than a phone: the photo grows, the card stops here. */
+  max-height: 300px;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
@@ -64,7 +66,6 @@ const bars = computed(() => {
   /* Fills what the dashboard has left; never shrinks past the name pill. */
   flex: 1 1 76px;
   min-height: 40px;
-  max-height: 150px;
   align-items: flex-end;
   box-sizing: border-box;
   padding: 8px;
