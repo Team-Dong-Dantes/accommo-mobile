@@ -1,0 +1,109 @@
+/* The map's markers. Mapbox builds them in script (utils/mapPins.ts), outside
+   any template, so DiscoverMap styles them through :deep(). */
+/* Mapbox's own control buttons — replaced by .map-locate-btn; the geolocate
+   control stays mounted only for its user dot and accuracy ring. */
+:deep(.mapboxgl-ctrl-top-right) {
+  display: none;
+}
+/* Accommodation pins: a price pill with a tail. Grey "Full" and faded
+   (doesn't take you) pins stay tappable but sink below the rest; the picked
+   one fills with the brand colour and rises above everything. */
+:deep(.price-pin) {
+  position: relative;
+  padding: 4px 9px;
+  border: 1.5px solid var(--m-surface);
+  border-radius: 999px;
+  background: var(--m-primary-dark);
+  color: #fff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.3);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+:deep(.price-pin)::after {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--m-surface);
+  border-bottom: 1.5px solid var(--m-surface);
+  background: inherit;
+  content: '';
+  transform: translateX(-50%) rotate(45deg);
+}
+:deep(.price-pin--full) {
+  background: var(--m-muted);
+}
+:deep(.price-pin--dim) {
+  opacity: 0.45;
+}
+/* Mapbox stacks markers in DOM order; lift the picked one, sink full and
+   faded ones. On the marker wrapper, which Mapbox gives no z-index of its own. */
+:deep(.mapboxgl-marker:has(.price-pin)) {
+  z-index: 1;
+}
+:deep(.mapboxgl-marker:has(.price-pin--full)),
+:deep(.mapboxgl-marker:has(.price-pin--dim)) {
+  z-index: 0;
+}
+:deep(.mapboxgl-marker:has(.price-pin--on)) {
+  z-index: 2;
+}
+/* A place is picked: only its pin stays, so it and its walk to campus read
+   clearly. The card's X un-picks and brings the rest back. */
+.map-region--picked :deep(.mapboxgl-marker:has(.price-pin):not(:has(.price-pin--on))) {
+  visibility: hidden;
+}
+:deep(.price-pin--on) {
+  background: var(--m-primary);
+  opacity: 1;
+  transform: scale(1.18);
+  transform-origin: bottom center;
+}
+/* Campus landmark — a badge, not a control: never swallow a tap meant for
+   the map or a nearby pin. */
+:deep(.campus-badge) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 3px;
+  border: 1.5px solid var(--m-primary-dark);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-primary-dark);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+}
+:deep(.campus-badge-icon) {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--m-primary-dark);
+  color: #fff;
+}
+/* Distance parked at the middle of the campus link line. */
+:deep(.campus-link-label) {
+  padding: 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--m-border) 60%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(160%);
+  color: var(--m-primary-dark);
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+}
