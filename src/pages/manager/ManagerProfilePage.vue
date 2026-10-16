@@ -122,373 +122,40 @@
       </div>
 
       <!-- ===== PROFILE ===== -->
-      <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
-      <ProfileCompleteStrip :gaps="gaps" to="/manager/profile/complete" />
-      <ProfileCard :open="isDesktop">
-        <template #always>
-          <ProfileBlock v-show="shows('ps-details')" id="ps-details" icon="lucide:user" title="Personal details">
-            <template #actions>
-              <EditButton v-if="!editing" @click="startEdit" />
-            </template>
-            <ProfileField v-model="draft.fullName" label="Full name" :editing="editing" />
-            <ProfileField v-model="draft.phone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
-            <ProfileField v-model="draft.email" label="Email" readonly :editing="editing" />
-            <!-- Filled in through Complete your profile; changed after that by OSAS only. -->
-            <ProfileField :model-value="sexLabel(me.sex)" label="Sex" readonly :editing="editing" />
-            <ProfileField :model-value="birthDateLabel(me.dob)" label="Date of birth" readonly :editing="editing" />
-            <template v-if="editing" #foot>
-              <div class="card-actions">
-                <button class="btn-cancel" :disabled="saving" @click="cancelEdit">Cancel</button>
-                <button class="btn-save" :disabled="saving" @click="save">
-                  {{ saving ? 'Saving…' : 'Save changes' }}
-                </button>
-              </div>
-            </template>
-          </ProfileBlock>
-        </template>
-
-        <template #more>
-          <ProfileBlock
-            v-show="shows('ps-verification')"
-            id="ps-verification"
-            icon="lucide:shield-check"
-            title="Verification"
-            :badge="pendingDocs > 0 ? `${pendingDocs} pending` : ''"
-          >
-            <div v-if="documents.length" class="doc-list">
-              <div v-for="doc in documents" :key="doc.id" class="doc-item">
-                <span class="doc-icon" :class="`doc-${doc.tone}`">
-                  <IconifyIcon :icon="doc.icon" width="14" />
-                </span>
-                <div class="doc-info">
-                  <span class="doc-name">{{ doc.label }}</span>
-                  <span class="doc-when">{{ doc.when }}</span>
-                </div>
-                <span class="doc-status" :class="`status-${doc.tone}`">{{ doc.statusLabel }}</span>
-              </div>
-            </div>
-            <EmptyState v-else variant="compact" icon="lucide:file-text" title="No requirements yet" message="Requirements you submit to OSAS show up here." />
-            <button class="link-btn" @click="go('/manager/osas')">
-              <IconifyIcon icon="lucide:arrow-right" width="16" />
-              <span>Open OSAS</span>
-            </button>
-          </ProfileBlock>
-
-          <ProfileBlock v-show="shows('ps-accommodations')" id="ps-accommodations" icon="lucide:building-2" title="Accommodations">
-            <template #actions>
-              <button
-                class="icon-btn"
-                :disabled="!auth.isVerifiedLandlord"
-                :title="auth.isVerifiedLandlord ? 'Add accommodation' : 'Available once OSAS verifies your account'"
-                aria-label="Add accommodation"
-                @click="go('/manager/properties/new')"
-              >
-                <IconifyIcon icon="lucide:plus" width="18" />
-              </button>
-            </template>
-            <button class="link-btn" @click="go('/manager/properties')">
-              <IconifyIcon icon="lucide:list" width="16" />
-              <span>Manage {{ accommodationCount }} {{ accommodationCount === 1 ? 'accommodation' : 'accommodations' }}</span>
-              <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-            </button>
-            <button class="link-btn" @click="go('/manager/tenants')">
-              <IconifyIcon icon="lucide:users" width="16" />
-              <span>{{ tenantCount }} active {{ tenantCount === 1 ? 'boarder' : 'boarders' }}</span>
-              <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-            </button>
-          </ProfileBlock>
-
-          <ProfileBlock v-show="shows('ps-settings')" id="ps-settings" icon="lucide:settings" title="Settings">
-            <button class="link-btn" @click="go('/manager/settings')">
-              <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
-              <span>Notifications, security, appearance &amp; more</span>
-              <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-            </button>
-          </ProfileBlock>
-        </template>
-
-        <template #footer>
-          Member since {{ memberSinceLabel || 'recently' }}
-          <span v-if="updatedAt" class="updated">· {{ ago(updatedAt) }}</span>
-        </template>
-      </ProfileCard>
-      </div>
+      <ManagerProfileDetails />
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { Icon as IconifyIcon } from '@iconify/vue'
+import ManagerProfileDetails from '@/components/manager/profile/ManagerProfileDetails.vue'
+import ProfileHero from '@/components/shared/ProfileHero.vue'
+import ProfileSectionNav from '@/components/shared/ProfileSectionNav.vue'
 import VerificationBanner from '@/components/manager/VerificationBanner.vue'
 import { isDesktop } from '@/utils/useTabletMode'
-import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase, authUser } from '@/utils/supabase'
-import { useLiveData } from '@/utils/useLiveData'
-import { capitalizeName, initialsOf, isPersonName, isPhMobile, landlordTitle, normalizePhPhone } from '@/utils/format'
-import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
-import { useNotify } from '@/utils/notify'
-import ProfileField from '@/components/shared/ProfileField.vue'
-import ProfileHero from '@/components/shared/ProfileHero.vue'
-import EmptyState from '@/components/shared/EmptyState.vue'
-import ProfileCard from '@/components/shared/ProfileCard.vue'
-import ProfileBlock from '@/components/shared/ProfileBlock.vue'
-import ProfileSectionNav from '@/components/shared/ProfileSectionNav.vue'
-import EditButton from '@/components/shared/EditButton.vue'
-import { DOC_LABEL, docPresentation, statusPresentation, memberSince, ago, birthDateLabel, profileGaps, sexLabel } from '@/utils/profile'
-import ProfileCompleteStrip from '@/components/shared/ProfileCompleteStrip.vue'
+import { landlordTitle } from '@/utils/format'
+import { provideManagerProfile } from '@/components/manager/profile/managerProfile'
 
-// ----- Types -----
-interface DocRow {
-  id: string
-  label: string
-  statusLabel: string
-  tone: string
-  icon: string
-  when: string
-}
-
-// ----- Router & notifications -----
-const router = useRouter()
-const auth = useAuthStore()
-const notify = useNotify()
-
-// ----- Reactive State -----
-const loading = ref(true)
-const saving = ref(false)
-const error = ref('')
-const editing = ref(false)
-
-const userId = ref('')
-const avatarUrl = ref<string | null>(null)
-const coverUrl = ref<string | null>(null)
-
-// User data – must be defined before render
-const me = reactive({
-  fullName: '',
-  email: '',
-  phone: '',
-  initials: '?',
-  status: 'unverified',
-  // Drives the Landlord / Landlady title on this header. Null is normal — the
-  // column is optional — and falls back to the neutral compound.
-  sex: null as string | null,
-  dob: '',
-})
-const gaps = computed(() => profileGaps({ avatar_url: avatarUrl.value, sex: me.sex, date_of_birth: me.dob }, false))
-
-// Draft for editing
-const draft = reactive({
-  fullName: '',
-  phone: '',
-  email: '',
-})
-
-const createdAt = ref<string | null>(null)
-const updatedAt = ref<string | null>(null)
-const responseRate = ref<number | null>(null)
-const accommodationCount = ref(0)
-const tenantCount = ref(0)
-const documents = ref<DocRow[]>([])
-
-// ----- Computed -----
-const status = computed(() => statusPresentation(me.status))
-const memberSinceLabel = computed(() => memberSince(createdAt.value))
-const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
-// Desktop shows one section at a time, picked from the left-half menu.
-const tab = ref('ps-details')
-const shows = (id: string) => !isDesktop.value || tab.value === id
-const sections = computed(() => [
-  { id: 'ps-details', label: 'Personal details', icon: 'lucide:user' },
-  { id: 'ps-verification', label: 'Verification', icon: 'lucide:shield-check', badge: pendingDocs.value ? `${pendingDocs.value} pending` : '' },
-  { id: 'ps-accommodations', label: 'Accommodations', icon: 'lucide:building-2' },
-  { id: 'ps-settings', label: 'Settings', icon: 'lucide:settings' },
-])
-
-// ----- Methods -----
-function go(path: string) {
-  void router.push(path)
-}
-
-function startEdit() {
-  draft.fullName = me.fullName
-  draft.phone = me.phone
-  draft.email = me.email
-  editing.value = true
-}
-
-function cancelEdit() {
-  editing.value = false
-}
-
-async function save() {
-  // Held to the register screen's rule, and its case fixed the same way, so
-  // a name refused at sign-up cannot come back in from here.
-  const name = capitalizeName(draft.fullName.trim().replace(/\s+/g, ' '))
-  if (!name) {
-    notify.error('Your name cannot be empty.')
-    return
-  }
-  if (!isPersonName(name)) {
-    notify.error('Use letters, spaces, hyphens and apostrophes only in your name.')
-    return
-  }
-  if (!name.includes(' ')) {
-    notify.error('Enter your first and last name.')
-    return
-  }
-  // Checked here as well as at registration: normalizePhPhone turns an empty
-  // field into the string "+63" and the column is NOT NULL, so without this the
-  // register screen's validation was undone by one visit to this page.
-  if (!isPhMobile(draft.phone)) {
-    notify.error('Enter a valid mobile number, e.g. 0912 345 6789.')
-    return
-  }
-
-  saving.value = true
-  try {
-    const phone = normalizePhPhone(draft.phone)
-    const initials = initialsOf(name)
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ full_name: name, phone, initials })
-      .eq('id', userId.value)
-    if (updateError) throw updateError
-
-    me.fullName = name
-    me.phone = phone
-    me.initials = initials
-    updatedAt.value = new Date().toISOString()
-    editing.value = false
-    notify.success('Profile updated.')
-  } catch (e) {
-    notify.error(e instanceof Error ? e.message : 'Could not save.')
-  } finally {
-    saving.value = false
-  }
-}
-
-// ----- Load Data -----
-async function load(silent = false) {
-  if (!silent) loading.value = true
-  error.value = ''
-  try {
-    const { data: auth } = await authUser()
-    const user = auth?.user
-    if (!user) {
-      void router.push('/login')
-      return
-    }
-    userId.value = user.id
-
-    const [{ data: profile, error: profileError }, { data: managerProfile }] = await Promise.all([
-      supabase
-        .from('users_full')
-        .select('full_name, email, phone, initials, status, sex, date_of_birth, created_at, updated_at, avatar_url, cover_url')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('landlord_profiles')
-        .select('response_rate')
-        .eq('user_id', user.id)
-        .maybeSingle(),
-    ])
-    if (profileError) throw profileError
-
-    me.fullName = profile?.full_name || 'Your name'
-    me.email = profile?.email || user.email || ''
-    me.phone = profile?.phone || ''
-    me.initials = profile?.initials || initialsOf(me.fullName)
-    me.status = profile?.status || 'unverified'
-    me.sex = profile?.sex ?? null
-    me.dob = profile?.date_of_birth || ''
-    createdAt.value = profile?.created_at ?? null
-    updatedAt.value = profile?.updated_at ?? null
-
-    // Avatar from metadata, falling back to the stored column — this
-    // session's metadata can be stale or empty (uploaded on another device,
-    // or written straight to the database).
-    const metadata = user.user_metadata as Record<string, unknown> | undefined
-    const picture =
-      typeof metadata?.avatar_url === 'string'
-        ? metadata.avatar_url
-        : typeof metadata?.picture === 'string'
-          ? metadata.picture
-          : ''
-    const storedAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url || ''
-    avatarUrl.value = resolveAsset(picture || storedAvatar, AVATAR) || null
-    coverUrl.value = profile?.cover_url ?? null
-    responseRate.value = managerProfile?.response_rate ?? null
-
-    // Never clobber an in-progress edit with a silent (realtime-triggered)
-    // background refresh — only the real first load seeds the draft.
-    if (!silent) Object.assign(draft, { fullName: me.fullName, phone: me.phone, email: me.email })
-
-    // Accommodations count
-    const { data: accommodations } = await supabase
-      .from('accommodations')
-      .select('id')
-      .eq('landlord_id', user.id)
-    const accommodationIds = (accommodations || []).map((a) => a.id)
-    accommodationCount.value = accommodationIds.length
-
-    // Tenant count
-    if (accommodationIds.length) {
-      const { data: rooms } = await supabase
-        .from('rooms')
-        .select('id')
-        .in('accommodation_id', accommodationIds)
-      const roomIds = (rooms || []).map((r) => r.id)
-      if (roomIds.length) {
-        const { count } = await supabase
-          .from('leases')
-          .select('*', { count: 'exact', head: true })
-          .in('room_id', roomIds)
-          .eq('status', 'active')
-        tenantCount.value = count ?? 0
-      }
-    }
-
-    // Verification documents
-    const { data: docs } = await supabase
-      .from('verification_documents')
-      .select('id, doc_type, status, uploaded_at, verified_at')
-      .eq('user_id', user.id)
-      .order('uploaded_at', { ascending: false })
-
-    documents.value = (docs || []).map((d) => {
-      const presentation = docPresentation(d.status)
-      return {
-        id: d.id,
-        label: DOC_LABEL[d.doc_type || ''] || 'Document',
-        statusLabel: presentation.label,
-        tone: presentation.tone,
-        icon: presentation.icon,
-        when: d.verified_at ? `Reviewed ${ago(d.verified_at)}` : `Sent ${ago(d.uploaded_at)}`,
-      }
-    })
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Something went wrong.'
-  } finally {
-    loading.value = false
-  }
-}
-
-// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so an
-// OSAS verification decision pushes here instead of the page re-asking on
-// return. utils/useLiveData.ts owns the whole policy — first load, the
-// subscription's lifetime, and how stale the data may be on return.
-// Kept alive, so a step saved in Complete your profile has to tell this page.
-const onProfileChange = () => void load(true)
-onMounted(() => window.addEventListener('accommo:profile-change', onProfileChange))
-onUnmounted(() => window.removeEventListener('accommo:profile-change', onProfileChange))
-
-useLiveData({
-  key: 'manager-profile',
+// The page is the shell — loading, the hero and the section menu. The details
+// half lives in components/manager/profile/.
+const {
+  auth,
+  loading,
+  error,
+  userId,
+  avatarUrl,
+  coverUrl,
+  me,
+  responseRate,
+  accommodationCount,
+  tenantCount,
+  status,
+  tab,
+  sections,
+  go,
   load,
-  watch: (uid) => [{ table: 'verification_documents', filter: `user_id=eq.${uid}` }],
-})
+} = provideManagerProfile()
 </script>
 
 <style scoped>
@@ -503,16 +170,11 @@ useLiveData({
   padding-bottom: 24px;
   min-height: 100vh;
 }
-
 .loading-stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 12px 16px 80px;
-}
-
-.sk {
-  border-radius: 12px;
 }
 .sk-card {
   display: flex;
@@ -547,13 +209,11 @@ useLiveData({
 .sk-fields {
   gap: 10px;
 }
-
 .error-state {
   display: flex;
   justify-content: center;
   padding: 40px 16px;
 }
-
 .error-card {
   max-width: 340px;
   width: 100%;
@@ -562,25 +222,21 @@ useLiveData({
   background: white;
   text-align: center;
 }
-
 .error-icon {
   color: var(--m-muted);
   margin-bottom: 8px;
 }
-
 .error-title {
   margin: 0 0 4px;
   font-size: 17px;
   font-weight: 700;
   color: var(--m-ink);
 }
-
 .error-message {
   margin: 0 0 16px;
   font-size: 14px;
   color: var(--m-muted);
 }
-
 /* ===== CONTENT ===== */
 /* Desktop: the card fills the page below a gutter, like every halves page. */
 .profile-page.page-wide {
@@ -594,7 +250,6 @@ useLiveData({
   gap: 14px;
   padding: 12px 16px 40px;
 }
-
 /* Quick Stats */
 .quick-stats {
   display: flex;
@@ -602,13 +257,11 @@ useLiveData({
   align-items: center;
   justify-content: space-around;
 }
-
 .stat-block {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-
 .stat-badge {
   display: flex;
   flex: 0 0 32px;
@@ -620,7 +273,6 @@ useLiveData({
   background: var(--m-primary-soft);
   color: var(--m-primary-dark);
 }
-
 .stat-number {
   font-size: 18px;
   font-weight: 700;
@@ -628,7 +280,6 @@ useLiveData({
   display: block;
   line-height: 1.2;
 }
-
 .stat-label {
   font-size: 11px;
   font-weight: 600;
@@ -637,7 +288,6 @@ useLiveData({
   letter-spacing: 0.03em;
   display: block;
 }
-
 .stat-divider {
   width: 1px;
   height: 30px;
@@ -650,175 +300,5 @@ useLiveData({
 }
 .page-wide .stat-block {
   text-align: center;
-}
-
-/* Action Scan */
-/* ===== CARDS ===== */
-.icon-btn {
-  display: flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--m-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--m-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.icon-btn:hover {
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-
-.card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--m-bg);
-  background: var(--m-surface);
-}
-
-.btn-cancel,
-.btn-save {
-  padding: 8px 22px;
-  border: 0;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s;
-  min-height: 44px;
-}
-
-.btn-cancel {
-  background: transparent;
-  color: var(--m-muted);
-}
-.btn-cancel:hover {
-  background: var(--m-bg);
-}
-
-.btn-save {
-  background: var(--mp-accent);
-  color: white;
-}
-.btn-save:hover {
-  background: var(--mp-accent-dark);
-}
-
-.btn-cancel:disabled,
-.btn-save:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.updated {
-  color: var(--m-muted);
-  opacity: 0.7;
-}
-
-/* ===== DOCS ===== */
-.doc-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.doc-icon {
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-
-.doc-good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.doc-idle {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-.doc-warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.doc-danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-
-.doc-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.doc-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--m-ink);
-  display: block;
-}
-
-.doc-when {
-  font-size: 12px;
-  color: var(--m-muted);
-}
-
-.doc-status {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.status-good {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.status-idle {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-.status-warn {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.status-danger {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-
-
-/* ===== LINK BUTTONS ===== */
-.link-btn {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 12px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  color: var(--m-ink);
-  padding: 12px 16px;
-  min-height: 48px;
-  transition: background 0.12s;
-}
-
-.link-btn:hover {
-  background: var(--m-bg);
-}
-
-.link-btn .chevron {
-  margin-left: auto;
-  color: var(--m-muted);
 }
 </style>
