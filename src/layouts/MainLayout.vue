@@ -158,116 +158,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { supabase, authUser } from '@/utils/supabase'
-import { useNotificationsStore } from '@/stores/notifications'
-import { useMessagesStore } from '@/stores/messages'
-import { startPush } from '@/utils/push'
-import { initialsOf } from '@/utils/format'
-import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
-import { chatFullscreen } from '@/utils/chatFullscreen'
-import { isTablet, isDesktop } from '@/utils/useTabletMode'
-import DesktopRail from '@/components/layout/DesktopRail.vue'
-import { useShellPanes, PANE_LISTS } from '@/utils/useShellPanes'
 import BottomNav from '@/components/layout/BottomNav.vue'
-import SideRail from '@/components/layout/SideRail.vue'
-import TermsGate from '@/components/shared/TermsGate.vue'
 import BroadcastBanner from '@/components/shared/BroadcastBanner.vue'
+import ConfirmGate from '@/components/shared/ConfirmGate.vue'
+import DesktopRail from '@/components/layout/DesktopRail.vue'
 import InAppNotice from '@/components/shared/InAppNotice.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
-import ConfirmGate from '@/components/shared/ConfirmGate.vue'
-import type { QuickAction, SecondaryPage, ShellConfig } from '@/types/app-types'
-import { countLeasesAwaitingManager } from '@/api/leases';
+import SideRail from '@/components/layout/SideRail.vue'
+import TermsGate from '@/components/shared/TermsGate.vue'
+import { isDesktop, isTablet } from '@/utils/useTabletMode'
 import { pageTitleOverride } from '@/utils/pageTitle'
-import { loadProfileGaps } from '@/utils/profile'
-import { useAuthStore } from '@/stores/auth'
+import { useShell } from './shell/useShell'
 
-const router = useRouter()
-const route = useRoute()
-const notifications = useNotificationsStore()
-const messagesStore = useMessagesStore()
-
-// One shell, two configurations. The role is read from the path so the chrome
-// renders correctly on first paint, with no async role lookup flicker.
-const SHELLS: Record<'manager' | 'student', ShellConfig> = {
-  manager: {
-    home: '/manager/dashboard',
-    notifications: '/manager/notifications',
-    tabs: [
-      { name: 'home', route: '/manager/dashboard', icon: 'lucide:house', label: 'Home' },
-      { name: 'properties', route: '/manager/properties', icon: 'lucide:building-2', label: 'Properties' },
-      // Centre of the bar, raised (BottomNav). A tab, not a Menu entry, so it
-      // is no longer in quickActions or secondaryPages either: a tab screen has
-      // the nav under it and no back arrow.
-      { name: 'tenants', route: '/manager/tenants', icon: 'lucide:users', label: 'My Boarders', match: ['/manager/tenant/'], featured: true },
-      { name: 'messages', route: '/manager/messages', icon: 'lucide:message-circle', label: 'Messages' },
-      { name: 'menu', route: '/manager/profile', icon: 'lucide:menu', label: 'Menu' },
-    ],
-    quickActions: [
-      { icon: 'lucide:shield-check', label: 'OSAS', route: '/manager/osas' },
-      { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/manager/support' },
-      { icon: 'lucide:megaphone', label: 'Announcements', route: '/manager/announcements' },
-    ],
-    secondaryPages: [
-      { path: '/manager/profile', title: 'Profile', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: '/manager/settings', title: 'Settings', back: '/manager/profile', backLabel: 'profile' },
-      { path: '/manager/profile/qr-scanner', title: 'QR scanner', back: '/manager/profile', backLabel: 'profile' },
-      { path: '/manager/profile/history', title: 'History', back: '/manager/profile', backLabel: 'profile' },
-      { path: '/manager/profile/complete', title: 'Complete profile', back: '/manager/profile', backLabel: 'profile' },
-      { path: '/manager/settings/terms', title: 'Terms & Privacy', back: '/manager/settings', backLabel: 'settings' },
-      { path: '/manager/notifications', title: 'Notifications', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: '/manager/announcements', title: 'Announcements', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: /^\/manager\/announcement\/[^/]+$/, title: 'Announcement', back: '/manager/notifications', backLabel: 'notifications' },
-      { path: /^\/manager\/person\/[^/]+$/, title: 'Profile', back: '/manager/messages', backLabel: 'messages' },
-      { path: '/manager/osas', title: 'OSAS', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: '/manager/support', title: 'Concerns', back: '/manager/dashboard', backLabel: 'dashboard' },
-      { path: /^\/manager\/tenant\/[^/]+$/, title: 'Boarder', back: '/manager/tenants', backLabel: 'my boarders' },
-      { path: '/manager/properties/new', title: 'New Accommodation', back: '/manager/properties', backLabel: 'properties' },
-      { path: /^\/manager\/properties\/[^/]+$/, title: 'Accommodation Details', back: '/manager/properties', backLabel: 'properties' },
-    ],
-  },
-  student: {
-    home: '/student/home',
-    notifications: '/student/notifications',
-    tabs: [
-      { name: 'home', route: '/student/home', icon: 'lucide:house', label: 'Home' },
-      { name: 'discover', route: '/student/discover', icon: 'lucide:search', label: 'Discover' },
-      // Centre of the bar, raised — see the manager's 'tenants' tab.
-      { name: 'stay', route: '/student/stay', icon: 'lucide:bed-double', label: 'My Stay', featured: true },
-      { name: 'messages', route: '/student/messages', icon: 'lucide:message-circle', label: 'Messages' },
-      { name: 'menu', route: '/student/profile', icon: 'lucide:menu', label: 'Menu' },
-    ],
-    quickActions: [
-      // Labelled by who answers, so a student picks the right one before opening it.
-      { icon: 'lucide:shield-check', label: 'OSAS', route: '/student/support' },
-      { icon: 'lucide:triangle-alert', label: 'Concerns', route: '/student/concerns' },
-    ],
-    secondaryPages: [
-      { path: '/student/profile', title: 'Profile', back: '/student/home', backLabel: 'home' },
-      { path: '/student/settings', title: 'Settings', back: '/student/profile', backLabel: 'profile' },
-      { path: '/student/profile/qr', title: 'My QR', back: '/student/profile', backLabel: 'profile' },
-      { path: '/student/profile/history', title: 'History', back: '/student/profile', backLabel: 'profile' },
-      { path: '/student/profile/complete', title: 'Complete profile', back: '/student/profile', backLabel: 'profile' },
-      { path: '/student/settings/terms', title: 'Terms & Privacy', back: '/student/settings', backLabel: 'settings' },
-      { path: '/student/notifications', title: 'Notifications', back: '/student/home', backLabel: 'home' },
-      { path: /^\/student\/announcement\/[^/]+$/, title: 'Announcement', back: '/student/notifications', backLabel: 'notifications' },
-      { path: /^\/student\/person\/[^/]+$/, title: 'Profile', back: '/student/messages', backLabel: 'messages' },
-      { path: '/student/support', title: 'OSAS', back: '/student/home', backLabel: 'home' },
-      { path: '/student/concerns', title: 'Concerns', back: '/student/home', backLabel: 'home' },
-      { path: '/student/payments', title: 'Payments', back: '/student/home', backLabel: 'home' },
-      { path: /^\/student\/listing\/[^/]+$/, title: 'Listing', back: '/student/discover', backLabel: 'discover' },
-      { path: '/student/properties', title: 'Properties', back: '/student/discover', backLabel: 'discover' },
-      { path: /^\/student\/room\/[^/]+$/, title: 'Room', back: '/student/discover', backLabel: 'discover' },
-      { path: /^\/student\/manager\/[^/]+$/, title: 'Landlord/Landlady', back: '/student/discover', backLabel: 'discover' },
-    ],
-  },
-}
-
-const role = computed<'manager' | 'student'>(() =>
-  route.path.startsWith('/manager') ? 'manager' : 'student',
-)
-const config = computed(() => SHELLS[role.value])
+// The shell's state lives in ./shell/; this is its markup.
+const {
+  route,
+  notifications,
+  role,
+  config,
+  pageKey,
+  displayTabs,
+  displayQuickActions,
+  accountActions,
+  railAccountActions,
+  userInitials,
+  profileImageUrl,
+  menuOpen,
+  scrolled,
+  activeBottomTab,
+  matchSecondary,
+  subPage,
+  isSubPage,
+  deskTitle,
+  hasFloatingMap,
+  panes,
+  backInPane,
+  discoverMapSlot,
+  immersive,
+  goToTab,
+  goToNotifications,
+  goBack,
+  navigateMenuAction,
+} = useShell()
 
 // Bottom-nav tabs + the other singleton screens (no route param — one
 // instance ever exists) kept alive across navigation instead of remounting
@@ -296,379 +228,6 @@ const KEEP_ALIVE_PAGES = [
   // refetch everything on every visit, which is what they used to do.
   'StudentHistoryPage', 'ManagerHistoryPage',
 ]
-
-// Pages that show their list beside the open item on desktop and pick the item
-// by query (?c= a thread, ?t= a ticket). Keyed by fullPath, every pick remounted
-// the whole page, list and scroll position included; keyed by path, the page
-// (which reads the query reactively) swaps just the item.
-const SELF_SPLITTING = ['/manager/messages', '/student/messages', '/manager/osas', '/student/support']
-const pageKey = computed(() =>
-  isDesktop.value && SELF_SPLITTING.includes(route.path) ? route.path : route.fullPath,
-)
-
-/**
- * Which desktop card a path belongs to: a list shown in a pane (or Tenants,
- * which splits itself), for the list and for every detail whose `back` is it.
- * Moving within one card swaps its contents in place (no slide, no back bar).
- */
-function cardOf(path: string | undefined): string | null {
-  if (!path) return null
-  const lists = [...PANE_LISTS, '/manager/tenants']
-  if (lists.includes(path)) return path
-  const back = matchSecondary(path, SHELLS[path.startsWith('/manager') ? 'manager' : 'student'])?.back
-  return back && lists.includes(back) ? back : null
-}
-
-// Same tabs, with the live unread count from the messages store folded onto
-// the 'messages' entry — kept separate from SHELLS so that config stays a
-// plain static lookup.
-const displayTabs = computed(() =>
-  config.value.tabs.map((tab) => {
-    if (tab.name === 'messages') return { ...tab, badge: messagesStore.totalUnread }
-    if (tab.name === 'tenants') return { ...tab, dot: tenantsNeedCheck.value }
-    if (tab.name === 'discover') return { ...tab, dot: discoverNeedCheck.value }
-    if (tab.name === 'menu') return { ...tab, dot: profileNeedsCheck.value }
-    return tab
-  }),
-)
-
-// Same idea for the quick-action menu, so both roles' Concerns entry carries
-// the same kind of self-clearing signal.
-const CONCERNS_ROUTE: Record<'manager' | 'student', string> = {
-  manager: '/manager/support',
-  student: '/student/concerns',
-}
-const displayQuickActions = computed(() =>
-  config.value.quickActions.map((action) =>
-    action.route === CONCERNS_ROUTE[role.value] ? { ...action, dot: concernsNeedCheck.value } : action,
-  ),
-)
-
-// The hamburger tab (bottom nav's old profile slot) opens this menu: Profile
-// and Settings up top, then the role's quick actions below, all in one card.
-// The third row is role-specific: a landlord/landlady scans student QR codes, a
-// student shows their own.
-const auth = useAuthStore()
-const accountActions = computed(() => {
-  const profileRoute = config.value.tabs.find((t) => t.name === 'menu')?.route ?? config.value.home
-  const items: QuickAction[] = [
-    { icon: 'lucide:user', label: 'Profile', route: profileRoute, avatar: true },
-    // Settings is its own destination, not a child of Profile — hence the
-    // role path rather than profileRoute. Scanner/QR below genuinely are
-    // profile screens and keep hanging off it.
-    { icon: 'lucide:settings', label: 'Settings', route: `/${role.value}/settings` },
-  ]
-  // Offered on web too; there the scanner is manual code entry only (see
-  // QRScanner). Verified landlords/landladies only — the database refuses the rest.
-  if (role.value !== 'manager') items.push({ icon: 'lucide:qr-code', label: 'My QR', route: `${profileRoute}/qr` })
-  else if (auth.isVerifiedLandlord) items.push({ icon: 'lucide:scan', label: 'Scanner', route: `${profileRoute}/qr-scanner` })
-  return items
-})
-
-// The desktop rail has no Menu tab to carry the needs-checking dot, so it moves
-// onto the Profile row, which is where the thing being flagged lives.
-const railAccountActions = computed(() =>
-  accountActions.value.map((a) => (a.avatar ? { ...a, dot: profileNeedsCheck.value } : a)),
-)
-
-const userInitials = ref('U')
-const profileImageUrl = ref<string | null>(null)
-// Needs-checking dots: each is a plain existence check against a status that
-// clears itself the moment the underlying row is acted on, so there's no
-// separate "seen/unseen" state to maintain — except discover/concerns below,
-// which use a rolling time window instead (see loadNeedsCheckDots).
-const tenantsNeedCheck = ref(false)
-const profileNeedsCheck = ref(false)
-const concernsNeedCheck = ref(false)
-const discoverNeedCheck = ref(false)
-const menuOpen = ref(false)
-const scrolled = ref(false)
-const activeBottomTab = ref('home')
-
-function matchSecondary(path: string, shell: ShellConfig): SecondaryPage | undefined {
-  return shell.secondaryPages.find((entry) =>
-    typeof entry.path === 'string' ? entry.path === path : entry.path.test(path),
-  )
-}
-
-// On desktop a detail shown inside a card has its way back right there — its
-// list in the pane beside it (a listing beside Discover, an announcement beside
-// Notifications), or a back button on the card itself (TenantProfile,
-// AccommodationDetail) — so the header stays the plain one, not a back bar.
-// Includes /manager/properties/new: the add-property form carries its own back
-// button above its card. Both History pages carry theirs across the card's top.
-const OWN_BACK = /^\/(manager\/(tenant\/[^/]+|properties\/[^/]+)|(manager|student)\/profile\/history)$/
-// Everything the desktop rail links to straight (OSAS, Concerns, Announcements,
-// Profile, Settings, My QR — and the tabs) is a destination there, not a
-// step down from somewhere, so it gets no back button either.
-const railRoutes = computed(() => [
-  ...config.value.quickActions.map((a) => a.route),
-  ...accountActions.value.map((a) => a.route),
-])
-const subPage = computed(() =>
-  isDesktop.value &&
-  (panes.value.mode === 'split' || OWN_BACK.test(route.path) || railRoutes.value.includes(route.path))
-    ? undefined
-    : matchSecondary(route.path, config.value),
-)
-const isSubPage = computed(() => Boolean(subPage.value))
-
-// Desktop names the screen in the header, since the rail's icons don't. In a
-// split it is the card's name (Discover, Notifications), not the item open in
-// it — the detail pane carries its own title where it needs one.
-const deskTitle = computed(() => {
-  const split = panes.value.mode === 'split'
-  const path = split ? panes.value.listPath : route.path
-  return (split ? null : pageTitleOverride.value)
-    ?? matchSecondary(path, config.value)?.title
-    ?? config.value.tabs.find((t) => t.name === activeBottomTab.value)?.label
-})
-
-// Discover runs its map full-bleed behind this header instead of below it,
-// so the header needs its scrolled-state card background always — a plain
-// transparent header over a map (rather than over the page's own solid
-// background) leaves its icons floating with no backing. Not on desktop, where
-// the map is the card's right half, below the header — there the header stays
-// the plain, unoutlined one.
-const hasFloatingMap = computed(() => route.path === '/student/discover' && !isDesktop.value)
-
-// Which panes the stage shows. Single in phone mode, always — the composable
-// short-circuits on isTablet before it looks at anything else.
-const panes = useShellPanes(() => config.value, () => isTablet.value)
-/** A listing opened from a room goes back to the room, else to the map. */
-function backInPane() {
-  if (window.history.state?.back) router.back()
-  else void router.push('/student/discover')
-}
-const discoverMapSlot = computed(
-  () => isDesktop.value && panes.value.mode === 'split' && panes.value.listPath === '/student/discover',
-)
-
-// An open thread or ticket covers the screen on a phone, so the chrome steps
-// aside. In tablet mode it fills the detail pane instead, beside a list that is
-// still on screen — there is nothing to step aside for, and hiding the rail
-// would strand the one thing that navigates. Resolved here rather than in each
-// page so every screen that raises chatFullscreen gets it.
-const immersive = computed(() => chatFullscreen.value && !isTablet.value)
-
-function goToTab(tabName: string) {
-  if (tabName === 'menu') {
-    menuOpen.value = !menuOpen.value
-    return
-  }
-  menuOpen.value = false
-  const tab = config.value.tabs.find((item) => item.name === tabName)
-  if (tab) void router.push(tab.route)
-}
-
-function goToNotifications() {
-  void router.push(config.value.notifications)
-}
-
-// Back steps one page up the way the user came (Listing → Landlord → back is
-// the Listing, not Discover), the same as the phone's own back button. Only a
-// fresh load or deep link, with nothing behind it, uses the configured `back`.
-function goBack() {
-  if (window.history.state?.back) router.back()
-  else void router.push(subPage.value?.back ?? config.value.home)
-}
-
-function navigateMenuAction(path: string) {
-  menuOpen.value = false
-  void router.push(path)
-}
-
-// Which way a page change animates, as <html data-nav>, which the page
-// transition's CSS keys off. Not the <transition>'s name: a page coming back
-// out of keep-alive keeps the hooks of the name it last left with, so a
-// changing name gave the arriving and leaving pages different animations.
-// Set in beforeEach, before the route (and so the page) changes.
-function transitionFor(path: string, previousPath: string): string {
-  const shell = SHELLS[path.startsWith('/manager') ? 'manager' : 'student']
-  // Slide when moving between the main shell and a sub-page; fade otherwise.
-  const entering = Boolean(matchSecondary(path, shell))
-  const leaving = Boolean(matchSecondary(previousPath, shell))
-  // On desktop, moving within one card (a list and its details) changes that
-  // card's contents in place; a slide would say "new page".
-  const card = cardOf(path)
-  if (isDesktop.value && card && card === cardOf(previousPath)) return 'page-swap'
-  return entering && !leaving ? 'page-slide-left' : leaving && !entering ? 'page-slide-right' : 'page-fade'
-}
-const html = document.documentElement
-html.dataset.nav = 'page-fade'
-const stopNavDirection = router.beforeEach((to, from) => {
-  if (to.path !== from.path) html.dataset.nav = transitionFor(to.path, from.path)
-})
-onUnmounted(() => {
-  stopNavDirection()
-  delete html.dataset.nav
-})
-
-watch(
-  () => route.path,
-  (path) => {
-    const shell = SHELLS[path.startsWith('/manager') ? 'manager' : 'student']
-
-    // Opening a sub-page closes the menu it may have been picked from.
-    const entering = Boolean(matchSecondary(path, shell))
-    if (entering) menuOpen.value = false
-
-    const active = shell.tabs.find((tab) =>
-      [tab.route, ...(tab.match ?? [])].some((prefix) => path.startsWith(prefix)),
-    )
-    activeBottomTab.value = active?.name ?? 'home'
-
-    // Vue Router doesn't reset scroll on navigation, so a page you'd
-    // scrolled down on leaves the next one visually mid-scroll too — and the
-    // header keeps its scrolled border since the viewport genuinely is still
-    // scrolled. Every tab/page should start at its own top.
-    window.scrollTo(0, 0)
-    document.querySelector('.q-page-container')?.scrollTo(0, 0)
-    void nextTick(onScroll)
-  },
-  { immediate: true },
-)
-
-onMounted(async () => {
-  window.addEventListener('scroll', onScroll, true)
-  window.addEventListener('accommo:avatar-change', onAvatarChange)
-  window.addEventListener('accommo:profile-change', onProfileChange)
-  document.querySelector('.q-page-container')?.addEventListener('scroll', onScroll)
-  onScroll()
-  try {
-    const { data } = await authUser()
-    const user = data?.user
-    if (!user) return
-
-    const metadata = user.user_metadata as Record<string, unknown> | undefined
-    const picture =
-      typeof metadata?.avatar_url === 'string'
-        ? metadata.avatar_url
-        : typeof metadata?.picture === 'string'
-          ? metadata.picture
-          : ''
-    profileImageUrl.value = picture ? resolveAsset(picture, AVATAR) : null
-
-    const { data: userData } = await supabase
-      .from('users')
-      .select('initials, full_name, avatar_url')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    const row = userData as { initials: string | null; full_name: string | null; avatar_url: string | null } | null
-    userInitials.value =
-      row?.initials || initialsOf(String(row?.full_name || metadata?.full_name || user.email || 'User'))
-
-    // Fall back to the stored column when this session's metadata has no
-    // picture — it can be stale or empty (avatar uploaded on another device,
-    // or written straight to the database), which otherwise left the shell
-    // showing initials despite a photo being on file.
-    if (!picture && row?.avatar_url) profileImageUrl.value = resolveAsset(row.avatar_url, AVATAR)
-
-    // Keeps users.avatar_url (the only copy anyone but this user can ever
-    // read) in step with the auth session's own picture — a Google sign-in
-    // never writes it directly, and a Cloudinary upload's write in
-    // uploadAvatar() can't cover a photo change made on Google's side.
-    if (picture && row?.avatar_url !== picture) {
-      void supabase.from('users').update({ avatar_url: picture }).eq('id', user.id).then(() => undefined, () => undefined)
-    }
-
-    shellUserId = user.id
-    void loadNeedsCheckDots(user.id)
-
-    // Subscribes once for the session; the notifications page reuses the same
-    // store, so a row marked read there clears this dot immediately.
-    await notifications.start(user.id)
-    // Same idea for the Messages tab's unread badge — MessagesPage.vue reuses
-    // this same store instance, so start() here is a no-op once that page
-    // also calls it (see the userId/channel guard in stores/messages.ts).
-    await messagesStore.start(user.id)
-    void startPush(role.value, router)
-
-
-  } catch {
-    userInitials.value = 'U'
-  }
-})
-
-onUnmounted(() => {
-  notifications.stop()
-  messagesStore.stop()
-  window.removeEventListener('scroll', onScroll, true)
-  window.removeEventListener('accommo:avatar-change', onAvatarChange)
-  window.removeEventListener('accommo:profile-change', onProfileChange)
-  document.querySelector('.q-page-container')?.removeEventListener('scroll', onScroll)
-})
-
-// One existence-check query per dot, run once on shell mount. Deliberately
-// not realtime: these are low-frequency "does something need a look" flags,
-// not live counters — reopening the tab is enough to refresh them.
-//
-// The landlord/landlady's signals are exact-state checks (a lease sitting at 'pending', a
-// concern sitting at 'open') that self-clear the instant someone acts on the
-// row. Concerns has no per-student "seen this response" column, and
-// accommodations has no per-student "seen this listing" column either — so
-// the student side uses a rolling time window instead (a concern resolved
-// in the last few days, a listing accredited in the last week): still
-// self-clearing (it ages out on its own), just on a timer instead of a
-// status flip.
-const CONCERN_WINDOW_DAYS = 3
-const LISTING_WINDOW_DAYS = 7
-
-async function loadNeedsCheckDots(userId: string) {
-  const isManager = role.value === 'manager'
-  const [tenants, docs, concerns, listings, gaps] = await Promise.all([
-    isManager
-      ? countLeasesAwaitingManager(userId).then((count) => ({ count }))
-      : Promise.resolve({ count: 0 }),
-    supabase
-      .from('verification_documents')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('status', 'rejected'),
-    isManager
-      ? supabase
-          .from('concerns')
-          .select('id, leases!inner(landlord_id)', { count: 'exact', head: true })
-          .eq('status', 'open')
-          .eq('leases.landlord_id', userId)
-      : supabase
-          .from('concerns')
-          .select('id, leases!inner(student_id)', { count: 'exact', head: true })
-          .in('status', ['resolved', 'rejected'])
-          .gte('updated_at', new Date(Date.now() - CONCERN_WINDOW_DAYS * 86400000).toISOString())
-          .eq('leases.student_id', userId),
-    isManager
-      ? Promise.resolve({ count: 0 })
-      : supabase
-          .from('accommodations')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'accredited')
-          .gte('accredited_at', new Date(Date.now() - LISTING_WINDOW_DAYS * 86400000).toISOString()),
-    loadProfileGaps(userId, !isManager),
-  ])
-  tenantsNeedCheck.value = Boolean(tenants.count)
-  // A rejected document, or something on the profile still blank (see CompleteProfilePage).
-  profileNeedsCheck.value = Boolean(docs.count) || gaps.some((g) => g.needed)
-  concernsNeedCheck.value = Boolean(concerns.count)
-  discoverNeedCheck.value = Boolean(listings.count)
-}
-
-// CompleteProfilePage fires this after each saved step, so the dot clears without a relaunch.
-let shellUserId = ''
-function onProfileChange() {
-  if (shellUserId) void loadNeedsCheckDots(shellUserId)
-}
-
-function onAvatarChange(event: Event) {
-  const url = (event as CustomEvent<{ url: string }>).detail?.url
-  if (url) profileImageUrl.value = resolveAsset(url)
-}
-
-function onScroll() {
-  const container = document.querySelector('.q-page-container') as HTMLElement | null
-  scrolled.value = Math.max(window.scrollY || 0, container?.scrollTop || 0) > 8
-}
 </script>
 
 <style scoped>
