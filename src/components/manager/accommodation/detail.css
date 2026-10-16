@@ -1,0 +1,374 @@
+/* Shared by the accommodation editor's components (AccommodationDetail and
+   ./accommodation/*): each imports it scoped, so the rules apply to its own
+   elements only, as they did when this was one component. */
+.sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sec-title {
+  margin: 4px 0 0;
+  padding: 0 2px;
+  color: var(--m-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.sec-title:first-child {
+  margin-top: 0;
+}
+.sec-link {
+  border: 0;
+  background: transparent;
+  color: var(--m-primary-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.sec-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.sec-hint {
+  color: var(--m-muted);
+  font-size: 12px;
+}
+.none {
+  padding: 14px 12px;
+  margin: 0;
+  color: var(--m-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+.field {
+  display: flex;
+  flex: 1 1 130px;
+  min-width: 130px;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.field-label {
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.field-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background-color: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 14px;
+}
+.save-btn {
+  min-height: 46px;
+  margin-top: 4px;
+  font-weight: 700;
+}
+.view-group {
+  display: flex;
+  flex-direction: column;
+}
+.view-row {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--m-border);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+.view-group > .view-row:last-child { border-bottom: 0; }
+.view-row--tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.view-chevron { flex: 0 0 auto; color: var(--m-muted); }
+.view-label {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.view-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--m-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map {
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+.map img {
+  display: block;
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+.status-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+}
+.status-text {
+  margin: 0;
+  color: var(--m-muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.status-btn {
+  align-self: flex-start;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-surface);
+  color: var(--m-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.status-btn--danger {
+  border-color: var(--m-danger);
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+}
+.status-btn:disabled {
+  opacity: 0.6;
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  overflow: hidden;
+}
+.room-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 1px solid var(--m-border);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.group > .room-row:first-child {
+  border-top: 0;
+}
+.room-shot {
+  position: relative;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-primary-soft);
+  color: var(--m-muted);
+}
+.room-shot img { width: 100%; height: 100%; object-fit: cover; }
+.room-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+}
+.room-name {
+  color: var(--m-ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.room-sub {
+  color: var(--m-muted);
+  font-size: 11.5px;
+}
+.photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.photo-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.file-input-hidden {
+  display: none;
+}
+.thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  overflow: hidden;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-primary-soft);
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.thumb-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+  cursor: pointer;
+}
+.thumb-x:disabled {
+  opacity: 0.6;
+}
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--m-border);
+}
+.room-sheet-actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.room-del {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--m-danger);
+  border-radius: 999px;
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.room-del:disabled {
+  opacity: 0.6;
+}
+.steps--sheet {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--m-border);
+}
+.step-dot--on {
+  background: var(--m-primary);
+}
+.ghost-btn {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 20px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Every footer button — Back included — sits together at the right edge.
+   Both rows fill AppModal's footer. */
+.wizard-nav {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+/* Every multi-step form (room, facility — create and edit alike) is an
+   AppModal with `tall`, one fixed height, so they don't visibly resize between
+   short steps (Photos) and long ones (Basics). The content scrolls here while
+   the footer (Back/Next/Done, or Delete/Save) stays put. */
+.room-sheet-scroll {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+.photo-actions--pinned {
+  flex: 0 0 auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--m-border);
+}
+/* ---- Desktop: two halves of a card ----
+   The card itself is .desk-card / .desk-col (app.scss). Off the desktop these
+   wrappers are transparent, so the phone layout is the tabbed one it was. */
+.col-left,
+.sec-body {
+  display: contents;
+}
