@@ -1,6 +1,7 @@
 <template>
   <section v-if="tasks.length || doneCount" class="sec">
-    <div class="sec-head">
+    <!-- An empty title drops the heading (Monthly rent shows the rows bare). -->
+    <div v-if="title" class="sec-head">
       <h2 class="sec-title">{{ title }}</h2>
     </div>
 

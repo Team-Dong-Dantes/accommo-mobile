@@ -156,7 +156,7 @@
         <p v-if="!shown.paid.length" class="cp-none">{{ nothingLine }}</p>
       </section>
 
-      <DashTodoList v-if="tasks.length" class="cp-inset cp-todo" title="Needs attention" :tasks="tasks" :done-count="0" @go="onTask" />
+      <DashTodoList v-if="tasks.length" class="cp-inset cp-todo" title="" :tasks="tasks" :done-count="0" @go="onTask" />
 
       <section v-if="shown.past.length" class="cp-block">
         <div class="room-head">
