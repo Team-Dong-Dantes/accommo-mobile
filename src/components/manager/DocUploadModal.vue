@@ -1,6 +1,4 @@
 <template>
-  <!-- A document already on file is never edited in place; replacing it
-       always goes through this fresh form. -->
   <AppModal :model-value="modelValue" :title="title" @update:model-value="emit('update:modelValue', $event)">
     <label class="field">
       <span class="field-label">File</span>
@@ -21,6 +19,8 @@
 </template>
 
 <script setup lang="ts">
+// A document already on file is never edited in place; replacing it always
+// goes through this fresh form.
 // The OSAS page's upload form, shared by property permits and the
 // landlord/landlady's own account documents: both take a file and an expiry.
 import { reactive, watch } from 'vue'

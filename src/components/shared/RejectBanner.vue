@@ -1,6 +1,4 @@
 <template>
-  <!-- 'reviewing' is a soft reject: OSAS wants a better document and
-       the account can still be verified once it arrives. -->
   <div v-if="status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing'" class="reject-banner">
     <IconifyIcon icon="lucide:triangle-alert" width="16" />
     <div>
@@ -11,6 +9,8 @@
 </template>
 
 <script setup lang="ts">
+// 'reviewing' is a soft reject: OSAS wants a better document and the account
+// can still be verified once it arrives.
 import { Icon as IconifyIcon } from '@iconify/vue'
 
 defineProps<{ status: string; reason: string }>()

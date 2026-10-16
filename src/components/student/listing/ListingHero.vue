@@ -1,5 +1,4 @@
 <template>
-  <!-- Edge-to-edge, one photo at a time, not a boxed thumbnail strip. -->
   <div class="hero">
     <PhotoEmpty :size="26" label />
     <img v-for="(src, i) in images" :key="i" :src="src" :alt="alt" class="hero-img" />
@@ -10,6 +9,7 @@
 </template>
 
 <script setup lang="ts">
+// Edge-to-edge, one photo at a time, not a boxed thumbnail strip.
 // The photo strip on top of a listing or a room. The placeholder sits under
 // the photos, so it shows only while there are none (or they are loading).
 import { Icon as IconifyIcon } from '@iconify/vue'
