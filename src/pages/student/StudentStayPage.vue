@@ -78,11 +78,11 @@
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import StayHero from '@/components/student/StayHero.vue'
-import StayPanel from '../../components/student/stay/StayPanel.vue'
-import StayPayments from '../../components/student/stay/StayPayments.vue'
-import StaySheets from '../../components/student/stay/StaySheets.vue'
+import StayPanel from '@/components/student/stay/StayPanel.vue'
+import StayPayments from '@/components/student/stay/StayPayments.vue'
+import StaySheets from '@/components/student/stay/StaySheets.vue'
 import { isDesktop, isTablet } from '@/utils/useTabletMode'
-import { provideStay } from '../../components/student/stay/stay'
+import { provideStay } from '@/components/student/stay/stay'
 
 // The page is the shell — loading, the tab strip (or tablet's two halves).
 // The panels and sheets live in components/student/stay/.

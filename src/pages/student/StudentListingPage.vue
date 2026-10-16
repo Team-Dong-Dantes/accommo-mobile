@@ -20,15 +20,7 @@
     </div>
 
     <div v-else class="page">
-      <!-- Edge-to-edge hero — one photo at a time, not a boxed thumbnail strip -->
-      <div v-if="images.length" class="hero">
-        <PhotoEmpty :size="26" label />
-        <img v-for="(src, i) in images" :key="i" :src="src" :alt="listing.name" class="hero-img" />
-        <span v-if="images.length > 1" class="hero-count">
-          <IconifyIcon icon="lucide:image" width="11" />{{ images.length }}
-        </span>
-      </div>
-      <div v-else class="hero"><PhotoEmpty :size="26" label /></div>
+      <ListingHero :images="images" :alt="listing.name" />
 
       <div class="body">
         <h1 class="name">{{ listing.name }}</h1>
@@ -56,77 +48,33 @@
         <p v-if="listing.description" class="desc">{{ listing.description }}</p>
 
         <!-- Rooms: a rail to browse, not a settings-style list -->
-        <section class="block">
-          <h2 class="block-title">Rooms</h2>
-          <div v-if="availableRooms.length" class="room-rail">
-            <button
-              v-for="room in availableRooms"
-              :key="room.id"
-              type="button"
-              class="room-card"
-              @click="router.push(`/student/room/${room.id}`)"
-            >
-              <span class="room-card-photo">
-                <img v-if="room.image" :src="room.image" :alt="room.type" loading="lazy" />
-                <PhotoEmpty v-else :size="22" label />
-                <span class="room-card-type">{{ room.label }}</span>
-              </span>
-              <span class="room-card-name-row">
-                <span class="room-card-name">{{ room.type }}</span>
-                <span v-if="room.capacity" class="room-card-cap">{{ room.capacity }} left</span>
-              </span>
-              <span v-if="room.meta" class="room-card-meta">{{ room.meta }}</span>
-              <span v-if="room.utilities" class="room-card-meta room-card-utils">{{ room.utilities }}</span>
-              <span v-if="room.rent" class="room-card-rent">
-                {{ formatPeso(room.rent) }}<span class="room-card-per">/mo{{ room.rentBasis === 'person' ? '/person' : '' }}</span>
-              </span>
-              <span v-else class="room-card-rent room-card-rent--none">On request</span>
-            </button>
-          </div>
+        <ListingBlock title="Rooms">
+          <RoomRail v-if="availableRooms.length" :rooms="availableRooms" alt-from-type />
           <p v-else-if="rooms.length" class="none">All rooms are currently taken.</p>
           <p v-else class="none">This listing hasn't published any rooms yet.</p>
-        </section>
+        </ListingBlock>
 
         <!-- Amenities -->
-        <section v-if="amenities.length" class="block">
-          <h2 class="block-title">Amenities</h2>
-          <div class="icon-grid">
-            <span v-for="a in amenities" :key="a" class="icon-item">
-              <span class="icon-circle"><IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="19" /></span>
-              <small>{{ AMENITY_META[a]?.label || a }}</small>
-            </span>
-          </div>
-        </section>
+        <ListingBlock v-if="amenities.length" title="Amenities">
+          <IconGrid :items="amenityItems(amenities)" />
+        </ListingBlock>
 
         <!-- Facilities -->
-        <section v-if="sharedFacilities.length || privateFacilityNote" class="block">
-          <h2 class="block-title">Facilities</h2>
-          <div v-if="sharedFacilities.length" class="icon-grid">
-            <span v-for="f in sharedFacilities" :key="f.type + f.label" class="icon-item">
-              <span class="icon-circle"><IconifyIcon :icon="FACILITY_META[f.type]?.icon || 'lucide:dot'" width="19" /></span>
-              <small>{{ f.label || FACILITY_META[f.type]?.label || f.type }}</small>
-            </span>
-          </div>
+        <ListingBlock v-if="sharedFacilities.length || privateFacilityNote" title="Facilities">
+          <IconGrid v-if="sharedFacilities.length" :items="facilityItems(sharedFacilities)" />
           <p v-if="privateFacilityNote" class="private-note">
             <IconifyIcon icon="lucide:door-closed" width="13" />
             {{ privateFacilityNote }}
           </p>
-        </section>
+        </ListingBlock>
 
         <!-- House rules -->
-        <section v-if="rules.length" class="block">
-          <h2 class="block-title">House rules</h2>
-          <div class="rule-list">
-            <div v-for="rule in rules" :key="rule.label" class="rule-row">
-              <span class="rule-label">{{ rule.label }}</span>
-              <span class="rule-value">{{ rule.value }}</span>
-            </div>
-          </div>
-        </section>
+        <ListingBlock v-if="rules.length" title="House rules">
+          <RuleList :rows="rules" />
+        </ListingBlock>
 
         <!-- Location -->
-        <section v-if="mapUrl" class="block">
-          <h2 class="block-title">Location</h2>
+        <ListingBlock v-if="mapUrl" title="Location">
           <div class="map">
             <img :src="mapUrl" :alt="`Map showing ${listing.name} and ${CAMPUS.label}`" loading="lazy" />
           </div>
@@ -134,25 +82,10 @@
             <IconifyIcon icon="lucide:school" width="12" />
             {{ distance || 'Distance unknown' }} from {{ CAMPUS.label }}
           </p>
-        </section>
+        </ListingBlock>
 
         <!-- Manager -->
-        <section v-if="manager.id" class="block">
-          <h2 class="block-title">{{ manager.title }}</h2>
-          <button type="button" class="mgr" @click="router.push(`/student/manager/${manager.id}`)">
-            <span class="mgr-avatar">
-              <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="mgr-avatar-img" @error="manager.avatarUrl = null" />
-              <template v-else>{{ manager.initials }}</template>
-            </span>
-            <span class="mgr-body">
-              <span class="mgr-name">{{ manager.name }}</span>
-              <span class="mgr-sub">
-                {{ manager.replyMinutes ? `Replies in ~${manager.replyMinutes} min` : manager.title }}
-              </span>
-            </span>
-            <IconifyIcon icon="lucide:chevron-right" width="16" class="mgr-chevron" />
-          </button>
-        </section>
+        <LandlordBlock v-if="manager.id" :manager="manager" />
       </div>
     </div>
 
@@ -162,13 +95,19 @@
 </template>
 
 <script setup lang="ts">
-import PhotoEmpty from '@/components/shared/PhotoEmpty.vue'
+import ListingHero from '@/components/student/listing/ListingHero.vue'
+import ListingBlock from '@/components/student/listing/ListingBlock.vue'
+import IconGrid from '@/components/student/listing/IconGrid.vue'
+import RuleList from '@/components/student/listing/RuleList.vue'
+import RoomRail from '@/components/student/listing/RoomRail.vue'
+import LandlordBlock from '@/components/student/listing/LandlordBlock.vue'
+import { amenityItems, facilityItems } from '@/utils/listings'
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso, initialsOf, landlordTitle } from '@/utils/format'
+import { initialsOf, landlordTitle } from '@/utils/format'
 import { resolveAsset, AVATAR, CARD, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel, staticMapUrl, CAMPUS } from '@/utils/geo'
 import { AMENITY_META, FACILITY_META, utilitiesFromRow, utilitiesHint, type UtilityColumns, roomTypeLabel, buildingTypeLabel, genderPolicyLabel } from '@/utils/listings'
@@ -191,7 +130,6 @@ interface RoomRow {
 }
 
 const route = useRoute()
-const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
@@ -385,26 +323,11 @@ async function load() {
 onMounted(load)
 </script>
 
+<style scoped src="@/components/student/listing/detail.css"></style>
+
 <style scoped>
 .lp {
   background: var(--m-bg);
-}
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 8px var(--m-page-gutter) 0;
-}
-.sk {
-  border-radius: var(--m-radius);
-}
-.sk-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.sk-pill {
-  border-radius: 999px;
 }
 .sk-rail {
   display: flex;
@@ -423,120 +346,11 @@ onMounted(load)
   height: 120px;
   border-radius: var(--m-radius-sm);
 }
-
-.card {
-  padding: 18px 14px;
-  margin: 8px var(--m-page-gutter) 0;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  text-align: center;
-}
-
-.page {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Hero — one photo filling the width at a time, no card frame around it */
-.hero {
-  position: relative;
-  display: flex;
-  height: 240px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  background: var(--m-primary-soft);
-}
-.hero-img {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  flex: 0 0 100%;
-  object-fit: cover;
-  scroll-snap-align: start;
-}
-.hero-count {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  padding: 18px var(--m-page-gutter) 100px;
-}
-
-.name {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-}
 .where {
   margin: 5px 0 0;
   color: var(--m-muted);
   font-size: 13.5px;
 }
-.badge-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 9px;
-}
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--m-success-soft);
-  color: var(--m-success);
-  font-size: 11px;
-  font-weight: 700;
-}
-.type-pill {
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-text);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.vacancy {
-  flex: 0 0 auto;
-  padding: 4px 11px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 700;
-}
-.vacancy--ok {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.vacancy--none {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-
 .stat-row {
   display: flex;
   flex-wrap: wrap;
@@ -545,25 +359,6 @@ onMounted(load)
   padding-top: 14px;
   border-top: 1px solid var(--m-border);
 }
-.stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--m-muted);
-}
-.stat svg {
-  flex: 0 0 auto;
-  color: var(--m-primary-dark);
-}
-.stat strong {
-  color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.stat small {
-  font-size: 11.5px;
-}
-
 .desc {
   margin: 14px 0 0;
   color: var(--m-text);
@@ -571,168 +366,10 @@ onMounted(load)
   line-height: 1.55;
   text-wrap: pretty;
 }
-
-/* Each block carries its own leading divider — so an empty, un-rendered
-   section (e.g. no amenities) never leaves a doubled gap the way a fixed
-   divider between every pair of sections would. */
-.block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 22px;
-  padding-top: 22px;
-  border-top: 1px solid var(--m-border);
-}
-.block:first-of-type {
-  border-top: 0;
-  padding-top: 0;
-}
-.block-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 16px;
-  font-weight: 700;
-}
 .none {
   margin: 0;
   color: var(--m-muted);
   font-size: 13px;
-}
-
-/* Rooms rail */
-.room-rail {
-  display: flex;
-  gap: 12px;
-  margin: 0 calc(var(--m-page-gutter) * -1);
-  padding: 0 var(--m-page-gutter);
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-.room-card {
-  display: flex;
-  width: 148px;
-  flex: 0 0 148px;
-  flex-direction: column;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  scroll-snap-align: start;
-  -webkit-tap-highlight-color: transparent;
-}
-.room-card-photo {
-  position: relative;
-  display: grid;
-  height: 120px;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-primary-soft);
-}
-.room-card-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.room-card-type {
-  position: absolute;
-  left: 6px;
-  top: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 9.5px;
-  font-weight: 800;
-  background: rgba(15, 23, 42, 0.55);
-  color: #fff;
-}
-.room-card-name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-}
-.room-card-name {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.room-card-cap {
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.room-card-meta {
-  margin-top: 1px;
-  color: var(--m-muted);
-  font-size: 11px;
-}
-/* One line, however many utilities differ — the room page has the full terms. */
-.room-card-utils {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.room-card-rent {
-  margin-top: 4px;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.room-card-rent--none {
-  color: var(--m-muted);
-  font-family: var(--m-font-body);
-  font-size: 11.5px;
-  font-weight: 600;
-}
-.room-card-per {
-  font-size: 10px;
-  font-weight: 600;
-  opacity: 0.7;
-}
-
-/* Amenities / facilities — an icon grid, not pill soup */
-.icon-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
-  gap: 16px 6px;
-}
-.icon-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-}
-.icon-circle {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.icon-item small {
-  color: var(--m-text);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
 }
 .private-note {
   display: flex;
@@ -743,36 +380,6 @@ onMounted(load)
   font-size: 12px;
   line-height: 1.4;
 }
-
-/* House rules — plain divided rows, not a bordered box */
-.rule-list {
-  display: flex;
-  flex-direction: column;
-}
-.rule-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--m-border);
-}
-.rule-list > .rule-row:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-.rule-label {
-  color: var(--m-muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-.rule-value {
-  color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 600;
-  text-align: right;
-}
-
 /* Map */
 .map {
   overflow: hidden;
@@ -792,59 +399,5 @@ onMounted(load)
   color: var(--m-muted);
   font-size: 12px;
   font-weight: 600;
-}
-
-/* Landlord/landlady — the one other tappable, contact-card-like row besides Rooms */
-.mgr {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 11px;
-  padding: 12px 14px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.mgr-avatar {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-size: 13px;
-  font-weight: 800;
-}
-.mgr-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.mgr-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-}
-.mgr-name {
-  color: var(--m-ink);
-  font-size: 14px;
-  font-weight: 700;
-}
-.mgr-sub {
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.mgr-chevron {
-  flex: 0 0 auto;
-  color: var(--m-muted);
 }
 </style>

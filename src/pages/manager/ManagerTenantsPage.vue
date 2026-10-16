@@ -125,9 +125,9 @@ import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import RentHistoryPanel from '@/components/manager/RentHistoryPanel.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
-import TenantsList from '../../components/manager/tenants/TenantsList.vue'
-import TenantsSheets from '../../components/manager/tenants/TenantsSheets.vue'
-import { provideTenants } from '../../components/manager/tenants/tenants'
+import TenantsList from '@/components/manager/tenants/TenantsList.vue'
+import TenantsSheets from '@/components/manager/tenants/TenantsSheets.vue'
+import { provideTenants } from '@/components/manager/tenants/tenants'
 
 // The page is the shell — loading, the tabs (or desktop's two halves), the
 // rent panels and the search dock. The list and its sheets live in

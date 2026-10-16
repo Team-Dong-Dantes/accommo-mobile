@@ -274,3 +274,17 @@ export const ACCOMMODATION_STATUS_TONE: Record<string, 'grey' | 'amber' | 'green
   suspended: 'red',
   delisted: 'grey',
 };
+
+/** Amenity keys as IconGrid items. */
+export function amenityItems(keys: readonly string[]): { key: string; icon: string; label: string }[] {
+  return keys.map((a) => ({ key: a, icon: AMENITY_META[a]?.icon || 'lucide:dot', label: AMENITY_META[a]?.label || a }));
+}
+
+/** Facilities (type plus an optional label of their own) as IconGrid items. */
+export function facilityItems(list: readonly { type: string; label: string | null }[]): { key: string; icon: string; label: string }[] {
+  return list.map((f) => ({
+    key: f.type + f.label,
+    icon: FACILITY_META[f.type]?.icon || 'lucide:dot',
+    label: f.label || FACILITY_META[f.type]?.label || f.type,
+  }));
+}
