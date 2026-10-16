@@ -7,23 +7,23 @@
       <slot name="action" />
     </div>
     <div class="ms-big-row">
-      <span class="ms-big">{{ formatPeso(totals.collected) }}</span>
+      <span class="ms-big">{{ formatPesoExact(totals.collected) }}</span>
       <span class="ms-of">{{ ofLine }}</span>
     </div>
     <div class="ms-bar" aria-hidden="true">
       <span v-for="s in segments" :key="s.key" class="ms-seg" :class="`ms-seg--${s.key}`" :style="{ flex: s.value }" />
     </div>
     <div v-if="left > 0.009" class="ms-legend">
-      <span v-if="totals.toConfirm > 0.009"><i class="ms-dot ms-dot--confirm" />To confirm {{ formatPeso(totals.toConfirm) }}</span>
-      <span v-if="totals.overdue > 0.009"><i class="ms-dot ms-dot--overdue" />Overdue {{ formatPeso(totals.overdue) }}</span>
-      <span v-if="totals.toCome > 0.009"><i class="ms-dot ms-dot--come" />Still to come {{ formatPeso(totals.toCome) }}</span>
+      <span v-if="totals.toConfirm > 0.009"><i class="ms-dot ms-dot--confirm" />To confirm {{ formatPesoExact(totals.toConfirm) }}</span>
+      <span v-if="totals.overdue > 0.009"><i class="ms-dot ms-dot--overdue" />Overdue {{ formatPesoExact(totals.overdue) }}</span>
+      <span v-if="totals.toCome > 0.009"><i class="ms-dot ms-dot--come" />Still to come {{ formatPesoExact(totals.toCome) }}</span>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatMonth, formatPeso } from '@/utils/format'
+import { formatMonth, formatPesoExact } from '@/utils/format'
 import type { MonthTotals } from '@/utils/collections'
 
 // `verb`: what the landlord/landlady "collected", what a student "paid".
@@ -34,7 +34,7 @@ const expected = computed(() => props.totals.collected + left.value)
 const ofLine = computed(() => {
   if (expected.value < 0.01) return `nothing due in ${formatMonth(props.totals.month).split(' ')[0]}`
   if (left.value < 0.01) return `${props.verb}, all of it`
-  return `${props.verb} of ${formatPeso(expected.value)}`
+  return `${props.verb} of ${formatPesoExact(expected.value)}`
 })
 const segments = computed(() => {
   const t = props.totals

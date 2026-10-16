@@ -88,7 +88,7 @@ import type { CollectionLedgerRow } from '@/utils/collections'
 import { manilaToday } from '@/utils/payments'
 import { rentCell } from '@/utils/rentGrid'
 import { errorMessage } from '@/utils/errors'
-import { formatPeso } from '@/utils/format'
+import { formatPeso, formatPesoExact } from '@/utils/format'
 import PeriodBar from '@/components/shared/PeriodBar.vue'
 import PropertyPicker from '@/components/shared/PropertyPicker.vue'
 import CollectionAvatar from '@/components/manager/CollectionAvatar.vue'
@@ -219,7 +219,7 @@ const groups = computed(() => {
     out.push({
       id: p.id,
       name: p.name,
-      stats: `${propRooms.length} room${propRooms.length === 1 ? '' : 's'} · ${current.length} boarder${current.length === 1 ? '' : 's'} · ${formatPeso(collected)} of ${formatPeso(expected)} in ${months.value[3]!.short}`,
+      stats: `${propRooms.length} room${propRooms.length === 1 ? '' : 's'} · ${current.length} boarder${current.length === 1 ? '' : 's'} · ${formatPesoExact(collected)} of ${formatPesoExact(expected)} in ${months.value[3]!.short}`,
       unpaid,
       // A search opens everything it matched.
       open: !!q || openId.value === p.id,

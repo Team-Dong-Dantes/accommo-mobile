@@ -26,7 +26,7 @@
       <button v-if="rent.totalMonths" type="button" class="pbs-rent" :class="{ 'pbs-rent--owing': rent.unpaidAmount > 0 }" @click="goHistory">
         <span class="pbs-rent-text">
           <b>Rent · {{ rent.paidMonths }} of {{ rent.totalMonths }} months paid</b>
-          <span v-if="rent.unpaidAmount > 0" class="pbs-owing">{{ formatPeso(rent.unpaidAmount) }} unpaid · {{ unpaidMonths }}</span>
+          <span v-if="rent.unpaidAmount > 0" class="pbs-owing">{{ formatPesoExact(rent.unpaidAmount) }} unpaid · {{ unpaidMonths }}</span>
         </span>
         <span class="pbs-link">Rent history</span>
         <IconifyIcon icon="lucide:chevron-right" width="16" class="pbs-link" />
@@ -64,7 +64,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import AppModal from '@/components/shared/AppModal.vue'
 import StarRating from '@/components/shared/StarRating.vue'
 import CollectionAvatar from '@/components/manager/CollectionAvatar.vue'
-import { formatPeso } from '@/utils/format'
+import { formatPeso, formatPesoExact } from '@/utils/format'
 import { stayRent } from '@/utils/rentGrid'
 import { manilaToday, type LedgerRow } from '@/utils/payments'
 import type { MoneyLease } from '@/api/landlordMoney'

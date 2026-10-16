@@ -10,6 +10,7 @@
 // LedgerRow has no student/room/leaseId, so those are joined from MoneyLease.
 // Mobile must not import from the web repo; keep the two in step by hand.
 
+import { formatPesoExact } from '@/utils/format'
 import type { MoneyLease } from '@/api/landlordMoney'
 import type { CollectionLedgerRow } from '@/utils/collections'
 import { manilaToday } from '@/utils/payments'
@@ -32,7 +33,7 @@ export function escapeHtml(s: unknown): string {
 const e = escapeHtml
 
 const key = (s: string | null) => (s ?? '').slice(0, 7)
-const peso = (n: number) => `₱${n.toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
+const peso = formatPesoExact
 const day = (d: Date) => d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })
 const dayTime = (d: Date) => d.toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })
 

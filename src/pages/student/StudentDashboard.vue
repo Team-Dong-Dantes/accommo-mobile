@@ -35,7 +35,7 @@ import DashTiles from '@/components/student/DashTiles.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { type Task } from '@/components/shared/dashboard'
 import { computed } from 'vue'
-import { formatDate, formatPeso } from '@/utils/format'
+import { formatDate, formatPeso, formatPesoExact } from '@/utils/format'
 import { manilaToday } from '@/utils/payments'
 import { stayMonthSummary } from '@/utils/collections'
 import { verificationSteps } from '@/utils/verificationSteps'
@@ -90,7 +90,7 @@ const hero = computed(() => {
     return {
       label: monthName,
       right: clear ? 'All paid' : `${formatPeso(toPay)} to pay`,
-      big: formatPeso(sent),
+      big: formatPesoExact(sent),
       of: `/ ${formatPeso(sent + toPay)} ${clear ? 'paid' : 'sent'}`,
       segments: [
         { value: sent, tone: clear ? 'success' : 'info' },

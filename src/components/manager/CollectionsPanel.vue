@@ -36,8 +36,8 @@
         </PeriodBar>
 
         <div class="cp-hero">
-          <span class="cp-big">{{ formatPeso(col.collected) }}</span>
-          <span class="cp-of">of {{ formatPeso(expected) }} collected</span>
+          <span class="cp-big">{{ formatPesoExact(col.collected) }}</span>
+          <span class="cp-of">of {{ formatPesoExact(expected) }} collected</span>
         </div>
         <StackBar
           :segments="[
@@ -46,7 +46,7 @@
             { value: col.overdue, tone: 'danger' },
             { value: col.toCome, tone: 'border' },
           ]"
-          :label="`${formatPeso(col.collected)} collected, ${formatPeso(col.toConfirm)} to confirm, ${formatPeso(col.overdue)} overdue, ${formatPeso(col.toCome)} still to come`"
+          :label="`${formatPesoExact(col.collected)} collected, ${formatPesoExact(col.toConfirm)} to confirm, ${formatPesoExact(col.overdue)} overdue, ${formatPesoExact(col.toCome)} still to come`"
         />
 
         <div class="cp-tiles" role="radiogroup" aria-label="Show">
@@ -64,7 +64,7 @@
               <i class="cp-dot" :style="{ background: `var(--m-${t.count ? t.tone : 'border'})` }" />{{ t.label }}
               <span class="cp-tile-n">{{ t.count }}</span>
             </span>
-            <span class="cp-tile-amt" :style="{ color: t.count ? `var(--m-${t.tone})` : 'var(--m-muted)' }">{{ formatPeso(t.amount) }}</span>
+            <span class="cp-tile-amt" :style="{ color: t.count ? `var(--m-${t.tone})` : 'var(--m-muted)' }">{{ formatPesoExact(t.amount) }}</span>
           </button>
         </div>
       </div>
@@ -100,7 +100,7 @@ import PeriodBar from '@/components/shared/PeriodBar.vue'
 import PostBillsSheet from '@/components/manager/PostBillsSheet.vue'
 import PropertyPicker from '@/components/shared/PropertyPicker.vue'
 import StackBar from '@/components/shared/StackBar.vue'
-import { formatMonth, formatPeso } from '@/utils/format'
+import { formatMonth, formatPesoExact } from '@/utils/format'
 import { provideCollections } from './collections/collectionsPanel'
 
 // Monthly rent's state lives in ./collections/; this is the month, its hero,

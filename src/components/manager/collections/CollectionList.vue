@@ -10,7 +10,7 @@
           <span class="lease-sub">{{ c.what }} · {{ PAYMENT_METHOD_LABEL[c.method] ?? c.method }} · {{ c.lease.roomLabel }}</span>
         </span>
         <span class="cp-side">
-          <span class="cp-amt cp-amt--lg">{{ formatPeso(c.amount) }}</span>
+          <span class="cp-amt cp-amt--lg">{{ formatPesoExact(c.amount) }}</span>
           <span class="lease-chip" :class="c.waitDays >= 3 ? 'lease-chip--orange' : 'lease-chip--blue'">{{ waitLabel(c.waitDays) }}</span>
         </span>
       </div>
@@ -36,7 +36,7 @@
             <span class="lease-sub cp-late">{{ o.what }} · {{ o.lease.roomLabel }}</span>
           </span>
           <span v-if="o.tag === 'leaving'" class="lease-chip lease-chip--orange">{{ leavingLabel(o.lease) }}</span>
-          <span class="cp-amt cp-late">{{ formatPeso(o.amount) }}</span>
+          <span class="cp-amt cp-late">{{ formatPesoExact(o.amount) }}</span>
         </button>
       </div>
       <div class="lease-actions">
@@ -61,7 +61,7 @@
         </span>
         <span v-if="o.tag === 'new'" class="lease-chip lease-chip--green">New</span>
         <span v-else-if="o.tag === 'leaving'" class="lease-chip lease-chip--orange">{{ leavingLabel(o.lease) }}</span>
-        <span class="cp-amt">{{ formatPeso(o.amount) }}</span>
+        <span class="cp-amt">{{ formatPesoExact(o.amount) }}</span>
       </button>
     </div>
     <p v-if="!shown.coming.length" class="cp-none">{{ nothingLine }}</p>
@@ -99,7 +99,7 @@
           <span class="lease-name">{{ o.lease.studentName }}</span>
           <span class="lease-sub">Moved out · {{ o.what }}</span>
         </span>
-        <span class="cp-amt">{{ formatPeso(o.amount) }}</span>
+        <span class="cp-amt">{{ formatPesoExact(o.amount) }}</span>
       </button>
     </div>
   </section>
@@ -126,7 +126,7 @@
 // paid), balances from past stays, and where boarders pay.
 import CollectionAvatar from '@/components/manager/CollectionAvatar.vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { PAYMENT_METHOD_LABEL, formatMonth, formatPeso } from '@/utils/format'
+import { PAYMENT_METHOD_LABEL, formatMonth, formatPesoExact } from '@/utils/format'
 import { useCollections } from './collectionsPanel'
 
 const {

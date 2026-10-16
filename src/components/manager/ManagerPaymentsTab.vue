@@ -5,7 +5,7 @@
         <PropertyPicker v-model="property" :options="propertyOptions" />
       </PeriodBar>
       <div class="pt-total">
-        <span class="pt-big">{{ formatPeso(received) }}</span>
+        <span class="pt-big">{{ formatPesoExact(received) }}</span>
         <span class="pt-of">received in {{ year }}</span>
       </div>
       <button type="button" class="pt-link" @click="router.push('/manager/tenants?tab=history')">
@@ -18,7 +18,7 @@
       <template v-for="(m, mi) in months" :key="m.key">
         <div class="pt-month" :class="{ 'pt-month--next': mi > 0 }">
           <span class="pt-month-name">{{ m.label }}</span>
-          <span class="pt-month-total">{{ formatPeso(m.total) }} received</span>
+          <span class="pt-month-total">{{ formatPesoExact(m.total) }} received</span>
         </div>
         <button v-for="p in m.rows" :key="p.id" type="button" class="pt-row" @click="openReceipt(p.id)">
           <CollectionAvatar :lease="p.lease" class="pt-avatar" />
@@ -27,7 +27,7 @@
             <span class="pt-sub">{{ p.sub }}</span>
           </span>
           <span class="pt-side">
-            <span class="pt-amount" :class="{ 'pt-amount--void': p.status === 'rejected' }">{{ formatPeso(p.amount) }}</span>
+            <span class="pt-amount" :class="{ 'pt-amount--void': p.status === 'rejected' }">{{ formatPesoExact(p.amount) }}</span>
             <span class="pt-chip" :class="`pt-chip--${statusColor(PAYMENT_STATUS, p.status)}`">{{ statusText(PAYMENT_STATUS, p.status) }}</span>
           </span>
           <IconifyIcon icon="lucide:chevron-right" width="15" class="pt-chev" />
@@ -50,7 +50,7 @@ import PeriodBar from '@/components/shared/PeriodBar.vue'
 import PropertyPicker from '@/components/shared/PropertyPicker.vue'
 import PaymentReceiptSheet from '@/components/shared/PaymentReceiptSheet.vue'
 import CollectionAvatar from '@/components/manager/CollectionAvatar.vue'
-import { formatPeso, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
+import { PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor, formatPesoExact } from '@/utils/format'
 import { manilaToday } from '@/utils/payments'
 import type { MoneyLease } from '@/api/landlordMoney'
 import type { PayRow } from './managerHistory'

@@ -32,7 +32,7 @@
               <span class="bh-body">
                 <span class="bh-name">{{ r.lease.studentName }}</span>
                 <span class="bh-sub">{{ periodText(r.lease.startDate, r.lease.endDate) }} · {{ monthsText(r.months) }}</span>
-                <span class="bh-pay" :class="{ 'bh-pay--owing': r.owed > 0 }">{{ r.owed > 0 ? `${formatPeso(r.owed)} unpaid` : 'All paid' }}</span>
+                <span class="bh-pay" :class="{ 'bh-pay--owing': r.owed > 0 }">{{ r.owed > 0 ? `${formatPesoExact(r.owed)} unpaid` : 'All paid' }}</span>
               </span>
               <span v-if="r.review" class="bh-rated">
                 <IconifyIcon icon="lucide:star" width="13" class="bh-star" />{{ r.review.rating }}
@@ -59,7 +59,7 @@ import PeriodBar from '@/components/shared/PeriodBar.vue'
 import PropertyPicker from '@/components/shared/PropertyPicker.vue'
 import CollectionAvatar from '@/components/manager/CollectionAvatar.vue'
 import PastBoarderSheet from '@/components/manager/PastBoarderSheet.vue'
-import { formatPeso } from '@/utils/format'
+import { formatPesoExact } from '@/utils/format'
 import { stayRent } from '@/utils/rentGrid'
 import { manilaToday, type LedgerRow } from '@/utils/payments'
 import type { LandlordMoney, MoneyLease } from '@/api/landlordMoney'

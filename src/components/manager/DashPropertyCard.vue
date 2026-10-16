@@ -13,7 +13,7 @@
         </span>
         <b>{{ property.filled }}/{{ property.capacity }}</b>
       </span>
-      <span class="dpc-rent"><b>{{ formatPeso(paid) }}</b> / {{ formatPeso(due) }}</span>
+      <span class="dpc-rent"><b>{{ formatPesoExact(paid) }}</b> / {{ formatPesoExact(due) }}</span>
     </span>
   </button>
 </template>
@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { formatPeso } from '@/utils/format'
+import { formatPesoExact } from '@/utils/format'
 import type { Property } from '@/components/manager/property'
 
 // One "My properties" tile on the landlord dashboard (D-L5): photo, a bar per

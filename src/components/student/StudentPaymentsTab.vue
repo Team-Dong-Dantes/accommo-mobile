@@ -17,7 +17,7 @@
           </button>
         </div>
         <div class="pt-total">
-          <span class="pt-big">{{ formatPeso(yearTotal) }}</span>
+          <span class="pt-big">{{ formatPesoExact(yearTotal) }}</span>
           <span class="pt-of">paid in {{ year }}</span>
         </div>
       </section>
@@ -33,7 +33,7 @@
               <span class="pt-stay-sub">{{ g.sub }}</span>
             </span>
             <span v-if="!g.current && g.owed !== null" class="pt-settled" :class="{ 'pt-settled--bad': g.owed > 0.009 }">
-              {{ g.owed > 0.009 ? `${formatPeso(g.owed)} unpaid` : 'Settled' }}
+              {{ g.owed > 0.009 ? `${formatPesoExact(g.owed)} unpaid` : 'Settled' }}
             </span>
             <IconifyIcon :icon="isOpen(g) ? 'lucide:chevron-up' : 'lucide:chevron-down'" width="16" class="pt-chev" />
           </button>
@@ -47,7 +47,7 @@
                   <span class="pt-rsub">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ shortDate(p.paidAt || p.createdAt) }}</span>
                 </span>
                 <span class="pt-side">
-                  <span class="pt-amt" :class="{ 'pt-amt--void': p.status === 'rejected' }">{{ formatPeso(p.amount) }}</span>
+                  <span class="pt-amt" :class="{ 'pt-amt--void': p.status === 'rejected' }">{{ formatPesoExact(p.amount) }}</span>
                   <span class="pt-chip" :class="{ 'pt-chip--bad': p.status === 'rejected' }">{{ PAYMENT_STATUS[p.status]?.text ?? p.status }}</span>
                 </span>
                 <IconifyIcon icon="lucide:chevron-right" width="15" class="pt-chev" />
@@ -99,7 +99,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import PaymentReceiptSheet from '@/components/shared/PaymentReceiptSheet.vue'
-import { formatDate, formatMonth, formatPeso, parseServerTime, PAYMENT_METHOD_LABEL, PAYMENT_STATUS } from '@/utils/format'
+import { formatDate, formatMonth, parseServerTime, PAYMENT_METHOD_LABEL, PAYMENT_STATUS, formatPesoExact } from '@/utils/format'
 import { ADVANCE_TAG, DEPOSIT_TAG, BILL_TAG } from '@/utils/payments'
 import { period } from '@/utils/profile'
 
@@ -148,7 +148,7 @@ const groups = computed(() => {
       .filter((p) => !q || `${titleOf(p)} ${PAYMENT_METHOD_LABEL[p.method] || p.method} ${p.name}`.toLowerCase().includes(q))
     if (!rows.length) continue
     const current = first.leaseStatus === 'active' || first.leaseStatus === 'leave_requested'
-    const paid = formatPeso(all.filter((p) => p.status === 'paid').reduce((n, p) => n + p.amount, 0))
+    const paid = formatPesoExact(all.filter((p) => p.status === 'paid').reduce((n, p) => n + p.amount, 0))
     const months = new Map<string, PaymentRow[]>()
     for (const p of rows.sort((a, b) => b.month.localeCompare(a.month) || b.createdAt.localeCompare(a.createdAt))) {
       months.set(p.month, [...(months.get(p.month) ?? []), p])

@@ -40,8 +40,8 @@
           ]"
           :legend="[
             { label: 'Paid', value: formatPeso(rent.collected), tone: 'success' },
-            { label: 'Coming', value: formatPeso(rent.coming), tone: 'info' },
-            { label: 'Late', value: formatPeso(rent.late), tone: 'danger' },
+            { label: 'Coming', value: formatPesoExact(rent.coming), tone: 'info' },
+            { label: 'Late', value: formatPesoExact(rent.late), tone: 'danger' },
           ]"
           to="/manager/tenants?tab=payments"
         />
@@ -115,7 +115,7 @@ import ErrorCard from '@/components/shared/ErrorCard.vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import PropertyCard from '@/components/manager/PropertyCard.vue'
 import { computed } from 'vue'
-import { formatPeso } from '@/utils/format'
+import { formatPeso, formatPesoExact } from '@/utils/format'
 import { healthTone } from '@/components/manager/property'
 import { manilaToday } from '@/utils/payments'
 import { monthEndOf } from '@/utils/collections'

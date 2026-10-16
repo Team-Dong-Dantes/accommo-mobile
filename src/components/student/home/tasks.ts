@@ -1,7 +1,7 @@
 // The student home's to-do list, one builder per kind of task. Pure: load()
 // fetches the rows and pushes these in the order it always did, so equal-rank
 // tasks still land where they did.
-import { formatPeso, formatPesoExact, formatDate, formatMonth } from '@/utils/format'
+import { formatPesoExact, formatDate, formatMonth } from '@/utils/format'
 import { BILL_TAG, isBillSettled, manilaToday, type LedgerRow } from '@/utils/payments'
 import type { UtilityKey } from '@/utils/listings'
 import { ago, listGaps, type ProfileGap } from '@/utils/profile'
@@ -237,7 +237,7 @@ export function overdueRentTasks(due: LedgerRow | null): Task[] {
       id: `payment-${due.month}`,
       icon: 'lucide:banknote',
       kind: 'Rent',
-      label: `${formatPeso(due.balance)} is overdue`,
+      label: `${formatPesoExact(due.balance)} is overdue`,
       hint: `Rent for ${formatMonth(due.month)}`,
       when: '',
       action: 'Pay now',

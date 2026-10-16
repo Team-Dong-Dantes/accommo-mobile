@@ -111,7 +111,7 @@ import { computed, ref, watch } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import AppModal from '@/components/shared/AppModal.vue'
 import StarRating from '@/components/shared/StarRating.vue'
-import { formatDate, formatPeso } from '@/utils/format'
+import { formatDate, formatPeso, formatPesoExact } from '@/utils/format'
 
 // A stay in full (BH-Detail). Rating is only picked here; the two-part form
 // (place + landlord, with comments) is the page's, opened by `rate`.
@@ -138,8 +138,8 @@ const rows = computed(() => {
 const payLine = computed(() => {
   const s = props.stay
   if (!s) return ''
-  if (s.state === 'now' || s.state === 'leaving') return `${formatPeso(s.paid ?? 0)} paid so far`
-  return s.owed > 0.009 ? `${formatPeso(s.paid ?? 0)} paid · ${formatPeso(s.owed)} unpaid` : `${formatPeso(s.paid ?? 0)} paid · settled`
+  if (s.state === 'now' || s.state === 'leaving') return `${formatPesoExact(s.paid ?? 0)} paid so far`
+  return s.owed > 0.009 ? `${formatPesoExact(s.paid ?? 0)} paid · ${formatPesoExact(s.owed)} unpaid` : `${formatPesoExact(s.paid ?? 0)} paid · settled`
 })
 </script>
 
