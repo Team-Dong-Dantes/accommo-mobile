@@ -138,7 +138,7 @@ const rightCol = ref<HTMLElement | null>(null)
 onMounted(load)
 </script>
 
-<style scoped src="./accommodation/detail.css"></style>
+<style scoped src="./accommodation/rows.css"></style>
 
 <style scoped>
 .ad {
