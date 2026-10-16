@@ -69,6 +69,9 @@
         </div>
       </div>
 
+      <!-- Set-up tasks (e.g. "Add where boarders send money") sit right under the tiles. -->
+      <DashTodoList v-if="tasks.length" class="cp-inset cp-todo" title="" :tasks="tasks" :done-count="0" @go="onTask" />
+
       <!-- Waiting on the landlord/landlady: one card per transfer. -->
       <div v-if="shownTile === 'confirm'" class="cp-inset cp-cards">
         <div class="cp-list-head"><b>To confirm</b><span>Boarder says they paid</span></div>
@@ -156,7 +159,6 @@
         <p v-if="!shown.paid.length" class="cp-none">{{ nothingLine }}</p>
       </section>
 
-      <DashTodoList v-if="tasks.length" class="cp-inset cp-todo" title="" :tasks="tasks" :done-count="0" @go="onTask" />
 
       <section v-if="shown.past.length" class="cp-block">
         <div class="room-head">
