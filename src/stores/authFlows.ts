@@ -2,27 +2,27 @@
 // creating a landlord/landlady account, stamping registration, Google sign-in,
 // and the phone and e-mail codes. The store keeps a one-line action for each.
 
-import { Capacitor } from '@capacitor/core';
-import { SocialLogin } from '@capgo/capacitor-social-login';
-import { supabase } from '@/utils/supabase';
-import { captcha } from '@/utils/captcha';
-import { isPhMobile } from '@/utils/format';
-import { ensureUserRow, formatProfileData, sanitizeError } from '@/stores/authRows';
-import type { ManagerRegisterForm } from '@/stores/auth';
+import { Capacitor } from '@capacitor/core'
+import { SocialLogin } from '@capgo/capacitor-social-login'
+import { supabase } from '@/utils/supabase'
+import { captcha } from '@/utils/captcha'
+import { isPhMobile } from '@/utils/format'
+import { ensureUserRow, formatProfileData, sanitizeError } from '@/stores/authRows'
+import type { ManagerRegisterForm } from '@/stores/auth'
 
 // --- MANAGER REGISTRATION (account-first) ---
 export async function createManagerAccount(form: ManagerRegisterForm) {
-  const profileData = formatProfileData(form, 'manager');
+  const profileData = formatProfileData(form, 'manager')
   const response = await supabase.auth.signUp({
     email: form.email,
     password: form.password ?? '',
     options: { data: profileData, ...(await captcha()) },
-  });
-  if (response.error) throw sanitizeError(response.error);
-  const userId = response.data.user?.id;
-  if (!userId) throw new Error('Failed to retrieve user ID after registration.');
-  await ensureUserRow(userId, form.email, profileData, 'pending');
-  return userId;
+  })
+  if (response.error) throw sanitizeError(response.error)
+  const userId = response.data.user?.id
+  if (!userId) throw new Error('Failed to retrieve user ID after registration.')
+  await ensureUserRow(userId, form.email, profileData, 'pending')
+  return userId
 }
 
 /**
@@ -55,8 +55,8 @@ export async function markRegistered() {
   //
   // No userId argument: the function reads auth.uid(), so the client no
   // longer gets to name the row it is completing.
-  const { error } = await supabase.rpc('complete_registration');
-  if (error) throw sanitizeError(error);
+  const { error } = await supabase.rpc('complete_registration')
+  if (error) throw sanitizeError(error)
 }
 
 /** The note OSAS left with their decision, for the resubmission screen. */
@@ -68,13 +68,13 @@ export async function fetchDecisionReason(userId: string): Promise<string> {
     .eq('entity_id', userId)
     .order('reviewed_at', { ascending: false })
     .limit(1)
-    .maybeSingle();
-  return data?.decision_notes || (data?.rejection_reasons ?? []).join(', ') || '';
+    .maybeSingle()
+  return data?.decision_notes || (data?.rejection_reasons ?? []).join(', ') || ''
 }
 
 export async function confirmEmailOwnership() {
-  const { error } = await supabase.rpc('confirm_email_ownership');
-  if (error) throw sanitizeError(error);
+  const { error } = await supabase.rpc('confirm_email_ownership')
+  if (error) throw sanitizeError(error)
 }
 
 // --- PHONE VERIFICATION (proof of ownership, not a login) ---
@@ -90,10 +90,10 @@ export async function sendPhoneVerification(phone: string) {
   // leaves for Supabase Auth, so the check belongs here too — every caller
   // is covered by the one guard, and an SMS is sent on the strength of it.
   if (!isPhMobile(phone)) {
-    throw new Error('That is not a usable Philippine mobile number.');
+    throw new Error('That is not a usable Philippine mobile number.')
   }
-  const { error } = await supabase.auth.updateUser({ phone });
-  if (error) throw sanitizeError(error);
+  const { error } = await supabase.auth.updateUser({ phone })
+  if (error) throw sanitizeError(error)
 }
 
 export async function sendEmailOtp(email: string) {
@@ -102,8 +102,8 @@ export async function sendEmailOtp(email: string) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { shouldCreateUser: false, emailRedirectTo: undefined as unknown as string, ...(await captcha()) },
-  });
-  if (error) throw sanitizeError(error);
+  })
+  if (error) throw sanitizeError(error)
 }
 
 export async function verifyEmailOtp(email: string, token: string) {
@@ -117,12 +117,12 @@ export async function verifyEmailOtp(email: string, token: string) {
   // Asking for the wrong one answers 'token has expired or is invalid' on a
   // code sent seconds earlier, so try the second shape before giving up.
   const attempt = (type: 'email' | 'magiclink') =>
-    supabase.auth.verifyOtp({ email, token, type });
+    supabase.auth.verifyOtp({ email, token, type })
 
-  let { data, error } = await attempt('email');
-  if (error) ({ data, error } = await attempt('magiclink'));
-  if (error) throw sanitizeError(error);
-  return data;
+  let { data, error } = await attempt('email')
+  if (error) ({ data, error } = await attempt('magiclink'))
+  if (error) throw sanitizeError(error)
+  return data
 }
 
 export async function loginWithGoogle(redirectPath: string) {
@@ -136,50 +136,50 @@ export async function loginWithGoogle(redirectPath: string) {
   // resolves: RegisterPage keeps the consent it already collected, and
   // LoginPage can route off the returned session directly.
   if (Capacitor.isNativePlatform()) {
-    const webClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
+    const webClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID
     if (!webClientId) {
       // Deliberately loud rather than quietly falling back to a browser
       // flow: a silent fallback looks exactly like "the fix did not work",
       // and costs a debugging round to tell the two apart.
       throw new Error(
         'Google sign-in is not configured for this build (VITE_GOOGLE_WEB_CLIENT_ID).',
-      );
+      )
     }
     // initialize() only stores config, so there is nothing to gain from
     // doing it at boot for the many sessions that never touch Google.
-    await SocialLogin.initialize({ google: { webClientId } });
+    await SocialLogin.initialize({ google: { webClientId } })
 
-    let result;
+    let result
     try {
       // No `scopes`: the plugin already requests openid + userinfo.email +
       // userinfo.profile, which is everything the ID token needs to carry.
       // Passing the array anyway makes it demand a patched MainActivity
       // ("You CANNOT use scopes without modifying the main activity") for
       // access-token authorization Accommo never asks for.
-      ({ result } = await SocialLogin.login({ provider: 'google', options: {} }));
+      ({ result } = await SocialLogin.login({ provider: 'google', options: {} }))
     } catch (e: unknown) {
       // Dismissing the account sheet rejects, and Credential Manager words
       // it several ways. Backing out is not a failure, so say nothing and
       // let the caller see "no session".
-      const message = e instanceof Error ? e.message : String(e);
-      if (/cancel/i.test(message)) return null;
-      throw e;
+      const message = e instanceof Error ? e.message : String(e)
+      if (/cancel/i.test(message)) return null
+      throw e
     }
 
-    const idToken = 'idToken' in result ? result.idToken : null;
-    if (!idToken) throw new Error('Google did not return an identity token.');
+    const idToken = 'idToken' in result ? result.idToken : null
+    if (!idToken) throw new Error('Google did not return an identity token.')
 
     const { data, error } = await supabase.auth.signInWithIdToken({
       provider: 'google',
       token: idToken,
-    });
-    if (error) throw sanitizeError(error);
-    return data;
+    })
+    if (error) throw sanitizeError(error)
+    return data
   }
 
   // Browser development sessions have no native picker, so they keep the
   // redirect flow and return to their own HTTP(S) origin.
-  const path = redirectPath.replace(/^\/+/, '');
+  const path = redirectPath.replace(/^\/+/, '')
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -188,7 +188,7 @@ export async function loginWithGoogle(redirectPath: string) {
         prompt: 'select_account',
       },
     },
-  });
-  if (error) throw sanitizeError(error);
-  return data;
+  })
+  if (error) throw sanitizeError(error)
+  return data
 }

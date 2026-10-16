@@ -1,5 +1,5 @@
-import { formatPeso } from '@/utils/format';
-import { kmFromCampus } from '@/utils/geo';
+import { formatPeso } from '@/utils/format'
+import { kmFromCampus } from '@/utils/geo'
 
 // The Discover map's pins answer a student's first questions without a tap:
 // what it costs, whether there's room, and whether it takes them at all. The
@@ -18,26 +18,26 @@ export interface PinFacts {
 /** What the pin says: the cheapest vacant rent, "Vacant" when that rent isn't
  * listed, or "Full". */
 export function pinLabel(p: PinFacts): string {
-  if (!p.vacancies) return 'Full';
-  return p.minVacantRent ? formatPeso(p.minVacantRent) : 'Vacant';
+  if (!p.vacancies) return 'Full'
+  return p.minVacantRent ? formatPeso(p.minVacantRent) : 'Vacant'
 }
 
 /** Whether a student of this sex (users.sex: M | F | U) may live there. An
  * unknown sex or an unset policy never rules a place out — no guessing. */
 export function takesSex(genderKind: string | null, sex: string | null | undefined): boolean {
-  if (!genderKind || genderKind === 'co_ed') return true;
-  if (sex === 'M') return genderKind === 'male';
-  if (sex === 'F') return genderKind === 'female';
-  return true;
+  if (!genderKind || genderKind === 'co_ed') return true
+  if (sex === 'M') return genderKind === 'male'
+  if (sex === 'F') return genderKind === 'female'
+  return true
 }
 
 /** Walking minutes to campus before Directions answers. ponytail: straight
  * line × 1.3 detour at 4.8 km/h; the selected place swaps in the real route
  * time, so only unselected cards ever show this guess. */
 export function walkMinutesGuess(lat: number | null, lng: number | null): number | null {
-  const km = kmFromCampus(lat, lng);
-  if (km === null) return null;
-  return Math.max(1, Math.round(((km * 1.3) / 4.8) * 60));
+  const km = kmFromCampus(lat, lng)
+  if (km === null) return null
+  return Math.max(1, Math.round(((km * 1.3) / 4.8) * 60))
 }
 
 /** A price pill with a tail. `anchor` goes to mapboxgl.Marker({ element,
@@ -50,30 +50,30 @@ export function pricePinElement(
   label: string,
   opts: { full: boolean; dim: boolean },
 ): { anchor: HTMLElement; pin: HTMLElement } {
-  const anchor = document.createElement('div');
-  const el = document.createElement('button');
-  anchor.appendChild(el);
-  el.type = 'button';
-  el.className = 'price-pin';
-  if (opts.full) el.classList.add('price-pin--full');
-  if (opts.dim) el.classList.add('price-pin--dim');
-  el.textContent = label;
-  el.setAttribute('aria-label', `${name}, ${label}`);
-  return { anchor, pin: el };
+  const anchor = document.createElement('div')
+  const el = document.createElement('button')
+  anchor.appendChild(el)
+  el.type = 'button'
+  el.className = 'price-pin'
+  if (opts.full) el.classList.add('price-pin--full')
+  if (opts.dim) el.classList.add('price-pin--dim')
+  el.textContent = label
+  el.setAttribute('aria-label', `${name}, ${label}`)
+  return { anchor, pin: el }
 }
 
 // Lucide graduation-cap.
 const CAP_SVG =
-  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>';
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>'
 
 /** The campus landmark: a badge, not a pin, so it never reads as a listing. */
 export function campusBadgeElement(label: string): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'campus-badge';
-  el.setAttribute('aria-label', `${label} campus`);
-  el.innerHTML = `<span class="campus-badge-icon">${CAP_SVG}</span>`;
-  const text = document.createElement('span');
-  text.textContent = label;
-  el.appendChild(text);
-  return el;
+  const el = document.createElement('div')
+  el.className = 'campus-badge'
+  el.setAttribute('aria-label', `${label} campus`)
+  el.innerHTML = `<span class="campus-badge-icon">${CAP_SVG}</span>`
+  const text = document.createElement('span')
+  text.textContent = label
+  el.appendChild(text)
+  return el
 }

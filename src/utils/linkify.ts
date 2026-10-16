@@ -11,21 +11,21 @@ export interface TextPart {
 }
 
 // http(s) URLs and bare www. hosts, stopping before trailing sentence punctuation.
-const URL_RE = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,!?)\]}'"])/gi;
+const URL_RE = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,!?)\]}'"])/gi
 
 export function linkifyParts(text: string): TextPart[] {
-  if (!text) return [];
-  const parts: TextPart[] = [];
-  let last = 0;
+  if (!text) return []
+  const parts: TextPart[] = []
+  let last = 0
 
   for (const match of text.matchAll(URL_RE)) {
-    const start = match.index ?? 0;
-    if (start > last) parts.push({ text: text.slice(last, start) });
-    const raw = match[0];
-    parts.push({ text: raw, href: raw.startsWith('www.') ? `https://${raw}` : raw });
-    last = start + raw.length;
+    const start = match.index ?? 0
+    if (start > last) parts.push({ text: text.slice(last, start) })
+    const raw = match[0]
+    parts.push({ text: raw, href: raw.startsWith('www.') ? `https://${raw}` : raw })
+    last = start + raw.length
   }
 
-  if (last < text.length) parts.push({ text: text.slice(last) });
-  return parts;
+  if (last < text.length) parts.push({ text: text.slice(last) })
+  return parts
 }

@@ -26,7 +26,7 @@ export const STEP_TITLE: Record<StepKey, string> = {
   assessment: 'Assessment',
   governmentId: 'Government ID',
   businessPermit: 'Permit',
-};
+}
 
 /**
  * The question each screen asks, which is also its title. One thing per screen
@@ -64,10 +64,10 @@ export const STEP_QUESTION: Record<StepKey, { title: string; note?: string }> = 
     title: 'Verify your property',
     note: 'Now the permit for the property. Only OSAS sees it; they cannot accredit a property without it.',
   },
-};
+}
 
-export const sexOptions = ['Male', 'Female'];
+export const sexOptions = ['Male', 'Female']
 
 /** N/A leads and is the default: most people have no extension. */
-export const NAME_EXT_NONE = 'N/A';
-export const nameExtensions = [NAME_EXT_NONE, 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
+export const NAME_EXT_NONE = 'N/A'
+export const nameExtensions = [NAME_EXT_NONE, 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V']

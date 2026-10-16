@@ -1,8 +1,8 @@
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase'
 
 // Use the same demo mode check pattern as the rest of the app
 // supabase.ts checks: const demoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
-const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
+const isDemoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true'
 
 // This file used to also export fetchNotifications, markNotificationRead,
 // markAllNotificationsRead and a showToast() that only console.logged a pretend
@@ -21,8 +21,8 @@ export async function createNotification(
 ) {
   // In demo mode, just log and return true (no actual DB write)
   if (isDemoMode) {
-    console.log('[Demo Mode] Notification would be created:', { title, body, userId });
-    return true;
+    console.log('[Demo Mode] Notification would be created:', { title, body, userId })
+    return true
   }
 
   // NOTE: do NOT send `id`. `notifications.id` is a uuid column with a
@@ -35,11 +35,11 @@ export async function createNotification(
     user_id: userId,
     link_url: link_url ?? null,
     read_at: null,
-  });
+  })
 
   if (error) {
-    console.error('Failed to create notification:', error.message);
-    return false;
+    console.error('Failed to create notification:', error.message)
+    return false
   }
-  return true;
+  return true
 }

@@ -3,9 +3,9 @@
 // served compressed (auto format + auto quality). Non-Cloudinary URLs (legacy
 // Supabase storage, passport images, etc.) pass through untouched.
 
-const CLOUD_DELIVERY_RE = /(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)/;
+const CLOUD_DELIVERY_RE = /(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)/
 
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined
 
 /**
  * Google's profile pictures (a Google sign-in's avatar) can't be hotlinked:
@@ -14,18 +14,18 @@ const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefi
  * through Cloudinary's fetch delivery puts it back on res.cloudinary.com,
  * which does load — and picks up f_auto,q_auto on the way.
  */
-const GOOGLE_USERCONTENT_RE = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//i;
+const GOOGLE_USERCONTENT_RE = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//i
 
 function viaCloudinaryFetch(url: string, size?: AssetSize): string {
   // No cloud configured — better a broken-but-honest URL than a malformed one.
-  if (!CLOUD_NAME) return url;
-  const transform = `f_auto,q_auto${sizeParams(size)}`;
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/fetch/${transform}/${encodeURIComponent(url)}`;
+  if (!CLOUD_NAME) return url
+  const transform = `f_auto,q_auto${sizeParams(size)}`
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/fetch/${transform}/${encodeURIComponent(url)}`
 }
 
 /** True when the URL points at a Cloudinary image delivery. */
 function isCloudinaryUrl(url: string | null | undefined): boolean {
-  return !!url && /res\.cloudinary\.com\/[^/]+\/(image|video|raw|auto)\/upload\//.test(url);
+  return !!url && /res\.cloudinary\.com\/[^/]+\/(image|video|raw|auto)\/upload\//.test(url)
 }
 
 /**

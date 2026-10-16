@@ -1,4 +1,4 @@
-import type { RouteRecordRaw } from 'vue-router';
+import type { RouteRecordRaw } from 'vue-router'
 
 const authRoutes: RouteRecordRaw[] = [
   {
@@ -21,6 +21,6 @@ const authRoutes: RouteRecordRaw[] = [
     path: 'register/manager',
     component: () => import('@/pages/auth/RegisterPage.vue'),
   },
-];
+]
 
-export default authRoutes;
+export default authRoutes

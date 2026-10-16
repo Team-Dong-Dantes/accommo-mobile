@@ -63,62 +63,62 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { Capacitor } from '@capacitor/core';
-import { useRouter, useRoute } from 'vue-router';
-import type { QForm } from 'quasar';
-import { useAuthStore } from '@/stores/auth';
-import { supabase, readOAuthError, isSignupDatabaseError } from '@/utils/supabase';
-import { useNotify } from '@/utils/notify';
-import { captcha } from '@/utils/captcha';
+import { ref, onMounted } from 'vue'
+import { Capacitor } from '@capacitor/core'
+import { useRouter, useRoute } from 'vue-router'
+import type { QForm } from 'quasar'
+import { useAuthStore } from '@/stores/auth'
+import { supabase, readOAuthError, isSignupDatabaseError } from '@/utils/supabase'
+import { useNotify } from '@/utils/notify'
+import { captcha } from '@/utils/captcha'
 
-import AuthInput from '@/components/auth/AuthInput.vue';
-import AuthButton from '@/components/auth/AuthButton.vue';
-import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
-import AuthDivider from '@/components/auth/AuthDivider.vue';
-import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue';
-import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
-import { ALLOWED_EMAIL_DOMAINS_TEXT } from '@/utils/config';
+import AuthInput from '@/components/auth/AuthInput.vue'
+import AuthButton from '@/components/auth/AuthButton.vue'
+import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue'
+import AuthDivider from '@/components/auth/AuthDivider.vue'
+import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue'
+import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue'
+import { ALLOWED_EMAIL_DOMAINS_TEXT } from '@/utils/config'
 
-const router = useRouter();
-const route = useRoute();
-const notify = useNotify();
-const authStore = useAuthStore();
+const router = useRouter()
+const route = useRoute()
+const notify = useNotify()
+const authStore = useAuthStore()
 
-const email = ref('');
-const password = ref('');
-const showPassword = ref(false);
-const loading = ref(false);
-const forgotPasswordLoading = ref(false);
-const loginFormRef = ref<QForm | null>(null);
-const captchaHost = ref<HTMLElement | null>(null);
-const needsEmailVerify = ref(false);
-const verifiedRole = ref<string | null>(null);
+const email = ref('')
+const password = ref('')
+const showPassword = ref(false)
+const loading = ref(false)
+const forgotPasswordLoading = ref(false)
+const loginFormRef = ref<QForm | null>(null)
+const captchaHost = ref<HTMLElement | null>(null)
+const needsEmailVerify = ref(false)
+const verifiedRole = ref<string | null>(null)
 
 onMounted(() => {
   if (route.query.accountExists) {
-    notify.info('You already have an account — log in to finish submitting your requirements.');
-    void router.replace('/login');
+    notify.info('You already have an account — log in to finish submitting your requirements.')
+    void router.replace('/login')
   }
   if (route.query.suspended) {
-    notify.error('This account has been suspended. Contact OSAS if you think this is a mistake.');
-    void router.replace('/login');
+    notify.error('This account has been suspended. Contact OSAS if you think this is a mistake.')
+    void router.replace('/login')
   }
   if (route.query.applicationRejected) {
-    notify.error('OSAS did not approve this application. Contact OSAS to reapply.');
-    void router.replace('/login');
+    notify.error('OSAS did not approve this application. Contact OSAS to reapply.')
+    void router.replace('/login')
   }
   if (route.query.adminUsesWeb) {
-    notify.info('Admin accounts log in on the OSAS web app, not here.');
-    void router.replace('/login');
+    notify.info('Admin accounts log in on the OSAS web app, not here.')
+    void router.replace('/login')
   }
   // Bounced here by the router: signed in, but the address was never confirmed.
   if (route.query.verifyEmail) {
-    void resumeEmailVerify();
-    return;
+    void resumeEmailVerify()
+    return
   }
-  void handleOAuthReturn();
-});
+  void handleOAuthReturn()
+})
 
 /**
  * "Continue with Google" returns to this screen, and signInWithOAuth provisions
@@ -135,28 +135,28 @@ onMounted(() => {
 function googleFailureMessage(failure: string): string {
   // Only a suspension bans an account; unverified landlords/landladies sign in.
   if (/banned|blocked/i.test(failure)) {
-    return 'This account has been suspended. Contact OSAS if you think this is a mistake.';
+    return 'This account has been suspended. Contact OSAS if you think this is a mistake.'
   }
   if (isSignupDatabaseError(failure)) {
     // Almost always the domain rule on auth.users turning away a new Google
     // account, but Supabase gives the same wording to any signup-time database
     // failure — so name the rule without claiming to know that is what it was.
-    return `We couldn't connect that Google account. Accommo only accepts ${ALLOWED_EMAIL_DOMAINS_TEXT} addresses — check which account you picked, then try again.`;
+    return `We couldn't connect that Google account. Accommo only accepts ${ALLOWED_EMAIL_DOMAINS_TEXT} addresses — check which account you picked, then try again.`
   }
-  return failure;
+  return failure
 }
 
 async function handleOAuthReturn() {
   // Supabase reports OAuth failures (a banned account among them) in the URL.
-  const failure = readOAuthError();
+  const failure = readOAuthError()
   if (failure) {
-    notify.error(googleFailureMessage(failure));
-    history.replaceState(null, '', window.location.pathname);
-    return;
+    notify.error(googleFailureMessage(failure))
+    history.replaceState(null, '', window.location.pathname)
+    return
   }
 
-  const { session, profile, registered, status } = await authStore.getSessionProfile();
-  if (!session) return;
+  const { session, profile, registered, status } = await authStore.getSessionProfile()
+  if (!session) return
 
   if (!registered) {
     // signInWithOAuth provisions an account for whoever clicks the button, so an
@@ -167,155 +167,155 @@ async function handleOAuthReturn() {
     // A half-finished e-mail signup is left alone — handleLogin() resumes those
     // when the person actually signs in.
     if (session.user.app_metadata?.provider === 'google') {
-      await supabase.auth.signOut();
-      authStore.clearCachedRole();
-      notify.info('That Google account isn\'t registered yet. Tap Create account to sign up.');
+      await supabase.auth.signOut()
+      authStore.clearCachedRole()
+      notify.info('That Google account isn\'t registered yet. Tap Create account to sign up.')
     }
-    return;
+    return
   }
 
-  const role = profile?.role;
+  const role = profile?.role
   if (role === 'manager') {
     // Unverified landlords/landladies come in too; the dashboard banner says
     // what is still waiting on OSAS and links to the resubmission form.
     if (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing') {
-      notify.warning('OSAS needs changes to your application.');
+      notify.warning('OSAS needs changes to your application.')
     }
-    void router.push('/manager/dashboard');
-    return;
+    void router.push('/manager/dashboard')
+    return
   }
   if (role === 'student') {
-    void router.push(status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing' ? '/student/support' : '/student/home');
+    void router.push(status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing' ? '/student/support' : '/student/home')
   }
 }
 
 // The router keeps the session when it bounces an unconfirmed address, so the
 // e-mail is read back from it rather than asking the user to retype it.
 async function resumeEmailVerify() {
-  const { data } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getUser()
   if (!data?.user?.email) {
-    void router.replace('/login');
-    return;
+    void router.replace('/login')
+    return
   }
-  email.value = data.user.email;
-  verifiedRole.value = authStore.cachedRole;
-  needsEmailVerify.value = true;
-  void router.replace('/login');
+  email.value = data.user.email
+  verifiedRole.value = authStore.cachedRole
+  needsEmailVerify.value = true
+  void router.replace('/login')
 }
 
 async function onEmailVerified() {
-  needsEmailVerify.value = false;
-  notify.success('E-mail confirmed.');
-  const role = verifiedRole.value ?? (await authStore.getSessionProfile()).profile?.role ?? null;
-  if (role === 'student') void router.push('/student/home');
-  else if (role === 'manager') void router.push('/manager/dashboard');
-  else void router.push('/');
+  needsEmailVerify.value = false
+  notify.success('E-mail confirmed.')
+  const role = verifiedRole.value ?? (await authStore.getSessionProfile()).profile?.role ?? null
+  if (role === 'student') void router.push('/student/home')
+  else if (role === 'manager') void router.push('/manager/dashboard')
+  else void router.push('/')
 }
 
 async function cancelEmailVerify() {
-  await supabase.auth.signOut();
-  authStore.clearCachedRole();
-  needsEmailVerify.value = false;
-  password.value = '';
+  await supabase.auth.signOut()
+  authStore.clearCachedRole()
+  needsEmailVerify.value = false
+  password.value = ''
 }
 
 async function handleGoogleAuth() {
   try {
-    const data = await authStore.loginWithGoogle('/login');
+    const data = await authStore.loginWithGoogle('/login')
     // The native picker resolves in place — nothing navigates and nothing
     // re-mounts this screen, so the routing onMounted would have done has to be
     // run here instead. On the browser's redirect path this is unreachable:
     // signInWithOAuth has already sent the tab to Google.
-    if (data && 'session' in data && data.session) await handleOAuthReturn();
+    if (data && 'session' in data && data.session) await handleOAuthReturn()
   } catch (error: unknown) {
     // Failures used to arrive as URL params for handleOAuthReturn to shape; the
     // native path throws them instead, so the same wording is applied here.
-    notify.error(googleFailureMessage(error instanceof Error ? error.message : 'An error occurred'));
+    notify.error(googleFailureMessage(error instanceof Error ? error.message : 'An error occurred'))
   }
 }
 
 async function handleLogin() {
-  if (!loginFormRef.value) return;
-  const success = await loginFormRef.value.validate();
+  if (!loginFormRef.value) return
+  const success = await loginFormRef.value.validate()
   if (!success) {
-    notify.warning('Please enter your email and password.');
-    return;
+    notify.warning('Please enter your email and password.')
+    return
   }
 
   try {
-    loading.value = true;
-    const { role, status, emailVerified } = await authStore.login(email.value, password.value, captchaHost.value);
+    loading.value = true
+    const { role, status, emailVerified } = await authStore.login(email.value, password.value, captchaHost.value)
 
     // Admin/OSAS lives in the web client; this app has no admin surface, and
     // pushing to /admin/dashboard used to land them on a 404.
     if (role === 'admin') {
-      await supabase.auth.signOut();
-      notify.info('Admin accounts log in on the OSAS web app, not here.');
-      return;
+      await supabase.auth.signOut()
+      notify.info('Admin accounts log in on the OSAS web app, not here.')
+      return
     }
 
     // Session is kept on purpose: the code they need is sent to this account, and
     // signing them out here would leave no way to ever confirm the address.
     if (!emailVerified) {
-      verifiedRole.value = role;
-      needsEmailVerify.value = true;
-      notify.info('Confirm your e-mail address to continue.');
-      return;
+      verifiedRole.value = role
+      needsEmailVerify.value = true
+      notify.info('Confirm your e-mail address to continue.')
+      return
     }
 
     if (role === 'manager' && (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing')) {
-      notify.warning('OSAS needs changes to your application.');
+      notify.warning('OSAS needs changes to your application.')
     } else if (role === 'manager' && status === 'pending') {
-      notify.info('Logged in. OSAS is still verifying your account.');
+      notify.info('Logged in. OSAS is still verifying your account.')
     } else if (status === 'needs_resubmission') {
-      notify.warning('OSAS asked for new requirements — upload them again.');
+      notify.warning('OSAS asked for new requirements — upload them again.')
     } else if (status === 'rejected') {
-      notify.warning('OSAS rejected your requirements — re-upload them to try again.');
+      notify.warning('OSAS rejected your requirements — re-upload them to try again.')
     } else if (status === 'pending' || status === 'reviewing') {
-      notify.info('Your account is still awaiting OSAS review.');
+      notify.info('Your account is still awaiting OSAS review.')
     } else {
-      notify.success('Welcome back!');
+      notify.success('Welcome back!')
     }
 
     // Students are sent straight to the screen where they can act on their
     // status. Landlords and landladies land on the dashboard whatever their
     // status; its banner says what is still waiting on OSAS.
-    const studentNeedsOsas = status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing';
-    if (role === 'student') void router.push(studentNeedsOsas ? '/student/support' : '/student/home');
-    else if (role === 'manager') void router.push('/manager/dashboard');
+    const studentNeedsOsas = status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing'
+    if (role === 'student') void router.push(studentNeedsOsas ? '/student/support' : '/student/home')
+    else if (role === 'manager') void router.push('/manager/dashboard')
     else {
-      notify.info('Your account role is not set. Please complete registration.');
-      await supabase.auth.signOut();
-      void router.push('/register?newUser=true');
+      notify.info('Your account role is not set. Please complete registration.')
+      await supabase.auth.signOut()
+      void router.push('/register?newUser=true')
     }
   } catch (error: unknown) {
-    notify.error(error instanceof Error ? error.message : 'An unexpected error occurred');
+    notify.error(error instanceof Error ? error.message : 'An unexpected error occurred')
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
 async function handleForgotPassword() {
   if (!email.value) {
-    notify.info('Please enter your email address first.');
-    return;
+    notify.info('Please enter your email address first.')
+    return
   }
 
-  forgotPasswordLoading.value = true;
+  forgotPasswordLoading.value = true
   try {
       // On a Capacitor build window.location.origin is not a reachable web
       // origin, so the reset link had nowhere to come back to. Same custom
       // scheme the Google flow already registers.
       const redirectTo = Capacitor.isNativePlatform()
         ? 'com.accommo.app://auth/callback'
-        : window.location.origin + '/login';
-      const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo, ...(await captcha(captchaHost.value)) });
-    if (error) throw error;
-    notify.success('Password reset link sent to your email.');
+        : window.location.origin + '/login'
+      const { error } = await supabase.auth.resetPasswordForEmail(email.value, { redirectTo, ...(await captcha(captchaHost.value)) })
+    if (error) throw error
+    notify.success('Password reset link sent to your email.')
   } catch {
-    notify.error('Failed to send reset email. Please try again.');
+    notify.error('Failed to send reset email. Please try again.')
   } finally {
-    forgotPasswordLoading.value = false;
+    forgotPasswordLoading.value = false
   }
 }
 </script>

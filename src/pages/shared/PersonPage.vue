@@ -156,7 +156,7 @@ import EmptyState from '@/components/shared/EmptyState.vue'
 import PhotoViewer from '@/components/shared/PhotoViewer.vue'
 import { scannedStudentDocs, type ScanDoc } from '@/utils/upload'
 import { openExternal } from '@/utils/openExternal'
-import { fetchSharedLeaseHistory } from '@/api/leases';
+import { fetchSharedLeaseHistory } from '@/api/leases'
 import BoardingTimeline, { type TimelineStay } from '@/components/shared/BoardingTimeline.vue'
 
 // One profile screen for "the other person", reached from a conversation or

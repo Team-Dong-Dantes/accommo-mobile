@@ -1,10 +1,10 @@
-import { defineStore } from 'pinia';
-import { supabase } from '@/utils/supabase';
-import { captcha } from '@/utils/captcha';
-import { uploadSecureDocument } from '@/utils/upload';
-import type { StudentRegisterForm } from '@/types/forms';
-import * as flows from '@/stores/authFlows';
-import { documentText, ensureUserRow, formatProfileData, sanitizeError, submitManagerVerificationDocuments, submitStudentVerificationDocuments, toAppRole, toDbRole } from '@/stores/authRows';
+import { defineStore } from 'pinia'
+import { supabase } from '@/utils/supabase'
+import { captcha } from '@/utils/captcha'
+import { uploadSecureDocument } from '@/utils/upload'
+import type { StudentRegisterForm } from '@/types/forms'
+import * as flows from '@/stores/authFlows'
+import { documentText, ensureUserRow, formatProfileData, sanitizeError, submitManagerVerificationDocuments, submitStudentVerificationDocuments, toAppRole, toDbRole } from '@/stores/authRows'
 
 export interface ManagerRegisterForm {
   email: string;
@@ -51,17 +51,17 @@ export const useAuthStore = defineStore('auth', {
     async createStudentAccount(
       form: StudentRegisterForm,
     ) {
-      const profileData = formatProfileData(form, 'student');
+      const profileData = formatProfileData(form, 'student')
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
         options: { data: profileData, ...(await captcha()) },
-      });
-      if (response.error) throw sanitizeError(response.error);
-      const userId = response.data.user?.id;
-      if (!userId) throw new Error('Failed to retrieve user ID after registration.');
+      })
+      if (response.error) throw sanitizeError(response.error)
+      const userId = response.data.user?.id
+      if (!userId) throw new Error('Failed to retrieve user ID after registration.')
 
-      await ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending')
 
       const { error: profileError } = await supabase.from('student_profiles').upsert(
         {
@@ -72,11 +72,11 @@ export const useAuthStore = defineStore('auth', {
           year_level: parseInt(form.yearLevel.charAt(0)) || 1,
         },
         { onConflict: 'user_id' },
-      );
-      if (profileError) throw sanitizeError(profileError);
+      )
+      if (profileError) throw sanitizeError(profileError)
 
-      this.cachedRole = 'student';
-      return userId;
+      this.cachedRole = 'student'
+      return userId
     },
 
     // Phase 2: given an already-created student user, upload school docs and update
@@ -85,10 +85,10 @@ export const useAuthStore = defineStore('auth', {
       userId: string,
       form: StudentRegisterForm,
     ) {
-      let schoolIdUrl: string | null = null;
-      let assessmentUrl: string | null = null;
-      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
-      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile);
+      let schoolIdUrl: string | null = null
+      let assessmentUrl: string | null = null
+      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile)
+      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile)
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -105,42 +105,42 @@ export const useAuthStore = defineStore('auth', {
           assessment_of_fees_url: assessmentUrl,
           document_text: documentText(form),
         })
-        .eq('user_id', userId);
-      if (profileError) throw sanitizeError(profileError);
+        .eq('user_id', userId)
+      if (profileError) throw sanitizeError(profileError)
       // The other two paths (register, completeGoogleProfile) file these too;
       // this one, the usual one, left OSAS's document review empty.
       await submitStudentVerificationDocuments(userId, [
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
-      ]);
-      await this.markRegistered();
-      this.cachedRole = 'student';
+      ])
+      await this.markRegistered()
+      this.cachedRole = 'student'
     },
 
     async register(
       form: StudentRegisterForm,
     ) {
-      const profileData = formatProfileData(form, 'student');
+      const profileData = formatProfileData(form, 'student')
 
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
         options: { data: profileData, ...(await captcha()) },
-      });
+      })
 
-      if (response.error) throw sanitizeError(response.error);
+      if (response.error) throw sanitizeError(response.error)
 
-      const userId = response.data.user?.id;
+      const userId = response.data.user?.id
 
-      if (!userId) throw new Error('Failed to retrieve user ID after registration.');
+      if (!userId) throw new Error('Failed to retrieve user ID after registration.')
 
-      await ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending')
 
-      let schoolIdUrl: string | null = null;
-      let assessmentUrl: string | null = null;
+      let schoolIdUrl: string | null = null
+      let assessmentUrl: string | null = null
 
-      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
-      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile);
+      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile)
+      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile)
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -153,43 +153,43 @@ export const useAuthStore = defineStore('auth', {
           school_id_url: schoolIdUrl,
           assessment_of_fees_url: assessmentUrl,
           document_text: documentText(form),
-        });
+        })
 
-      if (profileError) throw sanitizeError(profileError);
+      if (profileError) throw sanitizeError(profileError)
 
       // Keep the session active (email autoconfirm is on) so the caller can proceed
       // to the phone-verification step without having to sign in again.
       await submitStudentVerificationDocuments(userId, [
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
-      ]);
-      await this.markRegistered();
-      this.cachedRole = 'student';
+      ])
+      await this.markRegistered()
+      this.cachedRole = 'student'
 
-      return response.data;
+      return response.data
     },
 
     async completeGoogleProfile(
       userId: string,
       form: StudentRegisterForm,
     ) {
-      const profileData = formatProfileData(form, 'student');
+      const profileData = formatProfileData(form, 'student')
 
-      await ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending')
 
       const { error: userError } = await supabase
         .from('users')
         .update({ ...profileData })
-        .eq('id', userId);
+        .eq('id', userId)
 
-      if (userError) throw sanitizeError(userError);
+      if (userError) throw sanitizeError(userError)
 
       // A failed upload stops here, as on the password path. Swallowing it let a
       // Google sign-up finish registering with no documents for OSAS to check.
-      let schoolIdUrl: string | null = null;
-      let assessmentUrl: string | null = null;
-      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile);
-      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile);
+      let schoolIdUrl: string | null = null
+      let assessmentUrl: string | null = null
+      if (form.schoolIdFile) schoolIdUrl = await uploadSecureDocument(form.schoolIdFile)
+      if (form.assessmentFile) assessmentUrl = await uploadSecureDocument(form.assessmentFile)
 
       const { error: profileError } = await supabase
         .from('student_profiles')
@@ -202,79 +202,79 @@ export const useAuthStore = defineStore('auth', {
           school_id_url: schoolIdUrl,
           assessment_of_fees_url: assessmentUrl,
           document_text: documentText(form),
-        });
+        })
 
-      if (profileError) throw sanitizeError(profileError);
+      if (profileError) throw sanitizeError(profileError)
 
       // Google already vouched for this address, so there is no code to type.
-      try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
+      try { await this.confirmEmailOwnership() } catch { /* non-fatal */ }
 
       await submitStudentVerificationDocuments(userId, [
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
-      ]);
-      await this.markRegistered();
-      this.cachedRole = 'student';
+      ])
+      await this.markRegistered()
+      this.cachedRole = 'student'
     },
 
     createManagerAccount(form: ManagerRegisterForm) {
-      return flows.createManagerAccount(form);
+      return flows.createManagerAccount(form)
     },
 
     async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
-      await submitManagerVerificationDocuments(userId, form);
-      await this.markRegistered();
+      await submitManagerVerificationDocuments(userId, form)
+      await this.markRegistered()
       // Stays signed in: an unverified landlord/landlady uses the app straight
       // away, and only adding inventory waits for OSAS.
-      this.accountStatus = 'pending';
+      this.accountStatus = 'pending'
     },
 
     // --- MANAGER REGISTRATION (legacy one-shot) ---
 
     async registerManager(form: ManagerRegisterForm) {
-      const profileData = formatProfileData(form, 'manager');
+      const profileData = formatProfileData(form, 'manager')
 
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
         options: { data: profileData, ...(await captcha()) },
-      });
+      })
 
-      if (response.error) throw sanitizeError(response.error);
+      if (response.error) throw sanitizeError(response.error)
 
-      const userId = response.data.user?.id;
+      const userId = response.data.user?.id
 
-      if (!userId) throw new Error('Failed to retrieve user ID after registration.');
+      if (!userId) throw new Error('Failed to retrieve user ID after registration.')
 
       // Upload both documents in parallel (they're independent) while we ensure
       // the user row — this significantly cuts registration latency vs doing the
       // uploads one-after-another on a mobile connection.
-      await ensureUserRow(userId, form.email, profileData, 'pending');
-      await submitManagerVerificationDocuments(userId, form);
-      await this.markRegistered();
-      this.accountStatus = 'pending';
+      await ensureUserRow(userId, form.email, profileData, 'pending')
+      await submitManagerVerificationDocuments(userId, form)
+      await this.markRegistered()
+      this.accountStatus = 'pending'
 
-      return response.data;
+      return response.data
     },
 
     async completeGoogleManagerProfile(userId: string, form: ManagerRegisterForm) {
-      const profileData = formatProfileData(form, 'manager');
+      const profileData = formatProfileData(form, 'manager')
 
-      await ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending')
 
       const { error: userError } = await supabase
         .from('users')
         .update({ ...profileData })
-        .eq('id', userId);
+        .eq('id', userId)
 
-      if (userError) throw sanitizeError(userError);
+      if (userError) throw sanitizeError(userError)
 
       // Google already vouched for this address, so there is no code to type.
-      try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
+      try { await this.confirmEmailOwnership() } catch { /* non-fatal */ }
 
-      await submitManagerVerificationDocuments(userId, form);
-      await this.markRegistered();
-      this.accountStatus = 'pending';
+      await submitManagerVerificationDocuments(userId, form)
+      await this.markRegistered()
+      this.accountStatus = 'pending'
     },
 
 
@@ -284,10 +284,10 @@ export const useAuthStore = defineStore('auth', {
         email,
         password,
         options: await captcha(captchaHost),
-      });
+      })
 
-      if (authError) throw sanitizeError(authError);
-      if (!authData?.user) throw new Error('Login failed: No user returned.');
+      if (authError) throw sanitizeError(authError)
+      if (!authData?.user) throw new Error('Login failed: No user returned.')
 
       // maybeSingle, not single: a missing users row is its own situation, and
       // single() surfaced it as PGRST116 -> "Registration failed due to a
@@ -296,44 +296,44 @@ export const useAuthStore = defineStore('auth', {
         .from('users')
         .select('role, status, email_verified_at')
         .eq('id', authData.user.id)
-        .maybeSingle();
+        .maybeSingle()
 
-      if (userError) throw sanitizeError(userError);
+      if (userError) throw sanitizeError(userError)
       if (!userData) {
-        await supabase.auth.signOut();
-        throw new Error('This account is not set up yet. Please finish registration.');
+        await supabase.auth.signOut()
+        throw new Error('This account is not set up yet. Please finish registration.')
       }
 
       // A suspended account must not hold a session. Nothing downstream checked
       // status, so suspending someone previously did nothing at all: they signed
       // straight back in and kept working.
       if (userData.status === 'suspended') {
-        await supabase.auth.signOut();
-        throw new Error('This account has been suspended. Contact OSAS if you think this is a mistake.');
+        await supabase.auth.signOut()
+        throw new Error('This account has been suspended. Contact OSAS if you think this is a mistake.')
       }
 
       // A landlord/landlady no longer waits outside while OSAS reviews them: they
       // sign in, upload requirements, raise tickets and message, and only adding
       // accommodations and rooms waits for verification (enforced by the
       // database; see isVerifiedLandlord).
-      this.accountStatus = typeof userData.status === 'string' ? userData.status : null;
+      this.accountStatus = typeof userData.status === 'string' ? userData.status : null
 
-      let role = toAppRole(userData?.role);
+      let role = toAppRole(userData?.role)
 
       // Some accounts were created by the auth trigger without a role. Fall back
       // to the role captured in user_metadata at signup and backfill the users
       // row so future logins resolve it directly.
       if (!role) {
-        const metaRole = (authData.user?.user_metadata as Record<string, unknown> | undefined)?.role;
+        const metaRole = (authData.user?.user_metadata as Record<string, unknown> | undefined)?.role
         if (typeof metaRole === 'string' && metaRole) {
-          role = toAppRole(metaRole);
+          role = toAppRole(metaRole)
           if (role) {
-            await supabase.from('users').update({ role: toDbRole(role) }).eq('id', authData.user.id);
+            await supabase.from('users').update({ role: toDbRole(role) }).eq('id', authData.user.id)
           }
         }
       }
 
-      this.cachedRole = role;
+      this.cachedRole = role
 
       return {
         session: authData.session,
@@ -344,11 +344,11 @@ export const useAuthStore = defineStore('auth', {
         // confirm_email_ownership() once they enter a mailed code. The session is
         // deliberately kept so they can finish verifying from the login screen.
         emailVerified: userData.email_verified_at !== null,
-      };
+      }
     },
 
     markRegistered() {
-      return flows.markRegistered();
+      return flows.markRegistered()
     },
 
     /**
@@ -358,15 +358,15 @@ export const useAuthStore = defineStore('auth', {
      * registered_at is null.
      */
     async chooseRole(role: 'student' | 'manager') {
-      const { data } = await supabase.auth.getUser();
-      const userId = data?.user?.id;
-      if (!userId) return;
+      const { data } = await supabase.auth.getUser()
+      const userId = data?.user?.id
+      if (!userId) return
       const { error } = await supabase
         .from('users')
         .update({ role: toDbRole(role) })
-        .eq('id', userId);
-      if (error) throw sanitizeError(error);
-      this.cachedRole = role;
+        .eq('id', userId)
+      if (error) throw sanitizeError(error)
+      this.cachedRole = role
     },
 
     /**
@@ -375,22 +375,22 @@ export const useAuthStore = defineStore('auth', {
      * account to 'pending' until OSAS decides again. They stay signed in.
      */
     async resubmitManagerApplication(userId: string, form: ManagerRegisterForm) {
-      await submitManagerVerificationDocuments(userId, form);
-      const { error } = await supabase.rpc('resubmit_verification');
-      if (error) throw sanitizeError(error);
-      this.accountStatus = 'pending';
+      await submitManagerVerificationDocuments(userId, form)
+      const { error } = await supabase.rpc('resubmit_verification')
+      if (error) throw sanitizeError(error)
+      this.accountStatus = 'pending'
     },
 
     fetchDecisionReason(userId: string): Promise<string> {
-      return flows.fetchDecisionReason(userId);
+      return flows.fetchDecisionReason(userId)
     },
 
     confirmEmailOwnership() {
-      return flows.confirmEmailOwnership();
+      return flows.confirmEmailOwnership()
     },
 
     sendPhoneVerification(phone: string) {
-      return flows.sendPhoneVerification(phone);
+      return flows.sendPhoneVerification(phone)
     },
 
     async verifyPhoneVerification(phone: string, token: string) {
@@ -398,10 +398,10 @@ export const useAuthStore = defineStore('auth', {
         phone,
         token,
         type: 'phone_change',
-      });
-      if (error) throw sanitizeError(error);
-      this.cachedRole = data.user?.role ?? this.cachedRole;
-      return data;
+      })
+      if (error) throw sanitizeError(error)
+      this.cachedRole = data.user?.role ?? this.cachedRole
+      return data
     },
 
     // --- EMAIL OTP (secondary e-mail verification for NON-OAuth sign-ups) ---
@@ -411,37 +411,37 @@ export const useAuthStore = defineStore('auth', {
     // verified by the provider).
 
     sendEmailOtp(email: string) {
-      return flows.sendEmailOtp(email);
+      return flows.sendEmailOtp(email)
     },
 
     verifyEmailOtp(email: string, token: string) {
-      return flows.verifyEmailOtp(email, token);
+      return flows.verifyEmailOtp(email, token)
     },
 
     clearCachedRole() {
-      this.cachedRole = null;
+      this.cachedRole = null
     },
 
     loginWithGoogle(redirectPath: string) {
-      return flows.loginWithGoogle(redirectPath);
+      return flows.loginWithGoogle(redirectPath)
     },
 
     async getSessionProfile() {
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await supabase.auth.getSession()
 
-      if (!session) return { session: null, profile: null };
+      if (!session) return { session: null, profile: null }
 
       const { data: profile } = await supabase
         .from('users')
         .select('role, status, registered_at')
         .eq('id', session.user.id)
-        .maybeSingle();
+        .maybeSingle()
 
-      const role = toAppRole(profile?.role);
-      this.cachedRole = role;
-      if (typeof profile?.status === 'string') this.accountStatus = profile.status;
+      const role = toAppRole(profile?.role)
+      this.cachedRole = role
+      if (typeof profile?.status === 'string') this.accountStatus = profile.status
 
       return {
         session,
@@ -449,7 +449,7 @@ export const useAuthStore = defineStore('auth', {
         // Null means the row exists but onboarding was never finished.
         registered: profile ? profile.registered_at !== null : false,
         status: (profile?.status as string | undefined) ?? null,
-      };
+      }
     },
   },
-});
+})

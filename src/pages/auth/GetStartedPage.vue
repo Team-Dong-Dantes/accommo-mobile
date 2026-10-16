@@ -24,15 +24,15 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
-import { PITCH_LINE, ROLE_QUESTION, ROLE_QUESTION_NOTE } from '@/utils/config';
-import { isTablet } from '@/utils/useTabletMode';
-import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/utils/supabase';
-import RoleFork from '@/components/auth/RoleFork.vue';
+import { useRouter } from 'vue-router'
+import { PITCH_LINE, ROLE_QUESTION, ROLE_QUESTION_NOTE } from '@/utils/config'
+import { isTablet } from '@/utils/useTabletMode'
+import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/utils/supabase'
+import RoleFork from '@/components/auth/RoleFork.vue'
 
-const router = useRouter();
-const authStore = useAuthStore();
+const router = useRouter()
+const authStore = useAuthStore()
 
 // A Google sign-in is provisioned as 'student' because Google sends no role, so
 // the pick made here has to be written back before onboarding continues. Only
@@ -40,18 +40,18 @@ const authStore = useAuthStore();
 // Signed-out visitors — almost everyone who reaches this screen — have no
 // session and fall straight through.
 async function applyRole(role: 'student' | 'manager') {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) return;
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) return
   try {
-    await authStore.chooseRole(role);
+    await authStore.chooseRole(role)
   } catch {
     // Already-registered accounts keep their role; onboarding just continues.
   }
 }
 
 async function pick(role: 'student' | 'manager') {
-  await applyRole(role);
-  void router.push(role === 'student' ? '/register' : '/register/manager');
+  await applyRole(role)
+  void router.push(role === 'student' ? '/register' : '/register/manager')
 }
 </script>
 

@@ -235,19 +235,19 @@
 <script setup lang="ts">
 // The account screens every role sees: name (with Google), phone, e-mail,
 // password and the e-mail code.
-import AppSelect from '@/components/shared/AppSelect.vue';
-import AuthConsent from '@/components/auth/AuthConsent.vue';
-import AuthDivider from '@/components/auth/AuthDivider.vue';
-import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue';
-import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue';
-import AuthInput from '@/components/auth/AuthInput.vue';
-import ConnectedGoogleBox from '@/components/auth/ConnectedGoogleBox.vue';
-import DateTimeField from '@/components/shared/DateTimeField.vue';
-import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue';
-import { Icon as IconifyIcon } from '@iconify/vue';
-import { isPhMobile, phNationalDigits } from '@/utils/format';
-import { nameExtensions, sexOptions } from './model';
-import { useRegister } from './register';
+import AppSelect from '@/components/shared/AppSelect.vue'
+import AuthConsent from '@/components/auth/AuthConsent.vue'
+import AuthDivider from '@/components/auth/AuthDivider.vue'
+import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue'
+import AuthGoogleBtn from '@/components/auth/AuthGoogleBtn.vue'
+import AuthInput from '@/components/auth/AuthInput.vue'
+import ConnectedGoogleBox from '@/components/auth/ConnectedGoogleBox.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
+import EmailVerifyInline from '@/components/auth/EmailVerifyInline.vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
+import { isPhMobile, phNationalDigits } from '@/utils/format'
+import { nameExtensions, sexOptions } from './model'
+import { useRegister } from './register'
 
 const {
   isManager,
@@ -269,7 +269,7 @@ const {
   handleGoogleAuth,
   cancelGoogle,
   onEmailVerified,
-} = useRegister();
+} = useRegister()
 </script>
 
 <style scoped>

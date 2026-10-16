@@ -2,7 +2,7 @@
 // Shared by student registration and the student profile editor so the two
 // can never drift apart and write mismatched values into student_profiles.
 
-export const yearOptions = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year'];
+export const yearOptions = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', '6th Year']
 
 export const collegePrograms: Record<string, string[]> = {
   'College of Agriculture (CA)': [
@@ -60,17 +60,17 @@ export const collegePrograms: Record<string, string[]> = {
   'School of Veterinary Medicine (SVM)': [
     'Doctor of Veterinary Medicine (DVM)',
   ],
-};
+}
 
-export const collegeOptions = Object.keys(collegePrograms);
+export const collegeOptions = Object.keys(collegePrograms)
 
 /** '3rd Year' -> 3. Falls back to 1 for anything unparsable. */
 export function yearLevelFromLabel(label: string): number {
-  return parseInt(label.charAt(0), 10) || 1;
+  return parseInt(label.charAt(0), 10) || 1
 }
 
 /** 3 -> '3rd Year'. Empty when the level is unknown. */
 export function yearLevelToLabel(level: number | null | undefined): string {
-  if (!level) return '';
-  return yearOptions[level - 1] ?? `${level}`;
+  if (!level) return ''
+  return yearOptions[level - 1] ?? `${level}`
 }

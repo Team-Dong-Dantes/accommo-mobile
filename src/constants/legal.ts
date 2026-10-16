@@ -105,7 +105,7 @@ We may update these terms. When we do, the effective date changes and you will b
 13. Contact
 
 Questions about these terms go to OSAS through the support section of the app.`,
-};
+}
 
 const PRIVACY: LegalDocument = {
   id: 'privacy',
@@ -189,10 +189,10 @@ If we change this notice, the effective date changes and you will be asked to re
 11. Contact
 
 Reach OSAS through the support section of the app, or contact the university's Data Protection Officer for matters concerning your personal information.`,
-};
+}
 
 /** Order matters: the Terms are read first. */
-export const LEGAL_DOCUMENTS: LegalDocument[] = [TERMS, PRIVACY];
+export const LEGAL_DOCUMENTS: LegalDocument[] = [TERMS, PRIVACY]
 
 /**
  * Each document's effective date, keyed by id — derived from the documents
@@ -202,4 +202,4 @@ export const LEGAL_DOCUMENTS: LegalDocument[] = [TERMS, PRIVACY];
  */
 export const LEGAL_EFFECTIVE_DATES = Object.fromEntries(
   LEGAL_DOCUMENTS.map((doc) => [doc.id, doc.effectiveDate]),
-) as Record<LegalDocumentId, string>;
+) as Record<LegalDocumentId, string>

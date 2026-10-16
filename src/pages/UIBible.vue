@@ -162,14 +162,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
-const router = useRouter();
-const copied = ref('');
-const demoName = ref('Maria Santos');
-const demoSearch = ref('');
-const notificationsOn = ref(true);
+const router = useRouter()
+const copied = ref('')
+const demoName = ref('Maria Santos')
+const demoSearch = ref('')
+const notificationsOn = ref(true)
 
 const colorGroups = [
   { name: 'Brand', colors: [
@@ -191,7 +191,7 @@ const colorGroups = [
     { name: 'Danger', token: '--m-danger', dark: true },
     { name: 'Info', token: '--m-info', dark: true },
   ]},
-];
+]
 
 const typeScale = [
   { label: 'Display', size: '32px', weight: 750, lineHeight: 1.1, sample: 'Find your place.' },
@@ -199,36 +199,36 @@ const typeScale = [
   { label: 'Section', size: '18px', weight: 700, lineHeight: 1.3, sample: 'Payment history' },
   { label: 'Body', size: '15px', weight: 400, lineHeight: 1.55, sample: 'Everything you need, clearly organized.' },
   { label: 'Caption', size: '12px', weight: 600, lineHeight: 1.4, sample: 'UPDATED 10 MINUTES AGO' },
-];
+]
 
 const spacing = [
   { token: '--m-space-1', value: '4px' }, { token: '--m-space-2', value: '8px' },
   { token: '--m-space-3', value: '12px' }, { token: '--m-space-4', value: '16px' },
   { token: '--m-space-5', value: '20px' }, { token: '--m-space-6', value: '24px' },
   { token: '--m-space-8', value: '32px' },
-];
+]
 
 const radii = [
   { token: '--m-radius-sm', value: '12px' },
   { token: '--m-radius', value: '16px' },
   { token: '--m-radius-lg', value: '24px' },
-];
+]
 
 const listItems = [
   { icon: 'lucide:receipt-text', label: 'Payments', caption: 'Review rent and payment history' },
   { icon: 'lucide:shield-check', label: 'Verification', caption: 'Requirements and account status' },
   { icon: 'lucide:life-buoy', label: 'Support', caption: 'Get help from the Accommo team' },
-];
+]
 
 function goBack() {
-  if (window.history.length > 1) router.back();
-  else void router.push('/');
+  if (window.history.length > 1) router.back()
+  else void router.push('/')
 }
 
 async function copyToken(token: string) {
-  await navigator.clipboard?.writeText(`var(${token})`);
-  copied.value = token;
-  window.setTimeout(() => { copied.value = ''; }, 1400);
+  await navigator.clipboard?.writeText(`var(${token})`)
+  copied.value = token
+  window.setTimeout(() => { copied.value = '' }, 1400)
 }
 </script>
 

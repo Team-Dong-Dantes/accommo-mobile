@@ -6,7 +6,7 @@
 // mobile user, so a link is only used when it names a route this app actually
 // has, and anything else falls back to the best screen for the row's type.
 
-import { parseServerTime } from '@/utils/format';
+import { parseServerTime } from '@/utils/format'
 
 export type Role = 'manager' | 'student';
 
@@ -34,10 +34,10 @@ const LOOK: Record<string, NotifLook> = {
   // OSAS restrictions (applications paused, listings hidden) and PIN lockouts.
   system: { icon: 'lucide:shield-alert', tone: 'warn' },
   security: { icon: 'lucide:lock', tone: 'danger' },
-};
+}
 
 export function notifLook(type: string | null | undefined): NotifLook {
-  return LOOK[type || ''] ?? { icon: 'lucide:bell', tone: 'idle' };
+  return LOOK[type || ''] ?? { icon: 'lucide:bell', tone: 'idle' }
 }
 
 /** Every path the mobile router can actually reach. Keep in step with src/router. */
@@ -67,7 +67,7 @@ const ROUTES = new Set([
   '/student/concerns',
   '/student/payments',
   '/student/stay',
-]);
+])
 
 /**
  * Routes with an id in them, which a fixed list cannot hold. An accreditation
@@ -76,7 +76,7 @@ const ROUTES = new Set([
 const ROUTE_PATTERNS: readonly RegExp[] = [
   /^\/manager\/properties\/[0-9a-f-]{36}$/,
   /^\/manager\/tenant\/[0-9a-f-]{36}$/,
-];
+]
 
 /** Where each type belongs when its own link_url is unusable here. */
 const BY_TYPE: Record<Role, Record<string, string>> = {
@@ -110,7 +110,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     system: '/student/profile',
     security: '/student/profile',
   },
-};
+}
 
 /**
  * The path to open for a row, or null when there is nowhere sensible to go —
@@ -124,28 +124,28 @@ export function resolveNotifLink(
 ): string | null {
   // An announcement carries its own screen, addressed by the id the fan-out
   // stamped on the row — the same page for both roles, under their own prefix.
-  if (type === 'announcement' && refId) return `/${role}/announcement/${refId}`;
+  if (type === 'announcement' && refId) return `/${role}/announcement/${refId}`
   if (linkUrl) {
-    const base = linkUrl.split('?')[0] ?? '';
+    const base = linkUrl.split('?')[0] ?? ''
     // Own-role routes only: a student must never be sent into landlord/landlady screens.
-    const known = ROUTES.has(base) || ROUTE_PATTERNS.some((pattern) => pattern.test(base));
-    if (known && base.startsWith(`/${role}/`)) return linkUrl;
+    const known = ROUTES.has(base) || ROUTE_PATTERNS.some((pattern) => pattern.test(base))
+    if (known && base.startsWith(`/${role}/`)) return linkUrl
   }
-  return BY_TYPE[role][type || ''] ?? null;
+  return BY_TYPE[role][type || ''] ?? null
 }
 
 /** Day bucket used to group the list: 0 today, 1 yesterday, 2 earlier. */
 export function dayBucket(iso: string): 0 | 1 | 2 {
-  const then = parseServerTime(iso);
-  if (Number.isNaN(then.getTime())) return 2;
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  if (then.getTime() >= startOfToday.getTime()) return 0;
-  if (then.getTime() >= startOfToday.getTime() - 86400000) return 1;
-  return 2;
+  const then = parseServerTime(iso)
+  if (Number.isNaN(then.getTime())) return 2
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  if (then.getTime() >= startOfToday.getTime()) return 0
+  if (then.getTime() >= startOfToday.getTime() - 86400000) return 1
+  return 2
 }
 
-export const BUCKET_LABEL = ['Today', 'Yesterday', 'Earlier'] as const;
+export const BUCKET_LABEL = ['Today', 'Yesterday', 'Earlier'] as const
 
 /**
  * "just now", "5m", "2h 15m", "1d 4h", then a date once it stops being
@@ -153,17 +153,17 @@ export const BUCKET_LABEL = ['Today', 'Yesterday', 'Earlier'] as const;
  * reads as "1h 30m" rather than losing the extra 30 minutes to "1h".
  */
 export function since(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const then = parseServerTime(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const minutes = Math.floor((Date.now() - then) / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const remMinutes = minutes % 60;
-  if (hours < 24) return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`;
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  if (days < 7) return remHours ? `${days}d ${remHours}h` : `${days}d`;
-  return parseServerTime(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  if (!iso) return ''
+  const then = parseServerTime(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const minutes = Math.floor((Date.now() - then) / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const remMinutes = minutes % 60
+  if (hours < 24) return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`
+  const days = Math.floor(hours / 24)
+  const remHours = hours % 24
+  if (days < 7) return remHours ? `${days}d ${remHours}h` : `${days}d`
+  return parseServerTime(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 }

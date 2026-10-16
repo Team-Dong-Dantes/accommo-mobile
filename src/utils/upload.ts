@@ -1,4 +1,4 @@
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase'
 
 // Cloudinary client-side upload helper — mobile.
 //
@@ -8,9 +8,9 @@ import { supabase } from '@/utils/supabase';
 // secret never reaches the client. Public photos used to go through an unsigned
 // preset, which anyone who read its name out of the bundle could upload to.
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/webp'];
-const ALLOWED_ALL = [...ALLOWED_IMAGE, 'application/pdf'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_ALL = [...ALLOWED_IMAGE, 'application/pdf']
 
 export interface CloudinaryUploadResult {
   publicId: string;
@@ -29,17 +29,17 @@ function optimizeUrl(rawUrl: string): string {
   return rawUrl.replace(
     /(https:\/\/res\.cloudinary\.com\/[^/]+\/(?:image)\/upload\/)/,
     (m) => `${m}f_auto,q_auto/`,
-  );
+  )
 }
 
 function validateFile(file: File): string | null {
   if (file.size > MAX_FILE_SIZE) {
-    return 'File size must be less than 5MB.';
+    return 'File size must be less than 5MB.'
   }
   if (!ALLOWED_ALL.includes(file.type)) {
-    return 'Only JPEG, PNG, WebP images and PDF files are allowed.';
+    return 'Only JPEG, PNG, WebP images and PDF files are allowed.'
   }
-  return null;
+  return null
 }
 
 /**
@@ -53,8 +53,8 @@ function validateFile(file: File): string | null {
  * succeeds and the document viewer renders nothing.
  */
 async function sniffMismatch(file: File): Promise<string | null> {
-  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  const startsWith = (...bytes: number[]) => bytes.every((b, i) => head[i] === b);
+  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer())
+  const startsWith = (...bytes: number[]) => bytes.every((b, i) => head[i] === b)
 
   const actual =
     startsWith(0xff, 0xd8, 0xff) ? 'image/jpeg'
@@ -63,15 +63,15 @@ async function sniffMismatch(file: File): Promise<string | null> {
     : startsWith(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45
       && head[10] === 0x42 && head[11] === 0x50 ? 'image/webp'
     : startsWith(0x25, 0x50, 0x44, 0x46) ? 'application/pdf'
-    : null;
+    : null
 
   if (actual === null) {
-    return 'That file is not a JPEG, PNG, WebP or PDF.';
+    return 'That file is not a JPEG, PNG, WebP or PDF.'
   }
   if (actual !== file.type) {
-    return `That file is named like a ${file.type.split('/')[1]?.toUpperCase()} but its contents are ${actual.split('/')[1]?.toUpperCase()}. Re-save it and try again.`;
+    return `That file is named like a ${file.type.split('/')[1]?.toUpperCase()} but its contents are ${actual.split('/')[1]?.toUpperCase()}. Re-save it and try again.`
   }
-  return null;
+  return null
 }
 
 /**
@@ -89,49 +89,49 @@ async function sniffMismatch(file: File): Promise<string | null> {
  * preset happens to be configured.
  */
 function uniqueUploadName(file: File): string {
-  const dot = file.name.lastIndexOf('.');
-  const ext = dot > 0 ? file.name.slice(dot) : '';
-  const stem = (dot > 0 ? file.name.slice(0, dot) : file.name).replace(/[^a-zA-Z0-9_-]/g, '') || 'upload';
-  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  return `${stem}-${nonce}${ext}`;
+  const dot = file.name.lastIndexOf('.')
+  const ext = dot > 0 ? file.name.slice(dot) : ''
+  const stem = (dot > 0 ? file.name.slice(0, dot) : file.name).replace(/[^a-zA-Z0-9_-]/g, '') || 'upload'
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  return `${stem}-${nonce}${ext}`
 }
 
 async function performUpload(file: File): Promise<CloudinaryUploadResult> {
-  const validationError = validateFile(file);
-  if (validationError) throw new Error(validationError);
-  const sniffError = await sniffMismatch(file);
-  if (sniffError) throw new Error(sniffError);
+  const validationError = validateFile(file)
+  if (validationError) throw new Error(validationError)
+  const sniffError = await sniffMismatch(file)
+  if (sniffError) throw new Error(sniffError)
   // Every public upload is a photo; PDFs only ever go up as private documents.
-  if (!ALLOWED_IMAGE.includes(file.type)) throw new Error('Only JPEG, PNG and WebP images can be used here.');
+  if (!ALLOWED_IMAGE.includes(file.type)) throw new Error('Only JPEG, PNG and WebP images can be used here.')
 
   const { data: params, error } = await supabase.functions.invoke('doc-access', {
     body: { action: 'public-upload-params' },
-  });
-  if (error) throw error;
+  })
+  if (error) throw error
 
-  const form = new FormData();
+  const form = new FormData()
   // The third argument sets the filename Cloudinary sees — see uniqueUploadName.
-  form.append('file', file, uniqueUploadName(file));
-  form.append('api_key', params.apiKey);
-  form.append('timestamp', String(params.timestamp));
-  form.append('public_id', params.publicId);
-  form.append('allowed_formats', params.allowedFormats);
-  form.append('signature', params.signature);
+  form.append('file', file, uniqueUploadName(file))
+  form.append('api_key', params.apiKey)
+  form.append('timestamp', String(params.timestamp))
+  form.append('public_id', params.publicId)
+  form.append('allowed_formats', params.allowedFormats)
+  form.append('signature', params.signature)
 
-  const endpoint = `https://api.cloudinary.com/v1_1/${params.cloudName}/image/upload`;
+  const endpoint = `https://api.cloudinary.com/v1_1/${params.cloudName}/image/upload`
 
   const withTimeout = new Promise<CloudinaryUploadResult>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Upload timed out. Please try again.')), 60000);
+    const timer = setTimeout(() => reject(new Error('Upload timed out. Please try again.')), 60000)
     fetch(endpoint, { method: 'POST', body: form })
       .then(async (response) => {
         if (!response.ok) {
-          const body = await response.text().catch(() => '');
-          throw new Error(`Cloudinary upload failed (${response.status}): ${body || response.statusText}`);
+          const body = await response.text().catch(() => '')
+          throw new Error(`Cloudinary upload failed (${response.status}): ${body || response.statusText}`)
         }
-        return response.json();
+        return response.json()
       })
       .then((json) => {
-        clearTimeout(timer);
+        clearTimeout(timer)
         resolve({
           publicId: json.public_id,
           url: optimizeUrl(json.secure_url || json.url || ''),
@@ -140,15 +140,15 @@ async function performUpload(file: File): Promise<CloudinaryUploadResult> {
           height: json.height ?? null,
           format: json.format ?? file.type,
           bytes: json.bytes ?? file.size,
-        });
+        })
       })
       .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
+        clearTimeout(timer)
+        reject(err)
+      })
+  })
 
-  return withTimeout;
+  return withTimeout
 }
 
 /** Uploads one or more files / images to Cloudinary. */
@@ -156,8 +156,8 @@ export async function uploadToCloudinary(
   files: File | File[],
   _folder?: string,
 ): Promise<CloudinaryUploadResult[]> {
-  const list = Array.isArray(files) ? files : [files];
-  return Promise.all(list.map((file) => performUpload(file)));
+  const list = Array.isArray(files) ? files : [files]
+  return Promise.all(list.map((file) => performUpload(file)))
 }
 
 /**
@@ -174,8 +174,8 @@ export async function uploadDocument(
   _userId: string,
   _docType: string,
 ): Promise<string> {
-  const result = await performUpload(file);
-  return result.url || result.secureUrl;
+  const result = await performUpload(file)
+  return result.url || result.secureUrl
 }
 
 /**
@@ -190,20 +190,20 @@ export async function uploadDocument(
  */
 export async function uploadAvatar(file: File, userId: string): Promise<string> {
   if (!ALLOWED_IMAGE.includes(file.type)) {
-    throw new Error('An avatar must be a JPEG, PNG or WebP image.');
+    throw new Error('An avatar must be a JPEG, PNG or WebP image.')
   }
 
-  const result = await performUpload(file);
-  const url = result.url || result.secureUrl;
+  const result = await performUpload(file)
+  const url = result.url || result.secureUrl
 
-  const { error } = await supabase.auth.updateUser({ data: { avatar_url: url } });
-  if (error) throw error;
+  const { error } = await supabase.auth.updateUser({ data: { avatar_url: url } })
+  if (error) throw error
 
-  const { error: dbError } = await supabase.from('users').update({ avatar_url: url }).eq('id', userId);
-  if (dbError) throw dbError;
+  const { error: dbError } = await supabase.from('users').update({ avatar_url: url }).eq('id', userId)
+  if (dbError) throw dbError
 
-  window.dispatchEvent(new CustomEvent('accommo:avatar-change', { detail: { url } }));
-  return url;
+  window.dispatchEvent(new CustomEvent('accommo:avatar-change', { detail: { url } }))
+  return url
 }
 
 /**
@@ -212,15 +212,15 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
  */
 export async function uploadCover(file: File, userId: string): Promise<string> {
   if (!ALLOWED_IMAGE.includes(file.type)) {
-    throw new Error('A cover photo must be a JPEG, PNG or WebP image.');
+    throw new Error('A cover photo must be a JPEG, PNG or WebP image.')
   }
 
-  const result = await performUpload(file);
-  const url = result.url || result.secureUrl;
+  const result = await performUpload(file)
+  const url = result.url || result.secureUrl
 
-  const { error } = await supabase.from('users').update({ cover_url: url }).eq('id', userId);
-  if (error) throw error;
-  return url;
+  const { error } = await supabase.from('users').update({ cover_url: url }).eq('id', userId)
+  if (error) throw error
+  return url
 }
 
 /* -------------------------------------------------------------------------- */
@@ -249,36 +249,36 @@ export type PrivateFileTable = DocumentTable | 'payments' | 'messages' | 'concer
 
 /** Uploads a document to Cloudinary with authenticated delivery; returns the ref to store. */
 export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
-  const validationError = validateFile(file);
-  if (validationError) throw new Error(validationError);
-  const sniffError = await sniffMismatch(file);
-  if (sniffError) throw new Error(sniffError);
+  const validationError = validateFile(file)
+  if (validationError) throw new Error(validationError)
+  const sniffError = await sniffMismatch(file)
+  if (sniffError) throw new Error(sniffError)
 
-  const isPdf = file.type === 'application/pdf';
+  const isPdf = file.type === 'application/pdf'
   const { data: params, error } = await supabase.functions.invoke('doc-access', {
     body: { action: 'upload-params', resourceType: isPdf ? 'raw' : 'image' },
-  });
-  if (error) throw error;
+  })
+  if (error) throw error
 
-  const form = new FormData();
+  const form = new FormData()
   // Unique for the same reason as the public path: two students photographing a
   // school ID both hand over a file called `photo.jpeg`. The filename is not one
   // of the signed parameters, so renaming cannot invalidate the signature.
-  form.append('file', file, uniqueUploadName(file));
-  form.append('api_key', params.apiKey);
-  form.append('timestamp', String(params.timestamp));
-  form.append('public_id', params.publicId);
-  form.append('allowed_formats', params.allowedFormats);
-  form.append('type', params.type);
-  form.append('signature', params.signature);
+  form.append('file', file, uniqueUploadName(file))
+  form.append('api_key', params.apiKey)
+  form.append('timestamp', String(params.timestamp))
+  form.append('public_id', params.publicId)
+  form.append('allowed_formats', params.allowedFormats)
+  form.append('type', params.type)
+  form.append('signature', params.signature)
 
-  const endpoint = `https://api.cloudinary.com/v1_1/${params.cloudName}/${params.resourceType}/upload`;
-  const response = await fetch(endpoint, { method: 'POST', body: form });
-  const json = await response.json();
+  const endpoint = `https://api.cloudinary.com/v1_1/${params.cloudName}/${params.resourceType}/upload`
+  const response = await fetch(endpoint, { method: 'POST', body: form })
+  const json = await response.json()
   if (!response.ok) {
-    throw new Error(`Upload failed (${response.status}): ${json?.error?.message || response.statusText}`);
+    throw new Error(`Upload failed (${response.status}): ${json?.error?.message || response.statusText}`)
   }
-  return ['cld', params.resourceType, json.type || 'authenticated', json.format || '', json.public_id].join(':');
+  return ['cld', params.resourceType, json.type || 'authenticated', json.format || '', json.public_id].join(':')
 }
 
 /**
@@ -291,12 +291,12 @@ export async function secureDocUrl(
   id: string | null | undefined,
   ref?: string,
 ): Promise<string> {
-  if (!id) return '';
+  if (!id) return ''
   const { data, error } = await supabase.functions.invoke('doc-access', {
     body: { action: 'view', table, id, ref },
-  });
-  if (error) return '';
-  return (data?.url as string) || '';
+  })
+  if (error) return ''
+  return (data?.url as string) || ''
 }
 
 export interface ScanDoc { url: string; pdf: boolean }
@@ -311,15 +311,15 @@ export async function scannedStudentDocs(
 ): Promise<{ schoolId: ScanDoc | null; assessmentOfFees: ScanDoc | null } | null> {
   const { data, error } = await supabase.functions.invoke('doc-access', {
     body: { action: 'scan-docs', id: studentId },
-  });
-  if (error || !data) return null;
-  return { schoolId: data.schoolId ?? null, assessmentOfFees: data.assessmentOfFees ?? null };
+  })
+  if (error || !data) return null
+  return { schoolId: data.schoolId ?? null, assessmentOfFees: data.assessmentOfFees ?? null }
 }
 
 /** One stored value: a private ref gets signed, anything else passes through. */
 export async function signRef(table: PrivateFileTable, id: string, value: string | null | undefined): Promise<string> {
-  if (!value) return '';
-  return value.startsWith('cld:') ? secureDocUrl(table, id, value) : value;
+  if (!value) return ''
+  return value.startsWith('cld:') ? secureDocUrl(table, id, value) : value
 }
 
 /**
@@ -333,10 +333,10 @@ export async function signRows<R extends { id: string }>(
   column: keyof R & string,
 ): Promise<void> {
   await Promise.all((rows ?? []).map(async (row) => {
-    const value = row[column] as unknown;
+    const value = row[column] as unknown
     const signed = Array.isArray(value)
       ? await Promise.all(value.map((v: string) => signRef(table, row.id, v)))
       : typeof value === 'string' ? await signRef(table, row.id, value) : value;
-    (row as Record<string, unknown>)[column] = signed;
-  }));
+    (row as Record<string, unknown>)[column] = signed
+  }))
 }

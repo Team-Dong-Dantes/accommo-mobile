@@ -17,5 +17,5 @@
 </template>
 
 <script setup lang="ts">
-const model = defineModel<string | number | null>({ default: null });
+const model = defineModel<string | number | null>({ default: null })
 </script>

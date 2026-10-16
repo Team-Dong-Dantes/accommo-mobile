@@ -1,8 +1,8 @@
-import type { RouteRecordRaw } from 'vue-router';
-import MainLayout from '@/layouts/MainLayout.vue';
-import authRoutes from '@/router/auth';
-import managerRoutes from '@/router/manager';
-import studentRoutes from '@/router/student';
+import type { RouteRecordRaw } from 'vue-router'
+import MainLayout from '@/layouts/MainLayout.vue'
+import authRoutes from '@/router/auth'
+import managerRoutes from '@/router/manager'
+import studentRoutes from '@/router/student'
 
 // Add each screen to its role's route file; MainLayout already carries the shell config for both.
 const routes: RouteRecordRaw[] = [
@@ -36,6 +36,6 @@ const routes: RouteRecordRaw[] = [
     path: '/:catchAll(.*)*',
     component: () => import('@/pages/ErrorNotFound.vue'),
   },
-];
+]
 
-export default routes;
+export default routes

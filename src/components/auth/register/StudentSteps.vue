@@ -100,13 +100,13 @@
 <script setup lang="ts">
 // A student's screens: studies, the student ID and the optional enrolment
 // documents.
-import AppSelect from '@/components/shared/AppSelect.vue';
-import AuthDocumentCard from '@/components/auth/AuthDocumentCard.vue';
-import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue';
-import AuthInput from '@/components/auth/AuthInput.vue';
-import { checkDocument } from '@/utils/docReading';
-import { yearOptions } from '@/constants/academics';
-import { useRegister } from './register';
+import AppSelect from '@/components/shared/AppSelect.vue'
+import AuthDocumentCard from '@/components/auth/AuthDocumentCard.vue'
+import AuthFieldGroup from '@/components/auth/AuthFieldGroup.vue'
+import AuthInput from '@/components/auth/AuthInput.vue'
+import { checkDocument } from '@/utils/docReading'
+import { yearOptions } from '@/constants/academics'
+import { useRegister } from './register'
 
 const {
   digitsOnly,
@@ -116,7 +116,7 @@ const {
   filteredPrograms,
   onCollegeChange,
   documentExpected,
-} = useRegister();
+} = useRegister()
 </script>
 
 <style scoped>

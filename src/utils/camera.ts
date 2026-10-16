@@ -1,7 +1,7 @@
-import { Camera } from '@capacitor/camera';
-import { Capacitor } from '@capacitor/core';
-import { DocumentScanner } from '@capacitor-mlkit/document-scanner';
-import { TextRecognition } from '@capacitor-mlkit/text-recognition';
+import { Camera } from '@capacitor/camera'
+import { Capacitor } from '@capacitor/core'
+import { DocumentScanner } from '@capacitor-mlkit/document-scanner'
+import { TextRecognition } from '@capacitor-mlkit/text-recognition'
 
 export interface CaptureOutcome {
   /** The captured photo, or null when nothing was taken. */
@@ -13,8 +13,8 @@ export interface CaptureOutcome {
 }
 
 const INSECURE =
-  'The camera needs a secure connection (https, or localhost). Opened over a plain http address, the browser withholds camera access — use Upload instead, or open the app over https.';
-const NO_CAMERA_API = "This browser won't give the page camera access. Use Upload instead.";
+  'The camera needs a secure connection (https, or localhost). Opened over a plain http address, the browser withholds camera access — use Upload instead, or open the app over https.'
+const NO_CAMERA_API = "This browser won't give the page camera access. Use Upload instead."
 
 /**
  * Last-resort capture that goes through the WebView instead of the native
@@ -27,28 +27,28 @@ const NO_CAMERA_API = "This browser won't give the page camera access. Use Uploa
  */
 function captureViaInput(): Promise<File | null> {
   return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.setAttribute('capture', 'environment');
-    input.style.display = 'none';
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.setAttribute('capture', 'environment')
+    input.style.display = 'none'
 
-    let settled = false;
+    let settled = false
     const done = (file: File | null) => {
-      if (settled) return;
-      settled = true;
-      input.remove();
-      resolve(file);
-    };
+      if (settled) return
+      settled = true
+      input.remove()
+      resolve(file)
+    }
 
-    input.addEventListener('change', () => done(input.files?.[0] ?? null));
+    input.addEventListener('change', () => done(input.files?.[0] ?? null))
     // A cancelled picker fires no event on Android; the window regaining focus
     // is the only signal, and the delay lets a real 'change' win the race.
-    window.addEventListener('focus', () => setTimeout(() => done(null), 900), { once: true });
+    window.addEventListener('focus', () => setTimeout(() => done(null), 900), { once: true })
 
-    document.body.appendChild(input);
-    input.click();
-  });
+    document.body.appendChild(input)
+    input.click()
+  })
 }
 
 /**
@@ -67,8 +67,8 @@ function captureViaInput(): Promise<File | null> {
  */
 export async function capturePhoto(): Promise<CaptureOutcome> {
   if (!Capacitor.isNativePlatform()) {
-    if (!window.isSecureContext) return { file: null, error: INSECURE };
-    if (!navigator.mediaDevices?.getUserMedia) return { file: null, error: NO_CAMERA_API };
+    if (!window.isSecureContext) return { file: null, error: INSECURE }
+    if (!navigator.mediaDevices?.getUserMedia) return { file: null, error: NO_CAMERA_API }
   }
 
   try {
@@ -78,34 +78,34 @@ export async function capturePhoto(): Promise<CaptureOutcome> {
     // on disk" when that provider is misconfigured, and which then degrades to
     // a file chooser. takePhoto() uses the plugin's own in-app camera and never
     // touches FileProvider.
-    const photo = await Camera.takePhoto({ quality: 80 });
-    const path = photo.webPath || photo.uri;
-    if (!path) return { file: null, error: null };
-    const blob = await (await fetch(path)).blob();
-    const ext = blob.type.split('/')[1] || 'jpeg';
+    const photo = await Camera.takePhoto({ quality: 80 })
+    const path = photo.webPath || photo.uri
+    if (!path) return { file: null, error: null }
+    const blob = await (await fetch(path)).blob()
+    const ext = blob.type.split('/')[1] || 'jpeg'
     return {
       file: new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` }),
       error: null,
-    };
+    }
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const message = e instanceof Error ? e.message : String(e)
     // Cancelling isn't a failure; anything else is worth surfacing.
-    if (/cancel/i.test(message)) return { file: null, error: null };
+    if (/cancel/i.test(message)) return { file: null, error: null }
 
     // The native intent could not be given a file to write to — the app's
     // FileProvider is misconfigured. The WebView can still reach the camera,
     // so try that before telling the user the camera is broken.
     if (/photo on disk|fileprovider|configured root|unimplemented/i.test(message)) {
-      const file = await captureViaInput();
-      if (file) return { file, error: null };
+      const file = await captureViaInput()
+      if (file) return { file, error: null }
       return {
         file: null,
         error:
           'The camera could not save the photo. Use Upload instead — and the app build needs its FileProvider configured.',
-      };
+      }
     }
 
-    return { file: null, error: message || 'Could not open the camera.' };
+    return { file: null, error: message || 'Could not open the camera.' }
   }
 }
 
@@ -116,37 +116,37 @@ export async function capturePhoto(): Promise<CaptureOutcome> {
  * fetching the scanner, it falls back to the plain camera.
  */
 export async function scanDocument(): Promise<CaptureOutcome> {
-  if (Capacitor.getPlatform() !== 'android') return capturePhoto();
+  if (Capacitor.getPlatform() !== 'android') return capturePhoto()
   try {
-    const { available } = await DocumentScanner.isGoogleDocumentScannerModuleAvailable();
+    const { available } = await DocumentScanner.isGoogleDocumentScannerModuleAvailable()
     if (!available) {
       // Ready by the next tap; this one takes an ordinary photo.
-      void DocumentScanner.installGoogleDocumentScannerModule().catch(() => undefined);
-      return capturePhoto();
+      void DocumentScanner.installGoogleDocumentScannerModule().catch(() => undefined)
+      return capturePhoto()
     }
     const { scannedImages } = await DocumentScanner.scanDocument({
       pageLimit: 1,
       resultFormats: 'JPEG',
       galleryImportAllowed: true,
       scannerMode: 'FULL',
-    });
-    const path = scannedImages?.[0];
-    if (!path) return { file: null, error: null };
-    const blob = await (await fetch(Capacitor.convertFileSrc(path))).blob();
-    return { file: new File([blob], 'scan.jpg', { type: 'image/jpeg' }), error: null, path };
+    })
+    const path = scannedImages?.[0]
+    if (!path) return { file: null, error: null }
+    const blob = await (await fetch(Capacitor.convertFileSrc(path))).blob()
+    return { file: new File([blob], 'scan.jpg', { type: 'image/jpeg' }), error: null, path }
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    if (/cancel/i.test(message)) return { file: null, error: null };
-    return capturePhoto();
+    const message = e instanceof Error ? e.message : String(e)
+    if (/cancel/i.test(message)) return { file: null, error: null }
+    return capturePhoto()
   }
 }
 
 /** The text on a scanned page, read on the device. Null when it cannot be read. */
 export async function readDocumentText(path: string): Promise<string | null> {
   try {
-    const { text } = await TextRecognition.processImage({ path });
-    return text;
+    const { text } = await TextRecognition.processImage({ path })
+    return text
   } catch {
-    return null;
+    return null
   }
 }

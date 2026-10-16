@@ -34,15 +34,15 @@
 
 <script setup lang="ts">
 // A landlord/landlady's requirements, one per screen.
-import AuthDocumentCard from '@/components/auth/AuthDocumentCard.vue';
-import DateTimeField from '@/components/shared/DateTimeField.vue';
-import { useRegister } from './register';
+import AuthDocumentCard from '@/components/auth/AuthDocumentCard.vue'
+import DateTimeField from '@/components/shared/DateTimeField.vue'
+import { useRegister } from './register'
 
 const {
   current,
   form,
   expiryRules,
-} = useRegister();
+} = useRegister()
 </script>
 
 <style scoped>

@@ -12,7 +12,7 @@
  * shown as ₱2,667 may differ by a peso from twelve times the stored figure.
  */
 export function formatPeso(amount: number): string {
-  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 /**
@@ -24,7 +24,7 @@ export function formatPeso(amount: number): string {
  */
 export function formatPesoExact(amount: number): string {
   const cents = !Number.isInteger(Math.round(amount * 100) / 100)
-  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 });
+  return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 })
 }
 
 /**
@@ -50,10 +50,10 @@ export function capitalizeName(value: string): string {
     .replace(
       /(^|[\s'-])(\p{Ll})/gu,
       (_match, separator: string, letter: string) => separator + letter.toUpperCase(),
-    );
+    )
 }
 
-const ROMAN_NUMERAL = /^(I{1,3}|IV|VI{0,3}|IX|X)$/;
+const ROMAN_NUMERAL = /^(I{1,3}|IV|VI{0,3}|IX|X)$/
 
 /**
  * Whether a name, or one part of one, holds only what Philippine names actually
@@ -63,11 +63,11 @@ const ROMAN_NUMERAL = /^(I{1,3}|IV|VI{0,3}|IX|X)$/;
  * refused at sign-up cannot be typed in a week later from Profile.
  */
 export function isPersonName(value: string | null | undefined): boolean {
-  return /^[\p{L}\p{M}][\p{L}\p{M}'\-. ]*$/u.test((value ?? '').trim());
+  return /^[\p{L}\p{M}][\p{L}\p{M}'\-. ]*$/u.test((value ?? '').trim())
 }
 
 /** Jr., Sr. and the generational numerals, in the forms people actually type. */
-const NAME_SUFFIXES = /^(jr|sr|i{1,3}|iv|v|vi{1,3}|ix|x)\.?$/i;
+const NAME_SUFFIXES = /^(jr|sr|i{1,3}|iv|v|vi{1,3}|ix|x)\.?$/i
 
 /**
  * First letter of the given name, first letter of the surname.
@@ -85,16 +85,16 @@ export function initialsOf(name: string): string {
     .split(/\s+/)
     .filter(Boolean)
     // A lone letter, with or without a period, is a middle initial.
-    .filter((p) => !/^\p{L}\.?$/u.test(p));
+    .filter((p) => !/^\p{L}\.?$/u.test(p))
 
   // Suffixes only count as such at the end; someone surnamed "Ivy" keeps it.
   while (parts.length > 1 && NAME_SUFFIXES.test(parts[parts.length - 1] ?? '')) {
-    parts.pop();
+    parts.pop()
   }
 
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return (parts[0] ?? '').slice(0, 2).toUpperCase();
-  return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return (parts[0] ?? '').slice(0, 2).toUpperCase()
+  return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase()
 }
 
 // Normalize a Philippine mobile number to E.164 (+63xxxxxxxxx).
@@ -212,67 +212,67 @@ export function dateOfBirthProblem(val: string | null | undefined, today: string
 
 /** "22:00" (a time-picker value) -> "10:00 PM". */
 export function to12Hour(value: string): string {
-  const [h, m] = (value || '').split(':');
-  const hour = Number(h);
-  if (!value || Number.isNaN(hour) || !m) return '';
-  const suffix = hour < 12 ? 'AM' : 'PM';
-  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
-  return `${hour12}:${m} ${suffix}`;
+  const [h, m] = (value || '').split(':')
+  const hour = Number(h)
+  if (!value || Number.isNaN(hour) || !m) return ''
+  const suffix = hour < 12 ? 'AM' : 'PM'
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12
+  return `${hour12}:${m} ${suffix}`
 }
 
 /** "10:00 PM" / "10PM" / "22:00" -> "22:00" for a time picker. */
 export function to24Hour(value: string): string {
-  const text = (value || '').trim();
-  const match = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/.exec(text);
-  if (!match) return '';
-  let hour = Number(match[1]);
-  const minutes = match[2] ?? '00';
-  const suffix = match[3]?.toUpperCase();
-  if (hour > 23 || Number(minutes) > 59) return '';
-  if (suffix === 'PM' && hour < 12) hour += 12;
-  if (suffix === 'AM' && hour === 12) hour = 0;
-  return `${String(hour).padStart(2, '0')}:${minutes}`;
+  const text = (value || '').trim()
+  const match = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/.exec(text)
+  if (!match) return ''
+  let hour = Number(match[1])
+  const minutes = match[2] ?? '00'
+  const suffix = match[3]?.toUpperCase()
+  if (hour > 23 || Number(minutes) > 59) return ''
+  if (suffix === 'PM' && hour < 12) hour += 12
+  if (suffix === 'AM' && hour === 12) hour = 0
+  return `${String(hour).padStart(2, '0')}:${minutes}`
 }
 
 /** Splits a stored range ("10:00 PM – 6:00 AM") into two picker values. */
 export function splitTimeRange(value: string): [string, string] {
-  const [from, to] = (value || '').split(/[–-]/);
-  return [to24Hour(from ?? ''), to24Hour(to ?? '')];
+  const [from, to] = (value || '').split(/[–-]/)
+  return [to24Hour(from ?? ''), to24Hour(to ?? '')]
 }
 
 export function parseServerTime(iso: string): Date {
-  const hasTime = /[T ]/.test(iso);
-  const hasTz = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso);
-  return new Date(hasTime && !hasTz ? `${iso}Z` : iso);
+  const hasTime = /[T ]/.test(iso)
+  const hasTz = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso)
+  return new Date(hasTime && !hasTz ? `${iso}Z` : iso)
 }
 
 /** Separator label above a run of messages sent on the same day. */
 export function dayLabel(iso: string): string {
-  const date = parseServerTime(iso);
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  if (date.getTime() >= start.getTime()) return 'Today';
-  if (date.getTime() >= start.getTime() - 86400000) return 'Yesterday';
-  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  const date = parseServerTime(iso)
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  if (date.getTime() >= start.getTime()) return 'Today'
+  if (date.getTime() >= start.getTime() - 86400000) return 'Yesterday'
+  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /** Clock time shown under a message bubble. */
 export function clockTime(iso: string): string {
-  return parseServerTime(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+  return parseServerTime(iso).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
 }
 
 export function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
   // The year is shown once it isn't this one: a lease "Until Oct 5" that starts
   // Oct 5 reads as zero days unless it says 2027.
-  const year = d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined;
-  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year });
+  const year = d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year })
 }
 
 export function formatMonth(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'Unspecified';
-  return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+  if (!dateStr) return 'Unspecified'
+  return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
 }
 
 /**
@@ -281,19 +281,19 @@ export function formatMonth(dateStr: string | null | undefined): string {
  * Jun 1 to Mar 31 counts as ten.
  */
 export function stayProgress(start: string, end: string, today: string): { pct: number; label: string } {
-  const days = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00`) - Date.parse(`${a}T00:00:00`)) / 864e5);
-  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-  const length = Math.max(days(start, end), 1);
-  const total = Math.max(Math.round(length / 30.44), 1);
-  const gone = days(start, today);
-  if (gone < 0) return { pct: 0, label: `Moves in ${gone === -1 ? 'tomorrow' : plural(-gone, 'day')} · ${plural(total, 'month')}` };
-  if (today >= end) return { pct: 100, label: `Stayed ${plural(total, 'month')}` };
-  const left = days(today, end);
-  const month = Math.min(Math.floor(gone / 30.44) + 1, total);
+  const days = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00`) - Date.parse(`${a}T00:00:00`)) / 864e5)
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
+  const length = Math.max(days(start, end), 1)
+  const total = Math.max(Math.round(length / 30.44), 1)
+  const gone = days(start, today)
+  if (gone < 0) return { pct: 0, label: `Moves in ${gone === -1 ? 'tomorrow' : plural(-gone, 'day')} · ${plural(total, 'month')}` }
+  if (today >= end) return { pct: 100, label: `Stayed ${plural(total, 'month')}` }
+  const left = days(today, end)
+  const month = Math.min(Math.floor(gone / 30.44) + 1, total)
   return {
     pct: Math.round((gone / length) * 100),
     label: `Month ${month} of ${total} · ${left <= 31 ? plural(left, 'day') : plural(Math.round(left / 30.44), 'month')} left`,
-  };
+  }
 }
 
 export interface StatusMeta {
@@ -309,7 +309,7 @@ export const LEASE_STATUS: Record<string, StatusMeta> = {
   terminated: { text: 'Terminated', color: 'red' },
   leave_requested: { text: 'Leave Requested', color: 'orange' },
   rejected: { text: 'Declined', color: 'red' },
-};
+}
 
 
 export const PAYMENT_STATUS: Record<string, StatusMeta> = {
@@ -320,7 +320,7 @@ export const PAYMENT_STATUS: Record<string, StatusMeta> = {
   rejected: { text: 'Rejected', color: 'red' },
   withdrawn: { text: 'Withdrawn', color: 'grey' },
   waived: { text: 'Forgiven', color: 'green' },
-};
+}
 
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   gcash: 'GCash',
@@ -329,7 +329,7 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   cash: 'Cash',
   others: 'Other',
   deposit: 'Deposit',
-};
+}
 
 /** concerns.status: open | acknowledged | in_progress | resolved | rejected */
 export const CONCERN_STATUS: Record<string, StatusMeta> = {
@@ -338,7 +338,7 @@ export const CONCERN_STATUS: Record<string, StatusMeta> = {
   in_progress: { text: 'In Progress', color: 'orange' },
   resolved: { text: 'Resolved', color: 'green' },
   rejected: { text: 'Rejected', color: 'red' },
-};
+}
 
 /** tickets.status — OSAS support tickets. Legacy values are kept because the
  *  database check constraint still permits them on older rows. */
@@ -350,18 +350,18 @@ export const TICKET_STATUS: Record<string, StatusMeta> = {
   under_review: { text: 'Under Review', color: 'orange' },
   resolved: { text: 'Resolved', color: 'green' },
   closed: { text: 'Closed', color: 'grey' },
-};
+}
 
 /** The TKT-0042 form the OSAS console shows, so either side can quote it. */
 export function ticketLabel(ticketNo: number): string {
-  return 'TKT-' + String(ticketNo).padStart(4, '0');
+  return 'TKT-' + String(ticketNo).padStart(4, '0')
 }
 
 /** A concern's escalation ticket from a `tickets(ticket_no)` embed. tickets.concern_id
  *  is unique, but the embed may still arrive as a one-item array. */
 export function ticketNoOf(embed: unknown): number | null {
-  const t = (Array.isArray(embed) ? embed[0] : embed) as { ticket_no?: number } | null | undefined;
-  return t?.ticket_no ?? null;
+  const t = (Array.isArray(embed) ? embed[0] : embed) as { ticket_no?: number } | null | undefined
+  return t?.ticket_no ?? null
 }
 
 export const CONCERN_CATEGORY_LABEL: Record<string, string> = {
@@ -369,7 +369,7 @@ export const CONCERN_CATEGORY_LABEL: Record<string, string> = {
   safety: 'Safety',
   billing: 'Billing',
   other: 'Other',
-};
+}
 
 
 
@@ -378,8 +378,8 @@ export function statusText(
   key: string | null | undefined,
   fallback = '—',
 ): string {
-  if (!key) return fallback;
-  return map[key]?.text ?? key;
+  if (!key) return fallback
+  return map[key]?.text ?? key
 }
 
 export function statusColor(
@@ -387,15 +387,15 @@ export function statusColor(
   key: string | null | undefined,
   fallback = 'grey',
 ): string {
-  if (!key) return fallback;
-  return map[key]?.color ?? fallback;
+  if (!key) return fallback
+  return map[key]?.color ?? fallback
 }
 
 /**
  * The role as a label for nobody in particular — a nav item, a filter, a count.
  * Never gendered, because it addresses no one.
  */
-export const LANDLORD_ROLE_LABEL = 'Landlord/Landlady';
+export const LANDLORD_ROLE_LABEL = 'Landlord/Landlady'
 
 /**
  * How to title one specific person who holds the landlord role, from their
@@ -409,10 +409,10 @@ export const LANDLORD_ROLE_LABEL = 'Landlord/Landlady';
 export function landlordTitle(sex: string | null | undefined): string {
   switch ((sex ?? '').trim().toUpperCase()) {
     case 'M':
-      return 'Landlord';
+      return 'Landlord'
     case 'F':
-      return 'Landlady';
+      return 'Landlady'
     default:
-      return LANDLORD_ROLE_LABEL;
+      return LANDLORD_ROLE_LABEL
   }
 }

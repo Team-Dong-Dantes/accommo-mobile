@@ -1,6 +1,6 @@
-import { App } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
-import { CapacitorUpdater } from '@capgo/capacitor-updater';
+import { App } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
+import { CapacitorUpdater } from '@capgo/capacitor-updater'
 
 export const EXTERNAL_URLS = {
   GOOGLE_ICON: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
@@ -11,7 +11,7 @@ export const EXTERNAL_URLS = {
   ISU_BACKGROUND: '/isu-aerial.jpg',
   // accommo-web's landing page; the web build of this app is a separate deploy.
   LANDING_PAGE: 'https://accommo.vercel.app',
-} as const;
+} as const
 
 /**
  * The only e-mail domains Accommo accepts, for every way an account can be made.
@@ -23,36 +23,36 @@ export const EXTERNAL_URLS = {
  * client-side list is a suggestion — a Google Workspace address on any domain
  * could otherwise connect. Change both together.
  */
-export const ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'isu.edu.ph'] as const;
+export const ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'isu.edu.ph'] as const
 
 /**
  * The product's one-line pitch. Shown on the splash (GetStartedPage) and, on a
  * landscape tablet or desktop, on the photo half of sign-in and register — the
  * same sentence in both places rather than two copies that drift.
  */
-export const PITCH_LINE = 'Verified boarding houses near ISU Echague.';
+export const PITCH_LINE = 'Verified boarding houses near ISU Echague.'
 
 /**
  * The student/manager fork, asked in the same words wherever it is offered —
  * the splash's panel and `/register/role`. Two screens ask one question; they
  * had their own copies of it until the splash grew a heading in landscape.
  */
-export const ROLE_QUESTION = 'Are you a student or a manager?';
+export const ROLE_QUESTION = 'Are you a student or a manager?'
 export const ROLE_QUESTION_NOTE =
-  'This sets what Accommo shows you, and OSAS verifies each differently.';
+  'This sets what Accommo shows you, and OSAS verifies each differently.'
 
 /** Reads as a sentence: "@gmail.com or @isu.edu.ph". */
-export const ALLOWED_EMAIL_DOMAINS_TEXT = ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ');
+export const ALLOWED_EMAIL_DOMAINS_TEXT = ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(' or ')
 
 export function isAllowedEmailDomain(email: string | null | undefined): boolean {
-  const domain = (email ?? '').split('@')[1]?.toLowerCase();
-  return !!domain && (ALLOWED_EMAIL_DOMAINS as readonly string[]).includes(domain);
+  const domain = (email ?? '').split('@')[1]?.toLowerCase()
+  return !!domain && (ALLOWED_EMAIL_DOMAINS as readonly string[]).includes(domain)
 }
 
 // Browser fallback only. On a device the installed versionName is the truth.
 // In the browser (the Vercel web version) it is inlined at build time by
 // quasar.config.ts from package.json, so it follows the version you bump there.
-export const APP_VERSION: string = import.meta.env.VITE_APP_VERSION || '0.0.0';
+export const APP_VERSION: string = import.meta.env.VITE_APP_VERSION || '0.0.0'
 
 /**
  * The version actually running. On a device that is the installed Android
@@ -62,12 +62,12 @@ export const APP_VERSION: string = import.meta.env.VITE_APP_VERSION || '0.0.0';
  * and on any failure.
  */
 export async function getAppVersion(): Promise<string> {
-  if (!Capacitor.isNativePlatform()) return APP_VERSION;
+  if (!Capacitor.isNativePlatform()) return APP_VERSION
   try {
-    const { bundle } = await CapacitorUpdater.current();
-    if (bundle.id !== 'builtin') return `${APP_VERSION.split('.').slice(0, 2).join('.')}.${bundle.version}`;
-    return (await App.getInfo()).version || APP_VERSION;
+    const { bundle } = await CapacitorUpdater.current()
+    if (bundle.id !== 'builtin') return `${APP_VERSION.split('.').slice(0, 2).join('.')}.${bundle.version}`
+    return (await App.getInfo()).version || APP_VERSION
   } catch {
-    return APP_VERSION;
+    return APP_VERSION
   }
 }

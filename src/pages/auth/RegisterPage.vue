@@ -132,12 +132,12 @@
 </template>
 
 <script setup lang="ts">
-import AccountSteps from '@/components/auth/register/AccountSteps.vue';
-import AuthButton from '@/components/auth/AuthButton.vue';
-import { Icon as IconifyIcon } from '@iconify/vue';
-import ManagerSteps from '@/components/auth/register/ManagerSteps.vue';
-import StudentSteps from '@/components/auth/register/StudentSteps.vue';
-import { provideRegister } from '@/components/auth/register/register';
+import AccountSteps from '@/components/auth/register/AccountSteps.vue'
+import AuthButton from '@/components/auth/AuthButton.vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
+import ManagerSteps from '@/components/auth/register/ManagerSteps.vue'
+import StudentSteps from '@/components/auth/register/StudentSteps.vue'
+import { provideRegister } from '@/components/auth/register/register'
 
 // The page is the frame — progress, the question, the action bar. The screens
 // themselves live in components/auth/register/, one group per role.
@@ -164,7 +164,7 @@ const {
   skipStudentId,
   skipDocument,
   handleRegister,
-} = provideRegister();
+} = provideRegister()
 </script>
 
 <style scoped>

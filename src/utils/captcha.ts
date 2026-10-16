@@ -15,8 +15,8 @@
 //
 // Kept identical to accommo-web/src/utils/captcha.ts.
 
-const SITE_KEY = '0x4AAAAAAFVxPRSnuuM7ToBS';
-const SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+const SITE_KEY = '0x4AAAAAAFVxPRSnuuM7ToBS'
+const SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 
 interface Turnstile {
   render(el: HTMLElement, options: Record<string, unknown>): string;
@@ -29,51 +29,51 @@ declare global {
   }
 }
 
-let loading: Promise<Turnstile> | null = null;
+let loading: Promise<Turnstile> | null = null
 
 function load(): Promise<Turnstile> {
   return (loading ??= new Promise<Turnstile>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = SCRIPT;
-    script.async = true;
-    script.onload = () => (window.turnstile ? resolve(window.turnstile) : reject(new Error('Turnstile missing')));
+    const script = document.createElement('script')
+    script.src = SCRIPT
+    script.async = true
+    script.onload = () => (window.turnstile ? resolve(window.turnstile) : reject(new Error('Turnstile missing')))
     script.onerror = () => {
-      loading = null;
-      reject(new Error('Turnstile blocked'));
-    };
-    document.head.appendChild(script);
-  }));
+      loading = null
+      reject(new Error('Turnstile blocked'))
+    }
+    document.head.appendChild(script)
+  }))
 }
 
 /** A one-time token for the next auth request, or undefined when Cloudflare can't be reached. */
 async function captchaToken(host?: HTMLElement, timeoutMs = 15000): Promise<string | undefined> {
-  let turnstile: Turnstile;
+  let turnstile: Turnstile
   try {
-    turnstile = await load();
+    turnstile = await load()
   } catch {
-    return undefined;
+    return undefined
   }
 
-  const box = document.createElement('div');
+  const box = document.createElement('div')
   box.style.cssText = host
     ? 'display:flex;justify-content:center'
     : 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10000';
-  (host ?? document.body).appendChild(box);
+  (host ?? document.body).appendChild(box)
 
   return new Promise((resolve) => {
-    let widgetId = '';
-    let settled = false;
+    let widgetId = ''
+    let settled = false
     const done = (token?: string) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (widgetId) turnstile.remove(widgetId);
-      box.remove();
-      resolve(token);
-    };
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (widgetId) turnstile.remove(widgetId)
+      box.remove()
+      resolve(token)
+    }
     // Only for a silent check that never answers; once Cloudflare asks for a
     // click, the person gets as long as they need.
-    const timer = setTimeout(() => done(undefined), timeoutMs);
+    const timer = setTimeout(() => done(undefined), timeoutMs)
     try {
       widgetId = turnstile.render(box, {
         sitekey: SITE_KEY,
@@ -81,19 +81,19 @@ async function captchaToken(host?: HTMLElement, timeoutMs = 15000): Promise<stri
         callback: (token: string) => done(token),
         'error-callback': () => done(undefined),
         'before-interactive-callback': () => {
-          clearTimeout(timer);
+          clearTimeout(timer)
           // Spaced only once the checkbox shows, so a silent check doesn't nudge the form.
-          if (host) box.style.marginTop = '16px';
+          if (host) box.style.marginTop = '16px'
         },
-      });
+      })
     } catch {
-      done(undefined);
+      done(undefined)
     }
-  });
+  })
 }
 
 /** Options to spread into an auth call: `{ captchaToken }`, or nothing when no token could be had. */
 export async function captcha(host?: HTMLElement | null): Promise<{ captchaToken?: string }> {
-  const token = await captchaToken(host ?? undefined);
-  return token ? { captchaToken: token } : {};
+  const token = await captchaToken(host ?? undefined)
+  return token ? { captchaToken: token } : {}
 }

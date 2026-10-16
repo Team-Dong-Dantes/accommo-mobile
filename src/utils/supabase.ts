@@ -1,24 +1,24 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database.gen';
-import { createTimeoutFetch } from '@/utils/fetchTimeout';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database.gen'
+import { createTimeoutFetch } from '@/utils/fetchTimeout'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? import.meta.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 // Local demo mode: lets you preview every screen without a real Supabase
 // project. Enable by adding VITE_DEMO_MODE=true to your (gitignored)
 // .env.local — no backend changes required.
-const demoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true';
+const demoMode = (import.meta.env.VITE_DEMO_MODE as unknown) === 'true'
 
 if (demoMode) {
   console.warn(
     '[accommo] DEMO MODE is ON — auth is faked and data queries return "not configured". ' +
       'Set VITE_DEMO_MODE=false (or delete .env.local) to use real Supabase.',
-  );
+  )
 
 }
 
-const NOT_CONFIGURED = 'Supabase not configured';
+const NOT_CONFIGURED = 'Supabase not configured'
 
 // Fake session/user used in demo mode so protected screens render.
 const DEMO_SESSION = {
@@ -28,9 +28,9 @@ const DEMO_SESSION = {
   // requireUuid in stores/messages.ts). Demo mode should exercise the same
   // paths the app really takes rather than being the one caller that cannot.
   user: { id: '00000000-0000-4000-8000-000000000001', email: 'demo@accommo.local', role: 'manager' },
-};
+}
 
-let _supabaseInstance: SupabaseClient<Database>;
+let _supabaseInstance: SupabaseClient<Database>
 
 if (supabaseUrl && supabaseAnonKey) {
   // Left on the default (implicit) flow deliberately. Switching to PKCE looks
@@ -45,22 +45,22 @@ if (supabaseUrl && supabaseAnonKey) {
   // Reads get a deadline (see fetchTimeout.ts); writes and storage do not.
   _supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     global: { fetch: createTimeoutFetch() },
-  });
+  })
 } else {
   console.warn(
     'Supabase environment variables are not set. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local',
-  );
+  )
 
   // Demo-mode role, guessed from the email used to sign in: emails
   // containing "student" land on the Student Hub, everything else on the
   // Manager Dashboard. Reset on every sign-in.
-  let demoRole: 'student' | 'manager' = 'manager';
+  let demoRole: 'student' | 'manager' = 'manager'
 
   // In-memory demo database: rows written via insert() are kept and returned
   // by later queries, so records added while previewing (e.g. properties)
   // actually show up on the list screens.
-  const demoDb: Record<string, unknown[]> = {};
-  let demoNextId = 1;
+  const demoDb: Record<string, unknown[]> = {}
+  let demoNextId = 1
 
   const auth = {
     getSession: () =>
@@ -75,18 +75,18 @@ if (supabaseUrl && supabaseAnonKey) {
       }),
     signInWithPassword: (credentials?: { email?: string }) => {
       if (!demoMode) {
-        return Promise.resolve({ data: null, error: { message: NOT_CONFIGURED } });
+        return Promise.resolve({ data: null, error: { message: NOT_CONFIGURED } })
       }
       demoRole = String(credentials?.email ?? '')
         .toLowerCase()
         .includes('student')
         ? 'student'
-        : 'manager';
-      const user = { ...DEMO_SESSION.user, role: demoRole };
+        : 'manager'
+      const user = { ...DEMO_SESSION.user, role: demoRole }
       return Promise.resolve({
         data: { user, session: { ...DEMO_SESSION, user } },
         error: null,
-      });
+      })
     },
     signUp: () =>
       Promise.resolve(
@@ -100,9 +100,9 @@ if (supabaseUrl && supabaseAnonKey) {
     // activity.ts subscribes at import time; without this the whole app dies in demo mode.
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     resetPasswordForEmail: () => Promise.resolve({ error: null }),
-  };
+  }
 
-  const notConfiguredError = { message: NOT_CONFIGURED };
+  const notConfiguredError = { message: NOT_CONFIGURED }
 
   // Permissive query chain: any method/column access returns another chain;
   // awaiting the chain resolves to a mock result so pages render their
@@ -110,9 +110,9 @@ if (supabaseUrl && supabaseAnonKey) {
   // demoDb so added rows are returned by later queries.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function chain(table: string): any {
-    const usersRoleInDemo = demoMode && table === 'users';
+    const usersRoleInDemo = demoMode && table === 'users'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fn: any = (..._args: unknown[]) => chain(table);
+    const fn: any = (..._args: unknown[]) => chain(table)
     fn.then = (resolve: (value: unknown) => void) =>
       resolve(
         demoMode
@@ -121,27 +121,27 @@ if (supabaseUrl && supabaseAnonKey) {
               error: null,
             }
           : { data: null, error: notConfiguredError },
-      );
+      )
     return new Proxy(fn, {
       get: (target, prop, receiver) => {
-        if (prop === 'then') return Reflect.get(target, prop, receiver);
+        if (prop === 'then') return Reflect.get(target, prop, receiver)
         if (prop === 'insert') {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return (values: any) => {
-            const rows = Array.isArray(values) ? values : [values];
+            const rows = Array.isArray(values) ? values : [values]
             const rowsWithIds = rows.map((row) => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const next: any = { ...(row as any) };
-              if (next.id == null) next.id = `demo-${demoNextId++}`;
-              return next;
-            });
-            demoDb[table] = [...(demoDb[table] ?? []), ...rowsWithIds];
-            return chain(table);
-          };
+              const next: any = { ...(row as any) }
+              if (next.id == null) next.id = `demo-${demoNextId++}`
+              return next
+            })
+            demoDb[table] = [...(demoDb[table] ?? []), ...rowsWithIds]
+            return chain(table)
+          }
         }
-        return chain(table);
+        return chain(table)
       },
-    });
+    })
   }
 
   // Realtime no-op. Callers subscribe on mount, so the stub has to be
@@ -151,7 +151,7 @@ if (supabaseUrl && supabaseAnonKey) {
     on: () => demoChannel,
     subscribe: () => demoChannel,
     unsubscribe: () => Promise.resolve('ok'),
-  };
+  }
 
   _supabaseInstance = {
     auth,
@@ -159,10 +159,10 @@ if (supabaseUrl && supabaseAnonKey) {
     rpc: () => Promise.resolve({ data: false, error: null }),
     channel: () => demoChannel,
     removeChannel: () => Promise.resolve('ok'),
-  } as unknown as SupabaseClient<Database>;
+  } as unknown as SupabaseClient<Database>
 }
 
-export const supabase = _supabaseInstance;
+export const supabase = _supabaseInstance
 
 /**
  * The failure text from an OAuth round trip that came back without a session, or
@@ -177,12 +177,12 @@ export function readOAuthError(): string | null {
   const sources = [
     new URLSearchParams(window.location.hash.replace(/^#\/?/, '')),
     new URLSearchParams(window.location.search),
-  ];
+  ]
   for (const params of sources) {
-    const failure = params.get('error_description') || params.get('error');
-    if (failure) return decodeURIComponent(failure).replace(/\+/g, ' ');
+    const failure = params.get('error_description') || params.get('error')
+    if (failure) return decodeURIComponent(failure).replace(/\+/g, ' ')
   }
-  return null;
+  return null
 }
 
 /**
@@ -193,7 +193,7 @@ export function readOAuthError(): string | null {
  * the rule themselves rather than pretending to know which it was.
  */
 export function isSignupDatabaseError(text: string): boolean {
-  return /database error|saving new user|unexpected_failure/i.test(text);
+  return /database error|saving new user|unexpected_failure/i.test(text)
 }
 
 /**
@@ -224,39 +224,39 @@ export interface StoredSession {
 }
 
 function jwtSubject(token: unknown): string | null {
-  if (typeof token !== 'string') return null;
-  const body = token.split('.')[1];
-  if (!body || token.split('.').length !== 3) return null;
+  if (typeof token !== 'string') return null
+  const body = token.split('.')[1]
+  if (!body || token.split('.').length !== 3) return null
   try {
-    const json = atob(body.replace(/-/g, '+').replace(/_/g, '/'));
-    const claims = JSON.parse(json) as { sub?: unknown };
-    return typeof claims.sub === 'string' ? claims.sub : null;
+    const json = atob(body.replace(/-/g, '+').replace(/_/g, '/'))
+    const claims = JSON.parse(json) as { sub?: unknown }
+    return typeof claims.sub === 'string' ? claims.sub : null
   } catch {
-    return null;
+    return null
   }
 }
 
 export function storedSession(): StoredSession | null {
   try {
     for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key || !/^sb-.+-auth-token$/.test(key)) continue;
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const key = localStorage.key(i)
+      if (!key || !/^sb-.+-auth-token$/.test(key)) continue
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      const parsed = JSON.parse(raw) as Record<string, unknown>
       // v2 stores the session flat; older shapes nest it under currentSession.
       const candidate = (parsed?.access_token ? parsed : parsed?.currentSession) as
         | { access_token?: unknown; user?: { id?: string; user_metadata?: Record<string, unknown> } }
-        | undefined;
-      const id = candidate?.user?.id;
-      if (typeof id !== 'string') continue;
-      if (jwtSubject(candidate?.access_token) !== id) continue;
-      return candidate as StoredSession;
+        | undefined
+      const id = candidate?.user?.id
+      if (typeof id !== 'string') continue
+      if (jwtSubject(candidate?.access_token) !== id) continue
+      return candidate as StoredSession
     }
   } catch {
     // Unparseable or unavailable storage: fall through to "no session".
   }
-  return null;
+  return null
 }
 
 /**
@@ -264,7 +264,7 @@ export function storedSession(): StoredSession | null {
  * that must decide before the first paint — see utils/persistCache.ts.
  */
 export function storedUserId(): string | null {
-  return storedSession()?.user.id ?? null;
+  return storedSession()?.user.id ?? null
 }
 
 /**
@@ -283,6 +283,6 @@ export function storedUserId(): string | null {
  * changes) deliberately keep calling `supabase.auth.getUser()`.
  */
 export async function authUser() {
-  const { data } = await supabase.auth.getSession();
-  return { data: { user: data?.session?.user ?? null } };
+  const { data } = await supabase.auth.getSession()
+  return { data: { user: data?.session?.user ?? null } }
 }

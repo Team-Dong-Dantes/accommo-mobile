@@ -1,5 +1,5 @@
-import { App } from '@capacitor/app';
-import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater';
+import { App } from '@capacitor/app'
+import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater'
 
 // Over-the-air web updates. CI zips each release's web build, attaches it to
 // the GitHub release and records it in the `app_release` row; UpdateGate has
@@ -20,7 +20,7 @@ import { CapacitorUpdater, type BundleInfo } from '@capgo/capacitor-updater';
 // and one that never gets that far is reverted and marked `error`.
 
 /** How long the app must sit in the background before a resume may reload it. */
-export const AWAY_MS = 10 * 60 * 1000;
+export const AWAY_MS = 10 * 60 * 1000
 
 export type Release = {
   latest_version_code: number;
@@ -39,8 +39,8 @@ export type Release = {
  * carries the APK's versionCode; a downloaded bundle carries its own.
  */
 export function runningVersion(versionCode: number, bundle: Pick<BundleInfo, 'id' | 'version'>): number {
-  const v = bundle.id === 'builtin' ? versionCode : Number(bundle.version);
-  return Number.isFinite(v) ? v : 0;
+  const v = bundle.id === 'builtin' ? versionCode : Number(bundle.version)
+  return Number.isFinite(v) ? v : 0
 }
 
 /**
@@ -49,42 +49,42 @@ export function runningVersion(versionCode: number, bundle: Pick<BundleInfo, 'id
  * whoever could edit that row could otherwise send every phone code (or an
  * APK) from a server of their own. Pinned here, they also need the GitHub repo.
  */
-const RELEASES = 'https://github.com/Team-Dong-Dantes/accommo-mobile/releases/';
+const RELEASES = 'https://github.com/Team-Dong-Dantes/accommo-mobile/releases/'
 
 /** What this install should do about `release`. */
 export function updateAction(release: Release, versionCode: number, running: number): 'wall' | 'stage' | 'none' {
   // With no APK to point at, the wall would strand the user — fail open.
   if (versionCode < release.min_supported_version_code) {
-    return release.apk_url?.trim().startsWith(RELEASES) ? 'wall' : 'none';
+    return release.apk_url?.trim().startsWith(RELEASES) ? 'wall' : 'none'
   }
   // The plugin refuses a download without a sha256 checksum, so no checksum means no bundle.
-  if (!release.bundle_url?.startsWith(`${RELEASES}download/`) || !release.bundle_checksum || !release.bundle_version) return 'none';
-  return release.bundle_version > running ? 'stage' : 'none';
+  if (!release.bundle_url?.startsWith(`${RELEASES}download/`) || !release.bundle_checksum || !release.bundle_version) return 'none'
+  return release.bundle_version > running ? 'stage' : 'none'
 }
 
 /** The newest downloaded bundle that is newer than what's running, if any. */
 export function pickBundle(bundles: BundleInfo[], running: number): BundleInfo | undefined {
   return bundles
     .filter((b) => (b.status === 'success' || b.status === 'pending') && Number(b.version) > running)
-    .sort((a, b) => Number(b.version) - Number(a.version))[0];
+    .sort((a, b) => Number(b.version) - Number(a.version))[0]
 }
 
-let staging: Promise<void> | null = null;
+let staging: Promise<void> | null = null
 
 /** Downloads `release`'s bundle unless it is already on the device. */
 export function stageBundle(release: Release): Promise<void> {
   // Launch and resume can both fire a check; one download is enough.
   staging ??= (async () => {
-    const version = String(release.bundle_version);
-    const { bundles } = await CapacitorUpdater.list();
+    const version = String(release.bundle_version)
+    const { bundles } = await CapacitorUpdater.list()
     // Present already — downloaded earlier, or tried and rolled back, in which
     // case wait for the next release rather than re-download a broken bundle.
-    if (bundles.some((b) => b.version === version && b.status !== 'downloading')) return;
-    await CapacitorUpdater.download({ url: release.bundle_url ?? '', version, checksum: release.bundle_checksum ?? '' });
+    if (bundles.some((b) => b.version === version && b.status !== 'downloading')) return
+    await CapacitorUpdater.download({ url: release.bundle_url ?? '', version, checksum: release.bundle_checksum ?? '' })
   })().finally(() => {
-    staging = null;
-  });
-  return staging;
+    staging = null
+  })
+  return staging
 }
 
 /** Switches to the newest downloaded bundle, if one is waiting. Reloads the app when it does. */
@@ -93,7 +93,7 @@ export async function applyPendingBundle(): Promise<void> {
     App.getInfo(),
     CapacitorUpdater.current(),
     CapacitorUpdater.list(),
-  ]);
-  const next = pickBundle(bundles, runningVersion(Number(build), bundle));
-  if (next) await CapacitorUpdater.set({ id: next.id });
+  ])
+  const next = pickBundle(bundles, runningVersion(Number(build), bundle))
+  if (next) await CapacitorUpdater.set({ id: next.id })
 }

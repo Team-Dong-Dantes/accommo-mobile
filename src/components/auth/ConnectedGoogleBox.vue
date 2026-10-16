@@ -12,8 +12,8 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ email: string }>();
-defineEmits(['cancel']);
+defineProps<{ email: string }>()
+defineEmits(['cancel'])
 </script>
 
 <style scoped>

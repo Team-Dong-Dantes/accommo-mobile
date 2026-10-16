@@ -1,10 +1,10 @@
-import { defineStore } from 'pinia';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { defineStore } from 'pinia'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/utils/supabase'
-import { errorMessage } from '@/utils/errors';
-import { initialsOf, parseServerTime } from '@/utils/format';
-import { resolveAsset } from '@/utils/cloudinaryUrl';
-import { showNotice } from '@/utils/inAppNotice';
+import { errorMessage } from '@/utils/errors'
+import { initialsOf, parseServerTime } from '@/utils/format'
+import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { showNotice } from '@/utils/inAppNotice'
 
 export interface Thread {
   id: string;
@@ -29,7 +29,7 @@ export type ThreadPref = Partial<Pick<Thread, 'pinned' | 'muted' | 'archivedAt'>
 
 /** An archived thread comes back on its own when a newer message lands. */
 export function isArchived(t: Thread): boolean {
-  return !!t.archivedAt && new Date(t.archivedAt).getTime() >= toMs(t.lastTime);
+  return !!t.archivedAt && new Date(t.archivedAt).getTime() >= toMs(t.lastTime)
 }
 
 interface Person {
@@ -40,8 +40,8 @@ interface Person {
 }
 
 // Live connections, not reactive state — see stores/notifications.ts.
-let channel: RealtimeChannel | null = null;
-let deliveryChannel: RealtimeChannel | null = null;
+let channel: RealtimeChannel | null = null
+let deliveryChannel: RealtimeChannel | null = null
 
 /**
  * The reactions last seen on each of my messages, to tell a new one from an
@@ -53,7 +53,7 @@ let deliveryChannel: RealtimeChannel | null = null;
  * as the baseline and not announced. In practice the read tick lands first.
  * Exact would need the server to broadcast the reaction (realtime.send).
  */
-const seenReactions = new Map<string, string[]>();
+const seenReactions = new Map<string, string[]>()
 
 /**
  * A user id that is safe to paste into a PostgREST filter string.
@@ -65,20 +65,20 @@ const seenReactions = new Map<string, string[]>();
  * way to read someone else's mail — but a filter is no place for unchecked text,
  * and every id in this file is a uuid with nothing to lose by saying so.
  */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function requireUuid(value: string, what: string): string {
-  if (!UUID_RE.test(value)) throw new Error(`Invalid ${what}.`);
-  return value;
+  if (!UUID_RE.test(value)) throw new Error(`Invalid ${what}.`)
+  return value
 }
 
 function toMs(lastTime: string | null): number {
-  return lastTime ? parseServerTime(lastTime).getTime() : 0;
+  return lastTime ? parseServerTime(lastTime).getTime() : 0
 }
 
 /** Pinned threads first, then by latest message. */
 function newestFirst(a: Thread, b: Thread) {
-  return Number(b.pinned) - Number(a.pinned) || toMs(b.lastTime) - toMs(a.lastTime);
+  return Number(b.pinned) - Number(a.pinned) || toMs(b.lastTime) - toMs(a.lastTime)
 }
 
 export const useMessagesStore = defineStore('messages', {
@@ -96,12 +96,12 @@ export const useMessagesStore = defineStore('messages', {
 
   actions: {
     async load(userId: string) {
-      this.loading = true;
-      this.error = '';
+      this.loading = true
+      this.error = ''
       try {
-        requireUuid(userId, 'account');
+        requireUuid(userId, 'account')
         // Whatever arrived while this device was offline counts as delivered now.
-        void supabase.rpc('mark_messages_delivered').then(() => undefined, () => undefined);
+        void supabase.rpc('mark_messages_delivered').then(() => undefined, () => undefined)
         const [{ data, error }, { data: prefRows }] = await Promise.all([
           supabase
             .from('conversations')
@@ -111,15 +111,15 @@ export const useMessagesStore = defineStore('messages', {
             .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`),
           // Prefs are a nicety: if they fail the inbox still loads, unpinned.
           supabase.from('conversation_prefs').select('conversation_id,pinned,muted,archived_at'),
-        ]);
-        if (error) throw error;
-        const prefs = new Map((prefRows ?? []).map((p) => [p.conversation_id, p]));
+        ])
+        if (error) throw error
+        const prefs = new Map((prefRows ?? []).map((p) => [p.conversation_id, p]))
 
         this.threads = (data ?? [])
           .map((row) => {
-            const mine = row.user_a_id === userId;
-            const other = (mine ? row.b : row.a) as unknown as Person | null;
-            const name = other?.full_name || 'Unknown';
+            const mine = row.user_a_id === userId
+            const other = (mine ? row.b : row.a) as unknown as Person | null
+            const name = other?.full_name || 'Unknown'
             return {
               id: row.id,
               otherId: mine ? row.user_b_id : row.user_a_id,
@@ -134,32 +134,32 @@ export const useMessagesStore = defineStore('messages', {
               pinned: prefs.get(row.id)?.pinned ?? false,
               muted: prefs.get(row.id)?.muted ?? false,
               archivedAt: prefs.get(row.id)?.archived_at ?? null,
-            };
+            }
           })
-          .sort(newestFirst);
-        this.ready = true;
+          .sort(newestFirst)
+        this.ready = true
       } catch (e) {
-        this.error = errorMessage(e, 'Could not load conversations.');
+        this.error = errorMessage(e, 'Could not load conversations.')
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
 
     async start(userId: string) {
-      if (this.userId === userId && channel) return;
-      this.stop();
-      this.userId = userId;
-      await this.load(userId);
+      if (this.userId === userId && channel) return
+      this.stop()
+      this.userId = userId
+      await this.load(userId)
 
-      if (typeof supabase.channel !== 'function') return;
+      if (typeof supabase.channel !== 'function') return
 
       // postgres_changes has no OR, so each side of the pair is its own binding.
       const onChange = (payload: { eventType: string; new: Record<string, unknown> }) => {
         if (payload.eventType === 'INSERT') {
           // A brand new thread needs the counterpart's name, which the payload
           // does not carry, so this is the one case worth a refetch.
-          void this.load(userId);
-          return;
+          void this.load(userId)
+          return
         }
         const row = payload.new as {
           id: string;
@@ -169,8 +169,8 @@ export const useMessagesStore = defineStore('messages', {
           last_time: string | null;
           unread_a: number;
           unread_b: number;
-        };
-        const unread = Number((row.user_a_id === userId ? row.unread_a : row.unread_b) || 0);
+        }
+        const unread = Number((row.user_a_id === userId ? row.unread_a : row.unread_b) || 0)
         // Something new from them: the unread count went up on a message I did
         // not send. A muted thread stays quiet here as it does on the phone.
         const announce = (t: Thread, before: number) => {
@@ -181,26 +181,26 @@ export const useMessagesStore = defineStore('messages', {
               title: t.otherName,
               body: row.last_message || 'Sent an attachment',
               threadId: t.id,
-            });
+            })
           }
-        };
-        const thread = this.threads.find((t) => t.id === row.id);
+        }
+        const thread = this.threads.find((t) => t.id === row.id)
         if (!thread) {
           // A first message from someone new: the thread has to be loaded for
           // their name before there is anything to show.
           void this.load(userId).then(() => {
-            const t = this.threads.find((x) => x.id === row.id);
-            if (t) announce(t, 0);
-          });
-          return;
+            const t = this.threads.find((x) => x.id === row.id)
+            if (t) announce(t, 0)
+          })
+          return
         }
-        announce(thread, thread.unread);
-        thread.lastMessage = row.last_message || '';
-        thread.lastSenderId = row.last_sender_id ?? null;
-        thread.lastTime = row.last_time;
-        thread.unread = unread;
-        this.threads.sort(newestFirst);
-      };
+        announce(thread, thread.unread)
+        thread.lastMessage = row.last_message || ''
+        thread.lastSenderId = row.last_sender_id ?? null
+        thread.lastTime = row.last_time
+        thread.unread = unread
+        this.threads.sort(newestFirst)
+      }
 
       channel = supabase
         .channel(`conversations:${userId}`)
@@ -214,7 +214,7 @@ export const useMessagesStore = defineStore('messages', {
           { event: '*', schema: 'public', table: 'conversations', filter: `user_b_id=eq.${userId}` },
           onChange,
         )
-        .subscribe();
+        .subscribe()
 
       // Marks an incoming message 'delivered' the moment this device receives
       // it, even outside the thread it belongs to (ChatThread's own listener
@@ -229,13 +229,13 @@ export const useMessagesStore = defineStore('messages', {
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages' },
           (payload) => {
-            const row = payload.new as { id: string; conversation_id: string; sender_id: string };
+            const row = payload.new as { id: string; conversation_id: string; sender_id: string }
             if (row.sender_id === userId) {
-              seenReactions.set(row.id, []);
-              return;
+              seenReactions.set(row.id, [])
+              return
             }
-            if (!this.threads.some((t) => t.id === row.conversation_id)) return;
-            void supabase.rpc('mark_messages_delivered').then(() => undefined, () => undefined);
+            if (!this.threads.some((t) => t.id === row.conversation_id)) return
+            void supabase.rpc('mark_messages_delivered').then(() => undefined, () => undefined)
           },
         )
         // A reaction to one of my messages: someone appears in its reactions
@@ -244,65 +244,65 @@ export const useMessagesStore = defineStore('messages', {
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'messages', filter: `sender_id=eq.${userId}` },
           (payload) => {
-            const row = payload.new as { id: string; conversation_id: string; reactions: Record<string, string> | null };
-            const now = Object.keys(row.reactions ?? {}).filter((uid) => uid !== userId);
-            const before = seenReactions.get(row.id);
-            seenReactions.set(row.id, now);
-            const added = before && now.find((uid) => !before.includes(uid));
-            if (!added) return;
-            const thread = this.threads.find((t) => t.id === row.conversation_id);
-            if (!thread || thread.muted) return;
+            const row = payload.new as { id: string; conversation_id: string; reactions: Record<string, string> | null }
+            const now = Object.keys(row.reactions ?? {}).filter((uid) => uid !== userId)
+            const before = seenReactions.get(row.id)
+            seenReactions.set(row.id, now)
+            const added = before && now.find((uid) => !before.includes(uid))
+            if (!added) return
+            const thread = this.threads.find((t) => t.id === row.conversation_id)
+            if (!thread || thread.muted) return
             showNotice({
               key: `react:${row.id}`,
               type: 'message',
               title: thread.otherName,
               body: `Reacted ${row.reactions![added]} to your message`,
               threadId: thread.id,
-            });
+            })
           },
         )
-        .subscribe();
+        .subscribe()
     },
 
     stop() {
       if (channel) {
-        void supabase.removeChannel(channel);
-        channel = null;
+        void supabase.removeChannel(channel)
+        channel = null
       }
       if (deliveryChannel) {
-        void supabase.removeChannel(deliveryChannel);
-        deliveryChannel = null;
+        void supabase.removeChannel(deliveryChannel)
+        deliveryChannel = null
       }
-      seenReactions.clear();
-      this.userId = '';
-      this.ready = false;
+      seenReactions.clear()
+      this.userId = ''
+      this.ready = false
     },
 
     /** Pin, mute or archive — mine only; optimistic, reverted if the write fails. */
     async setPref(conversationId: string, patch: ThreadPref) {
-      const thread = this.threads.find((t) => t.id === conversationId);
-      if (!thread) return;
-      const before = { pinned: thread.pinned, muted: thread.muted, archivedAt: thread.archivedAt };
-      Object.assign(thread, patch);
-      this.threads.sort(newestFirst);
+      const thread = this.threads.find((t) => t.id === conversationId)
+      if (!thread) return
+      const before = { pinned: thread.pinned, muted: thread.muted, archivedAt: thread.archivedAt }
+      Object.assign(thread, patch)
+      this.threads.sort(newestFirst)
       const { error } = await supabase.from('conversation_prefs').upsert({
         conversation_id: conversationId,
         user_id: requireUuid(this.userId, 'account'),
         pinned: thread.pinned,
         muted: thread.muted,
         archived_at: thread.archivedAt,
-      });
+      })
       if (error) {
-        Object.assign(thread, before);
-        this.threads.sort(newestFirst);
-        throw error;
+        Object.assign(thread, before)
+        this.threads.sort(newestFirst)
+        throw error
       }
     },
 
     /** Clears the local badge; the RPC has already zeroed it server-side. */
     clearUnread(conversationId: string) {
-      const thread = this.threads.find((t) => t.id === conversationId);
-      if (thread) thread.unread = 0;
+      const thread = this.threads.find((t) => t.id === conversationId)
+      if (thread) thread.unread = 0
     },
 
     /**
@@ -321,8 +321,8 @@ export const useMessagesStore = defineStore('messages', {
      * resolved by re-reading the row the winner just created.
      */
     async findOrCreate(otherId: string, myRole: 'manager' | 'student'): Promise<string> {
-      const me = requireUuid(this.userId, 'account');
-      requireUuid(otherId, 'recipient');
+      const me = requireUuid(this.userId, 'account')
+      requireUuid(otherId, 'recipient')
 
       const existing = async () => {
         const { data, error } = await supabase
@@ -333,31 +333,31 @@ export const useMessagesStore = defineStore('messages', {
               `and(user_a_id.eq.${otherId},user_b_id.eq.${me})`,
           )
           .limit(1)
-          .maybeSingle();
-        if (error) throw error;
-        return data?.id ?? null;
-      };
+          .maybeSingle()
+        if (error) throw error
+        return data?.id ?? null
+      }
 
-      const found = await existing();
-      if (found) return found;
+      const found = await existing()
+      if (found) return found
 
-      const [userA, userB] = myRole === 'student' ? [me, otherId] : [otherId, me];
+      const [userA, userB] = myRole === 'student' ? [me, otherId] : [otherId, me]
       const { data: created, error: createError } = await supabase
         .from('conversations')
         .insert({ user_a_id: userA, user_b_id: userB })
         .select('id')
-        .single();
+        .single()
 
       if (createError) {
-        if ((createError as { code?: string }).code !== '23505') throw createError;
-        const raced = await existing();
-        if (!raced) throw createError;
-        await this.load(me);
-        return raced;
+        if ((createError as { code?: string }).code !== '23505') throw createError
+        const raced = await existing()
+        if (!raced) throw createError
+        await this.load(me)
+        return raced
       }
 
-      await this.load(me);
-      return created.id;
+      await this.load(me)
+      return created.id
     },
   },
-});
+})

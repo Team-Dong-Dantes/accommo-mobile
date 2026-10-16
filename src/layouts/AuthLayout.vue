@@ -53,13 +53,13 @@
 
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { Capacitor } from '@capacitor/core';
-import { EXTERNAL_URLS, PITCH_LINE } from '@/utils/config';
-import { isTablet } from '@/utils/useTabletMode';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { Capacitor } from '@capacitor/core'
+import { EXTERNAL_URLS, PITCH_LINE } from '@/utils/config'
+import { isTablet } from '@/utils/useTabletMode'
 
-const route = useRoute();
+const route = useRoute()
 
 /**
  * A viewport height the on-screen keyboard cannot change.
@@ -77,32 +77,32 @@ const route = useRoute();
  * stays on `dvh` — the scroll area *should* shrink so a focused field can
  * scroll into view. Only the decorative hero is pinned.
  */
-const authVh = ref('100dvh');
+const authVh = ref('100dvh')
 // How far the photo band (400px, 300px on short screens — the same breakpoint
 // as the max-height media query below) is scaled up to fill the splash. A
 // number, not a calc(): dividing a length by a length is too new for the
 // WebViews this APK installs on.
-const heroScale = ref(1);
-let lastWidth = 0;
+const heroScale = ref(1)
+let lastWidth = 0
 
 function measure() {
-  lastWidth = window.innerWidth;
-  authVh.value = `${window.innerHeight}px`;
-  heroScale.value = window.innerHeight / (window.innerHeight <= 600 ? 300 : 400);
+  lastWidth = window.innerWidth
+  authVh.value = `${window.innerHeight}px`
+  heroScale.value = window.innerHeight / (window.innerHeight <= 600 ? 300 : 400)
 }
 
 function onResize() {
-  if (window.innerWidth === lastWidth) return;
-  measure();
+  if (window.innerWidth === lastWidth) return
+  measure()
 }
 
 onMounted(() => {
-  measure();
-  window.addEventListener('resize', onResize);
-});
-onUnmounted(() => window.removeEventListener('resize', onResize));
+  measure()
+  window.addEventListener('resize', onResize)
+})
+onUnmounted(() => window.removeEventListener('resize', onResize))
 
-const isSplash = computed(() => route.path === '/');
+const isSplash = computed(() => route.path === '/')
 
 /**
  * Which shell is on screen: the phone's column, or the landscape card.
@@ -113,19 +113,19 @@ const isSplash = computed(() => route.path === '/');
  * there is nothing to tell the splash apart from: one class covers them all,
  * and the halves are therefore identical across every navigation.
  */
-const authShell = computed(() => (isTablet.value ? 'auth-split' : 'shell-column'));
-const isLogin = computed(() => route.path === '/login');
+const authShell = computed(() => (isTablet.value ? 'auth-split' : 'shell-column'))
+const isLogin = computed(() => route.path === '/login')
 
 
 // CHANGED: Now triggers for BOTH '/register' and '/register/manager'
-const isRegister = computed(() => route.path.startsWith('/register'));
+const isRegister = computed(() => route.path.startsWith('/register'))
 // Browser only: the APK has no landing page to go back to. On register the
 // wordmark sits in the strip under the sheet, which .content-wrapper (fixed,
 // full-screen, z-index 10) covers — see .logo-linked below.
-const logoLinked = computed(() => isRegister.value && !Capacitor.isNativePlatform());
+const logoLinked = computed(() => isRegister.value && !Capacitor.isNativePlatform())
 
 // Controls the direction of the animation
-const transitionName = ref('splash-to-login');
+const transitionName = ref('splash-to-login')
 
 // Watches the route to dynamically switch transitions
 watch(
@@ -140,8 +140,8 @@ watch(
     // sign-in and a registration. The phone's vertical moves below belong to
     // its sheet, which really does hang from an edge.
     if (isTablet.value) {
-      transitionName.value = 'card';
-      return;
+      transitionName.value = 'card'
+      return
     }
     // Sign in and create an account are alternatives to each other, not one
     // inside the other, so moving between them travels sideways where the rest
@@ -150,22 +150,22 @@ watch(
     // lives, and /register itself, where guard.ts sends an unregistered Google
     // account.
     if (from === '/login' && (to === '/' || to.startsWith('/register'))) {
-      transitionName.value = 'slide-right';
+      transitionName.value = 'slide-right'
     // Everything else into registration still drops in from the top, one
     // vertical idea shared with the hero settling into its band at the bottom.
     // The role picked no longer chooses a horizontal direction: the sheet is
     // rounded at its bottom edge because it hangs from the top, and sliding it
     // sideways fought that shape — and the hero, which moves down at the same time.
     } else if (to.startsWith('/register')) {
-      transitionName.value = 'slide-down';
+      transitionName.value = 'slide-down'
     } else if (from === '/' && to === '/login') {
       // The hybrid transition: Login slides up, Splash fades out
-      transitionName.value = 'splash-to-login';
+      transitionName.value = 'splash-to-login'
     } else {
-      transitionName.value = 'slide-up';
+      transitionName.value = 'slide-up'
     }
   },
-);
+)
 </script>
 
 <style scoped>

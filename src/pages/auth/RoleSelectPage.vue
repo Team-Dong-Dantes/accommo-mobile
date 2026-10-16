@@ -28,32 +28,32 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/utils/supabase';
-import RoleFork from '@/components/auth/RoleFork.vue';
-import { ROLE_QUESTION, ROLE_QUESTION_NOTE } from '@/utils/config';
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/utils/supabase'
+import RoleFork from '@/components/auth/RoleFork.vue'
+import { ROLE_QUESTION, ROLE_QUESTION_NOTE } from '@/utils/config'
 
-const router = useRouter();
-const authStore = useAuthStore();
+const router = useRouter()
+const authStore = useAuthStore()
 
 // Where the guard sends an account whose onboarding never finished — in
 // practice a Google sign-in, which is provisioned as 'student' because Google
 // sends no role. The pick has to be written back before onboarding continues;
 // the database refuses it once registration is complete.
 async function applyRole(role: 'student' | 'manager') {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) return;
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) return
   try {
-    await authStore.chooseRole(role);
+    await authStore.chooseRole(role)
   } catch {
     // Already-registered accounts keep their role; onboarding just continues.
   }
 }
 
 async function pick(role: 'student' | 'manager') {
-  await applyRole(role);
-  void router.push(role === 'student' ? '/register' : '/register/manager');
+  await applyRole(role)
+  void router.push(role === 'student' ? '/register' : '/register/manager')
 }
 </script>
 

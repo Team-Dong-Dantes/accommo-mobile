@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core'
 
 /**
  * Open a URL outside the app — a document, a map, the APK download.
@@ -17,16 +17,16 @@ import { Capacitor } from '@capacitor/core';
  * would navigate away from the app, so keep the new tab there.
  */
 export function openExternal(url: string): void {
-  if (!url) return;
+  if (!url) return
   // Every caller passes a URL that came out of the database — a Cloudinary
   // document, a Mapbox tile, the APK on GitHub Releases. Assigning
   // `location.href` honours whatever scheme it is given, and `intent:` or
   // `javascript:` in one of those columns would be executed rather than opened.
   // http(s) is the whole of what "open this outside the app" ever means here.
-  if (!/^https?:\/\//i.test(url)) return;
+  if (!/^https?:\/\//i.test(url)) return
   if (Capacitor.isNativePlatform()) {
-    window.location.href = url;
-    return;
+    window.location.href = url
+    return
   }
-  window.open(url, '_blank', 'noopener');
+  window.open(url, '_blank', 'noopener')
 }
