@@ -108,28 +108,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase, authUser } from '@/utils/supabase'
-import { useLiveData } from '@/utils/useLiveData'
-import { formatPeso } from '@/utils/format'
-import { ago, listGaps, loadProfileGaps } from '@/utils/profile'
-import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
-import ErrorCard from '@/components/shared/ErrorCard.vue'
-import DashHero from '@/components/shared/DashHero.vue'
 import DashAction from '@/components/shared/DashAction.vue'
+import DashHero from '@/components/shared/DashHero.vue'
 import DashPropertyCard from '@/components/manager/DashPropertyCard.vue'
-import { fetchLandlordMoney } from '@/api/landlordMoney'
-import { buildCollections, monthEndOf, type Collections } from '@/utils/collections'
-import { BILL_TAG, manilaToday } from '@/utils/payments'
-import { verificationSteps } from '@/utils/verificationSteps'
-import { useAuthStore } from '@/stores/auth'
+import ErrorCard from '@/components/shared/ErrorCard.vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
 import PropertyCard from '@/components/manager/PropertyCard.vue'
-import { healthTone, type Property } from '@/components/manager/property'
-import type { Task } from '@/components/shared/dashboard'
+import { computed } from 'vue'
+import { formatPeso } from '@/utils/format'
+import { healthTone } from '@/components/manager/property'
+import { manilaToday } from '@/utils/payments'
+import { monthEndOf } from '@/utils/collections'
+import { shortDate } from '@/components/manager/dashboard/money'
+import { useAuthStore } from '@/stores/auth'
+import { verificationSteps } from '@/utils/verificationSteps'
+import { useManagerDashboard } from '@/components/manager/dashboard/state'
 
-const router = useRouter()
+// The data lives in components/manager/dashboard/; this page turns it into the
+// hero, the action card, the tiles and the property cards.
+const {
+  router,
+  loading,
+  error,
+  firstName,
+  properties,
+  attention,
+  totalBeds,
+  tenants,
+  rent,
+  propRent,
+  lateAction,
+  confirmCount,
+  unpaidBills,
+  applicants,
+  docsSentAt,
+  profileComplete,
+  load,
+  onPull,
+} = useManagerDashboard()
+
 
 // One-screen rule: the page is exactly the space between header and bottom nav
 // (QPage's style-fn gets both), and the layout below flexes inside it instead of
@@ -137,26 +154,7 @@ const router = useRouter()
 const fitScreen = (offset: number, height: number) => ({ height: `${height - offset}px` })
 const auth = useAuthStore()
 
-const loading = ref(true)
-const error = ref('')
-const firstName = ref('there')
-const properties = ref<Property[]>([])
-const attention = ref<Task[]>([])
-const totalBeds = ref(0)
-const tenants = ref(0)
-
-// Money, worked out in load() so the kept-alive page and its cache hold plain numbers.
-interface Rent { collected: number; coming: number; late: number; total: number }
-interface LateAction { studentId: string; name: string; days: number; amount: number; property: string }
 interface Tile { value: string; label: string; sub: string; route: string; tone?: 'warning' | undefined }
-const rent = ref<Rent>({ collected: 0, coming: 0, late: 0, total: 0 })
-const propRent = ref<Record<string, { paid: number; due: number; dot: boolean }>>({})
-const lateAction = ref<LateAction | null>(null)
-const confirmCount = ref(0)
-const unpaidBills = ref<{ amount: number; sub: string }>({ amount: 0, sub: 'All paid' })
-const applicants = ref<{ count: number; sub: string; route: string }>({ count: 0, sub: 'None new', route: '/manager/tenants' })
-const docsSentAt = ref<string | null>(null)
-const profileComplete = ref(true)
 
 const hasProperties = computed(() => properties.value.length > 0)
 const vacantBeds = computed(() => Math.max(0, totalBeds.value - tenants.value))
@@ -173,7 +171,6 @@ const verification = computed(() =>
     profileComplete: profileComplete.value,
   }),
 )
-const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 const sentLabel = computed(() => (docsSentAt.value ? shortDate(docsSentAt.value) : ''))
 const verifySegments = computed(() => {
   const v = verification.value
@@ -280,22 +277,7 @@ const shownProperties = computed(() =>
 )
 
 /** The boarder who is furthest behind, for the action card. */
-function lateOf(col: Collections): LateAction | null {
-  const o = [...col.late].sort((a, b) => (b.daysLate ?? 0) - (a.daysLate ?? 0))[0]
-  if (!o) return null
-  return {
-    studentId: o.lease.studentId,
-    name: o.lease.studentName.split(' ')[0] || 'A boarder',
-    days: o.daysLate ?? 0,
-    amount: o.amount,
-    property: o.lease.accommodationName,
-  }
-}
 
-function titleCase(raw: string | null | undefined) {
-  if (!raw) return ''
-  return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-}
 
 function go(path: string) {
   void router.push(path)
@@ -303,504 +285,6 @@ function go(path: string) {
 
 function openProperty(id: string) {
   go(`/manager/properties/${id}`)
-}
-
-async function load(silent = false) {
-  if (!silent) loading.value = true
-  error.value = ''
-  try {
-    const { data: auth } = await authUser()
-    const user = auth?.user
-    if (!user) {
-      void router.push('/login')
-      return
-    }
-
-    // Everything keyed only off the landlord/landlady's own id goes out at once. These
-    // ran as nine round trips in series, which was comfortably the slowest
-    // thing about the first screen a landlord/landlady sees.
-    const [
-      { data: profile },
-      { data: accRows, error: accError },
-      { data: leaseRows, error: leaseError },
-      { data: concernRows },
-      { data: peopleRows },
-      { count: paymentsToVerify },
-      { data: docRowsSent },
-      money,
-    ] = await Promise.all([
-      supabase.from('users').select('full_name').eq('id', user.id).maybeSingle(),
-      supabase
-        .from('accommodations')
-        .select('id, name, status, address, barangay, purok, city, accommodation_type, total_rooms')
-        .eq('landlord_id', user.id),
-      supabase
-        .from('leases')
-        .select('id, status, monthly_rent, room_id')
-        .eq('landlord_id', user.id)
-        .in('status', ['active', 'pending', 'leave_requested']),
-      supabase
-        .from('concerns')
-        .select(
-          'id, category, reported_at, leases!inner(landlord_id, users!leases_student_id_fkey(full_name), rooms(accommodations(name)))',
-        )
-        .eq('leases.landlord_id', user.id)
-        .neq('status', 'resolved')
-        .order('reported_at', { ascending: false })
-        .limit(6),
-      supabase
-        .from('leases')
-        .select(
-          'id, status, start_date, leave_requested_at, users!leases_student_id_fkey(full_name), rooms(room_number, accommodations(name))',
-        )
-        .eq('landlord_id', user.id)
-        .in('status', ['pending', 'leave_requested'])
-        .limit(6),
-      // Only the number: the list itself lives on Tenants → Payments.
-      supabase
-        .from('payments')
-        .select('id, leases!inner(landlord_id)', { count: 'exact', head: true })
-        .eq('leases.landlord_id', user.id)
-        .eq('status', 'pending_verification'),
-      // "Sent Oct 13" on the verification hero: the newest upload.
-      supabase
-        .from('verification_documents')
-        .select('uploaded_at')
-        .eq('user_id', user.id)
-        .order('uploaded_at', { ascending: false })
-        .limit(1),
-      // A failed money read leaves the rent card at zero rather than blanking the whole screen.
-      fetchLandlordMoney(user.id).catch((e) => {
-        console.warn('dashboard: money read failed', e)
-        return null
-      }),
-    ])
-    if (accError) throw accError
-    if (leaseError) throw leaseError
-
-    firstName.value = String(profile?.full_name || 'there').split(' ')[0] || 'there'
-
-    const accs = accRows || []
-    const accIds = accs.map((a) => a.id)
-    const accName = new Map(accs.map((a) => [a.id, a.name]))
-
-    // Second wave: rooms, photos and permits all key off the accommodation ids
-    // above, so they couldn't join the first — but they can go out together.
-    // Skipped entirely for a landlord/landlady with no accommodations, which is half of
-    // them (see the data notes in CLAUDE.md).
-    let roomRows: {
-      id: string
-      accommodation_id: string
-      capacity: number | null
-      water_billing: string | null
-      electric_billing: string | null
-      wifi_billing: string | null
-    }[] = []
-    let imageRows: { accommodation_id: string; url: string; sort_order: number | null }[] = []
-    let docRows: {
-      id: string
-      doc_type: string
-      expires_at: string | null
-      accommodation_id: string
-    }[] = []
-    if (accIds.length) {
-      const [rooms, images, docs] = await Promise.all([
-        supabase
-          .from('rooms')
-          .select('id, accommodation_id, capacity, water_billing, electric_billing, wifi_billing')
-          .in('accommodation_id', accIds),
-        supabase
-          .from('accommodation_images')
-          .select('accommodation_id, url, sort_order')
-          .in('accommodation_id', accIds)
-          .order('sort_order', { ascending: true }),
-        supabase
-          .from('accommodation_documents')
-          .select('id, doc_type, expires_at, accommodation_id')
-          .in('accommodation_id', accIds),
-      ])
-      if (rooms.error) throw rooms.error
-      roomRows = rooms.data || []
-      imageRows = images.data || []
-      docRows = docs.data || []
-    }
-
-    const leases = leaseRows || []
-    const roomToAcc = new Map(roomRows.map((r) => [r.id, r.accommodation_id]))
-    const filledByAcc = new Map<string, number>()
-    for (const l of leases) {
-      if (l.status !== 'active') continue
-      const accId = roomToAcc.get(l.room_id)
-      if (accId) filledByAcc.set(accId, (filledByAcc.get(accId) || 0) + 1)
-    }
-
-    const capacityByAcc = new Map<string, number>()
-    const roomCountByAcc = new Map<string, number>()
-    for (const r of roomRows) {
-      capacityByAcc.set(r.accommodation_id, (capacityByAcc.get(r.accommodation_id) || 0) + Number(r.capacity || 0))
-      roomCountByAcc.set(r.accommodation_id, (roomCountByAcc.get(r.accommodation_id) || 0) + 1)
-    }
-
-    totalBeds.value = roomRows.reduce((n, r) => n + Number(r.capacity || 0), 0)
-    tenants.value = leases.filter((l) => l.status === 'active').length
-    docsSentAt.value = (Array.isArray(docRowsSent) ? docRowsSent[0]?.uploaded_at : null) ?? null
-
-    // A photo per accommodation, fetched once for the whole portfolio.
-    const photoByAcc = new Map<string, string>()
-    for (const img of imageRows) {
-      if (!photoByAcc.has(img.accommodation_id)) {
-        photoByAcc.set(img.accommodation_id, resolveAsset(img.url, CARD))
-      }
-    }
-
-    // Document tracking
-    const expiredByAcc = new Map<string, number>()
-    const expiringSoonByAcc = new Map<string, number>()
-    const items: Task[] = []
-
-    {
-      const now = Date.now()
-      const soon = now + 30 * 24 * 60 * 60 * 1000
-
-      for (const d of docRows) {
-        if (!d.expires_at) continue
-        const t = new Date(d.expires_at).getTime()
-        const where = accName.get(d.accommodation_id) || 'Accommodation'
-        if (t < now) {
-          expiredByAcc.set(d.accommodation_id, (expiredByAcc.get(d.accommodation_id) || 0) + 1)
-          items.push({
-            id: `doc-${d.id}`,
-            icon: 'lucide:file-warning',
-            kind: 'OSAS',
-            label: `${titleCase(d.doc_type)} expired`,
-            hint: `${where} — accreditation is at risk until this is renewed`,
-            when: ago(d.expires_at),
-            action: 'Upload renewal',
-            route: '/manager/osas',
-            tone: 'danger',
-            rank: 1,
-          })
-        } else if (t < soon) {
-          expiringSoonByAcc.set(d.accommodation_id, (expiringSoonByAcc.get(d.accommodation_id) || 0) + 1)
-          items.push({
-            id: `doc-soon-${d.id}`,
-            icon: 'lucide:calendar-clock',
-            kind: 'OSAS',
-            label: `${titleCase(d.doc_type)} expires soon`,
-            hint: `${where} — renew it before it lapses`,
-            when: '',
-            action: 'Renew now',
-            route: '/manager/osas',
-            tone: 'warn',
-            rank: 3,
-          })
-        }
-      }
-    }
-
-    // Rooms that don't yet say how utilities are paid — every room from before
-    // utilities were per room. Students see nothing for them, and a draft
-    // can't be submitted until they're set, so it's a task, not a footnote.
-    const unsetByAcc = new Map<string, number>()
-    for (const r of roomRows) {
-      if (r.water_billing && r.electric_billing && r.wifi_billing) continue
-      unsetByAcc.set(r.accommodation_id, (unsetByAcc.get(r.accommodation_id) || 0) + 1)
-    }
-    for (const [accId, count] of unsetByAcc) {
-      items.push({
-        id: `utilities-${accId}`,
-        icon: 'lucide:plug-zap',
-        kind: 'Utilities',
-        label: `Set utilities on ${count} room${count === 1 ? '' : 's'}`,
-        hint: `${accName.get(accId) || 'Accommodation'} — students can't see how water, power and Wi-Fi are paid`,
-        when: '',
-        action: 'Set utilities',
-        route: `/manager/properties/${accId}`,
-        tone: 'warn',
-        rank: 3,
-      })
-    }
-
-    properties.value = accs.map((a) => ({
-      id: a.id,
-      name: a.name,
-      status: a.status,
-      type: titleCase(a.accommodation_type),
-      address: a.address || [a.purok, a.barangay, a.city].filter(Boolean).join(', '),
-      roomCount: a.total_rooms ?? roomCountByAcc.get(a.id) ?? null,
-      capacity: capacityByAcc.get(a.id) || 0,
-      filled: filledByAcc.get(a.id) || 0,
-      image: photoByAcc.get(a.id) || '',
-      expired: expiredByAcc.get(a.id) || 0,
-      expiringSoon: expiringSoonByAcc.get(a.id) || 0,
-    }))
-
-    // Rest of attention items (concerns, applications, leave requests). Both
-    // sets were fetched in the first wave; the ordering here still decides
-    // where they land among the equal-rank items, since the sort below is
-    // stable.
-    for (const c of concernRows || []) {
-      const lease = c.leases as unknown as {
-        users: { full_name: string } | null
-        rooms: { accommodations: { name: string } | null } | null
-      } | null
-      const who = lease?.users?.full_name || 'A boarder'
-      const where = lease?.rooms?.accommodations?.name
-      items.push({
-        id: `concern-${c.id}`,
-        icon: 'lucide:message-square-warning',
-        kind: 'Student concern',
-        label: `${titleCase(c.category) || 'Concern'} reported by ${who}`,
-        hint: where ? `At ${where} — awaiting your reply` : 'Awaiting your reply',
-        when: ago(c.reported_at),
-        action: 'Reply',
-        route: '/manager/support',
-        tone: 'danger',
-        rank: 0,
-      })
-    }
-
-    // One grouped row, like "Set utilities": a busy month would otherwise bury
-    // concerns and applications under a row per payment.
-    if (paymentsToVerify) {
-      items.push({
-        id: 'payments-to-verify',
-        icon: 'lucide:receipt',
-        kind: 'Payments',
-        label: `Verify ${paymentsToVerify} payment${paymentsToVerify === 1 ? '' : 's'}`,
-        hint: 'Students are waiting for these to be marked paid',
-        when: '',
-        action: 'Verify',
-        route: '/manager/tenants?tab=payments',
-        tone: 'warn',
-        rank: 2,
-      })
-    }
-
-    for (const l of peopleRows || []) {
-      const who =
-        (l.users as unknown as { full_name: string } | null)?.full_name || 'A student'
-      const room = l.rooms as unknown as {
-        room_number: string | null
-        accommodations: { name: string } | null
-      } | null
-      const where = [room?.room_number ? `Room ${room.room_number}` : '', room?.accommodations?.name]
-        .filter(Boolean)
-        .join(' · ')
-      if (l.status === 'pending') {
-        items.push({
-          id: `app-${l.id}`,
-          icon: 'lucide:user-plus',
-          kind: 'Application',
-          label: `${who} wants to move in`,
-          hint: where || 'Waiting on your decision',
-          when: ago(l.start_date),
-          action: 'Review application',
-          route: `/manager/tenant/${l.id}`,
-          tone: 'warn',
-          rank: 2,
-        })
-      } else {
-        items.push({
-          id: `leave-${l.id}`,
-          icon: 'lucide:door-open',
-          kind: 'Leave request',
-          label: `${who} wants to move out`,
-          hint: where || 'Waiting on your decision',
-          when: ago(l.leave_requested_at),
-          action: 'Review request',
-          route: `/manager/tenant/${l.id}`,
-          tone: 'warn',
-          rank: 2,
-        })
-      }
-    }
-
-    // OSAS has hidden their listings (account_standing, written only by OSAS):
-    // the first thing they should read, with the reason OSAS gave.
-    const { data: standing } = await supabase
-      .from('account_standing')
-      .select('reason, restrictions')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (standing?.restrictions?.includes('listings')) {
-      items.push({
-        id: 'osas-listings',
-        icon: 'lucide:eye-off',
-        kind: 'OSAS',
-        label: 'OSAS has hidden your listings',
-        hint: standing.reason || 'Students cannot see your accommodations for now',
-        when: '',
-        action: 'Contact OSAS',
-        route: '/manager/support',
-        tone: 'danger',
-        rank: 0,
-      })
-    }
-
-    // Sex and birth date are blank on older accounts; one row opens the step-by-step flow.
-    const missing = (await loadProfileGaps(user.id, false)).filter((g) => g.needed)
-    if (missing.length) {
-      items.push({
-        id: 'profile',
-        icon: 'lucide:user-round-pen',
-        kind: 'Profile',
-        label: 'Complete your profile',
-        hint: `Add your ${listGaps(missing)}`,
-        when: '',
-        action: 'Continue',
-        route: '/manager/profile/complete',
-        tone: 'warn',
-        rank: 3,
-      })
-    }
-
-    attention.value = items.sort((a, b) => a.rank - b.rank)
-
-    profileComplete.value = missing.length === 0
-
-    // Applicants: pending leases, named from the first-wave people query.
-    const pendingCount = leases.filter((l) => l.status === 'pending').length
-    const firstPending = (peopleRows || []).find((l) => l.status === 'pending')
-    const pRoom = firstPending?.rooms as unknown as { room_number: string | null } | null
-    const pName = (firstPending?.users as unknown as { full_name: string } | null)?.full_name?.split(' ')[0]
-    applicants.value = {
-      count: pendingCount,
-      sub: pName ? `${pName}${pRoom?.room_number ? ` · Room ${pRoom.room_number}` : ''}` : pendingCount ? 'Waiting on you' : 'None new',
-      route: firstPending ? `/manager/tenant/${firstPending.id}` : '/manager/tenants',
-    }
-
-    // Rent card, late boarder, bills and per-property rent: all the same buildCollections the
-    // Payments tab uses, so the numbers cannot disagree with it.
-    if (money) {
-      const day = manilaToday()
-      const col = buildCollections(money.leases, money.ledger, money.payments, money.billUtility, money.billed, day)
-      rent.value = {
-        collected: col.collected,
-        coming: col.toConfirm + col.toCome,
-        late: col.overdue,
-        total: col.collected + col.toConfirm + col.toCome + col.overdue,
-      }
-      confirmCount.value = col.confirm.length
-      lateAction.value = lateOf(col)
-
-      // Bill rows with something left to pay, on stays that are still running.
-      const current = new Set(money.leases.filter((l) => l.status === 'active' || l.status === 'leave_requested').map((l) => l.id))
-      const bills = money.ledger
-        .filter((r) => r.kind === 'bill' && r.balance > 0.009 && current.has(r.leaseId))
-        .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-      const first = bills[0]
-      unpaidBills.value = {
-        amount: bills.reduce((n, r) => n + r.balance, 0),
-        sub: first
-          ? `${(BILL_TAG[money.billUtility[first.billId ?? ''] ?? 'water'] ?? 'Bill').replace(' bill', '')}${first.dueDate ? ` · due ${shortDate(first.dueDate)}` : ''}`
-          : 'All paid',
-      }
-
-      const per: typeof propRent.value = {}
-      for (const p of properties.value) {
-        const ids = new Set(money.leases.filter((l) => l.accommodationId === p.id).map((l) => l.id))
-        const c = buildCollections(
-          money.leases.filter((l) => ids.has(l.id)),
-          money.ledger.filter((r) => ids.has(r.leaseId)),
-          money.payments.filter((x) => ids.has(x.leaseId)),
-          money.billUtility,
-          money.billed,
-          day,
-        )
-        per[p.id] = {
-          paid: c.collected,
-          due: c.collected + c.toConfirm + c.toCome + c.overdue,
-          dot: c.late.length > 0 || c.confirm.length > 0 || p.expired > 0,
-        }
-      }
-      propRent.value = per
-    } else {
-      rent.value = { collected: 0, coming: 0, late: 0, total: 0 }
-      propRent.value = {}
-      lateAction.value = null
-      confirmCount.value = 0
-      unpaidBills.value = { amount: 0, sub: 'All paid' }
-    }
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Something went wrong.'
-  } finally {
-    loading.value = false
-  }
-}
-
-// Kept alive across tab switches (see MainLayout's KEEP_ALIVE_PAGES), so the
-// database pushes lease changes here instead of the page re-asking on every
-// return. utils/useLiveData.ts owns the whole policy — first load, the
-// subscription's lifetime, and how stale the data may be on return.
-type DashboardCache = {
-  firstName: string
-  properties: Property[]
-  attention: Task[]
-  totalBeds: number
-  tenants: number
-  rent: Rent
-  propRent: Record<string, { paid: number; due: number; dot: boolean }>
-  lateAction: LateAction | null
-  confirmCount: number
-  unpaidBills: { amount: number; sub: string }
-  applicants: { count: number; sub: string; route: string }
-  docsSentAt: string | null
-  profileComplete: boolean
-}
-
-const { refresh } = useLiveData({
-  // -v2: the 2026-10 redesign changed the cached shape (rent, tiles); an old
-  // cache restored into it crashed the render on first launch after updating.
-  key: 'manager-dashboard-v2',
-  load,
-  // leases/payments are not in the realtime publication; every payment and
-  // lease event notifies this user, so their notifications are the signal.
-  watch: (uid) => [
-    { table: 'leases', filter: `landlord_id=eq.${uid}` },
-    { table: 'notifications', filter: `user_id=eq.${uid}` },
-  ],
-  cache: {
-    get: (): DashboardCache => ({
-      firstName: firstName.value,
-      properties: properties.value,
-      attention: attention.value,
-      totalBeds: totalBeds.value,
-      tenants: tenants.value,
-      rent: rent.value,
-      propRent: propRent.value,
-      lateAction: lateAction.value,
-      confirmCount: confirmCount.value,
-      unpaidBills: unpaidBills.value,
-      applicants: applicants.value,
-      docsSentAt: docsSentAt.value,
-      profileComplete: profileComplete.value,
-    }),
-    set: (d) => {
-      const c = d as DashboardCache
-      firstName.value = c.firstName
-      properties.value = c.properties
-      attention.value = c.attention
-      totalBeds.value = c.totalBeds
-      tenants.value = c.tenants
-      rent.value = c.rent
-      propRent.value = c.propRent
-      lateAction.value = c.lateAction
-      confirmCount.value = c.confirmCount
-      unpaidBills.value = c.unpaidBills
-      applicants.value = c.applicants
-      docsSentAt.value = c.docsSentAt
-      profileComplete.value = c.profileComplete
-      loading.value = false
-    },
-  },
-})
-
-// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
-// loads silently (no skeleton behind the spinner) and resets the freshness
-// clock, so returning to the screen does not immediately fetch again.
-function onPull(done: () => void) {
-  void refresh().finally(done)
 }
 </script>
 
