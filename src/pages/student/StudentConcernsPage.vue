@@ -124,332 +124,48 @@
       </div>
     </BottomSheet>
 
-    <SplitDetail
-      v-model:open="detailOpen"
-      icon="lucide:message-square-warning"
-      :hint="`Pick a concern to see its progress and your ${myLandlord}’s reply`"
-    >
-      <div v-if="selected" class="detail-sheet" :class="{ 'detail-sheet--pane': isTablet }">
-        <div class="detail-head">
-          <h3 class="detail-title">{{ CONCERN_CATEGORY_LABEL[selected.category] || selected.category }}</h3>
-          <span class="detail-chip" :class="`detail-chip--${statusColor(CONCERN_STATUS, selected.status)}`">
-            {{ statusText(CONCERN_STATUS, selected.status) }}
-          </span>
-        </div>
+    <ConcernDetail />
 
-        <ul class="timeline">
-          <li v-for="s in timeline" :key="s.key" class="tl-row">
-            <span class="tl-rail">
-              <span class="tl-dot" :class="{ 'tl-dot--done': s.done, 'tl-dot--bad': s.bad }" />
-              <span class="tl-line" />
-            </span>
-            <span class="tl-body">
-              <span class="tl-label" :class="{ 'tl-label--pending': !s.done }">{{ s.label }}</span>
-              <span class="tl-when">{{ s.at ? `${since(s.at)} ago` : 'Pending' }}</span>
-            </span>
-          </li>
-        </ul>
-
-        <p class="detail-label">Your report</p>
-        <p class="detail-text">{{ selected.description || 'No description given.' }}</p>
-        <p class="detail-meta">{{ selected.where }}</p>
-        <img v-if="selected.photoUrl" :src="selected.photoUrl" alt="" class="detail-photo" />
-
-        <template v-if="selected.managerResponse">
-          <p class="detail-label">{{ myLandlord }}'s response</p>
-          <p class="detail-text">{{ selected.managerResponse }}</p>
-        </template>
-
-        <template v-if="selected.escalatedTicketNo">
-          <p class="detail-label">Escalated to OSAS</p>
-          <p class="detail-text">Your {{ myLandlord }} passed this to OSAS as {{ ticketLabel(selected.escalatedTicketNo) }}. OSAS may contact you about it.</p>
-        </template>
-
-        <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="detailOpen = false" />
-      </div>
-    </SplitDetail>
-
-    <AppModal v-model="newOpen" title="Report a concern">
-      <label class="field">
-        <span class="field-label">Category</span>
-        <AppSelect v-model="form.category" :options="CONCERN_CATEGORY_LABEL" placeholder="Category" class="field-input" />
-      </label>
-      <label class="field">
-        <span class="field-label">Description</span>
-        <textarea v-model="form.description" class="field-input field-textarea" rows="4" placeholder="What's going on?" />
-      </label>
-      <label class="field">
-        <span class="field-label">Photo (optional)</span>
-        <span class="file-picker" :class="{ 'file-picker--chosen': form.photo }">
-          <IconifyIcon :icon="form.photo ? 'lucide:file-check' : 'lucide:camera'" width="16" />
-          <span class="file-picker-text">{{ form.photo ? form.photo.name : 'Attach a photo' }}</span>
-          <input type="file" accept="image/*" class="file-picker-input" @change="onPhotoSelected" />
-        </span>
-      </label>
-      <template #footer>
-        <q-btn unelevated rounded no-caps color="primary" class="new-submit" :loading="submitting" label="Submit" @click="submit" />
-      </template>
-    </AppModal>
+    <ConcernReportSheet />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase, authUser } from '@/utils/supabase'
-import { useLiveData, type LivePayload } from '@/utils/useLiveData'
-import { errorMessage } from '@/utils/errors'
-import { CONCERN_STATUS, CONCERN_CATEGORY_LABEL, statusText, statusColor, ticketLabel, ticketNoOf } from '@/utils/format'
-import { since } from '@/utils/notifications'
-import { useNotify } from '@/utils/notify'
-import { uploadSecureDocument, signRows } from '@/utils/upload'
+import BottomSheet from '@/components/shared/BottomSheet.vue'
+import { CONCERN_CATEGORY_LABEL, CONCERN_STATUS, statusColor, statusText } from '@/utils/format'
+import ConcernDetail from '@/components/student/concerns/ConcernDetail.vue'
+import ConcernReportSheet from '@/components/student/concerns/ConcernReportSheet.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+import { FILTERS } from '@/components/student/concerns/model'
+import { Icon as IconifyIcon } from '@iconify/vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
-import BottomSheet from '@/components/shared/BottomSheet.vue'
-import SplitDetail from '@/components/shared/SplitDetail.vue'
-import { isTablet, isDesktop } from '@/utils/useTabletMode'
-import { fetchCurrentLease } from '@/api/leases';
-import { useMyLandlordTitle } from '@/utils/myLandlordTitle'
-import AppModal from '@/components/shared/AppModal.vue'
-import AppSelect from '@/components/shared/AppSelect.vue'
+import { isDesktop, isTablet } from '@/utils/useTabletMode'
+import { since } from '@/utils/notifications'
+import { provideStudentConcerns } from '@/components/student/concerns/studentConcerns'
 
-const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'open', label: 'Open' },
-  { key: 'in_progress', label: 'In progress' },
-  { key: 'resolved', label: 'Resolved' },
-] as const
-
-interface Concern {
-  id: string
-  category: string
-  description: string
-  status: string
-  reportedAt: string
-  acknowledgedAt: string | null
-  inProgressAt: string | null
-  resolvedAt: string | null
-  managerResponse: string
-  photoUrl: string
-  where: string
-  escalatedTicketNo: number | null
-}
-
-const notify = useNotify()
-const myLandlord = useMyLandlordTitle()
-
-const loading = ref(true)
-const error = ref('')
-const rows = ref<Concern[]>([])
-const query = ref('')
-const filter = ref<(typeof FILTERS)[number]['key']>('all')
-const filtersOpen = ref(false)
-
-const activeLease = ref<{ id: string; managerId: string } | null>(null)
-
-const detailOpen = ref(false)
-const selected = ref<Concern | null>(null)
-const newOpen = ref(false)
-const submitting = ref(false)
-const form = reactive({ category: 'maintenance', description: '', photo: null as File | null })
-
-// A single timeline replaces the old step-tracker + activity list: each row
-// is "done" once its timestamp lands, so a rejected report still shows
-// whatever acknowledgement/in-progress steps actually happened before it closed.
-const timeline = computed(() => {
-  if (!selected.value) return []
-  const c = selected.value
-  const closed = c.status === 'resolved' || c.status === 'rejected'
-  return [
-    { key: 'open', label: 'Reported', at: c.reportedAt as string | null, done: true, bad: false },
-    { key: 'acknowledged', label: 'Acknowledged', at: c.acknowledgedAt, done: !!c.acknowledgedAt, bad: false },
-    { key: 'in_progress', label: 'In progress', at: c.inProgressAt, done: !!c.inProgressAt, bad: false },
-    { key: 'closed', label: c.status === 'rejected' ? 'Rejected' : 'Resolved', at: closed ? c.resolvedAt : null, done: closed, bad: c.status === 'rejected' },
-  ]
-})
-
-function onPhotoSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  form.photo = input.files?.[0] || null
-}
-
-const visibleRows = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  return rows.value.filter((c) => {
-    if (filter.value !== 'all' && c.status !== filter.value) return false
-    if (!q) return true
-    return c.description.toLowerCase().includes(q) || (CONCERN_CATEGORY_LABEL[c.category] || c.category).toLowerCase().includes(q)
-  })
-})
-
-function openDetail(c: Concern) {
-  selected.value = c
-  detailOpen.value = true
-}
-
-function openNew() {
-  form.category = 'maintenance'
-  form.description = ''
-  form.photo = null
-  newOpen.value = true
-}
-
-async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    const { data: authData } = await authUser()
-    const user = authData?.user
-    if (!user) {
-      error.value = 'Not logged in.'
-      return
-    }
-
-    const leaseRow = await fetchCurrentLease(user.id)
-    activeLease.value = leaseRow ? { id: leaseRow.id, managerId: leaseRow.landlord_id } : null
-
-    const { data, error: loadError } = await supabase
-      .from('concerns')
-      .select(
-        'id, category, description, status, reported_at, acknowledged_at, in_progress_at, resolved_at, manager_response, photo_url, leases!inner(student_id, rooms(room_number, label, accommodations(name))), tickets(ticket_no)',
-      )
-      .eq('leases.student_id', user.id)
-      .order('reported_at', { ascending: false })
-    if (loadError) throw loadError
-    await signRows('concerns', data, 'photo_url')
-
-    rows.value = (data ?? []).map((c) => {
-      const lease = c.leases as unknown as {
-        rooms: { room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
-      }
-      const room = lease.rooms
-      return {
-        id: c.id,
-        category: c.category,
-        description: c.description || '',
-        status: c.status,
-        reportedAt: c.reported_at,
-        acknowledgedAt: c.acknowledged_at,
-        inProgressAt: c.in_progress_at,
-        resolvedAt: c.resolved_at,
-        managerResponse: c.manager_response || '',
-        photoUrl: c.photo_url || '',
-        where: room?.accommodations?.name || room?.label || 'Your stay',
-        escalatedTicketNo: ticketNoOf(c.tickets),
-      }
-    })
-
-  } catch (e) {
-    error.value = errorMessage(e, 'Something went wrong.')
-  } finally {
-    loading.value = false
-  }
-}
-
-/**
- * Live status/response updates from the landlord/landlady land on an open list or detail
- * sheet without a manual reload. Patched in place rather than refetched — only
- * these five fields ever change on an existing concern.
- */
-function onConcernUpdated(payload: LivePayload) {
-  const row = payload.new as {
-    id: string
-    status: string
-    acknowledged_at: string | null
-    in_progress_at: string | null
-    resolved_at: string | null
-    manager_response: string | null
-  }
-  const patch = (c: Concern) => {
-    c.status = row.status
-    c.acknowledgedAt = row.acknowledged_at
-    c.inProgressAt = row.in_progress_at
-    c.resolvedAt = row.resolved_at
-    c.managerResponse = row.manager_response || ''
-  }
-  const listed = rows.value.find((c) => c.id === row.id)
-  if (listed) patch(listed)
-  if (selected.value?.id === row.id) patch(selected.value)
-}
-
-// The lease id is only known once `load` has run, so the watch is evaluated
-// after it — see utils/useLiveData.ts.
-const { refresh } = useLiveData({
-  key: 'student-concerns',
+// The page is the list, its search and filters. The open concern and the
+// report form live in components/student/concerns/.
+const {
+  myLandlord,
+  loading,
+  error,
+  rows,
+  query,
+  filter,
+  filtersOpen,
+  activeLease,
+  visibleRows,
+  openDetail,
+  openNew,
   load,
-  watch: () =>
-    activeLease.value
-      ? [
-          {
-            table: 'concerns',
-            event: 'UPDATE',
-            filter: `lease_id=eq.${activeLease.value.id}`,
-            onChange: onConcernUpdated,
-          },
-        ]
-      : [],
-})
-
-async function submit() {
-  if (submitting.value || !activeLease.value) return
-  submitting.value = true
-  try {
-    // Private: stored as a cld: ref, shown through a signed link.
-    const photoUrl = form.photo ? await uploadSecureDocument(form.photo) : null
-
-    const { data: created, error: insertError } = await supabase
-      .from('concerns')
-      .insert({
-        lease_id: activeLease.value.id,
-        category: form.category,
-        description: form.description.trim() || null,
-        status: 'open',
-        photo_url: photoUrl,
-      })
-      .select('id, category, description, status, reported_at, manager_response, photo_url')
-      .single()
-    if (insertError) throw insertError
-
-    rows.value = [
-      {
-        id: created.id,
-        category: created.category,
-        description: created.description || '',
-        status: created.status,
-        reportedAt: created.reported_at,
-        acknowledgedAt: null,
-        inProgressAt: null,
-        resolvedAt: null,
-        managerResponse: '',
-        photoUrl: form.photo ? URL.createObjectURL(form.photo) : '',
-        where: 'Your stay',
-        escalatedTicketNo: null,
-      },
-      ...rows.value,
-    ]
-
-    newOpen.value = false
-    notify.success('Concern reported.')
-  } catch (e) {
-    notify.error(errorMessage(e, 'Could not submit your concern.'))
-  } finally {
-    submitting.value = false
-  }
-}
-
-// Pull-to-refresh goes through useLiveData's refresh rather than load(): it
-// loads silently (no skeleton behind the spinner) and resets the freshness
-// clock, so returning to the screen does not immediately fetch again.
-function onPull(done: () => void) {
-  void refresh().finally(done)
-}
+  onPull,
+} = provideStudentConcerns()
 </script>
 
+<style scoped src="@/components/shared/concernList.css"></style>
+
 <style scoped>
-.cp {
-  background: var(--m-bg);
-}
 .scope-note {
   margin: 0;
   padding: 12px var(--m-page-gutter) 0;
@@ -459,38 +175,6 @@ function onPull(done: () => void) {
 .scope-note-link {
   color: var(--m-primary);
   font-weight: 600;
-}
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  /* Clears the docked search, which sits on the FAB's baseline. */
-  padding: 10px var(--m-page-gutter) 74px;
-}
-.sk {
-  border-radius: var(--m-radius);
-  margin: 0 var(--m-page-gutter);
-}
-.card {
-  margin: 8px var(--m-page-gutter);
-  padding: 18px 14px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  text-align: center;
-}
-
-/* Docked search — same baseline and height as the quick-actions FAB, ending
-   where it begins, so the two read as one band. */
-
-/* Filter sheet */
-
-.group {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  overflow: hidden;
 }
 .row {
   display: flex;
@@ -509,42 +193,10 @@ function onPull(done: () => void) {
 .group > .row:first-child {
   border-top: 0;
 }
-.row-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
-.row-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .row-cat {
   color: var(--m-ink);
   font-size: 13.5px;
   font-weight: 700;
-}
-.row-chip {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.row-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.row-chip--amber,
-.row-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.row-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
 }
 .row-desc {
   overflow: hidden;
@@ -552,219 +204,5 @@ function onPull(done: () => void) {
   font-size: 12.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.row-when {
-  color: var(--m-muted);
-  font-size: 11px;
-}
-.row-chevron {
-  flex: 0 0 auto;
-  color: var(--m-muted);
-}
-
-.detail-sheet {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-/* In a modal AppModal pads the card; in the tablet pane it pads itself. */
-.detail-sheet--pane {
-  padding: 16px var(--m-page-gutter);
-}
-.detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-.detail-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.detail-chip {
-  flex: 0 0 auto;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.detail-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.detail-chip--amber,
-.detail-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.detail-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-
-.detail-label {
-  margin: 4px 0 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.detail-text {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.detail-meta {
-  margin: 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.detail-close {
-  min-height: 46px;
-  margin-top: 6px;
-  font-weight: 700;
-}
-.detail-photo {
-  width: 100%;
-  max-height: 180px;
-  border-radius: var(--m-radius-sm);
-  object-fit: cover;
-}
-
-.timeline {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.tl-row {
-  display: flex;
-  gap: 10px;
-}
-.tl-rail {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: center;
-  width: 10px;
-}
-.tl-dot {
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--m-border);
-}
-.tl-dot--done {
-  background: var(--m-primary);
-}
-.tl-dot--bad {
-  background: var(--m-danger);
-}
-.tl-line {
-  width: 2px;
-  flex: 1;
-  margin: 2px 0;
-  background: var(--m-border);
-}
-.tl-row:last-child .tl-line {
-  display: none;
-}
-.tl-body {
-  display: flex;
-  flex: 1;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 12px;
-}
-.tl-label {
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-.tl-label--pending {
-  color: var(--m-muted);
-  font-weight: 600;
-}
-.tl-when {
-  flex: 0 0 auto;
-  color: var(--m-muted);
-  font-size: 11px;
-}
-
-.file-picker {
-  position: relative;
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px dashed var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background: var(--m-surface);
-  color: var(--m-muted);
-  cursor: pointer;
-}
-.file-picker--chosen {
-  border-style: solid;
-  border-color: var(--m-primary);
-  color: var(--m-primary-dark);
-}
-.file-picker-text {
-  flex: 1;
-  overflow: hidden;
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.file-picker-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.field-label {
-  color: var(--m-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.field-input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-  background-color: var(--m-surface);
-  color: var(--m-ink);
-  font: inherit;
-  font-size: 14px;
-}
-.field-textarea {
-  min-height: 90px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-.new-submit {
-  flex: 1;
-  min-height: 48px;
-  font-weight: 700;
 }
 </style>

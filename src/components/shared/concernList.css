@@ -1,0 +1,62 @@
+/* The concerns list both roles share: rows and their chips. */
+.cp {
+  background: var(--m-bg);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Clears the docked search, which sits on the FAB's baseline. */
+  padding: 10px var(--m-page-gutter) 74px;
+}
+/* Docked search — same baseline and height as the quick-actions FAB, ending
+   where it begins, so the two read as one band. */
+/* Filter sheet */
+.group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  overflow: hidden;
+}
+.row-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.row-chip {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.row-chip--green {
+  background: var(--m-success-soft);
+  color: var(--m-success);
+}
+.row-chip--amber,
+.row-chip--orange {
+  background: var(--m-warning-soft);
+  color: var(--m-warning);
+}
+.row-chip--red {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+}
+.row-when {
+  color: var(--m-muted);
+  font-size: 11px;
+}
+.row-chevron {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+}
