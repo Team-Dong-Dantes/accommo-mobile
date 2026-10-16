@@ -1,7 +1,7 @@
 // What the boarder does from My Stay: ask to leave, pay or resubmit a
 // payment, withdraw one.
 import { type Payment } from './model'
-import { type Resubmit } from '@/components/shared/PaySheet.vue'
+import { type Resubmit } from '@/components/shared/pay/model'
 import { authUser, supabase } from '@/utils/supabase'
 import { confirmAction } from '@/utils/confirmAction'
 import { errorMessage } from '@/utils/errors'
