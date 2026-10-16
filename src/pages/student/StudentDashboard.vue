@@ -2,39 +2,26 @@
   <q-page class="dash">
     <q-pull-to-refresh @refresh="onPull">
       <div v-if="loading" class="stack">
-        <div class="greet">
-          <q-skeleton type="text" width="160px" height="24px" />
-        </div>
-        <q-skeleton type="rect" height="190px" class="sk" />
-        <q-skeleton type="rect" height="300px" class="sk" />
+        <q-skeleton type="text" width="160px" height="28px" />
+        <q-skeleton type="rect" height="150px" class="sk" />
+        <q-skeleton type="rect" height="64px" class="sk" />
+        <q-skeleton type="rect" height="250px" class="sk" />
       </div>
 
       <div v-else-if="error" class="stack">
         <ErrorCard title="Couldn't load your dashboard" :detail="error" :retry="load" />
       </div>
 
+      <!-- Four states, one layout (D-S5, D-SE1..3): verified with a stay, verified
+           and all paid, verification not started, verification in review. The
+           hero and the one action card change; the tiles keep their places. -->
       <div v-else class="stack">
-        <div class="greet">
-          <span class="greet-line">
-            <span class="greet-time">{{ greeting }},</span>
-            <span class="greet-name">{{ firstName }}</span>
-          </span>
-          <span class="greet-date">{{ today }}</span>
-        </div>
+        <h1 class="greet">{{ welcome ? 'Welcome' : 'Hi' }}, {{ firstName }}</h1>
 
-        <DashTasks :tasks="openTasks" :done-count="doneCount" @go="go" />
+        <DashHero v-bind="hero" />
+        <DashAction v-bind="action.card" @action="go(action.route)" />
 
-        <DashStayCard v-if="stay" :stay="stay" :manager="manager" :next="nextPayment" @go="go" @message="messageManager" />
-
-        <div v-else class="stay stay--empty">
-          <span class="stay-icon"><IconifyIcon icon="lucide:house" width="20" /></span>
-          <p class="stay-name">Find a place to stay</p>
-          <p class="stay-room">Your room, rent and dates land here once your landlord/landlady accepts you</p>
-          <button type="button" class="stay-cta" @click="go('/student/discover')">
-            Browse rooms
-            <IconifyIcon icon="lucide:arrow-right" width="16" />
-          </button>
-        </div>
+        <DashTiles :stay="stay" :manager="manager" :unread="unread" :empty-hint="emptyHint" :browse-hint="browseHint" :tiles="tiles" @go="go" />
       </div>
     </q-pull-to-refresh>
   </q-page>
@@ -43,7 +30,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { formatPeso, formatPesoExact, formatDate, formatMonth, initialsOf, landlordTitle, LANDLORD_ROLE_LABEL } from '@/utils/format'
@@ -52,10 +38,13 @@ import type { UtilityKey } from '@/utils/listings'
 import { ago, listGaps, loadProfileGaps } from '@/utils/profile'
 import { resolveAsset, AVATAR, CARD } from '@/utils/cloudinaryUrl'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
-import DashTasks from '@/components/shared/DashTasks.vue'
-import DashStayCard from '@/components/student/DashStayCard.vue'
+import DashHero from '@/components/shared/DashHero.vue'
+import DashAction from '@/components/shared/DashAction.vue'
+import DashTiles from '@/components/student/DashTiles.vue'
 import type { Task } from '@/components/shared/dashboard'
-import type { Manager, NextPayment, Stay } from '@/components/student/dashboard'
+import type { DashTile, Manager, NextPayment, Stay } from '@/components/student/dashboard'
+import { stayMonthSummary } from '@/utils/collections'
+import { verificationSteps } from '@/utils/verificationSteps'
 
 const router = useRouter()
 
@@ -67,17 +56,122 @@ const tasks = ref<Task[]>([])
 const nextPayment = ref<NextPayment | null>(null)
 const manager = ref<Manager | null>(null)
 
-const greeting = computed(() => {
-  const h = new Date().getHours()
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+// What the verification hero and the OSAS tile are drawn from. Cached with the
+// rest: it is status and dates only, nothing financial.
+const ver = ref({ status: 'unverified', docsSentAt: null as string | null, profileComplete: true, since: null as string | null })
+const stayLedger = ref<LedgerRow[]>([])
+// Unread messages: from this stay's landlord/landlady when there is one, else from anyone.
+const unread = ref(0)
+const past = ref<{ count: number; unrated: string | null }>({ count: 0, unrated: null })
+
+const verified = computed(() => ver.value.status === 'verified')
+const steps = computed(() =>
+  verificationSteps({ role: 'student', status: ver.value.status, docsSentAt: ver.value.docsSentAt, profileComplete: ver.value.profileComplete }),
+)
+// Brand-new account: nothing sent, no stay.
+const welcome = computed(() => !stay.value && steps.value.done === 1 && !steps.value.inReview)
+
+// One ranked list; the most urgent open task is the action card.
+const openTasks = computed(() => tasks.value.filter((t) => t.tone !== 'done'))
+
+const monthName = new Date().toLocaleDateString('en-PH', { month: 'long' })
+
+// Hero: the stay's month while verified with a stay, otherwise the verification steps.
+const hero = computed(() => {
+  if (verified.value && stay.value) {
+    if (stay.value.status === 'pending') {
+      return { label: 'Application', right: 'Sent', big: 'Pending', segments: [{ value: 1, tone: 'info' }], legend: [{ label: 'Waiting on', value: 'your landlord/landlady', tone: 'info' }], to: '/student/stay' }
+    }
+    const m = stayMonthSummary(stayLedger.value, manilaToday())
+    const sent = m.collected + m.toConfirm
+    const toPay = m.overdue + m.toCome
+    const clear = toPay < 0.01
+    return {
+      label: monthName,
+      right: clear ? 'All paid' : `${formatPeso(toPay)} to pay`,
+      big: formatPeso(sent),
+      of: `/ ${formatPeso(sent + toPay)} ${clear ? 'paid' : 'sent'}`,
+      segments: [
+        { value: sent, tone: clear ? 'success' : 'info' },
+        { value: m.toCome, tone: 'warning' },
+        { value: m.overdue, tone: 'danger' },
+      ],
+      legend: [
+        { label: clear ? 'Paid' : 'Sent', value: formatPeso(sent), tone: clear ? 'success' : 'info' },
+        { label: 'To pay', value: formatPeso(toPay), tone: m.overdue > 0 ? 'danger' : 'warning' },
+      ],
+      to: '/student/payments',
+    }
+  }
+  const { done, inReview } = steps.value
+  const sent = ver.value.docsSentAt ? new Date(ver.value.docsSentAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : ''
+  const left = 3 - done - (inReview ? 1 : 0)
+  return {
+    label: 'OSAS verification',
+    right: verified.value ? 'Verified' : inReview ? `Sent ${sent}` : `Step ${Math.min(done + 1, 3)} of 3`,
+    big: String(done),
+    of: '/ 3 steps done',
+    segments: [
+      ...Array.from({ length: done }, () => ({ value: 1, tone: 'primary' })),
+      ...(inReview ? [{ value: 1, tone: 'info' }] : []),
+      ...Array.from({ length: left }, () => ({ value: 1, tone: 'border' })),
+    ],
+    legend: [
+      { label: 'Done', value: String(done), tone: 'primary' },
+      inReview ? { label: 'In review', value: '1', tone: 'info' } : { label: 'Left', value: String(left), tone: 'muted' },
+    ],
+    to: '/student/support',
+  }
 })
 
-// One ranked list: DashTasks makes the most urgent open task its lead row.
-// Finished tasks are kept only so the card can say how many are behind you.
-const openTasks = computed(() => tasks.value.filter((t) => t.tone !== 'done'))
-const doneCount = computed(() => tasks.value.length - openTasks.value.length)
+const TASK_TONE = { danger: 'danger', warn: 'warning', info: 'info', done: 'success' } as const
 
-const today = new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' })
+const action = computed(() => {
+  const top = openTasks.value[0]
+  const fromTask = (t: Task) => ({
+    card: {
+      icon: t.icon,
+      tone: TASK_TONE[t.tone],
+      title: t.label,
+      sub: t.hint,
+      // The card is short; a long action label ("Re-upload requirements") is just "Open".
+      button: t.route ? (t.action && t.action.length <= 9 ? t.action : 'Open') : '',
+    },
+    route: t.route,
+  })
+  // Before verification only an urgent task (OSAS pause, rejected papers) outranks the next step.
+  if (top && (verified.value || top.rank <= 1)) return fromTask(top)
+  if (!verified.value) {
+    const next = steps.value.next
+    if (next) return { card: { icon: 'lucide:user-round', tone: 'warning', title: next.label, sub: 'Next step', button: 'Start' }, route: next.route }
+    return { card: { icon: 'lucide:clock', tone: 'info', title: 'OSAS is reviewing', sub: 'We\u2019ll notify you', button: 'Ask OSAS' }, route: '/student/support' }
+  }
+  if (!stay.value) {
+    return { card: { icon: 'lucide:search', tone: 'primary', title: 'You\u2019re verified', sub: 'Find a place to stay', button: 'Browse' }, route: '/student/discover' }
+  }
+  const n = nextPayment.value
+  const sub = n ? `Next: ${new Date(n.month).toLocaleDateString('en-PH', { month: 'long' })} rent${n.dueDate ? ` \u00b7 ${formatDate(n.dueDate)}` : ''}` : 'Nothing due'
+  return { card: { icon: 'lucide:check', tone: 'success', title: 'You\u2019re all caught up', sub, button: '' }, route: '' }
+})
+
+const emptyHint = computed(() => (verified.value ? 'Apply to a room you like' : steps.value.inReview ? 'Apply once you\u2019re verified' : 'Shows here once a landlord accepts you'))
+const browseHint = computed(() => (steps.value.inReview ? 'While you wait' : 'Look around now'))
+
+const tiles = computed<DashTile[]>(() => {
+  const v = ver.value.status
+  const osas: DashTile = verified.value
+    ? { icon: 'lucide:shield-check', tone: 'success', title: 'OSAS verified', sub: ver.value.since ? `Since ${new Date(ver.value.since).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })}` : 'Verified', route: '/student/support' }
+    : steps.value.inReview
+      ? { icon: 'lucide:shield-check', tone: 'info', title: 'OSAS', sub: 'In review', route: '/student/support' }
+      : { icon: 'lucide:shield-check', tone: v === 'unverified' ? 'muted' : 'danger', title: 'OSAS', sub: v === 'unverified' ? 'Not verified yet' : 'Needs attention', route: '/student/support' }
+  const p = past.value
+  const history: DashTile = p.unrated
+    ? { icon: 'lucide:star', tone: 'warning', title: `Rate ${p.unrated}`, sub: 'Your last stay', route: '/student/profile/history' }
+    : p.count > 0
+      ? { icon: 'lucide:history', tone: 'primary', title: 'History', sub: `${p.count} past ${p.count === 1 ? 'stay' : 'stays'}`, route: '/student/profile/history' }
+      : { icon: 'lucide:star', tone: 'muted', title: 'Ratings', sub: 'Nothing to rate', route: '/student/profile/history' }
+  return [osas, history]
+})
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
@@ -86,12 +180,6 @@ function titleCase(raw: string | null | undefined) {
 
 function go(path: string) {
   void router.push(path)
-}
-
-// ?to= lets Messages find or create the thread with this landlord/landlady.
-function messageManager() {
-  const id = manager.value?.id
-  void router.push(id ? `/student/messages?to=${id}` : '/student/messages')
 }
 
 async function load(silent = false) {
@@ -119,6 +207,14 @@ async function load(silent = false) {
       .select('reason, restrictions')
       .eq('user_id', user.id)
       .maybeSingle()
+
+    // Latest upload = "Sent Oct 13" on the verification hero; the pending ones decide
+    // the wording of the OSAS task below. osas_verified_at feeds the OSAS tile.
+    const [{ data: docs }, { data: sp }] = await Promise.all([
+      supabase.from('verification_documents').select('status, uploaded_at').eq('user_id', user.id).order('uploaded_at', { ascending: false }),
+      supabase.from('student_profiles').select('osas_verified_at').eq('user_id', user.id).maybeSingle(),
+    ])
+    const docRows = docs ?? []
 
     let ledger: LedgerRow[] = []
     // A student holds at most one live lease, so one row is enough.
@@ -251,11 +347,7 @@ async function load(silent = false) {
     // Verification: whether they must act depends on what they have already
     // submitted, so the pending documents decide the wording and the action.
     if (verification !== 'verified') {
-      const { count: pendingDocs } = await supabase
-        .from('verification_documents')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('status', 'pending')
+      const pendingDocs = docRows.filter((d) => d.status === 'pending').length
 
       if (verification === 'rejected' || verification === 'needs_resubmission' || verification === 'suspended') {
         const sentBack = verification === 'needs_resubmission'
@@ -271,7 +363,7 @@ async function load(silent = false) {
           tone: 'danger',
           rank: 1,
         })
-      } else if (pendingDocs && pendingDocs > 0) {
+      } else if (pendingDocs > 0) {
         list.push({
           id: 'verify',
           icon: 'lucide:hourglass',
@@ -317,6 +409,7 @@ async function load(silent = false) {
     // ISU issues one), emergency contact, and sex/birth date on older accounts —
     // chased as one row that opens the step-by-step flow.
     const missing = (await loadProfileGaps(user.id, true)).filter((g) => g.needed)
+    ver.value = { status: verification, docsSentAt: docRows[0]?.uploaded_at ?? null, profileComplete: missing.length === 0, since: sp?.osas_verified_at ?? null }
     if (missing.length) {
       list.push({
         id: 'profile',
@@ -419,7 +512,7 @@ async function load(silent = false) {
       // has written since record_payments, so it always said "Nothing due".
       const due = nextLedgerRent(ledger)
       nextPayment.value = due?.month
-        ? { amount: due.balance, month: due.month, overdue: due.state === 'overdue' }
+        ? { amount: due.balance, month: due.month, dueDate: due.dueDate, overdue: due.state === 'overdue' }
         : null
 
       // Utility bills the landlord/landlady posted and nobody has paid yet.
@@ -461,22 +554,26 @@ async function load(silent = false) {
     } else {
       nextPayment.value = null
     }
+    stayLedger.value = ledger
 
     // Unread messages from the landlord/landlady.
     const { data: convos } = await supabase
       .from('conversations')
       .select('user_a_id, user_b_id, unread_a, unread_b')
       .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
-    const unread = (convos || []).reduce((n, c) => {
+    const totalUnread = (convos || []).reduce((n, c) => {
       const mine = c.user_a_id === user.id ? c.unread_a : c.unread_b
       return n + Number(mine || 0)
     }, 0)
-    if (unread > 0) {
+    unread.value = leaseRow && manager.value
+      ? (convos || []).filter((c) => c.user_a_id === manager.value?.id || c.user_b_id === manager.value?.id).reduce((n, c) => n + Number((c.user_a_id === user.id ? c.unread_a : c.unread_b) || 0), 0)
+      : totalUnread
+    if (totalUnread > 0) {
       list.push({
         id: 'unread',
         icon: 'lucide:message-circle',
         kind: 'Messages',
-        label: `${unread} unread ${unread === 1 ? 'message' : 'messages'}`,
+        label: `${totalUnread} unread ${totalUnread === 1 ? 'message' : 'messages'}`,
         hint: `From your ${who}`,
         when: '',
         action: 'Open messages',
@@ -484,6 +581,24 @@ async function load(silent = false) {
         tone: 'warn',
         rank: 4,
       })
+    }
+
+    // Past stays for the History / "Rate X" tile. Ended leases the student has
+    // not reviewed yet (accommodation or landlord review) are what "Rate" waits on.
+    const [{ data: endedLeases }, { data: written }] = await Promise.all([
+      supabase
+        .from('leases')
+        .select('id, rooms(accommodations(name))')
+        .eq('student_id', user.id)
+        .in('status', ['ended', 'terminated'])
+        .order('end_date', { ascending: false }),
+      supabase.from('review_written_leases').select('lease_id').in('kind', ['accommodation', 'manager']),
+    ])
+    const reviewed = new Set((written ?? []).map((r) => r.lease_id))
+    const unrated = (endedLeases ?? []).find((l) => !reviewed.has(l.id))
+    past.value = {
+      count: endedLeases?.length ?? 0,
+      unrated: unrated ? (unrated.rooms as unknown as { accommodations: { name: string } | null } | null)?.accommodations?.name ?? 'your last stay' : null,
     }
 
     tasks.value = list.sort((a, b) => a.rank - b.rank)
@@ -502,19 +617,20 @@ async function load(silent = false) {
 // rent and payment amounts, same bar that keeps StudentStayPage out of this
 // entirely (see persistCache.ts). Those two stay RAM-only and just show
 // their loading state again on a fresh launch.
-type DashboardCache = { firstName: string; tasks: Task[]; manager: Manager | null }
+type DashboardCache = { firstName: string; tasks: Task[]; manager: Manager | null; ver: typeof ver.value }
 
 const { refresh } = useLiveData({
   key: 'student-dashboard',
   load,
   watch: (uid) => [{ table: 'leases', filter: `student_id=eq.${uid}` }],
   cache: {
-    get: (): DashboardCache => ({ firstName: firstName.value, tasks: tasks.value, manager: manager.value }),
+    get: (): DashboardCache => ({ firstName: firstName.value, tasks: tasks.value, manager: manager.value, ver: ver.value }),
     set: (d) => {
       const c = d as DashboardCache
       firstName.value = c.firstName
       tasks.value = c.tasks
       manager.value = c.manager
+      if (c.ver) ver.value = c.ver
       loading.value = false
     },
   },
@@ -529,57 +645,22 @@ function onPull(done: () => void) {
 </script>
 
 <style scoped>
-/* One type scale: 12 / 13 / 15 / 20. */
+/* One screen at 390x844: greeting, hero, action, stay row, two tiles — no scroll. */
 .dash { background: var(--m-bg); }
 .stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 8px var(--m-page-gutter) 20px;
+  padding: 8px var(--m-page-gutter) 12px;
 }
 .sk { border-radius: var(--m-radius); }
-
-.greet { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 2px 0; }
-.greet-line { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 6px; }
-.greet-time { color: var(--m-muted); font-size: 15px; font-weight: 500; }
-.greet-name {
+.greet {
+  margin: 0;
+  padding: 0 2px;
   color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.greet-date { flex: 0 0 auto; color: var(--m-muted); font-size: 12px; font-weight: 600; }
-
-/* Stay (empty state) */
-.stay { display: flex; flex-direction: column; padding: 16px 14px; border-radius: var(--m-radius); }
-.stay--empty { border: 1px dashed var(--m-border); background: var(--m-surface); color: var(--m-ink); }
-.stay-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 999px; background: var(--m-primary-soft); color: var(--m-primary-dark); }
-.stay-name {
-  margin: 12px 0 0;
-  font-family: var(--m-font-display);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
   line-height: 1.2;
-}
-.stay-room { margin: 4px 0 0; color: var(--m-muted); font-size: 13px; line-height: 1.4; }
-.stay-cta {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  margin-top: 14px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--m-primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
 }
 </style>
