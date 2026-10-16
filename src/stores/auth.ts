@@ -1,84 +1,10 @@
 import { defineStore } from 'pinia';
-import { Capacitor } from '@capacitor/core';
-import { SocialLogin } from '@capgo/capacitor-social-login';
 import { supabase } from '@/utils/supabase';
 import { captcha } from '@/utils/captcha';
 import { uploadSecureDocument } from '@/utils/upload';
-import { initialsOf, isPhMobile } from '@/utils/format';
-import type { RegisterForm, StudentRegisterForm } from '@/types/forms';
-import type { DocReadings } from '@/utils/docReading';
-import type { Database, Json } from '@/types/database.gen';
-
-// The database role enum says 'landlord'; this app's routes and folders say
-// 'manager' (`/manager/*`, `pages/manager/`). That split is deliberate and
-// documented in the workspace CLAUDE.md — the role was renamed to Landlord/Landlady, but the
-// internal paths were left alone rather than churn 150+ references for
-// something no user reads. Map between the two at the DB boundary so routing
-// keeps working off 'manager' while everything stored stays 'landlord'.
-/**
- * The text the phone read off each proof-of-enrolment document, for
- * student_profiles.document_text. Only for a file that is being sent, and capped
- * well under the column's size check.
- */
-function documentText(form: StudentRegisterForm): Json | null {
-  const readAt = new Date().toISOString();
-  const readings: DocReadings = {};
-  if (form.schoolIdFile && form.schoolIdText) readings.school_id = { text: form.schoolIdText.slice(0, 20000), read_at: readAt };
-  if (form.assessmentFile && form.assessmentText) readings.assessment_of_fees = { text: form.assessmentText.slice(0, 20000), read_at: readAt };
-  return Object.keys(readings).length ? (readings as Json) : null;
-}
-
-const APP_ROLE_TO_DB: Record<string, string> = { manager: 'landlord' };
-const DB_ROLE_TO_APP: Record<string, string> = { landlord: 'manager' };
-
-type DbRole = Database['public']['Enums']['user_role'];
-
-/** Unknown names pass through unchanged; the enum column rejects them. */
-function toDbRole(role: string): DbRole {
-  return (APP_ROLE_TO_DB[role] ?? role) as DbRole;
-}
-
-function toAppRole(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const r = raw.toLowerCase();
-  return DB_ROLE_TO_APP[r] ?? r;
-}
-
-function sanitizeError(error: unknown): Error {
-  // Supabase auth/PostgREST errors are often plain objects (not Error
-  // instances) that carry a real `.message`/`.code`/`.status`. Reading those
-  // prevents `String(object)` → "[object Object]" from leaking to the UI.
-  let raw: string;
-  if (error instanceof Error) {
-    raw = error.message;
-  } else if (error && typeof error === 'object' && 'message' in error) {
-    raw = String((error as { message: unknown }).message || 'Unknown error');
-  } else {
-    raw = String(error ?? 'Unknown error');
-  }
-  let friendly = 'An unexpected error occurred. Please try again.';
-  const m = (error instanceof Error ? error.message : '') || raw;
-  if (
-    m.includes('23505') ||
-    m.includes('duplicate key') ||
-    m.includes('student_profiles_student_id_key')
-  ) {
-    friendly = 'This Student ID is already registered.';
-  } else if (m.includes('already registered') || m.includes('email_exists') || m.includes('User already')) {
-    friendly = 'This email is already registered. Try logging in instead.';
-  } else if (m.includes('PGRST116') || m.includes('0 rows')) {
-    friendly = 'Registration failed due to a database conflict. Please try again.';
-  } else if (m.includes('Invalid login credentials')) {
-    friendly = 'Invalid email or password.';
-  } else if (m.includes('Email not confirmed')) {
-    friendly = 'Please confirm your email address before logging in.';
-  } else if (m.includes('rate limit')) {
-    friendly = 'Too many attempts. Please try again later.';
-  }
-  // Surface the raw backend message so failures are diagnosable on-device
-  // instead of being collapsed into a generic string.
-  return new Error(`${friendly} (${raw})`);
-}
+import type { StudentRegisterForm } from '@/types/forms';
+import * as flows from '@/stores/authFlows';
+import { documentText, ensureUserRow, formatProfileData, sanitizeError, submitManagerVerificationDocuments, submitStudentVerificationDocuments, toAppRole, toDbRole } from '@/stores/authRows';
 
 export interface ManagerRegisterForm {
   email: string;
@@ -115,96 +41,8 @@ export const useAuthStore = defineStore('auth', {
     isVerifiedLandlord: (state) => state.accountStatus === 'verified',
   },
   actions: {
-    formatProfileData(form: RegisterForm | ManagerRegisterForm, role: 'student' | 'manager') {
-      // Was a second hand-rolled copy of initialsOf(), which drifted from it:
-      // this one took the literal last word, so "Juan D. Dela Cruz Jr." became
-      // JJ — the J of Jr. — while the profile screen's edit of the same name
-      // produced JC. One helper, one answer, whichever path wrote the row.
-      const initials = initialsOf(form.fullName);
 
-      const formattedSex = form.sex === 'Male' ? 'M' : form.sex === 'Female' ? 'F' : 'U';
-
-      return {
-        email: form.email,
-        full_name: form.fullName,
-        initials,
-        sex: formattedSex,
-        // Read by handle_auth_user_sync into public.users.date_of_birth; an empty
-        // string would fail the cast, so it is normalised away here.
-        date_of_birth: form.dateOfBirth || null,
-        role: toDbRole(role),
-        phone: form.phone,
-      };
-    },
-
-    // Ensures the public.users row exists for the given auth user.
-    // The auth.users -> public.users sync trigger normally handles this, but
-    // this upsert is a safety net (idempotent via onConflict). status is left
-    // out so the trigger's email-verification logic isn't clobbered.
-    // Required NOT NULL columns: id, email, phone, role, full_name, initials.
-    async ensureUserRow(
-      userId: string,
-      email: string,
-      profileData: {
-        /** App ('manager') or DB ('landlord') name: toDbRole maps either. */
-        role: string;
-        full_name: string;
-        initials: string;
-        phone?: string;
-        date_of_birth?: string | null;
-      },
-      status?: 'pending',
-    ) {
-      const fields = {
-        phone: (profileData.phone as string) ?? '+639000000000',
-        role: toDbRole(profileData.role),
-        full_name: profileData.full_name,
-        initials: profileData.initials,
-        ...(profileData.date_of_birth ? { date_of_birth: profileData.date_of_birth } : {}),
-      };
-      // Insert-if-missing, then update — not one upsert. An upsert's DO UPDATE
-      // reads the incoming e-mail and phone, and those columns are not readable
-      // by clients (20261005010000), so it was refused outright. The e-mail is
-      // left to the auth sync either way.
-      const { error: insertError } = await supabase
-        .from('users')
-        .upsert({ id: userId, email, ...fields, ...(status ? { status } : {}) }, { onConflict: 'id', ignoreDuplicates: true });
-      if (insertError) throw sanitizeError(insertError);
-
-      const { error } = await supabase.from('users').update(fields).eq('id', userId);
-      if (error) throw sanitizeError(error);
-    },
-
-    async submitStudentVerificationDocuments(
-      userId: string,
-      documents: Array<{ docType: string; file: File | null; url: string | null }>,
-    ) {
-      const rows = documents
-        .filter((document) => document.file && document.url)
-        .map((document) => ({
-          user_id: userId,
-          doc_type: document.docType,
-          file_url: document.url!,
-          filename: document.file!.name,
-          status: 'pending' as const,
-        }));
-
-      if (!rows.length) return;
-
-      // Upsert for the same reason as registerManager: (user_id, doc_type) is
-      // unique, and a resubmitted proof replaces its own row rather than
-      // stacking a second copy beside it.
-      const { error } = await supabase
-        .from('verification_documents')
-        .upsert(rows, { onConflict: 'user_id,doc_type' });
-      if (error) throw sanitizeError(error);
-
-      const { error: userError } = await supabase
-        .from('users')
-        .update({ status: 'pending' })
-        .eq('id', userId);
-      if (userError) throw sanitizeError(userError);
-    },
+ 
 
     // --- STUDENT REGISTRATION (re-architected, account-first) ---
     // Phase 1: create the auth account + users row + empty student_profiles ONLY
@@ -213,7 +51,7 @@ export const useAuthStore = defineStore('auth', {
     async createStudentAccount(
       form: StudentRegisterForm,
     ) {
-      const profileData = this.formatProfileData(form, 'student');
+      const profileData = formatProfileData(form, 'student');
       const response = await supabase.auth.signUp({
         email: form.email,
         password: form.password ?? '',
@@ -223,7 +61,7 @@ export const useAuthStore = defineStore('auth', {
       const userId = response.data.user?.id;
       if (!userId) throw new Error('Failed to retrieve user ID after registration.');
 
-      await this.ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending');
 
       const { error: profileError } = await supabase.from('student_profiles').upsert(
         {
@@ -271,7 +109,7 @@ export const useAuthStore = defineStore('auth', {
       if (profileError) throw sanitizeError(profileError);
       // The other two paths (register, completeGoogleProfile) file these too;
       // this one, the usual one, left OSAS's document review empty.
-      await this.submitStudentVerificationDocuments(userId, [
+      await submitStudentVerificationDocuments(userId, [
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
       ]);
@@ -282,7 +120,7 @@ export const useAuthStore = defineStore('auth', {
     async register(
       form: StudentRegisterForm,
     ) {
-      const profileData = this.formatProfileData(form, 'student');
+      const profileData = formatProfileData(form, 'student');
 
       const response = await supabase.auth.signUp({
         email: form.email,
@@ -296,7 +134,7 @@ export const useAuthStore = defineStore('auth', {
 
       if (!userId) throw new Error('Failed to retrieve user ID after registration.');
 
-      await this.ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending');
 
       let schoolIdUrl: string | null = null;
       let assessmentUrl: string | null = null;
@@ -321,7 +159,7 @@ export const useAuthStore = defineStore('auth', {
 
       // Keep the session active (email autoconfirm is on) so the caller can proceed
       // to the phone-verification step without having to sign in again.
-      await this.submitStudentVerificationDocuments(userId, [
+      await submitStudentVerificationDocuments(userId, [
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
       ]);
@@ -335,9 +173,9 @@ export const useAuthStore = defineStore('auth', {
       userId: string,
       form: StudentRegisterForm,
     ) {
-      const profileData = this.formatProfileData(form, 'student');
+      const profileData = formatProfileData(form, 'student');
 
-      await this.ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending');
 
       const { error: userError } = await supabase
         .from('users')
@@ -371,7 +209,7 @@ export const useAuthStore = defineStore('auth', {
       // Google already vouched for this address, so there is no code to type.
       try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
 
-      await this.submitStudentVerificationDocuments(userId, [
+      await submitStudentVerificationDocuments(userId, [
         { docType: 'school_id', file: form.schoolIdFile ?? null, url: schoolIdUrl },
         { docType: 'assessment_of_fees', file: form.assessmentFile ?? null, url: assessmentUrl },
       ]);
@@ -379,23 +217,12 @@ export const useAuthStore = defineStore('auth', {
       this.cachedRole = 'student';
     },
 
-    // --- MANAGER REGISTRATION (account-first) ---
-    async createManagerAccount(form: ManagerRegisterForm) {
-      const profileData = this.formatProfileData(form, 'manager');
-      const response = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password ?? '',
-        options: { data: profileData, ...(await captcha()) },
-      });
-      if (response.error) throw sanitizeError(response.error);
-      const userId = response.data.user?.id;
-      if (!userId) throw new Error('Failed to retrieve user ID after registration.');
-      await this.ensureUserRow(userId, form.email, profileData, 'pending');
-      return userId;
+    createManagerAccount(form: ManagerRegisterForm) {
+      return flows.createManagerAccount(form);
     },
 
     async finalizeManagerAccount(userId: string, form: ManagerRegisterForm) {
-      await this.submitManagerVerificationDocuments(userId, form);
+      await submitManagerVerificationDocuments(userId, form);
       await this.markRegistered();
       // Stays signed in: an unverified landlord/landlady uses the app straight
       // away, and only adding inventory waits for OSAS.
@@ -405,7 +232,7 @@ export const useAuthStore = defineStore('auth', {
     // --- MANAGER REGISTRATION (legacy one-shot) ---
 
     async registerManager(form: ManagerRegisterForm) {
-      const profileData = this.formatProfileData(form, 'manager');
+      const profileData = formatProfileData(form, 'manager');
 
       const response = await supabase.auth.signUp({
         email: form.email,
@@ -422,8 +249,8 @@ export const useAuthStore = defineStore('auth', {
       // Upload both documents in parallel (they're independent) while we ensure
       // the user row — this significantly cuts registration latency vs doing the
       // uploads one-after-another on a mobile connection.
-      await this.ensureUserRow(userId, form.email, profileData, 'pending');
-      await this.submitManagerVerificationDocuments(userId, form);
+      await ensureUserRow(userId, form.email, profileData, 'pending');
+      await submitManagerVerificationDocuments(userId, form);
       await this.markRegistered();
       this.accountStatus = 'pending';
 
@@ -431,9 +258,9 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async completeGoogleManagerProfile(userId: string, form: ManagerRegisterForm) {
-      const profileData = this.formatProfileData(form, 'manager');
+      const profileData = formatProfileData(form, 'manager');
 
-      await this.ensureUserRow(userId, form.email, profileData, 'pending');
+      await ensureUserRow(userId, form.email, profileData, 'pending');
 
       const { error: userError } = await supabase
         .from('users')
@@ -445,58 +272,11 @@ export const useAuthStore = defineStore('auth', {
       // Google already vouched for this address, so there is no code to type.
       try { await this.confirmEmailOwnership(); } catch { /* non-fatal */ }
 
-      await this.submitManagerVerificationDocuments(userId, form);
+      await submitManagerVerificationDocuments(userId, form);
       await this.markRegistered();
       this.accountStatus = 'pending';
     },
 
-    async submitManagerVerificationDocuments(userId: string, form: ManagerRegisterForm) {
-      if (!form.governmentIdFile || !form.businessPermitFile) {
-        throw new Error('Both requirements must be uploaded.');
-      }
-
-      // Every student gets a student_profiles row at registration; landlords/landladies were
-      // getting no profile row at all, so a landlord/landlady had no record to hang
-      // responsiveness stats or admin review data on. Created here because all
-      // three landlord/landlady registration paths (password, resumed, Google) submit
-      // documents through this method. Upsert: resubmitting must not fail.
-      const { error: profileError } = await supabase
-        .from('landlord_profiles')
-        .upsert({ user_id: userId }, { onConflict: 'user_id' });
-      if (profileError) throw sanitizeError(profileError);
-
-      const [governmentIdUrl, businessPermitUrl] = await Promise.all([
-        uploadSecureDocument(form.governmentIdFile),
-        uploadSecureDocument(form.businessPermitFile),
-      ]);
-
-      // Upsert, not insert: a retried registration used to write a second copy
-      // of both documents, leaving the landlord/landlady's record listing each one twice.
-      // (user_id, doc_type) is unique, so a retry now overwrites its own row.
-      const { error } = await supabase.from('verification_documents').upsert(
-        [
-          {
-            user_id: userId,
-            doc_type: 'government_id',
-            file_url: governmentIdUrl,
-            filename: form.governmentIdFile.name,
-            status: 'pending' as const,
-            expires_at: form.governmentIdExpiresAt || null,
-          },
-          {
-            user_id: userId,
-            doc_type: 'business_permit',
-            file_url: businessPermitUrl,
-            filename: form.businessPermitFile.name,
-            status: 'pending' as const,
-            expires_at: form.businessPermitExpiresAt || null,
-          },
-        ],
-        { onConflict: 'user_id,doc_type' },
-      );
-
-      if (error) throw sanitizeError(error);
-    },
 
     // --- SHARED LOGIN ---
     async login(email: string, password: string, captchaHost?: HTMLElement | null) {
@@ -567,38 +347,8 @@ export const useAuthStore = defineStore('auth', {
       };
     },
 
-    /**
-     * Records that the signed-in user proved they read their e-mail. Only succeeds
-     * when the current token came from an e-mail code (or an OAuth provider that
-     * already vouched for the address) — the check runs server-side against the
-     * token's own `amr` claim, so the client cannot simply assert it.
-     */
-    /**
-     * Marks onboarding finished. Until this is set the account exists but its
-     * owner never completed registration — which is the normal state right after
-     * an OAuth sign-in, since signInWithOAuth provisions the user whether they
-     * came from the login screen or the register screen.
-     */
-    async markRegistered() {
-      // Both consents are stamped here rather than at each call site: this is
-      // the one function every registration path (student/manager, email/Google)
-      // ends with. The register screen gates every action that creates something
-      // on the consent sheet — the Google button, account creation, and its own
-      // final submit — so reaching this point means both were given. Both, and
-      // separately, since RA 10173 makes consent to data processing its own
-      // decision from agreeing to the terms.
-      //
-      // An RPC rather than three column writes, because those columns were
-      // writable by the account holder: anyone could mark themselves registered
-      // having done none of it, and — worse — write or rewrite their own consent
-      // evidence. complete_registration() is SECURITY DEFINER, refuses to run
-      // without a confirmed e-mail, and stamps with coalesce() so the timestamps
-      // are append-only and cannot be back-dated afterwards.
-      //
-      // No userId argument: the function reads auth.uid(), so the client no
-      // longer gets to name the row it is completing.
-      const { error } = await supabase.rpc('complete_registration');
-      if (error) throw sanitizeError(error);
+    markRegistered() {
+      return flows.markRegistered();
     },
 
     /**
@@ -625,47 +375,22 @@ export const useAuthStore = defineStore('auth', {
      * account to 'pending' until OSAS decides again. They stay signed in.
      */
     async resubmitManagerApplication(userId: string, form: ManagerRegisterForm) {
-      await this.submitManagerVerificationDocuments(userId, form);
+      await submitManagerVerificationDocuments(userId, form);
       const { error } = await supabase.rpc('resubmit_verification');
       if (error) throw sanitizeError(error);
       this.accountStatus = 'pending';
     },
 
-    /** The note OSAS left with their decision, for the resubmission screen. */
-    async fetchDecisionReason(userId: string): Promise<string> {
-      const { data } = await supabase
-        .from('verification_requests')
-        .select('decision_notes, rejection_reasons')
-        .eq('entity_type', 'user')
-        .eq('entity_id', userId)
-        .order('reviewed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data?.decision_notes || (data?.rejection_reasons ?? []).join(', ') || '';
+    fetchDecisionReason(userId: string): Promise<string> {
+      return flows.fetchDecisionReason(userId);
     },
 
-    async confirmEmailOwnership() {
-      const { error } = await supabase.rpc('confirm_email_ownership');
-      if (error) throw sanitizeError(error);
+    confirmEmailOwnership() {
+      return flows.confirmEmailOwnership();
     },
 
-    // --- PHONE VERIFICATION (proof of ownership, not a login) ---
-    // The user must already be signed in (e.g. immediately after registering, or
-    // from their Profile). updateUser triggers an SMS with a code; verifying it
-    // with the `phone_change` type confirms the number WITHOUT creating a new
-    // session, so this is purely a verification step, not passwordless auth.
-    async sendPhoneVerification(phone: string) {
-      // normalizePhPhone() only reshapes what it is given: it prefixes '+63' to
-      // whatever digits are left over, so anything at all reaches this call as a
-      // plausible-looking number. The register screen has a field rule and the
-      // profile screens check before saving, but this is the one place a number
-      // leaves for Supabase Auth, so the check belongs here too — every caller
-      // is covered by the one guard, and an SMS is sent on the strength of it.
-      if (!isPhMobile(phone)) {
-        throw new Error('That is not a usable Philippine mobile number.');
-      }
-      const { error } = await supabase.auth.updateUser({ phone });
-      if (error) throw sanitizeError(error);
+    sendPhoneVerification(phone: string) {
+      return flows.sendPhoneVerification(phone);
     },
 
     async verifyPhoneVerification(phone: string, token: string) {
@@ -685,105 +410,20 @@ export const useAuthStore = defineStore('auth', {
     // through Brevo/SMTP. OAuth users skip this (their e-mail is already
     // verified by the provider).
 
-    async sendEmailOtp(email: string) {
-      // shouldCreateUser:false — the account already exists; we only deliver a code.
-      // Resend is a no-op guard against accidental double-creation.
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: false, emailRedirectTo: undefined as unknown as string, ...(await captcha()) },
-      });
-      if (error) throw sanitizeError(error);
+    sendEmailOtp(email: string) {
+      return flows.sendEmailOtp(email);
     },
 
-    async verifyEmailOtp(email: string, token: string) {
-      // GoTrue files the code in a different column depending on the account,
-      // and /verify only looks in the one matching `type`:
-      //   - e-mail NOT yet confirmed -> a signup code in `confirmation_token`,
-      //     which is type 'email'  (registration)
-      //   - e-mail already confirmed -> /otp sends a MAGIC LINK instead, landing
-      //     in `recovery_token`, which is type 'magiclink'  (any re-confirmation of
-      //     an established account)
-      // Asking for the wrong one answers 'token has expired or is invalid' on a
-      // code sent seconds earlier, so try the second shape before giving up.
-      const attempt = (type: 'email' | 'magiclink') =>
-        supabase.auth.verifyOtp({ email, token, type });
-
-      let { data, error } = await attempt('email');
-      if (error) ({ data, error } = await attempt('magiclink'));
-      if (error) throw sanitizeError(error);
-      return data;
+    verifyEmailOtp(email: string, token: string) {
+      return flows.verifyEmailOtp(email, token);
     },
 
     clearCachedRole() {
       this.cachedRole = null;
     },
 
-    async loginWithGoogle(redirectPath: string) {
-      // On a device this never leaves the app. Android's Credential Manager
-      // draws the account chooser natively and hands back an ID token, which
-      // signInWithIdToken trades for a session in place — no browser tab, no
-      // custom-scheme round trip, no reload. It replaced a Custom Tab flow that
-      // was correct but still dumped the user into Chrome to finish signing in.
-      //
-      // Because nothing navigates, the caller is still mounted when this
-      // resolves: RegisterPage keeps the consent it already collected, and
-      // LoginPage can route off the returned session directly.
-      if (Capacitor.isNativePlatform()) {
-        const webClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
-        if (!webClientId) {
-          // Deliberately loud rather than quietly falling back to a browser
-          // flow: a silent fallback looks exactly like "the fix did not work",
-          // and costs a debugging round to tell the two apart.
-          throw new Error(
-            'Google sign-in is not configured for this build (VITE_GOOGLE_WEB_CLIENT_ID).',
-          );
-        }
-        // initialize() only stores config, so there is nothing to gain from
-        // doing it at boot for the many sessions that never touch Google.
-        await SocialLogin.initialize({ google: { webClientId } });
-
-        let result;
-        try {
-          // No `scopes`: the plugin already requests openid + userinfo.email +
-          // userinfo.profile, which is everything the ID token needs to carry.
-          // Passing the array anyway makes it demand a patched MainActivity
-          // ("You CANNOT use scopes without modifying the main activity") for
-          // access-token authorization Accommo never asks for.
-          ({ result } = await SocialLogin.login({ provider: 'google', options: {} }));
-        } catch (e: unknown) {
-          // Dismissing the account sheet rejects, and Credential Manager words
-          // it several ways. Backing out is not a failure, so say nothing and
-          // let the caller see "no session".
-          const message = e instanceof Error ? e.message : String(e);
-          if (/cancel/i.test(message)) return null;
-          throw e;
-        }
-
-        const idToken = 'idToken' in result ? result.idToken : null;
-        if (!idToken) throw new Error('Google did not return an identity token.');
-
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: idToken,
-        });
-        if (error) throw sanitizeError(error);
-        return data;
-      }
-
-      // Browser development sessions have no native picker, so they keep the
-      // redirect flow and return to their own HTTP(S) origin.
-      const path = redirectPath.replace(/^\/+/, '');
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/${path}`,
-          queryParams: {
-            prompt: 'select_account',
-          },
-        },
-      });
-      if (error) throw sanitizeError(error);
-      return data;
+    loginWithGoogle(redirectPath: string) {
+      return flows.loginWithGoogle(redirectPath);
     },
 
     async getSessionProfile() {
