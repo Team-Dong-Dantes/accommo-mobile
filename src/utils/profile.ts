@@ -3,6 +3,9 @@
 
 import { formatDate, parseServerTime } from '@/utils/format';
 import { supabase } from '@/utils/supabase';
+import { since } from '@/utils/notifications';
+import { secureDocUrl } from '@/utils/upload';
+import type { RequirementItem } from '@/components/shared/RequirementCards.vue';
 
 /** Friendly names for the doc_type strings written during registration. */
 export const DOC_LABEL: Record<string, string> = {
@@ -26,6 +29,44 @@ export function docPresentation(status: string | null | undefined): Presentation
   if (status === 'rejected') return { label: 'Rejected', tone: 'danger', icon: 'lucide:x' };
   if (status === 'resubmit') return { label: 'Upload again', tone: 'warn', icon: 'lucide:file-warning' };
   return { label: 'In review', tone: 'warn', icon: 'lucide:hourglass' };
+}
+
+/** A verification_documents row as the OSAS pages read it. */
+export interface AccountDocRow {
+  id: string;
+  doc_type: string;
+  file_url: string;
+  status: string;
+  uploaded_at: string;
+  verified_at: string | null;
+}
+
+/** An account document's requirement card, read against the account's own status. */
+export function accountDocItem(type: string, row: AccountDocRow | undefined, accountStatus: string): RequirementItem {
+  const label = DOC_LABEL[type] ?? type;
+  if (!row) return { type, label, statusLabel: 'Not submitted', tone: 'idle', when: '', fileUrl: '', verified: false };
+  // Once the account is verified that overrides an old row stuck at 'pending'.
+  // Otherwise the row speaks for itself: OSAS marks only the documents it
+  // wants again, so a sent-back account can still have an approved one.
+  const effectiveStatus = accountStatus === 'verified' ? 'approved' : row.status === 'rejected' && accountStatus === 'needs_resubmission' ? 'resubmit' : row.status;
+  const presentation = docPresentation(effectiveStatus);
+  const when = row.verified_at ? `Reviewed ${since(row.verified_at)}` : `Sent ${since(row.uploaded_at)}`;
+  return { type, label, statusLabel: presentation.label, tone: presentation.tone, when, fileUrl: row.file_url, verified: effectiveStatus === 'approved' };
+}
+
+/**
+ * The newest row per doc_type (rows arrive newest first), each with a link
+ * signed for this viewer: documents use Cloudinary authenticated delivery, so
+ * file_url holds a ref rather than a readable URL.
+ */
+export async function latestSignedDocs<R extends { id: string; doc_type: string | null }>(rows: R[] | null): Promise<R[]> {
+  const seen = new Set<string>();
+  const latest = (rows ?? []).filter((d) => {
+    if (!d.doc_type || seen.has(d.doc_type)) return false;
+    seen.add(d.doc_type);
+    return true;
+  });
+  return Promise.all(latest.map(async (d) => ({ ...d, file_url: await secureDocUrl('verification_documents', d.id) })));
 }
 
 /** user_status: unverified | pending | reviewing | verified | needs_resubmission | rejected | suspended */

@@ -14,7 +14,7 @@
     </div>
 
     <div v-else class="stack">
-      <ProfileSettingsSection :user-id="userId" :email="email" :notification-prefs="notificationPrefs" />
+      <ProfileSettingsSection :role="role" :user-id="userId" :email="email" :notification-prefs="notificationPrefs" />
     </div>
   </q-page>
 </template>
@@ -23,8 +23,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, authUser } from '@/utils/supabase'
-import ProfileSettingsSection from '@/components/manager/ProfileSettingsSection.vue'
+import ProfileSettingsSection from '@/components/shared/ProfileSettingsSection.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
+
+defineProps<{ role: 'student' | 'manager' }>()
 
 const router = useRouter()
 

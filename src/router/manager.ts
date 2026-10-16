@@ -23,7 +23,8 @@ const managerRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/manager/settings',
-    component: () => import('@/pages/manager/ManagerSettingsPage.vue'),
+    component: () => import('@/pages/shared/SettingsPage.vue'),
+    props: { role: 'manager' },
   },
   {
     path: '/manager/profile/qr-scanner',

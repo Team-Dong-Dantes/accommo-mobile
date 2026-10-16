@@ -16,9 +16,13 @@
       </SettingsRow>
     </div>
 
+    <div v-if="role === 'manager'" class="settings-group">
+      <p class="settings-group-label">Payments</p>
+      <SettingsRow icon="lucide:wallet" label="Payment details" @click="payoutOpen = true" />
+    </div>
     <div class="settings-group">
       <p class="settings-group-label">Activity</p>
-      <SettingsRow icon="lucide:clock" label="History" @click="go('/student/profile/history')" />
+      <SettingsRow icon="lucide:clock" label="History" @click="go(`/${role}/profile/history`)" />
     </div>
 
     <div class="settings-group">
@@ -46,14 +50,20 @@
 
     <div class="settings-group">
       <p class="settings-group-label">Support</p>
-      <SettingsRow icon="lucide:shield-check" label="OSAS &amp; support" @click="go('/student/support')" />
-      <SettingsRow icon="lucide:message-square-warning" label="Concerns" @click="go('/student/concerns')" />
-      <SettingsRow icon="lucide:wallet-cards" label="Payments" @click="go('/student/payments')" />
+      <template v-if="role === 'student'">
+        <SettingsRow icon="lucide:shield-check" label="OSAS &amp; support" @click="go('/student/support')" />
+        <SettingsRow icon="lucide:message-square-warning" label="Concerns" @click="go('/student/concerns')" />
+        <SettingsRow icon="lucide:wallet-cards" label="Payments" @click="go('/student/payments')" />
+      </template>
+      <template v-else>
+        <SettingsRow icon="lucide:shield-check" label="OSAS" @click="go('/manager/osas')" />
+        <SettingsRow icon="lucide:message-square-warning" label="Concerns" @click="go('/manager/support')" />
+      </template>
     </div>
 
     <div class="settings-group">
       <p class="settings-group-label">About</p>
-      <SettingsRow icon="lucide:scroll-text" label="Terms &amp; privacy" @click="go('/student/settings/terms')" />
+      <SettingsRow icon="lucide:scroll-text" label="Terms &amp; privacy" @click="go(`/${role}/settings/terms`)" />
       <SettingsRow icon="lucide:info" label="App version">
         <template #trailing>
           <span class="settings-static">{{ appVersion }}</span>
@@ -67,6 +77,7 @@
 
     <ChangePasswordDialog v-model="passwordOpen" />
     <ChangeEmailDialog v-model="emailOpen" />
+    <PayoutDialog v-if="role === 'manager'" v-model="payoutOpen" />
   </section>
 </template>
 
@@ -82,8 +93,10 @@ import { APP_VERSION, getAppVersion } from '@/utils/config'
 import SettingsRow from '@/components/shared/SettingsRow.vue'
 import ChangePasswordDialog from '@/components/shared/ChangePasswordDialog.vue'
 import ChangeEmailDialog from '@/components/shared/ChangeEmailDialog.vue'
+import PayoutDialog from '@/components/manager/PayoutDialog.vue'
 
 const props = defineProps<{
+  role: 'student' | 'manager'
   userId: string
   email: string
   notificationPrefs: { push: boolean; email: boolean }
@@ -95,6 +108,7 @@ const notify = useNotify()
 const appVersion = ref(APP_VERSION)
 const passwordOpen = ref(false)
 const emailOpen = ref(false)
+const payoutOpen = ref(false)
 const googleLinked = ref(false)
 const darkMode = ref(getStoredTheme() === 'dark')
 const prefs = reactive({ ...props.notificationPrefs })
