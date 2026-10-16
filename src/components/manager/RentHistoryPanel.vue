@@ -7,13 +7,15 @@
           <PropertyPicker v-model="propertyId" :options="propertyOptions" />
         </PeriodBar>
         <!-- The key is drawn with the grid's own cells, so it reads the same as what it explains. -->
-        <div class="rh-legend">
-          <span v-for="k in LEGEND" :key="k"><i class="lg" :class="`cell--${k}`"><IconifyIcon v-if="CELL[k].icon" :icon="CELL[k].icon" width="11" /></i>{{ CELL[k].label }}</span>
+        <div class="rh-keyrow">
+          <div class="rh-legend">
+            <span v-for="k in LEGEND" :key="k"><i class="rh-key" :class="`cell--${k}`"><IconifyIcon v-if="CELL[k].icon" :icon="CELL[k].icon" width="12" /></i>{{ CELL[k].label }}</span>
+          </div>
+          <label class="rh-past">
+            <span>Past<br />boarders</span>
+            <q-toggle v-model="showPast" color="primary" dense />
+          </label>
         </div>
-        <label class="rh-past">
-          <span>Show past boarders</span>
-          <q-toggle v-model="showPast" color="primary" dense />
-        </label>
       </div>
 
       <p v-if="!loading && !groups.length" class="rh-empty">{{ query.trim() ? 'No boarders or rooms match.' : 'No boarders yet. Rent shows up here once someone moves in.' }}</p>
@@ -24,7 +26,7 @@
           <span v-for="(m, i) in months" :key="m.key" class="c" :class="{ 'c--now': i === 3 }">{{ m.short }}</span>
         </div>
         <template v-for="g in groups" :key="g.id">
-          <button type="button" class="rh-prop" :aria-expanded="g.open" @click="toggle(g.id, g.open)">
+          <button type="button" class="rh-prop" :aria-expanded="g.open" @click="toggle(g.id)">
             <span class="rh-prop-text">
               <span class="rh-prop-name">{{ g.name }}</span>
               <span class="rh-prop-stats">{{ g.stats }}</span>
@@ -52,12 +54,12 @@
                 </button>
               </div>
             </template>
+            <div class="rh-row rh-foot">
+              <span>Collected</span>
+              <span v-for="(t, i) in g.collected" :key="i" class="c" :class="{ 'c--now': i === 3 }">{{ t }}</span>
+            </div>
           </template>
         </template>
-        <div class="rh-row rh-foot">
-          <span>Collected</span>
-          <span v-for="(t, i) in totals" :key="i" class="c" :class="{ 'c--now': i === 3 }">{{ t }}</span>
-        </div>
       </section>
 
       <button type="button" class="rh-report" @click="reportOpen = true">
@@ -102,7 +104,8 @@ const ledger = ref<CollectionLedgerRow[]>([])
 const rooms = ref<MoneyRoom[]>([])
 const propertyId = ref('all')
 const page = ref(0)
-const openMap = ref<Record<string, boolean>>({})
+// One property open at a time, none at first, so the list starts as a short overview.
+const openId = ref<string | null>(null)
 const reportOpen = ref(false)
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -114,8 +117,8 @@ const CELL: Record<'paid' | 'confirm' | 'unpaid' | 'none', { icon: string; text:
 }
 type CellState = keyof typeof CELL
 const LEGEND: CellState[] = ['paid', 'confirm', 'unpaid', 'none']
-// Past boarders on by default: paging back is how a landlord looks them up.
-const showPast = ref(true)
+// Off by default: the grid is about who is here now; past boarders are one tap away.
+const showPast = ref(false)
 
 const today = computed(() => manilaToday())
 const addMonths = (ym: string, n: number) => {
@@ -177,12 +180,12 @@ function personRow(l: MoneyLease) {
 const groups = computed(() => {
   const q = props.query.trim().toLowerCase()
   const out: {
-    id: string; name: string; stats: string; unpaid: number; open: boolean
+    id: string; name: string; stats: string; unpaid: number; open: boolean; collected: string[]
     rooms: { id: string; label: string; beds: boolean[]; note: string; rows: ReturnType<typeof personRow>[] }[]
   }[] = []
   const visible = properties.value.filter((p) => propertyId.value === 'all' || p.id === propertyId.value)
   const nowKey = months.value[3]!.key
-  visible.forEach((p, idx) => {
+  visible.forEach((p) => {
     const propRooms = rooms.value.filter((r) => r.accommodationId === p.id).sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }))
     const propLeases = leases.value.filter((l) => l.accommodationId === p.id)
     const shown = propRooms.map((room) => {
@@ -214,25 +217,20 @@ const groups = computed(() => {
       name: p.name,
       stats: `${propRooms.length} room${propRooms.length === 1 ? '' : 's'} · ${current.length} boarder${current.length === 1 ? '' : 's'} · ${formatPeso(collected)} of ${formatPeso(expected)} in ${months.value[3]!.short}`,
       unpaid,
-      // The first property starts open; a search opens everything it matched.
-      open: !!q || (openMap.value[p.id] ?? idx === 0),
+      // A search opens everything it matched.
+      open: !!q || openId.value === p.id,
+      collected: months.value.map((m) => compact(propLeases.reduce(
+        (n, l) => n + (rowsByLease.value.get(l.id) ?? []).filter((r) => (r.month ?? '').startsWith(m.key)).reduce((k, r) => k + r.confirmed, 0),
+        0,
+      ))),
       rooms: shown,
     })
   })
   return out
 })
 
-const totals = computed(() =>
-  months.value.map((m) => {
-    const ids = new Set(groups.value.flatMap((g) => g.rooms.flatMap((r) => r.rows.map((x) => x.lease.id))))
-    let sum = 0
-    for (const id of ids) for (const r of rowsByLease.value.get(id) ?? []) if ((r.month ?? '').startsWith(m.key)) sum += r.confirmed
-    return compact(sum)
-  }),
-)
-
-function toggle(id: string, open: boolean) {
-  openMap.value = { ...openMap.value, [id]: !open }
+function toggle(id: string) {
+  openId.value = openId.value === id ? null : id
 }
 function open(leaseId: string) {
   void router.push(`/manager/tenant/${leaseId}`)
@@ -261,10 +259,13 @@ watch(propertyId, () => { page.value = 0 })
 .rh-error, .rh-empty { margin: 0 12px; color: var(--m-muted); font-size: 13px; }
 .rh-error { color: var(--m-danger); }
 .rh-top { display: flex; flex-direction: column; gap: 10px; margin: 0 12px; }
-.rh-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--m-text); font-size: 12px; font-weight: 600; }
+.rh-keyrow { display: flex; align-items: center; gap: 12px; }
+/* Two by two, so the toggle fits beside it on a phone. */
+.rh-legend { display: grid; flex: 1; min-width: 0; grid-template-columns: repeat(2, max-content); gap: 6px 14px; color: var(--m-text); font-size: 12px; font-weight: 600; }
 .rh-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.lg { display: grid; width: 20px; height: 20px; box-sizing: border-box; place-items: center; border-radius: 6px; }
-.rh-past { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--m-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+/* Not `.lg`: that is Quasar's large-screen-only visibility class and hid every swatch. */
+.rh-key { display: grid; width: 20px; height: 20px; box-sizing: border-box; place-items: center; border-radius: 6px; }
+.rh-past { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding-left: 12px; border-left: 1px solid var(--m-border); color: var(--m-ink); font-size: 12px; font-weight: 600; line-height: 1.2; text-align: right; cursor: pointer; }
 .rh-grid { display: flex; flex-direction: column; border-top: 1px solid var(--m-border); border-bottom: 1px solid var(--m-border); background: var(--m-surface); }
 .rh-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 46px); align-items: center; padding: 6px 12px; }
 .rh-head { padding: 8px 12px; color: var(--m-muted); font-size: 11.5px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; }
