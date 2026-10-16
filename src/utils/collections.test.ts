@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCollections, type CollectionLease, type CollectionLedgerRow, type CollectionPayment } from './collections'
+import { buildCollections, monthCollections, type CollectionLease, type CollectionLedgerRow, type CollectionPayment } from './collections'
 
 const TODAY = '2026-10-12'
 const NOW = new Date('2026-10-12T09:00:00+08:00').getTime()
@@ -80,6 +80,7 @@ describe('buildCollections', () => {
   it('puts each tenant in exactly one group', () => {
     expect(c.confirm.map((x) => x.lease.id)).toEqual(['sent'])
     expect(c.late.map((x) => x.lease.id)).toEqual(['late'])
+    expect(c.late[0]?.daysLate).toBe(7)
     expect(c.coming.map((x) => x.lease.id).sort()).toEqual(['new', 'promised', 'soon'])
     expect(c.paid.map((l) => l.id)).toEqual(['paid'])
     expect(c.past.map((x) => x.lease.id)).toEqual(['gone'])
@@ -125,5 +126,36 @@ describe('buildCollections', () => {
 
   it('names the bill a former tenant still owes', () => {
     expect(c.past[0]).toMatchObject({ amount: 380, what: 'Electricity bill' })
+  })
+})
+
+describe('monthCollections', () => {
+  const leases = [lease('a'), lease('b')]
+  const sep = (id: string, over: Partial<CollectionLedgerRow> = {}) =>
+    rent(id, { month: '2026-09-01', dueDate: '2026-09-05', ...over })
+  const ledger = [
+    sep('a', { confirmed: 1500, balance: 0, state: 'paid' }),
+    sep('b'),
+    rent('a', { confirmed: 1500, balance: 0, state: 'paid' }),
+    rent('b', { pending: 1500, balance: 0, state: 'pending' }),
+  ]
+  const payments = [pay('b')]
+
+  it('keeps today\'s month exactly as buildCollections has it', () => {
+    expect(monthCollections(leases, ledger, payments, '2026-10-01', TODAY, {}, new Set(), NOW)).toEqual(
+      buildCollections(leases, ledger, payments, {}, new Set(), TODAY, NOW),
+    )
+  })
+
+  it('limits an earlier month to what fell due in it', () => {
+    const m = monthCollections(leases, ledger, payments, '2026-09-01', TODAY, {}, new Set(), NOW)
+    expect(m.month).toBe('2026-09-01')
+    expect(m.collected).toBe(1500)
+    expect(m.overdue).toBe(1500)
+    expect(m.toConfirm).toBe(0)
+    expect(m.toCome).toBe(0)
+    expect(m.confirm).toEqual([])
+    expect(m.late.map((x) => x.lease.id)).toEqual(['b'])
+    expect(m.paid.map((l) => l.id)).toEqual(['a'])
   })
 })

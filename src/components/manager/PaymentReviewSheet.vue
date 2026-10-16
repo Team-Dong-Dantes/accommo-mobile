@@ -20,7 +20,6 @@
           <span class="mx-head-sub">{{ who.place }}<template v-if="sentAt"> · sent {{ formatDate(sentAt) }}</template></span>
         </span>
         <span v-if="pending && waitDays >= 1" class="rv-wait" :class="{ 'rv-wait--long': waitDays >= 3 }">
-          <IconifyIcon icon="lucide:clock" width="13" />
           Waiting {{ waitDays }} day{{ waitDays === 1 ? '' : 's' }}
         </span>
       </template>
@@ -57,19 +56,19 @@
     <div v-else-if="rows.length" class="mx-body">
       <div class="rv-top">
         <div class="rv-amount">
-          <span class="mx-label" :class="`rv-status--${statusColor(PAYMENT_STATUS, status)}`">{{ headline }}</span>
+          <span class="rv-kicker" :class="pending ? 'rv-status--blue' : `rv-status--${statusColor(PAYMENT_STATUS, status)}`">{{ headline }}</span>
           <span class="rv-big">{{ formatPesoExact(total) }}</span>
           <span class="rv-by">{{ cash ? 'no receipt for cash, so only you can tell' : `by ${methodLabel}` }}</span>
         </div>
         <button v-if="proof" type="button" class="rv-proof" aria-label="Open receipt screenshot" @click="viewer = proof">
           <img :src="proof" alt="" />
-          <span class="rv-proof-zoom"><IconifyIcon icon="lucide:maximize-2" width="13" /></span>
+          <span class="rv-proof-zoom"><IconifyIcon icon="lucide:maximize-2" width="12" /></span>
         </button>
       </div>
 
       <!-- Part of one item: what came now, what is left, and the promise. -->
       <div v-if="partial" class="mx-field">
-        <h3 class="mx-label">Part of {{ items[0]?.name.toLowerCase() }}</h3>
+        <h3 class="rv-h">Part of {{ items[0]?.name.toLowerCase() }}</h3>
         <div class="mx-list">
           <div class="rv-bar-wrap">
             <div class="rv-bar" aria-hidden="true">
@@ -87,14 +86,14 @@
       </div>
 
       <div v-else class="mx-field">
-        <h3 class="mx-label">It pays for</h3>
+        <h3 class="rv-h">It pays for</h3>
         <div class="mx-list">
           <div v-for="it in items" :key="it.id" class="mx-kv"><span>{{ it.name }}</span><span class="mx-kv-val">{{ formatPesoExact(it.amount) }}</span></div>
         </div>
       </div>
 
       <div v-if="!partial && (first.txn_reference || first.note || first.receipt_no)" class="mx-field">
-        <h3 class="mx-label">{{ pending && !cash ? `Check against your ${methodLabel}` : 'Details' }}</h3>
+        <h3 class="rv-h">{{ pending && !cash ? `Check against your ${methodLabel}` : 'Details' }}</h3>
         <div class="mx-list">
           <div v-if="first.txn_reference" class="mx-kv"><span class="mx-kv-key">Reference no.</span><span class="mx-kv-val rv-mono">{{ first.txn_reference }}</span></div>
           <div v-if="first.receipt_no" class="mx-kv"><span class="mx-kv-key">Receipt no.</span><span class="mx-kv-val">{{ first.receipt_no }}</span></div>
@@ -116,18 +115,20 @@
         </button>
       </div>
       <div v-else class="mx-foot">
+        <!-- Reject sends it back for the student to fix and resend (the reject
+             screen says so); the amount to check is already on the sheet. -->
         <div class="mx-foot-row">
-          <button type="button" class="mx-btn mx-btn--reject" :disabled="busy" @click="startReject">Reject</button>
-          <button type="button" class="mx-btn" :disabled="busy" @click="confirm">
-            <IconifyIcon icon="lucide:check" width="18" />
-            {{ busy ? 'Confirming…' : cash ? `I got ${formatPesoExact(total)} in cash` : `I received ${formatPesoExact(total)}` }}
+          <button type="button" class="mx-btn mx-btn--reject rv-reject" :disabled="busy" @click="startReject">Reject</button>
+          <button type="button" class="mx-btn rv-ok" :disabled="busy" @click="confirm">
+            {{ busy ? 'Confirming…' : 'Confirm payment' }}
           </button>
         </div>
-        <p class="mx-foot-note">Amount doesn't match what arrived? Reject it — {{ firstName }} fixes it and sends it again.</p>
       </div>
     </template>
   </AppModal>
-  <PhotoViewer v-model="viewer" />
+  <!-- Opened from a pending payment, the viewer carries the figures the
+       receipt in the photo should show, so the check needs no switching back. -->
+  <PhotoViewer v-model="viewer" :caption="proofCaption" v-bind="proofCompare ? { compare: proofCompare } : {}" />
 </template>
 
 <script setup lang="ts">
@@ -206,9 +207,16 @@ const waitDays = computed(() => (sentAt.value ? Math.floor((Date.now() - new Dat
 const firstName = computed(() => who.value.name.split(' ')[0] || 'The student')
 const reviewer = computed(() => (pending.value ? '' : first.value?.verified_by_user?.full_name ?? ''))
 const headline = computed(() => {
-  if (pending.value) return cash.value ? 'Says they handed you cash' : 'Says they paid'
+  if (pending.value) return cash.value ? 'Cash to confirm' : 'To confirm'
   return status.value === 'paid' ? 'Confirmed' : status.value === 'rejected' ? 'Sent back' : status.value === 'withdrawn' ? 'Taken back' : status.value === 'waived' ? 'Forgiven' : status.value
 })
+
+const proofCaption = computed(() => `${who.value.name} · ${capitalize(whatList.value)}`)
+const proofCompare = computed(() =>
+  pending.value
+    ? { reference: first.value?.txn_reference ?? '', amount: formatPesoExact(total.value), method: methodLabel.value, sent: formatDate(sentAt.value) }
+    : null,
+)
 
 const items = computed(() => rows.value.map((r) => ({
   id: r.id,
@@ -348,16 +356,17 @@ async function reject() {
 }
 .rv-avatar {
   display: inline-flex;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   border-radius: 50%;
-  background: var(--m-bg);
-  color: var(--m-ink);
-  font-weight: 700;
+  background: var(--m-primary-dark);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
 }
 .rv-avatar img {
   width: 100%;
@@ -374,16 +383,35 @@ async function reject() {
   flex: 0 0 auto;
   align-items: center;
   gap: 5px;
-  padding: 5px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: var(--m-bg);
-  color: var(--m-muted);
-  font-size: 12px;
+  background: var(--m-info-soft);
+  color: var(--m-info);
+  font-size: 11px;
   font-weight: 700;
 }
+/* Three days or more reads as a nudge, not just a count. */
 .rv-wait--long {
   background: var(--m-warning-soft);
   color: var(--m-warning);
+}
+.rv-kicker,
+.rv-h {
+  margin: 0;
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rv-status--blue {
+  color: var(--m-info);
+}
+.rv-reject {
+  flex: 1;
+}
+.rv-ok {
+  flex: 2;
 }
 .rv-top {
   display: flex;
@@ -410,9 +438,9 @@ async function reject() {
 .rv-big {
   color: var(--m-ink);
   font-family: var(--m-font-display);
-  font-size: 36px;
+  font-size: 32px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 .rv-by {
@@ -421,13 +449,13 @@ async function reject() {
 }
 .rv-proof {
   position: relative;
-  width: 104px;
-  height: 140px;
+  width: 84px;
+  height: 110px;
   flex: 0 0 auto;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
+  border: 1px dashed var(--m-border);
+  border-radius: 12px;
   background: var(--m-bg);
   cursor: zoom-in;
 }

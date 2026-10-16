@@ -56,6 +56,8 @@ export interface Owing {
   lease: CollectionLease
   amount: number
   what: string
+  /** Whole days past the earliest unpaid due date; only set on `late` entries. */
+  daysLate?: number
   tag: 'new' | 'leaving' | null
 }
 
@@ -138,9 +140,11 @@ export function buildCollections(
   billedThisMonth: Set<string>,
   today: string,
   now: number = Date.now(),
+  /** YYYY-MM-01 the summary is about; today's month unless monthCollections asks for another. */
+  forMonth?: string,
 ): Collections {
-  const month = `${today.slice(0, 7)}-01`
-  const monthEnd = monthEndOf(today)
+  const month = forMonth ?? `${today.slice(0, 7)}-01`
+  const monthEnd = monthEndOf(month)
   const current = (l: CollectionLease) => l.status === 'active' || l.status === 'leave_requested'
   const byLease = new Map(leases.map((l) => [l.id, l]))
   const rowsOf = (id: string) => ledger.filter((r) => r.leaseId === id)
@@ -204,7 +208,7 @@ export function buildCollections(
       const amount = lateRows.reduce((s, r) => s + r.balance, 0)
       const first = lateRows.map((r) => r.dueDate ?? '').sort()[0] ?? today
       const days = daysBetween(first, today)
-      late.push({ lease, amount, tag, what: `${joinNames(lateRows.map((r) => itemName(r, billUtility)))} · ${days} day${days === 1 ? '' : 's'} late` })
+      late.push({ lease, amount, tag, daysLate: days, what: `${joinNames(lateRows.map((r) => itemName(r, billUtility)))} · ${days} day${days === 1 ? '' : 's'} late` })
       overdue += amount
     }
     const comingRows = promise ? [...lateRows, ...soonRows] : soonRows
@@ -225,7 +229,7 @@ export function buildCollections(
   }
 
   const listed = new Set([...confirm.map((c) => c.lease.id), ...late.map((o) => o.lease.id), ...coming.map((o) => o.lease.id)])
-  const paid = leases.filter((l) => current(l) && l.startDate <= today && !listed.has(l.id))
+  const paid = leases.filter((l) => current(l) && l.startDate <= (today < monthEnd ? today : monthEnd) && !listed.has(l.id))
 
   // 4. Stays that have ended with rent or bills left.
   const past: Owing[] = []
@@ -259,4 +263,35 @@ export function buildCollections(
     past,
     unposted: { tenants: unpostedTenants, utilities: [...unpostedUtils] },
   }
+}
+
+/**
+ * The same summary for one month, for the Monthly rent tab's month stepper.
+ * Today's month is the live inbox, so it keeps everything still open (an
+ * earlier month's unpaid rent is still owed); any other month is limited to
+ * the rows that fell due in it and the payments made toward it. Past months
+ * have nothing "still to come": whatever is unpaid has already gone late.
+ */
+export function monthCollections(
+  leases: CollectionLease[],
+  ledger: CollectionLedgerRow[],
+  payments: CollectionPayment[],
+  month: string,
+  today: string,
+  billUtility: Record<string, UtilityKey> = {},
+  billedThisMonth: Set<string> = new Set(),
+  now: number = Date.now(),
+): Collections {
+  const ym = month.slice(0, 7)
+  if (ym === today.slice(0, 7)) return buildCollections(leases, ledger, payments, billUtility, billedThisMonth, today, now)
+  return buildCollections(
+    leases,
+    ledger.filter((r) => (r.dueDate ?? '').slice(0, 7) === ym),
+    payments.filter((p) => p.month.slice(0, 7) === ym),
+    billUtility,
+    billedThisMonth,
+    today,
+    now,
+    `${ym}-01`,
+  )
 }
