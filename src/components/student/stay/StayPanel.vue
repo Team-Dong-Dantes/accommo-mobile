@@ -1,109 +1,109 @@
 <template>
-<h2 v-if="isTablet" class="split-head">My Stay</h2>
-<template v-if="lease">
-  <StayHero
-    v-if="isDesktop"
-    :name="lease.accommodationName"
-    :room="lease.roomLabel"
-    :address="lease.address"
-    :status="lease.status"
-    :photo-url="lease.photoUrl"
-  />
+  <h2 v-if="isTablet" class="split-head">My Stay</h2>
+  <template v-if="lease">
+    <StayHero
+      v-if="isDesktop"
+      :name="lease.accommodationName"
+      :room="lease.roomLabel"
+      :address="lease.address"
+      :status="lease.status"
+      :photo-url="lease.photoUrl"
+    />
 
-  <div class="mgr">
-    <span class="mgr-avatar">
-      <img v-if="lease.managerAvatarUrl" :src="lease.managerAvatarUrl" alt="" class="mgr-avatar-img" @error="lease.managerAvatarUrl = null" />
-      <template v-else>{{ lease.managerInitials }}</template>
-    </span>
-    <span class="mgr-body">
-      <span class="mgr-name">{{ lease.managerName }}</span>
-      <span class="mgr-sub">
-        Your {{ myLandlord }}<template v-if="lease.replyMinutes">{{ ` · replies in ~${lease.replyMinutes} min` }}</template>
+    <div class="mgr">
+      <span class="mgr-avatar">
+        <img v-if="lease.managerAvatarUrl" :src="lease.managerAvatarUrl" alt="" class="mgr-avatar-img" @error="lease.managerAvatarUrl = null" />
+        <template v-else>{{ lease.managerInitials }}</template>
       </span>
-    </span>
-    <button
-      type="button"
-      class="mgr-msg"
-      :aria-label="`Message your ${myLandlord}`"
-      @click="router.push(`/student/messages?to=${lease.managerId}`)"
-    >
-      <IconifyIcon icon="lucide:message-circle" width="17" />
-    </button>
-  </div>
-  <p v-if="lease.status === 'pending'" class="note">Application pending — awaiting your {{ myLandlord }}'s decision.</p>
-  <p v-else-if="lease.status === 'leave_requested'" class="note">
-    You asked to move out on {{ formatDate(lease.leaveDate) }} — awaiting your {{ myLandlord }}'s decision. Rent stays due until then.
-  </p>
-  <p v-else-if="lease.leaveDate" class="note">Moving out {{ formatDate(lease.leaveDate) }} — approved by your {{ myLandlord }}.</p>
-
-  <!-- The four things a boarder actually checks, as tiles; the
-       rest is reference, one hairline list below. -->
-  <div class="facts">
-    <div class="fact">
-      <span class="fact-label">Monthly rent</span>
-      <span class="fact-value">{{ formatPeso(lease.monthlyRent) }}</span>
-      <span class="fact-sub">per month</span>
-    </div>
-    <div class="fact">
-      <span class="fact-label">Lease ends</span>
-      <span class="fact-value">{{ formatDate(lease.endDate) }}</span>
-      <span class="fact-sub">Started {{ formatDate(lease.startDate) }}</span>
-    </div>
-    <div class="fact">
-      <span class="fact-label">Room type</span>
-      <span class="fact-value">{{ lease.roomType || '—' }}</span>
-    </div>
-    <div class="fact">
-      <span class="fact-label">Capacity</span>
-      <span class="fact-value">{{ lease.capacity ? `${lease.capacity} ${lease.capacity === 1 ? 'person' : 'people'}` : '—' }}</span>
-      <span v-if="lease.roommateCount !== null" class="fact-sub">
-        {{ lease.roommateCount > 0 ? `${lease.roommateCount} roommate${lease.roommateCount === 1 ? '' : 's'}` : 'Just you so far' }}
+      <span class="mgr-body">
+        <span class="mgr-name">{{ lease.managerName }}</span>
+        <span class="mgr-sub">
+          Your {{ myLandlord }}<template v-if="lease.replyMinutes">{{ ` · replies in ~${lease.replyMinutes} min` }}</template>
+        </span>
       </span>
+      <button
+        type="button"
+        class="mgr-msg"
+        :aria-label="`Message your ${myLandlord}`"
+        @click="router.push(`/student/messages?to=${lease.managerId}`)"
+      >
+        <IconifyIcon icon="lucide:message-circle" width="17" />
+      </button>
     </div>
-  </div>
+    <p v-if="lease.status === 'pending'" class="note">Application pending — awaiting your {{ myLandlord }}'s decision.</p>
+    <p v-else-if="lease.status === 'leave_requested'" class="note">
+      You asked to move out on {{ formatDate(lease.leaveDate) }} — awaiting your {{ myLandlord }}'s decision. Rent stays due until then.
+    </p>
+    <p v-else-if="lease.leaveDate" class="note">Moving out {{ formatDate(lease.leaveDate) }} — approved by your {{ myLandlord }}.</p>
 
-  <section class="sec">
-    <h2 class="sec-title">Utilities</h2>
-    <div v-for="u in UTILITIES" :key="u.key" class="line">
-      <span class="line-label">{{ u.label }}</span>
-      <span class="line-value">{{ utilityTermsLabel(lease.utilities[u.key]) }}</span>
+    <!-- The four things a boarder actually checks, as tiles; the
+         rest is reference, one hairline list below. -->
+    <div class="facts">
+      <div class="fact">
+        <span class="fact-label">Monthly rent</span>
+        <span class="fact-value">{{ formatPeso(lease.monthlyRent) }}</span>
+        <span class="fact-sub">per month</span>
+      </div>
+      <div class="fact">
+        <span class="fact-label">Lease ends</span>
+        <span class="fact-value">{{ formatDate(lease.endDate) }}</span>
+        <span class="fact-sub">Started {{ formatDate(lease.startDate) }}</span>
+      </div>
+      <div class="fact">
+        <span class="fact-label">Room type</span>
+        <span class="fact-value">{{ lease.roomType || '—' }}</span>
+      </div>
+      <div class="fact">
+        <span class="fact-label">Capacity</span>
+        <span class="fact-value">{{ lease.capacity ? `${lease.capacity} ${lease.capacity === 1 ? 'person' : 'people'}` : '—' }}</span>
+        <span v-if="lease.roommateCount !== null" class="fact-sub">
+          {{ lease.roommateCount > 0 ? `${lease.roommateCount} roommate${lease.roommateCount === 1 ? '' : 's'}` : 'Just you so far' }}
+        </span>
+      </div>
     </div>
-  </section>
 
-  <section v-if="lease.rules.length" class="sec">
-    <h2 class="sec-title">House rules</h2>
-    <div v-for="rule in lease.rules" :key="rule.label" class="line">
-      <span class="line-label">{{ rule.label }}</span>
-      <span class="line-value">{{ rule.value }}</span>
-    </div>
-  </section>
+    <section class="sec">
+      <h2 class="sec-title">Utilities</h2>
+      <div v-for="u in UTILITIES" :key="u.key" class="line">
+        <span class="line-label">{{ u.label }}</span>
+        <span class="line-value">{{ utilityTermsLabel(lease.utilities[u.key]) }}</span>
+      </div>
+    </section>
 
-  <section v-if="lease.amenities.length" class="sec">
-    <h2 class="sec-title">Amenities</h2>
-    <div class="amenities">
-      <span v-for="a in lease.amenities" :key="a" class="amenity">
-        <IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="15" />
-        {{ AMENITY_META[a]?.label || a }}
-      </span>
-    </div>
-  </section>
+    <section v-if="lease.rules.length" class="sec">
+      <h2 class="sec-title">House rules</h2>
+      <div v-for="rule in lease.rules" :key="rule.label" class="line">
+        <span class="line-label">{{ rule.label }}</span>
+        <span class="line-value">{{ rule.value }}</span>
+      </div>
+    </section>
 
-  <section class="sec">
-    <button type="button" class="line line-link" @click="router.push('/student/concerns')">
-      <IconifyIcon icon="lucide:message-square-warning" width="16" />
-      <span>Concerns</span>
-      <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+    <section v-if="lease.amenities.length" class="sec">
+      <h2 class="sec-title">Amenities</h2>
+      <div class="amenities">
+        <span v-for="a in lease.amenities" :key="a" class="amenity">
+          <IconifyIcon :icon="AMENITY_META[a]?.icon || 'lucide:dot'" width="15" />
+          {{ AMENITY_META[a]?.label || a }}
+        </span>
+      </div>
+    </section>
+
+    <section class="sec">
+      <button type="button" class="line line-link" @click="router.push('/student/concerns')">
+        <IconifyIcon icon="lucide:message-square-warning" width="16" />
+        <span>Concerns</span>
+        <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+      </button>
+      <button type="button" class="line line-link" @click="router.push('/student/profile/history')">
+        <IconifyIcon icon="lucide:history" width="16" />
+        <span>History</span>
+        <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
+      </button>
+    </section>
+
+    <button v-if="lease.status === 'active' && !lease.leaveDate" type="button" class="leave-link" @click="openLeave">
+      Request to leave
     </button>
-    <button type="button" class="line line-link" @click="router.push('/student/profile/history')">
-      <IconifyIcon icon="lucide:history" width="16" />
-      <span>History</span>
-      <IconifyIcon icon="lucide:chevron-right" width="16" class="chevron" />
-    </button>
-  </section>
-
-  <button v-if="lease.status === 'active' && !lease.leaveDate" type="button" class="leave-link" @click="openLeave">
-    Request to leave
-  </button>
 </template>
 
 <EmptyState

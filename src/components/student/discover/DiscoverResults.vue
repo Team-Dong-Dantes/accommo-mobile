@@ -1,108 +1,108 @@
 <template>
-<div class="stack" :class="{ 'stack--desk': isDesktop }">
-  <section v-if="filteredProperties.length" class="sec">
-    <div class="sec-head">
-      <h2 class="sec-title">Accommodations</h2>
-      <div class="sec-actions">
-        <!-- A mouse has no swipe, so desktop gets arrows for the rail. -->
-        <template v-if="isDesktop">
-          <button type="button" class="rail-arrow" aria-label="Previous accommodations" @click="slideRail(-1)">
-            <IconifyIcon icon="lucide:chevron-left" width="16" />
+  <div class="stack" :class="{ 'stack--desk': isDesktop }">
+    <section v-if="filteredProperties.length" class="sec">
+      <div class="sec-head">
+        <h2 class="sec-title">Accommodations</h2>
+        <div class="sec-actions">
+          <!-- A mouse has no swipe, so desktop gets arrows for the rail. -->
+          <template v-if="isDesktop">
+            <button type="button" class="rail-arrow" aria-label="Previous accommodations" @click="slideRail(-1)">
+              <IconifyIcon icon="lucide:chevron-left" width="16" />
+            </button>
+            <button type="button" class="rail-arrow" aria-label="Next accommodations" @click="slideRail(1)">
+              <IconifyIcon icon="lucide:chevron-right" width="16" />
+            </button>
+          </template>
+          <button type="button" class="sec-more" @click="router.push('/student/properties')">
+            View all
           </button>
-          <button type="button" class="rail-arrow" aria-label="Next accommodations" @click="slideRail(1)">
-            <IconifyIcon icon="lucide:chevron-right" width="16" />
-          </button>
-        </template>
-        <button type="button" class="sec-more" @click="router.push('/student/properties')">
-          View all
+        </div>
+      </div>
+      <div ref="railEl" class="rail" :class="{ 'rail--desk': isDesktop }">
+        <PropertyCard
+          v-for="item in filteredProperties.slice(0, 10)"
+          :key="item.id"
+          variant="carousel"
+          class="rail-item"
+          :id="item.id"
+          :name="item.name"
+          :address="item.address"
+          :image="item.image"
+          :monogram="item.monogram"
+          :distance="item.distance"
+          :vacancies="item.vacancies"
+          :building-type="item.buildingType"
+          :gender-policy="item.genderPolicy"
+          @open="open"
+        />
+      </div>
+    </section>
+
+    <!-- Managers only surface once a search narrows to them -->
+    <section v-if="query.trim() && filteredManagers.length" class="sec">
+      <h2 class="sec-title">Landlords/Landladies</h2>
+      <div class="mgrs">
+        <button
+          v-for="m in filteredManagers"
+          :key="m.id"
+          type="button"
+          class="mgr-row"
+          @click="openManager(m.id)"
+        >
+          <span class="mgr-avatar">
+            <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="mgr-avatar-img" @error="m.avatarUrl = null" />
+            <template v-else>{{ m.initials }}</template>
+          </span>
+          <span class="mgr-body">
+            <span class="mgr-name">{{ m.name }}</span>
+            <span class="mgr-sub">
+              {{ m.propertyCount ? `${m.propertyCount} ${m.propertyCount === 1 ? 'accommodation' : 'accommodations'}` : 'New manager' }}
+            </span>
+          </span>
         </button>
       </div>
-    </div>
-    <div ref="railEl" class="rail" :class="{ 'rail--desk': isDesktop }">
-      <PropertyCard
-        v-for="item in filteredProperties.slice(0, 10)"
-        :key="item.id"
-        variant="carousel"
-        class="rail-item"
-        :id="item.id"
-        :name="item.name"
-        :address="item.address"
-        :image="item.image"
-        :monogram="item.monogram"
-        :distance="item.distance"
-        :vacancies="item.vacancies"
-        :building-type="item.buildingType"
-        :gender-policy="item.genderPolicy"
-        @open="open"
-      />
-    </div>
-  </section>
+    </section>
 
-  <!-- Managers only surface once a search narrows to them -->
-  <section v-if="query.trim() && filteredManagers.length" class="sec">
-    <h2 class="sec-title">Landlords/Landladies</h2>
-    <div class="mgrs">
-      <button
-        v-for="m in filteredManagers"
-        :key="m.id"
-        type="button"
-        class="mgr-row"
-        @click="openManager(m.id)"
-      >
-        <span class="mgr-avatar">
-          <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="mgr-avatar-img" @error="m.avatarUrl = null" />
-          <template v-else>{{ m.initials }}</template>
-        </span>
-        <span class="mgr-body">
-          <span class="mgr-name">{{ m.name }}</span>
-          <span class="mgr-sub">
-            {{ m.propertyCount ? `${m.propertyCount} ${m.propertyCount === 1 ? 'accommodation' : 'accommodations'}` : 'New manager' }}
+    <section class="sec">
+      <h2 class="sec-title">Rooms</h2>
+      <div v-if="filteredRooms.length" class="grid">
+        <button
+          v-for="room in filteredRooms"
+          :key="room.id"
+          type="button"
+          class="tile"
+          @click="openRoom(room.id)"
+        >
+          <span class="tile-shot">
+            <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
+            <PhotoEmpty v-else :size="22" label />
+            <span class="tile-flag">{{ room.label }}</span>
           </span>
-        </span>
-      </button>
-    </div>
-  </section>
+          <span class="tile-body">
+            <span class="tile-name-row">
+              <span class="tile-name">{{ room.typeLabel }}</span>
+              <span v-if="room.meta" class="tile-name-meta">{{ room.meta }}</span>
+            </span>
+            <span class="tile-where">{{ room.propertyName }}</span>
+            <span v-if="room.rent" class="tile-rent">
+              {{ formatPeso(room.rent) }}<span class="tile-per">/mo{{ room.rentBasis === 'person' ? ' per person' : '' }}</span>
+            </span>
+            <span v-else class="tile-rent tile-rent--none">Rent on request</span>
+          </span>
+        </button>
+      </div>
+      <p v-else class="none">
+        {{ query.trim() ? 'No rooms match your search.' : 'No rooms published yet.' }}
+      </p>
+    </section>
 
-  <section class="sec">
-    <h2 class="sec-title">Rooms</h2>
-    <div v-if="filteredRooms.length" class="grid">
-      <button
-        v-for="room in filteredRooms"
-        :key="room.id"
-        type="button"
-        class="tile"
-        @click="openRoom(room.id)"
-      >
-        <span class="tile-shot">
-          <img v-if="room.image" :src="room.image" :alt="room.label" loading="lazy" />
-          <PhotoEmpty v-else :size="22" label />
-          <span class="tile-flag">{{ room.label }}</span>
-        </span>
-        <span class="tile-body">
-          <span class="tile-name-row">
-            <span class="tile-name">{{ room.typeLabel }}</span>
-            <span v-if="room.meta" class="tile-name-meta">{{ room.meta }}</span>
-          </span>
-          <span class="tile-where">{{ room.propertyName }}</span>
-          <span v-if="room.rent" class="tile-rent">
-            {{ formatPeso(room.rent) }}<span class="tile-per">/mo{{ room.rentBasis === 'person' ? ' per person' : '' }}</span>
-          </span>
-          <span v-else class="tile-rent tile-rent--none">Rent on request</span>
-        </span>
-      </button>
-    </div>
-    <p v-else class="none">
-      {{ query.trim() ? 'No rooms match your search.' : 'No rooms published yet.' }}
+    <p
+      v-if="query.trim() && !filteredProperties.length && !filteredManagers.length && !filteredRooms.length"
+      class="none"
+    >
+      Nothing matches "{{ query.trim() }}".
     </p>
-  </section>
-
-  <p
-    v-if="query.trim() && !filteredProperties.length && !filteredManagers.length && !filteredRooms.length"
-    class="none"
-  >
-    Nothing matches "{{ query.trim() }}".
-  </p>
-</div>
+  </div>
 </template>
 
 <script setup lang="ts">

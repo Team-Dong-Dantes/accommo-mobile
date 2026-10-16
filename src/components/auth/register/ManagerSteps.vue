@@ -1,20 +1,20 @@
 <template>
-<!-- Requirements (landlord/landlady, both required), one per screen -->
-<template v-if="current === 'governmentId'">
-  <AuthDocumentCard
-    v-model="form.governmentIdFile"
-    title="Valid Government ID"
-    hint="Any government-issued ID showing your photo and name."
-    icon="lucide:id-card"
-    :rules="[(val: File | null) => !!val || 'Government ID is required']"
-  />
-  <!-- OSAS has to know when a document lapses, not only that it was
-       approved once. Asked here because the uploader is the one
-       holding the document. -->
-  <label class="doc-expiry">
-    <span class="doc-expiry-label">Expiry date on this ID</span>
-    <DateTimeField v-model="form.governmentIdExpiresAt" mode="date" placeholder="Pick the expiry date" :rules="expiryRules" />
-  </label>
+  <!-- Requirements (landlord/landlady, both required), one per screen -->
+  <template v-if="current === 'governmentId'">
+    <AuthDocumentCard
+      v-model="form.governmentIdFile"
+      title="Valid Government ID"
+      hint="Any government-issued ID showing your photo and name."
+      icon="lucide:id-card"
+      :rules="[(val: File | null) => !!val || 'Government ID is required']"
+    />
+    <!-- OSAS has to know when a document lapses, not only that it was
+         approved once. Asked here because the uploader is the one
+         holding the document. -->
+    <label class="doc-expiry">
+      <span class="doc-expiry-label">Expiry date on this ID</span>
+      <DateTimeField v-model="form.governmentIdExpiresAt" mode="date" placeholder="Pick the expiry date" :rules="expiryRules" />
+    </label>
 </template>
 
 <template v-else-if="current === 'businessPermit'">

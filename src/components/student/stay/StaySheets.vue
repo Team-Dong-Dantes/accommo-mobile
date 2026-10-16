@@ -1,120 +1,120 @@
 <template>
-<AppModal v-model="leaveDialog" title="Request to leave?" size="sm">
-  <p class="leave-body">
-    Your {{ myLandlord }} approves or declines it. Your stay runs until the day you move out, and rent is owed until then.
-  </p>
-  <label class="mx-field leave-date">
-    <span class="mx-label">When will you move out?</span>
-    <DateTimeField v-model="leaveDate" mode="date" :min="manilaToday()" :max="lease?.endDate || ''" placeholder="Pick your move-out date" class="mx-input" />
-  </label>
-  <template #footer>
-    <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
-      Cancel
-    </button>
-    <button type="button" class="leave-btn" :disabled="leaving || !leaveDate" @click="requestLeave">
-      {{ leaving ? 'Sending…' : 'Request to leave' }}
-    </button>
-  </template>
-</AppModal>
-
-<PaySheet
-  v-if="lease"
-  v-model="payOpen"
-  :lease-id="lease.id"
-  :resubmit="resubmit"
-  :landlord-id="lease.managerId"
-  :allow-partial="lease.allowPartial"
-  :partial-min-pct="lease.partialMinPct"
-  :settle-only="leaseClosed"
-  :start-date="lease.startDate"
-  @submitted="load(true)"
-/>
-<PaySheet
-  v-if="pastPay"
-  :model-value="true"
-  :lease-id="pastPay.leaseId"
-  settle-only
-  :landlord-id="pastPay.landlordId"
-  :allow-partial="pastPay.allowPartial"
-  :partial-min-pct="pastPay.partialMinPct"
-  :subtitle="pastPay.place"
-  @update:model-value="(v) => { if (!v) pastPay = null }"
-  @submitted="load(true)"
-/>
-
-<AppModal v-model="paymentDetailOpen" :title="selectedPayment ? paymentTitle(selectedPayment) : ''">
-  <template v-if="selectedPayment">
-    <span class="detail-chip" :class="`detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
-      {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
-    </span>
-
-    <div class="group">
-      <div class="rule">
-        <span class="rule-label">Amount</span>
-        <span class="rule-value">{{ formatPesoExact(selectedPayment.amount) }}</span>
-      </div>
-      <div v-if="selectedPayment.receiptNo" class="rule">
-        <span class="rule-label">Receipt no.</span>
-        <span class="rule-value">{{ selectedPayment.receiptNo }}</span>
-      </div>
-      <div v-if="selectedPayment.promiseDate" class="rule">
-        <span class="rule-label">Rest promised by</span>
-        <span class="rule-value">{{ formatDate(selectedPayment.promiseDate) }}</span>
-      </div>
-      <div class="rule">
-        <span class="rule-label">Method</span>
-        <span class="rule-value">{{ PAYMENT_METHOD_LABEL[selectedPayment.method] || selectedPayment.method }}</span>
-      </div>
-      <div class="rule">
-        <span class="rule-label">Stay</span>
-        <span class="rule-value">{{ selectedPayment.roomLabel }} · {{ selectedPayment.accommodationName }}</span>
-      </div>
-      <div v-if="selectedPayment.txnReference" class="rule">
-        <span class="rule-label">Reference number</span>
-        <span class="rule-value">{{ selectedPayment.txnReference }}</span>
-      </div>
-      <div v-if="selectedPayment.verifiedByName" class="rule">
-        <span class="rule-label">Reviewed by</span>
-        <span class="rule-value">
-          {{ selectedPayment.verifiedByName }}{{ selectedPayment.paidAt ? ` · ${formatDate(selectedPayment.paidAt)}` : '' }}
-        </span>
-      </div>
-    </div>
-
-    <template v-if="selectedPayment.status === 'rejected' && selectedPayment.rejectionReason">
-      <p class="detail-label detail-label--danger">Why it was sent back</p>
-      <p class="detail-text">{{ selectedPayment.rejectionReason.replace('\n', ' — ') }}</p>
+  <AppModal v-model="leaveDialog" title="Request to leave?" size="sm">
+    <p class="leave-body">
+      Your {{ myLandlord }} approves or declines it. Your stay runs until the day you move out, and rent is owed until then.
+    </p>
+    <label class="mx-field leave-date">
+      <span class="mx-label">When will you move out?</span>
+      <DateTimeField v-model="leaveDate" mode="date" :min="manilaToday()" :max="lease?.endDate || ''" placeholder="Pick your move-out date" class="mx-input" />
+    </label>
+    <template #footer>
+      <button type="button" class="leave-btn leave-btn--ghost" :disabled="leaving" @click="leaveDialog = false">
+        Cancel
+      </button>
+      <button type="button" class="leave-btn" :disabled="leaving || !leaveDate" @click="requestLeave">
+        {{ leaving ? 'Sending…' : 'Request to leave' }}
+      </button>
     </template>
+  </AppModal>
 
-    <template v-if="selectedPayment.note">
-      <p class="detail-label">{{ selectedPayment.status === 'waived' ? 'Why it was forgiven' : 'Note' }}</p>
-      <p class="detail-text">{{ selectedPayment.note }}</p>
+  <PaySheet
+    v-if="lease"
+    v-model="payOpen"
+    :lease-id="lease.id"
+    :resubmit="resubmit"
+    :landlord-id="lease.managerId"
+    :allow-partial="lease.allowPartial"
+    :partial-min-pct="lease.partialMinPct"
+    :settle-only="leaseClosed"
+    :start-date="lease.startDate"
+    @submitted="load(true)"
+  />
+  <PaySheet
+    v-if="pastPay"
+    :model-value="true"
+    :lease-id="pastPay.leaseId"
+    settle-only
+    :landlord-id="pastPay.landlordId"
+    :allow-partial="pastPay.allowPartial"
+    :partial-min-pct="pastPay.partialMinPct"
+    :subtitle="pastPay.place"
+    @update:model-value="(v) => { if (!v) pastPay = null }"
+    @submitted="load(true)"
+  />
+
+  <AppModal v-model="paymentDetailOpen" :title="selectedPayment ? paymentTitle(selectedPayment) : ''">
+    <template v-if="selectedPayment">
+      <span class="detail-chip" :class="`detail-chip--${statusColor(PAYMENT_STATUS, selectedPayment.status)}`">
+        {{ statusText(PAYMENT_STATUS, selectedPayment.status) }}
+      </span>
+
+      <div class="group">
+        <div class="rule">
+          <span class="rule-label">Amount</span>
+          <span class="rule-value">{{ formatPesoExact(selectedPayment.amount) }}</span>
+        </div>
+        <div v-if="selectedPayment.receiptNo" class="rule">
+          <span class="rule-label">Receipt no.</span>
+          <span class="rule-value">{{ selectedPayment.receiptNo }}</span>
+        </div>
+        <div v-if="selectedPayment.promiseDate" class="rule">
+          <span class="rule-label">Rest promised by</span>
+          <span class="rule-value">{{ formatDate(selectedPayment.promiseDate) }}</span>
+        </div>
+        <div class="rule">
+          <span class="rule-label">Method</span>
+          <span class="rule-value">{{ PAYMENT_METHOD_LABEL[selectedPayment.method] || selectedPayment.method }}</span>
+        </div>
+        <div class="rule">
+          <span class="rule-label">Stay</span>
+          <span class="rule-value">{{ selectedPayment.roomLabel }} · {{ selectedPayment.accommodationName }}</span>
+        </div>
+        <div v-if="selectedPayment.txnReference" class="rule">
+          <span class="rule-label">Reference number</span>
+          <span class="rule-value">{{ selectedPayment.txnReference }}</span>
+        </div>
+        <div v-if="selectedPayment.verifiedByName" class="rule">
+          <span class="rule-label">Reviewed by</span>
+          <span class="rule-value">
+            {{ selectedPayment.verifiedByName }}{{ selectedPayment.paidAt ? ` · ${formatDate(selectedPayment.paidAt)}` : '' }}
+          </span>
+        </div>
+      </div>
+
+      <template v-if="selectedPayment.status === 'rejected' && selectedPayment.rejectionReason">
+        <p class="detail-label detail-label--danger">Why it was sent back</p>
+        <p class="detail-text">{{ selectedPayment.rejectionReason.replace('\n', ' — ') }}</p>
+      </template>
+
+      <template v-if="selectedPayment.note">
+        <p class="detail-label">{{ selectedPayment.status === 'waived' ? 'Why it was forgiven' : 'Note' }}</p>
+        <p class="detail-text">{{ selectedPayment.note }}</p>
+      </template>
+
+      <template v-if="selectedPayment.proofUrl">
+        <p class="detail-label">Proof of payment</p>
+        <img :src="resolveAsset(selectedPayment.proofUrl)" alt="Proof of payment" class="proof-img" />
+      </template>
+
+      <button
+        v-if="selectedPayment.status === 'pending_verification'"
+        type="button"
+        class="detail-withdraw"
+        :disabled="withdrawing"
+        @click="withdrawPayment(selectedPayment)"
+      >
+        {{ withdrawing ? 'Taking it back…' : 'Take it back' }}
+      </button>
+      <button
+        v-if="selectedPayment.status === 'rejected' && selectedPayment.leaseId === lease?.id"
+        type="button"
+        class="detail-fix"
+        @click="paymentDetailOpen = false; startResubmit(selectedPayment)"
+      >
+        Fix and send again
+      </button>
     </template>
-
-    <template v-if="selectedPayment.proofUrl">
-      <p class="detail-label">Proof of payment</p>
-      <img :src="resolveAsset(selectedPayment.proofUrl)" alt="Proof of payment" class="proof-img" />
-    </template>
-
-    <button
-      v-if="selectedPayment.status === 'pending_verification'"
-      type="button"
-      class="detail-withdraw"
-      :disabled="withdrawing"
-      @click="withdrawPayment(selectedPayment)"
-    >
-      {{ withdrawing ? 'Taking it back…' : 'Take it back' }}
-    </button>
-    <button
-      v-if="selectedPayment.status === 'rejected' && selectedPayment.leaseId === lease?.id"
-      type="button"
-      class="detail-fix"
-      @click="paymentDetailOpen = false; startResubmit(selectedPayment)"
-    >
-      Fix and send again
-    </button>
-  </template>
-</AppModal>
+  </AppModal>
 </template>
 
 <script setup lang="ts">

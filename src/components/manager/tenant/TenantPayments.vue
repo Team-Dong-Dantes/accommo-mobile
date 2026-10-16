@@ -1,49 +1,49 @@
 <template>
-<div class="sec-body">
-<PaymentStatement
-  v-if="lease.status !== 'pending'"
-  :ledger="ledger"
-  :payments="payments"
-  :start-date="lease.startDate"
-  role="landlord"
-  :closed="lease.status === 'ended' || lease.status === 'terminated'"
-  can-pay
-  :bill-utility="billUtility"
-  :metered="canPostBill ? monthlyUtilities : []"
-  :deposit-held="depositHeld"
-  :deposit-usable="depositUsable"
-  @pay="logOpen = true"
-  @open-payment="openPaymentDetail"
-  @forgive="forgiveRow"
-  @fix-bill="openFixBill"
-  @post-bill="postBillOpen = true"
-  @message="router.push(`/manager/messages?to=${lease.studentId}`)"
-  @use-deposit="depositOpen = true"
-/>
+  <div class="sec-body">
+  <PaymentStatement
+    v-if="lease.status !== 'pending'"
+    :ledger="ledger"
+    :payments="payments"
+    :start-date="lease.startDate"
+    role="landlord"
+    :closed="lease.status === 'ended' || lease.status === 'terminated'"
+    can-pay
+    :bill-utility="billUtility"
+    :metered="canPostBill ? monthlyUtilities : []"
+    :deposit-held="depositHeld"
+    :deposit-usable="depositUsable"
+    @pay="logOpen = true"
+    @open-payment="openPaymentDetail"
+    @forgive="forgiveRow"
+    @fix-bill="openFixBill"
+    @post-bill="postBillOpen = true"
+    @message="router.push(`/manager/messages?to=${lease.studentId}`)"
+    @use-deposit="depositOpen = true"
+  />
 
-<!-- Below the statement: the terms it runs on, and posting a bill any time. -->
-<button v-if="lease.status === 'active' || lease.status === 'leave_requested'" type="button" class="terms-row terms-row--after" @click="termsOpen = true">
-  <span class="terms-body">
-    <span class="terms-main">Rent due every {{ ordinal(lease.rentDueDay ?? moveInDay) }}</span>
-    <span class="terms-sub">{{ termsLine }}</span>
-  </span>
-  <span class="sec-link">Edit</span>
-</button>
-<button v-if="canPostBill" type="button" class="terms-row" @click="postBillOpen = true">
-  <span class="terms-body">
-    <span class="terms-main">Post a utility bill</span>
-    <span class="terms-sub">{{ monthlyUtilities.map((u) => u.label).join(' and ') }}, billed monthly</span>
-  </span>
-  <span class="sec-link">Post</span>
-</button>
-<EmptyState
-  v-if="lease.status === 'pending'"
-  variant="compact"
-  icon="lucide:receipt"
-  title="No payments yet"
-  message="Payments start once you accept this application."
-/>
-</div>
+  <!-- Below the statement: the terms it runs on, and posting a bill any time. -->
+  <button v-if="lease.status === 'active' || lease.status === 'leave_requested'" type="button" class="terms-row terms-row--after" @click="termsOpen = true">
+    <span class="terms-body">
+      <span class="terms-main">Rent due every {{ ordinal(lease.rentDueDay ?? moveInDay) }}</span>
+      <span class="terms-sub">{{ termsLine }}</span>
+    </span>
+    <span class="sec-link">Edit</span>
+  </button>
+  <button v-if="canPostBill" type="button" class="terms-row" @click="postBillOpen = true">
+    <span class="terms-body">
+      <span class="terms-main">Post a utility bill</span>
+      <span class="terms-sub">{{ monthlyUtilities.map((u) => u.label).join(' and ') }}, billed monthly</span>
+    </span>
+    <span class="sec-link">Post</span>
+  </button>
+  <EmptyState
+    v-if="lease.status === 'pending'"
+    variant="compact"
+    icon="lucide:receipt"
+    title="No payments yet"
+    message="Payments start once you accept this application."
+  />
+  </div>
 </template>
 
 <script setup lang="ts">

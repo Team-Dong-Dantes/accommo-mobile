@@ -1,98 +1,98 @@
 <template>
-<!-- Name. Google sits on this screen rather than a chooser of its own:
-     connecting Google fills in exactly the name and e-mail this screen
-     and the next one ask for, so it belongs beside the fields it
-     saves you typing. The consent closes the screen, below the fields:
-     an ordinary part of the form, required to leave the screen, and
-     deliberately not a gate on the Google button above it. -->
-<template v-if="current === 'name'">
-  <template v-if="!isGoogleMode">
-    <!-- "Connect", because that is what it does. This button signs
-         nobody up: it links a Google account, fills in the two name
-         fields and the e-mail, and leaves every remaining screen —
-         phone, studies, student ID, proof — to be answered as normal.
-         The app already said so on the other side of it, where success
-         renders ConnectedGoogleBox reading "Google Connected" with an
-         unlink button. Login is a different action and keeps its own
-         wording, since signing in with Google really is signing in.
+  <!-- Name. Google sits on this screen rather than a chooser of its own:
+       connecting Google fills in exactly the name and e-mail this screen
+       and the next one ask for, so it belongs beside the fields it
+       saves you typing. The consent closes the screen, below the fields:
+       an ordinary part of the form, required to leave the screen, and
+       deliberately not a gate on the Google button above it. -->
+  <template v-if="current === 'name'">
+    <template v-if="!isGoogleMode">
+      <!-- "Connect", because that is what it does. This button signs
+           nobody up: it links a Google account, fills in the two name
+           fields and the e-mail, and leaves every remaining screen —
+           phone, studies, student ID, proof — to be answered as normal.
+           The app already said so on the other side of it, where success
+           renders ConnectedGoogleBox reading "Google Connected" with an
+           unlink button. Login is a different action and keeps its own
+           wording, since signing in with Google really is signing in.
 
-         Pressable with nothing else on the screen filled in — no
-         fields, no consent. See handleGoogleAuth for what that costs
-         and what still holds. -->
+           Pressable with nothing else on the screen filled in — no
+           fields, no consent. See handleGoogleAuth for what that costs
+           and what still holds. -->
 
-    <AuthGoogleBtn @click="handleGoogleAuth">Connect with Google</AuthGoogleBtn>
-    <AuthDivider />
-  </template>
-  <template v-else>
-    <ConnectedGoogleBox :email="form.email" @cancel="cancelGoogle" />
-  </template>
+      <AuthGoogleBtn @click="handleGoogleAuth">Connect with Google</AuthGoogleBtn>
+      <AuthDivider />
+    </template>
+    <template v-else>
+      <ConnectedGoogleBox :email="form.email" @cancel="cancelGoogle" />
+    </template>
 
-  <!-- Given name, middle initial, surname, extension — the order a
-       Philippine record is written in, so the surname lands after the
-       initial and the extension sits with the surname it belongs to. -->
-  <AuthFieldGroup>
-    <div class="row name-row">
-      <div class="col-8">
-        <AuthInput
-          v-model="form.firstName"
-          label="First Name"
-          autofocus
-          :rules="nameRules('First name')"
-          @blur="tidyName('firstName')"
-        />
+    <!-- Given name, middle initial, surname, extension — the order a
+         Philippine record is written in, so the surname lands after the
+         initial and the extension sits with the surname it belongs to. -->
+    <AuthFieldGroup>
+      <div class="row name-row">
+        <div class="col-8">
+          <AuthInput
+            v-model="form.firstName"
+            label="First Name"
+            autofocus
+            :rules="nameRules('First name')"
+            @blur="tidyName('firstName')"
+          />
+        </div>
+        <div class="col-4 name-split">
+          <AuthInput
+            v-model="form.middleInitial"
+            label="M.I."
+            maxlength="1"
+            :rules="middleInitialRules"
+            @blur="tidyName('middleInitial')"
+          />
+        </div>
       </div>
-      <div class="col-4 name-split">
-        <AuthInput
-          v-model="form.middleInitial"
-          label="M.I."
-          maxlength="1"
-          :rules="middleInitialRules"
-          @blur="tidyName('middleInitial')"
-        />
+
+      <div class="row name-row">
+        <div class="col-8">
+          <AuthInput
+            v-model="form.lastName"
+            label="Last Name"
+            :rules="nameRules('Last name')"
+            @blur="tidyName('lastName')"
+          />
+        </div>
+        <div class="col-4 name-split">
+          <AppSelect
+            v-model="form.nameExtension"
+            :options="nameExtensions"
+            label="Ext."
+            class="auth-row"
+          />
+        </div>
       </div>
-    </div>
 
-    <div class="row name-row">
-      <div class="col-8">
-        <AuthInput
-          v-model="form.lastName"
-          label="Last Name"
-          :rules="nameRules('Last name')"
-          @blur="tidyName('lastName')"
-        />
-      </div>
-      <div class="col-4 name-split">
-        <AppSelect
-          v-model="form.nameExtension"
-          :options="nameExtensions"
-          label="Ext."
-          class="auth-row"
-        />
-      </div>
-    </div>
+      <AppSelect
+        v-model="form.sex"
+        :options="sexOptions"
+        label="Sex"
+        class="auth-row"
+        :rules="[(val) => !!val || 'Please select your sex']"
+      />
 
-    <AppSelect
-      v-model="form.sex"
-      :options="sexOptions"
-      label="Sex"
-      class="auth-row"
-      :rules="[(val) => !!val || 'Please select your sex']"
-    />
+      <!-- OSAS checks this against the birth date printed on the school or
+           government ID uploaded later. The same calendar as the permit
+           expiry dates; its month/year header jumps to a year grid. -->
+      <DateTimeField
+        v-model="form.dateOfBirth"
+        mode="date"
+        label="Date of Birth"
+        class="auth-row"
+        :max="adultCutoff"
+        :rules="dateOfBirthRules"
+      />
+    </AuthFieldGroup>
 
-    <!-- OSAS checks this against the birth date printed on the school or
-         government ID uploaded later. The same calendar as the permit
-         expiry dates; its month/year header jumps to a year grid. -->
-    <DateTimeField
-      v-model="form.dateOfBirth"
-      mode="date"
-      label="Date of Birth"
-      class="auth-row"
-      :max="adultCutoff"
-      :rules="dateOfBirthRules"
-    />
-  </AuthFieldGroup>
-
-  <AuthConsent v-model="agreedToTerms" />
+    <AuthConsent v-model="agreedToTerms" />
 </template>
 
 <!-- Phone -->

@@ -1,38 +1,38 @@
 <template>
-<h2 v-if="isTablet" class="split-head">Payments</h2>
-<!-- Moved out, still owing: it blocks applying for a new room. -->
-<div v-for="o in pastOwed" :key="o.leaseId" class="past-owed">
-  <span class="past-owed-label">Left to settle · {{ o.place }}</span>
-  <span class="past-owed-amt">{{ formatPesoExact(o.balance) }}</span>
-  <span class="past-owed-sub">From a stay you've left. You can't apply for a new room until it's settled.</span>
-  <button type="button" class="past-owed-btn" @click="pastPay = o">Settle {{ formatPesoExact(o.balance) }}</button>
-</div>
-<PaymentStatement
-  v-if="lease && canPay"
-  :ledger="ledger"
-  :payments="currentLeasePayments"
-  :start-date="lease.startDate"
-  role="student"
-  :closed="leaseClosed"
-  can-pay
-  :bill-utility="billUtility"
-  :metered="metered"
-  :who="myLandlord"
-  :deposit-held="depositHeld"
-  @pay="openPay(null)"
-  @open-payment="openPaymentDetail"
-  @resubmit="startResubmit"
-  @withdraw="withdrawPayment"
-  @message="router.push(`/student/messages?to=${lease.managerId}`)"
-/>
-<p v-else-if="lease" class="pay-head-note">You'll be able to pay once your application is accepted.</p>
-<p v-if="leaseClosed" class="pay-head-note">This stay has ended. Settle what's left to be able to apply for a new room.</p>
-<p v-if="!lease && !payments.length" class="none">No payments yet.</p>
-<button v-if="payments.length" type="button" class="all-pay" @click="router.push('/student/profile/history?tab=payments')">
-  <IconifyIcon icon="lucide:receipt" width="16" />
-  All my payments
-  <IconifyIcon icon="lucide:chevron-right" width="16" class="all-pay-chev" />
-</button>
+  <h2 v-if="isTablet" class="split-head">Payments</h2>
+  <!-- Moved out, still owing: it blocks applying for a new room. -->
+  <div v-for="o in pastOwed" :key="o.leaseId" class="past-owed">
+    <span class="past-owed-label">Left to settle · {{ o.place }}</span>
+    <span class="past-owed-amt">{{ formatPesoExact(o.balance) }}</span>
+    <span class="past-owed-sub">From a stay you've left. You can't apply for a new room until it's settled.</span>
+    <button type="button" class="past-owed-btn" @click="pastPay = o">Settle {{ formatPesoExact(o.balance) }}</button>
+  </div>
+  <PaymentStatement
+    v-if="lease && canPay"
+    :ledger="ledger"
+    :payments="currentLeasePayments"
+    :start-date="lease.startDate"
+    role="student"
+    :closed="leaseClosed"
+    can-pay
+    :bill-utility="billUtility"
+    :metered="metered"
+    :who="myLandlord"
+    :deposit-held="depositHeld"
+    @pay="openPay(null)"
+    @open-payment="openPaymentDetail"
+    @resubmit="startResubmit"
+    @withdraw="withdrawPayment"
+    @message="router.push(`/student/messages?to=${lease.managerId}`)"
+  />
+  <p v-else-if="lease" class="pay-head-note">You'll be able to pay once your application is accepted.</p>
+  <p v-if="leaseClosed" class="pay-head-note">This stay has ended. Settle what's left to be able to apply for a new room.</p>
+  <p v-if="!lease && !payments.length" class="none">No payments yet.</p>
+  <button v-if="payments.length" type="button" class="all-pay" @click="router.push('/student/profile/history?tab=payments')">
+    <IconifyIcon icon="lucide:receipt" width="16" />
+    All my payments
+    <IconifyIcon icon="lucide:chevron-right" width="16" class="all-pay-chev" />
+  </button>
 </template>
 
 <script setup lang="ts">

@@ -1,65 +1,65 @@
 <template>
-<SearchDock
-  v-if="split"
-  v-model="query"
-  inline
-  class="desk-search"
-  :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
-  placeholder="Search boarders or rooms"
-  search-label="Search boarders"
-  @open-filters="filtersOpen = true"
-/>
-<!-- Walk-in tenants, accepted later by scanning their QR. Logging a
-     payment lives on Monthly rent and the boarder's own page. -->
-<div class="top-actions">
-  <button type="button" class="top-pay-btn" @click="addOpen = true">
-    <IconifyIcon icon="lucide:user-plus" width="16" />
-    Add a student
-  </button>
-</div>
+  <SearchDock
+    v-if="split"
+    v-model="query"
+    inline
+    class="desk-search"
+    :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
+    placeholder="Search boarders or rooms"
+    search-label="Search boarders"
+    @open-filters="filtersOpen = true"
+  />
+  <!-- Walk-in tenants, accepted later by scanning their QR. Logging a
+       payment lives on Monthly rent and the boarder's own page. -->
+  <div class="top-actions">
+    <button type="button" class="top-pay-btn" @click="addOpen = true">
+      <IconifyIcon icon="lucide:user-plus" width="16" />
+      Add a student
+    </button>
+  </div>
 
-<section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
-  <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
-    <span class="acc-thumb" :class="`acc-thumb--${occupancyTone(accSummary.get(acc.id)?.occupancyPct ?? 0)}`">
-      <img v-if="acc.coverUrl" :src="acc.coverUrl" alt="" />
-      <PhotoEmpty v-else />
-    </span>
-    <span class="acc-head-body">
-      <span class="acc-title-row">
-        <h2 class="acc-title">{{ acc.name }}</h2>
-        <span v-if="accAlertCounts.get(acc.id)" class="acc-badge">{{ accAlertCounts.get(acc.id) }} to review</span>
+  <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
+    <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
+      <span class="acc-thumb" :class="`acc-thumb--${occupancyTone(accSummary.get(acc.id)?.occupancyPct ?? 0)}`">
+        <img v-if="acc.coverUrl" :src="acc.coverUrl" alt="" />
+        <PhotoEmpty v-else />
       </span>
-      <span class="acc-stats-row">
-        <span class="acc-stats">{{ accStatsLine(acc) }}</span>
-        <span v-if="accTenants.get(acc.id)?.length" class="acc-faces" aria-hidden="true">
-          <span
-            v-for="l in accTenants.get(acc.id)!.slice(0, 4)"
-            :key="l.id"
-            class="acc-face"
-            :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []"
-          >
-            <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" @error="l.avatarUrl = null" />
-            <template v-else>{{ initialsOf(l.studentName) }}</template>
-          </span>
-          <span v-if="accTenants.get(acc.id)!.length > 4" class="acc-face acc-face--more">
-            +{{ accTenants.get(acc.id)!.length - 4 }}
+      <span class="acc-head-body">
+        <span class="acc-title-row">
+          <h2 class="acc-title">{{ acc.name }}</h2>
+          <span v-if="accAlertCounts.get(acc.id)" class="acc-badge">{{ accAlertCounts.get(acc.id) }} to review</span>
+        </span>
+        <span class="acc-stats-row">
+          <span class="acc-stats">{{ accStatsLine(acc) }}</span>
+          <span v-if="accTenants.get(acc.id)?.length" class="acc-faces" aria-hidden="true">
+            <span
+              v-for="l in accTenants.get(acc.id)!.slice(0, 4)"
+              :key="l.id"
+              class="acc-face"
+              :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []"
+            >
+              <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" @error="l.avatarUrl = null" />
+              <template v-else>{{ initialsOf(l.studentName) }}</template>
+            </span>
+            <span v-if="accTenants.get(acc.id)!.length > 4" class="acc-face acc-face--more">
+              +{{ accTenants.get(acc.id)!.length - 4 }}
+            </span>
           </span>
         </span>
+        <!-- How full the property is, readable before you expand it. -->
+        <span class="acc-occ-track">
+          <span
+            class="acc-occ-fill"
+            :style="{ width: (accSummary.get(acc.id)?.occupancyPct ?? 0) + '%' }"
+          />
+        </span>
       </span>
-      <!-- How full the property is, readable before you expand it. -->
-      <span class="acc-occ-track">
-        <span
-          class="acc-occ-fill"
-          :style="{ width: (accSummary.get(acc.id)?.occupancyPct ?? 0) + '%' }"
-        />
-      </span>
-    </span>
-    <IconifyIcon icon="lucide:chevron-down" width="18" class="acc-chevron" :class="{ 'acc-chevron--open': !collapsedAccIds.has(acc.id) }" />
-  </button>
-  <q-slide-transition>
-    <TenantRooms v-show="!collapsedAccIds.has(acc.id)" :acc="acc" />
-  </q-slide-transition>
-</section>
+      <IconifyIcon icon="lucide:chevron-down" width="18" class="acc-chevron" :class="{ 'acc-chevron--open': !collapsedAccIds.has(acc.id) }" />
+    </button>
+    <q-slide-transition>
+      <TenantRooms v-show="!collapsedAccIds.has(acc.id)" :acc="acc" />
+    </q-slide-transition>
+  </section>
 </template>
 
 <script setup lang="ts">

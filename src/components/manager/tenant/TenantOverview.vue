@@ -1,117 +1,117 @@
 <template>
-<!-- Decisions -->
-<div v-if="lease.status === 'pending'" class="decide-box">
-  <div v-if="decisionReasonFor === 'reject'" class="decide-reason">
-    <label class="decide-reason-label">
-      Reason for declining
-      <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="Let the student know why…" />
-    </label>
-    <div class="decide-reason-actions">
-      <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = ''">Cancel</button>
-      <button
-        type="button"
-        class="decide-btn decide-btn--danger"
-        :disabled="deciding || !decisionReason.trim()"
-        @click="decide('rejected')"
-      >
-        {{ deciding ? 'Declining…' : 'Confirm decline' }}
+  <!-- Decisions -->
+  <div v-if="lease.status === 'pending'" class="decide-box">
+    <div v-if="decisionReasonFor === 'reject'" class="decide-reason">
+      <label class="decide-reason-label">
+        Reason for declining
+        <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="Let the student know why…" />
+      </label>
+      <div class="decide-reason-actions">
+        <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = ''">Cancel</button>
+        <button
+          type="button"
+          class="decide-btn decide-btn--danger"
+          :disabled="deciding || !decisionReason.trim()"
+          @click="decide('rejected')"
+        >
+          {{ deciding ? 'Declining…' : 'Confirm decline' }}
+        </button>
+      </div>
+    </div>
+    <div v-else class="decide">
+      <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'reject'; decisionReason = ''">
+        Decline
+      </button>
+      <!-- Added by hand: accepted only by scanning their QR (DB-enforced). -->
+      <template v-if="lease.addedByLandlord">
+        <button
+          type="button"
+          class="decide-btn"
+          @click="router.push(`/manager/profile/qr-scanner?accept=${leaseId}`)"
+        >
+          Scan to accept
+        </button>
+      </template>
+      <button v-else type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
+        Accept
       </button>
     </div>
   </div>
-  <div v-else class="decide">
-    <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'reject'; decisionReason = ''">
-      Decline
-    </button>
-    <!-- Added by hand: accepted only by scanning their QR (DB-enforced). -->
-    <template v-if="lease.addedByLandlord">
-      <button
-        type="button"
-        class="decide-btn"
-        @click="router.push(`/manager/profile/qr-scanner?accept=${leaseId}`)"
-      >
-        Scan to accept
+  <div v-else-if="lease.status === 'leave_requested'" class="decide-box">
+    <p class="leave-ask">
+      <IconifyIcon icon="lucide:log-out" width="16" />
+      <span>Wants to move out on <b>{{ formatDate(lease.leaveDate) }}</b>. If you approve, the stay runs until then.</span>
+    </p>
+    <div v-if="decisionReasonFor === 'keep'" class="decide-reason">
+      <label class="decide-reason-label">
+        Reason for keeping the boarder
+        <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="Let the student know why…" />
+      </label>
+      <div class="decide-reason-actions">
+        <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = ''">Cancel</button>
+        <button
+          type="button"
+          class="decide-btn decide-btn--danger"
+          :disabled="deciding || !decisionReason.trim()"
+          @click="declineLeave"
+        >
+          {{ deciding ? 'Sending…' : 'Confirm' }}
+        </button>
+      </div>
+    </div>
+    <div v-else class="decide">
+      <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'keep'; decisionReason = ''">
+        Keep boarder
       </button>
-    </template>
-    <button v-else type="button" class="decide-btn" :disabled="deciding" @click="decide('active')">
-      Accept
-    </button>
-  </div>
-</div>
-<div v-else-if="lease.status === 'leave_requested'" class="decide-box">
-  <p class="leave-ask">
-    <IconifyIcon icon="lucide:log-out" width="16" />
-    <span>Wants to move out on <b>{{ formatDate(lease.leaveDate) }}</b>. If you approve, the stay runs until then.</span>
-  </p>
-  <div v-if="decisionReasonFor === 'keep'" class="decide-reason">
-    <label class="decide-reason-label">
-      Reason for keeping the boarder
-      <textarea v-model="decisionReason" class="decide-reason-textarea" rows="2" placeholder="Let the student know why…" />
-    </label>
-    <div class="decide-reason-actions">
-      <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = ''">Cancel</button>
-      <button
-        type="button"
-        class="decide-btn decide-btn--danger"
-        :disabled="deciding || !decisionReason.trim()"
-        @click="declineLeave"
-      >
-        {{ deciding ? 'Sending…' : 'Confirm' }}
+      <button type="button" class="decide-btn" :disabled="deciding" @click="approveLeave">
+        Approve leave
       </button>
     </div>
   </div>
-  <div v-else class="decide">
-    <button type="button" class="decide-btn decide-btn--ghost" :disabled="deciding" @click="decisionReasonFor = 'keep'; decisionReason = ''">
-      Keep boarder
-    </button>
-    <button type="button" class="decide-btn" :disabled="deciding" @click="approveLeave">
-      Approve leave
-    </button>
+  <!-- Asked of the landlord/landlady once the stay is over. -->
+  <div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && !tenantReview" class="decide-box decide">
+    <button type="button" class="decide-btn" @click="openReview">Rate this boarder</button>
   </div>
-</div>
-<!-- Asked of the landlord/landlady once the stay is over. -->
-<div v-else-if="(lease.status === 'ended' || lease.status === 'terminated') && !tenantReview" class="decide-box decide">
-  <button type="button" class="decide-btn" @click="openReview">Rate this boarder</button>
-</div>
 
-<!-- Stay: where today falls between move-in and the lease's end. -->
-<h2 class="sec-title ov-title">Stay</h2>
-<div class="ov-card">
-  <div class="tl-ends">
-    <span class="tl-end"><span class="tl-k">Move-in</span>{{ formatDate(lease.startDate) }}</span>
-    <span class="tl-end tl-end--r"><span class="tl-k">Lease ends</span>{{ formatDate(lease.endDate) }}</span>
+  <!-- Stay: where today falls between move-in and the lease's end. -->
+  <h2 class="sec-title ov-title">Stay</h2>
+  <div class="ov-card">
+    <div class="tl-ends">
+      <span class="tl-end"><span class="tl-k">Move-in</span>{{ formatDate(lease.startDate) }}</span>
+      <span class="tl-end tl-end--r"><span class="tl-k">Lease ends</span>{{ formatDate(lease.endDate) }}</span>
+    </div>
+    <div class="tl-track" role="progressbar" :aria-valuenow="stay.pct" aria-valuemin="0" aria-valuemax="100" :aria-label="stay.label">
+      <span class="tl-fill" :style="{ width: `${stay.pct}%` }" />
+    </div>
+    <p class="tl-label">{{ stay.label }}</p>
+    <p v-if="lease.status === 'active' && lease.leaveDate" class="tl-note">
+      <IconifyIcon icon="lucide:log-out" width="14" />
+      <span>Moving out on <b>{{ formatDate(lease.leaveDate) }}</b> — you approved it.</span>
+    </p>
+    <div class="ov-rent">
+      <span class="ov-rent-amt">{{ formatPeso(lease.monthlyRent) }}</span>
+      <span class="ov-rent-per">a month</span>
+      <span v-if="tenantReview" class="ov-rated">
+        <StarRating :model-value="tenantReview.rating" :size="13" />
+        <span>your rating</span>
+      </span>
+    </div>
   </div>
-  <div class="tl-track" role="progressbar" :aria-valuenow="stay.pct" aria-valuemin="0" aria-valuemax="100" :aria-label="stay.label">
-    <span class="tl-fill" :style="{ width: `${stay.pct}%` }" />
-  </div>
-  <p class="tl-label">{{ stay.label }}</p>
-  <p v-if="lease.status === 'active' && lease.leaveDate" class="tl-note">
-    <IconifyIcon icon="lucide:log-out" width="14" />
-    <span>Moving out on <b>{{ formatDate(lease.leaveDate) }}</b> — you approved it.</span>
-  </p>
-  <div class="ov-rent">
-    <span class="ov-rent-amt">{{ formatPeso(lease.monthlyRent) }}</span>
-    <span class="ov-rent-per">a month</span>
-    <span v-if="tenantReview" class="ov-rated">
-      <StarRating :model-value="tenantReview.rating" :size="13" />
-      <span>your rating</span>
-    </span>
-  </div>
-</div>
 
-<template v-if="lease.email || lease.phone">
-  <h2 class="sec-title ov-title">Contact</h2>
-  <div class="ov-contact">
-    <a v-if="lease.email" :href="`mailto:${lease.email}`" class="ov-tile">
-      <span class="ov-tile-ic"><IconifyIcon icon="lucide:mail" width="16" /></span>
-      <span class="ov-tile-k">Email</span>
-      <span class="ov-tile-v">{{ lease.email }}</span>
-    </a>
-    <a v-if="lease.phone" :href="`tel:${lease.phone}`" class="ov-tile">
-      <span class="ov-tile-ic"><IconifyIcon icon="lucide:phone" width="16" /></span>
-      <span class="ov-tile-k">Call</span>
-      <span class="ov-tile-v">{{ lease.phone }}</span>
-    </a>
-  </div>
+  <template v-if="lease.email || lease.phone">
+    <h2 class="sec-title ov-title">Contact</h2>
+    <div class="ov-contact">
+      <a v-if="lease.email" :href="`mailto:${lease.email}`" class="ov-tile">
+        <span class="ov-tile-ic"><IconifyIcon icon="lucide:mail" width="16" /></span>
+        <span class="ov-tile-k">Email</span>
+        <span class="ov-tile-v">{{ lease.email }}</span>
+      </a>
+      <a v-if="lease.phone" :href="`tel:${lease.phone}`" class="ov-tile">
+        <span class="ov-tile-ic"><IconifyIcon icon="lucide:phone" width="16" /></span>
+        <span class="ov-tile-k">Call</span>
+        <span class="ov-tile-v">{{ lease.phone }}</span>
+      </a>
+    </div>
 </template>
 
 <!-- Ending a stay is rare and final: a quiet link, not a button

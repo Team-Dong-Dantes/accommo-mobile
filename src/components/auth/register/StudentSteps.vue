@@ -1,35 +1,35 @@
 <template>
-<!-- Studies (student only) -->
-<template v-if="current === 'studies'">
-  <AuthFieldGroup>
-    <AppSelect
-      v-model="form.college"
-      :options="collegeOptions"
-      label="College"
-      class="auth-row"
-      :rules="[(val) => !!val || 'Please select your college']"
-      acronym
-      @update:model-value="onCollegeChange"
-    />
+  <!-- Studies (student only) -->
+  <template v-if="current === 'studies'">
+    <AuthFieldGroup>
+      <AppSelect
+        v-model="form.college"
+        :options="collegeOptions"
+        label="College"
+        class="auth-row"
+        :rules="[(val) => !!val || 'Please select your college']"
+        acronym
+        @update:model-value="onCollegeChange"
+      />
 
-    <AppSelect
-      v-model="form.program"
-      :options="filteredPrograms"
-      label="Program"
-      class="auth-row"
-      :rules="[(val) => !!val || 'Please select your program']"
-      acronym
-      :disable="!form.college"
-    />
+      <AppSelect
+        v-model="form.program"
+        :options="filteredPrograms"
+        label="Program"
+        class="auth-row"
+        :rules="[(val) => !!val || 'Please select your program']"
+        acronym
+        :disable="!form.college"
+      />
 
-    <AppSelect
-      v-model="form.yearLevel"
-      :options="yearOptions"
-      label="Year Level"
-      class="auth-row"
-      :rules="[(val) => !!val || 'Please select your year level']"
-    />
-  </AuthFieldGroup>
+      <AppSelect
+        v-model="form.yearLevel"
+        :options="yearOptions"
+        label="Year Level"
+        class="auth-row"
+        :rules="[(val) => !!val || 'Please select your year level']"
+      />
+    </AuthFieldGroup>
 </template>
 
 <!-- Student ID -->

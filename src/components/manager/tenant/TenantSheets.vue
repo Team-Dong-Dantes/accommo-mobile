@@ -1,101 +1,101 @@
 <template>
-<PostBillDialog
-  v-model="postBillOpen"
-  :lease-id="leaseId"
-  :student-id="lease.studentId"
-  :student-name="lease.studentName"
-  :utilities="monthlyUtilities"
-  @posted="load(true)"
-/>
+  <PostBillDialog
+    v-model="postBillOpen"
+    :lease-id="leaseId"
+    :student-id="lease.studentId"
+    :student-name="lease.studentName"
+    :utilities="monthlyUtilities"
+    @posted="load(true)"
+  />
 
-<AppModal v-model="reviewOpen" :title="`Rate ${lease.studentName}`">
-  <StarRating v-model="reviewForm.rating" interactive :size="26" />
-  <label class="pay-field">
-    <span class="pay-label">Notes (optional)</span>
-    <textarea v-model="reviewForm.comment" class="pay-input review-textarea" rows="3" placeholder="How was this boarder to have?" />
-  </label>
-  <template #footer>
-    <q-btn
-      unelevated
-      rounded
-      no-caps
-      color="primary"
-      class="pay-submit"
-      :loading="submittingReview"
-      label="Submit"
-      @click="submitTenantReview"
-    />
-  </template>
-</AppModal>
-
-<!-- Payment review — verifying only ever happens from here, never
-     straight off the row, so a proof/reference actually gets looked at. -->
-<PaymentReviewSheet v-model="paymentDetailOpen" :payment-id="selectedPayment?.id ?? null" @changed="load(true)" />
-<LogPaymentSheet
-  v-model="logOpen"
-  :lease-id="leaseId"
-  :subtitle="`From ${lease.studentName} · ${lease.roomLabel}`"
-  :settle-only="lease.status === 'ended' || lease.status === 'terminated'"
-  :start-date="lease.startDate"
-  @submitted="load(true)"
-/>
-<ForgiveSheet v-model="forgiveOpen" :lease-id="leaseId" :student-name="lease.studentName" :target="forgiveTarget" @done="load(true)" />
-<BillFixSheet v-model="fixOpen" :student-name="lease.studentName" :bill="fixBill" @done="load(true)" />
-<UseDepositSheet
-  v-model="depositOpen"
-  :lease-id="leaseId"
-  :student-name="lease.studentName"
-  :end-date="lease.endDate || null"
-  :held="depositHeld"
-  :ledger="ledger"
-  @done="load(true)"
-/>
-
-<!-- When rent falls due, the grace before it's late, and part payments. -->
-<AppModal v-model="termsOpen" title="Payment terms" size="sm">
-  <div class="terms-form">
-    <label class="mx-field">
-      <span class="mx-label">Rent is due</span>
-      <AppSelect
-        class="mx-input"
-        placeholder="Rent is due"
-        :model-value="lease.rentDueDay ?? 0"
-        :options="dueDayOptions"
-        :disable="savingTerms"
-        @update:model-value="(d) => setDueTerms(d || null, lease.graceDays)"
-      />
+  <AppModal v-model="reviewOpen" :title="`Rate ${lease.studentName}`">
+    <StarRating v-model="reviewForm.rating" interactive :size="26" />
+    <label class="pay-field">
+      <span class="pay-label">Notes (optional)</span>
+      <textarea v-model="reviewForm.comment" class="pay-input review-textarea" rows="3" placeholder="How was this boarder to have?" />
     </label>
-    <label class="mx-field">
-      <span class="mx-label">Late after</span>
-      <AppSelect
-        class="mx-input"
-        placeholder="Late after"
-        :model-value="lease.graceDays"
-        :options="[0, 3, 5, 7, 15].map((g) => ({ label: g ? `${g} days of grace` : 'no grace — late the next day', value: g }))"
-        :disable="savingTerms"
-        @update:model-value="(g) => setDueTerms(lease.rentDueDay, g)"
+    <template #footer>
+      <q-btn
+        unelevated
+        rounded
+        no-caps
+        color="primary"
+        class="pay-submit"
+        :loading="submittingReview"
+        label="Submit"
+        @click="submitTenantReview"
       />
-    </label>
-    <div class="terms-toggle">
-      <span class="terms-body">
-        <span class="terms-main">Partial payments</span>
-        <span class="terms-sub">Let {{ lease.studentName.split(' ')[0] }} pay part of an item at a time.</span>
-      </span>
-      <q-toggle :model-value="lease.allowPartial" :disable="savingPartial" color="primary" aria-label="Allow partial payments" @update:model-value="(v) => setPartial(v)" />
+    </template>
+  </AppModal>
+
+  <!-- Payment review — verifying only ever happens from here, never
+       straight off the row, so a proof/reference actually gets looked at. -->
+  <PaymentReviewSheet v-model="paymentDetailOpen" :payment-id="selectedPayment?.id ?? null" @changed="load(true)" />
+  <LogPaymentSheet
+    v-model="logOpen"
+    :lease-id="leaseId"
+    :subtitle="`From ${lease.studentName} · ${lease.roomLabel}`"
+    :settle-only="lease.status === 'ended' || lease.status === 'terminated'"
+    :start-date="lease.startDate"
+    @submitted="load(true)"
+  />
+  <ForgiveSheet v-model="forgiveOpen" :lease-id="leaseId" :student-name="lease.studentName" :target="forgiveTarget" @done="load(true)" />
+  <BillFixSheet v-model="fixOpen" :student-name="lease.studentName" :bill="fixBill" @done="load(true)" />
+  <UseDepositSheet
+    v-model="depositOpen"
+    :lease-id="leaseId"
+    :student-name="lease.studentName"
+    :end-date="lease.endDate || null"
+    :held="depositHeld"
+    :ledger="ledger"
+    @done="load(true)"
+  />
+
+  <!-- When rent falls due, the grace before it's late, and part payments. -->
+  <AppModal v-model="termsOpen" title="Payment terms" size="sm">
+    <div class="terms-form">
+      <label class="mx-field">
+        <span class="mx-label">Rent is due</span>
+        <AppSelect
+          class="mx-input"
+          placeholder="Rent is due"
+          :model-value="lease.rentDueDay ?? 0"
+          :options="dueDayOptions"
+          :disable="savingTerms"
+          @update:model-value="(d) => setDueTerms(d || null, lease.graceDays)"
+        />
+      </label>
+      <label class="mx-field">
+        <span class="mx-label">Late after</span>
+        <AppSelect
+          class="mx-input"
+          placeholder="Late after"
+          :model-value="lease.graceDays"
+          :options="[0, 3, 5, 7, 15].map((g) => ({ label: g ? `${g} days of grace` : 'no grace — late the next day', value: g }))"
+          :disable="savingTerms"
+          @update:model-value="(g) => setDueTerms(lease.rentDueDay, g)"
+        />
+      </label>
+      <div class="terms-toggle">
+        <span class="terms-body">
+          <span class="terms-main">Partial payments</span>
+          <span class="terms-sub">Let {{ lease.studentName.split(' ')[0] }} pay part of an item at a time.</span>
+        </span>
+        <q-toggle :model-value="lease.allowPartial" :disable="savingPartial" color="primary" aria-label="Allow partial payments" @update:model-value="(v) => setPartial(v)" />
+      </div>
+      <label v-if="lease.allowPartial" class="mx-field">
+        <span class="mx-label">At least</span>
+        <AppSelect
+          class="mx-input"
+          placeholder="At least"
+          :model-value="lease.partialMinPct"
+          :options="[10, 25, 50, 75].map((p) => ({ label: `${p}% of the item`, value: p }))"
+          :disable="savingPartial"
+          @update:model-value="(p) => setPartial(true, p)"
+        />
+      </label>
     </div>
-    <label v-if="lease.allowPartial" class="mx-field">
-      <span class="mx-label">At least</span>
-      <AppSelect
-        class="mx-input"
-        placeholder="At least"
-        :model-value="lease.partialMinPct"
-        :options="[10, 25, 50, 75].map((p) => ({ label: `${p}% of the item`, value: p }))"
-        :disable="savingPartial"
-        @update:model-value="(p) => setPartial(true, p)"
-      />
-    </label>
-  </div>
-</AppModal>
+  </AppModal>
 </template>
 
 <script setup lang="ts">

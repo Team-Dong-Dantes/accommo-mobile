@@ -1,70 +1,70 @@
 <template>
-<BottomSheet
-  v-model="filtersOpen"
-  title="Filters"
-  @clear="filter = 'all'; selectedAccId = 'all'"
->
-  <div v-if="accreditedAccommodations.length > 1" class="sheet-block">
-    <span class="sheet-label">Property</span>
-    <div class="m-chips">
-      <button type="button" class="m-chip" :class="{ 'm-chip--on': selectedAccId === 'all' }" @click="selectedAccId = 'all'">
-        All
-      </button>
+  <BottomSheet
+    v-model="filtersOpen"
+    title="Filters"
+    @clear="filter = 'all'; selectedAccId = 'all'"
+  >
+    <div v-if="accreditedAccommodations.length > 1" class="sheet-block">
+      <span class="sheet-label">Property</span>
+      <div class="m-chips">
+        <button type="button" class="m-chip" :class="{ 'm-chip--on': selectedAccId === 'all' }" @click="selectedAccId = 'all'">
+          All
+        </button>
+        <button
+          v-for="a in accreditedAccommodations"
+          :key="a.id"
+          type="button"
+          class="m-chip"
+          :class="{ 'm-chip--on': selectedAccId === a.id }"
+          @click="selectedAccId = a.id"
+        >
+          {{ a.name }}
+        </button>
+      </div>
+    </div>
+    <div class="sheet-block">
+      <span class="sheet-label">Status</span>
+      <div class="m-chips">
+        <button
+          v-for="f in FILTERS"
+          :key="f.key"
+          type="button"
+          class="m-chip"
+          :class="{ 'm-chip--on': filter === f.key }"
+          @click="filter = f.key"
+        >
+          {{ f.label }}
+        </button>
+      </div>
+    </div>
+  </BottomSheet>
+
+  <!-- A decline the student can act on: the reason reaches them in the
+       notification and stays on the lease. -->
+  <BottomSheet
+    v-model="declineOpen"
+    title="Decline application"
+    clear-label=""
+    done-label=""
+  >
+    <div class="sheet-block">
+      <span class="sheet-label">The student sees this reason</span>
+      <textarea v-model="declineReason" class="decline-input" rows="3" placeholder="Why are you declining?" />
+    </div>
+    <div class="decline-actions">
+      <button type="button" class="lease-act lease-act--ghost" @click="declineOpen = false">Cancel</button>
       <button
-        v-for="a in accreditedAccommodations"
-        :key="a.id"
         type="button"
-        class="m-chip"
-        :class="{ 'm-chip--on': selectedAccId === a.id }"
-        @click="selectedAccId = a.id"
+        class="lease-act"
+        :disabled="!declineReason.trim() || Boolean(decidingId)"
+        @click="confirmDecline"
       >
-        {{ a.name }}
+        {{ decidingId ? 'Declining…' : 'Decline' }}
       </button>
     </div>
-  </div>
-  <div class="sheet-block">
-    <span class="sheet-label">Status</span>
-    <div class="m-chips">
-      <button
-        v-for="f in FILTERS"
-        :key="f.key"
-        type="button"
-        class="m-chip"
-        :class="{ 'm-chip--on': filter === f.key }"
-        @click="filter = f.key"
-      >
-        {{ f.label }}
-      </button>
-    </div>
-  </div>
-</BottomSheet>
+  </BottomSheet>
 
-<!-- A decline the student can act on: the reason reaches them in the
-     notification and stays on the lease. -->
-<BottomSheet
-  v-model="declineOpen"
-  title="Decline application"
-  clear-label=""
-  done-label=""
->
-  <div class="sheet-block">
-    <span class="sheet-label">The student sees this reason</span>
-    <textarea v-model="declineReason" class="decline-input" rows="3" placeholder="Why are you declining?" />
-  </div>
-  <div class="decline-actions">
-    <button type="button" class="lease-act lease-act--ghost" @click="declineOpen = false">Cancel</button>
-    <button
-      type="button"
-      class="lease-act"
-      :disabled="!declineReason.trim() || Boolean(decidingId)"
-      @click="confirmDecline"
-    >
-      {{ decidingId ? 'Declining…' : 'Decline' }}
-    </button>
-  </div>
-</BottomSheet>
-
-<AddStudentSheet v-model="addOpen" @added="refresh" />
+  <AddStudentSheet v-model="addOpen" @added="refresh" />
 </template>
 
 <script setup lang="ts">
