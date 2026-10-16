@@ -2,7 +2,7 @@
   <q-page class="history-page" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
       <!-- Desktop: the loaded shape — the way back live already above a card
-           of two halves, each with its own search. -->
+           of halves, each with its own search. -->
       <div v-if="loading && split" class="stack">
         <div class="desk-back-row">
           <button type="button" class="desk-panel-back" :aria-label="backLabel" @click="goBack">
@@ -11,9 +11,9 @@
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
         <div class="desk-card">
-          <div v-for="title in ['Ratings', 'Payments']" :key="title" class="desk-col">
+          <div v-for="t in TABS" :key="t.key" class="desk-col">
             <q-skeleton type="rect" height="40px" class="sk sk-search" />
-            <h2 class="desk-col-title">{{ title }}</h2>
+            <h2 class="desk-col-title">{{ t.label }}</h2>
             <q-skeleton type="rect" height="90px" class="sk" />
             <q-skeleton type="rect" height="90px" class="sk" />
           </div>
@@ -41,136 +41,46 @@
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
         <div class="m-tabbed">
-          <div v-if="!split" class="tabs">
-            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
-              Ratings
-            </button>
-            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'payments' }" @click="tab = 'payments'">
-              Payments
+          <div v-if="!split" class="tabs" role="tablist" aria-label="History">
+            <button
+              v-for="t in TABS"
+              :key="t.key"
+              type="button"
+              role="tab"
+              class="m-tab"
+              :class="{ 'm-tab--on': tab === t.key }"
+              :aria-selected="tab === t.key"
+              @click="tab = t.key"
+            >
+              {{ t.label }}
             </button>
           </div>
 
           <div :class="split ? 'desk-card' : 'panel'">
             <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
-              <component :is="panelIs" name="reviews" :class="split ? 'desk-col' : 'tab-panel'">
+              <component :is="panelIs" v-for="t in TABS" :key="t.key" :name="t.key" :class="split ? 'desk-col' : 'tab-panel'">
                 <!-- Desktop: each half searches and filters only itself. -->
                 <SearchDock
                   v-if="split"
-                  v-model="queries.reviews"
+                  v-model="queries[t.key]"
                   inline
                   class="desk-search"
-                  :filter-count="reviewDateFilter !== 'all' ? 1 : 0"
-                  placeholder="Search ratings"
+                  :no-filters="t.key === 'boarders'"
+                  :filter-count="filterCount(t.key)"
+                  :placeholder="placeholders[t.key]"
                   search-label="Search"
-                  @open-filters="openFilters('reviews')"
+                  @open-filters="openFilters(t.key)"
                 />
-                <h2 v-if="split" class="desk-col-title">Ratings</h2>
-                <template v-if="reviews.length">
-                  <div class="rating-summary">
-                    <StarRating :model-value="avgRating" :size="18" />
-                    <span class="rating-count">{{ avgRating.toFixed(1) }} · {{ reviews.length }} rating{{ reviews.length === 1 ? '' : 's' }}</span>
-                  </div>
-                  <div class="m-chips">
-                    <button
-                      v-for="f in REVIEW_FILTERS"
-                      :key="f.key"
-                      type="button"
-                      class="m-chip"
-                      :class="{ 'm-chip--on': reviewFilter === f.key }"
-                      @click="reviewFilter = f.key"
-                    >
-                      {{ f.label }}
-                    </button>
-                  </div>
-                  <div v-if="visibleReviews.length" class="group">
-                    <button
-                      v-for="r in visibleReviews"
-                      :key="r.id"
-                      type="button"
-                      class="review-row"
-                      @click="reviewDetailTarget = r; reviewDetailOpen = true"
-                    >
-                      <div class="review-top">
-                        <span class="review-author">Anonymous <span class="review-source">· {{ r.source }}</span></span>
-                        <StarRating :model-value="r.rating" :size="13" />
-                        <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                      </div>
-                      <p v-if="r.comment" class="review-comment">{{ r.comment }}</p>
-                    </button>
-                  </div>
-                  <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
-                </template>
-                <EmptyState v-else variant="compact" icon="lucide:star" title="No ratings yet" message="Ratings from past boarders will show up here." />
-              </component>
-
-              <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
-                <SearchDock
-                  v-if="split"
-                  v-model="queries.payments"
-                  inline
-                  class="desk-search"
-                  :filter-count="filter !== 'all' ? 1 : 0"
-                  placeholder="Search boarder, room or month"
-                  search-label="Search"
-                  @open-filters="openFilters('payments')"
-                />
-                <h2 v-if="split" class="desk-col-title">Payments</h2>
-                <template v-if="payments.length">
-                  <div v-if="paymentProperties.length > 1" class="m-chips">
-                    <button
-                      type="button"
-                      class="m-chip"
-                      :class="{ 'm-chip--on': propertyFilter === 'all' }"
-                      @click="propertyFilter = 'all'"
-                    >
-                      All
-                    </button>
-                    <button
-                      v-for="name in paymentProperties"
-                      :key="name"
-                      type="button"
-                      class="m-chip"
-                      :class="{ 'm-chip--on': propertyFilter === name }"
-                      @click="propertyFilter = name"
-                    >
-                      {{ name }}
-                    </button>
-                  </div>
-                  <div v-if="visiblePayments.length" class="group">
-                    <button
-                      v-for="p in visiblePayments"
-                      :key="p.id"
-                      type="button"
-                      class="pay-row"
-                      @click="router.push(`/manager/tenant/${p.leaseId}`)"
-                    >
-                      <span class="pay-avatar" :class="p.avatarColor ? [`bg-${p.avatarColor}`, 'text-white'] : []">
-                        <img v-if="p.avatarUrl" :src="p.avatarUrl" alt="" class="pay-avatar-img" @error="p.avatarUrl = null" />
-                        <template v-else>{{ initialsOf(p.studentName) }}</template>
-                      </span>
-                      <span class="pay-body">
-                        <span class="pay-name">{{ p.studentName }}</span>
-                        <span class="pay-sub">{{ p.roomLabel }} · {{ formatMonth(p.month) }}</span>
-                      </span>
-                      <span class="pay-side">
-                        <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
-                        <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                          {{ statusText(PAYMENT_STATUS, p.status) }}
-                        </span>
-                      </span>
-                      <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                    </button>
-                  </div>
-                  <EmptyState v-else variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
-                </template>
-                <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Payments you log against a boarder will be listed here." />
+                <h2 v-if="split" class="desk-col-title">{{ t.label }}</h2>
+                <BoarderHistoryTab v-if="t.key === 'boarders'" :money="money" :reviews="written" :query="queries.boarders" />
+                <ManagerRatingsTab v-else-if="t.key === 'reviews'" :reviews="reviews" :query="queries.reviews" :date-filter="reviewDateFilter" />
+                <ManagerPaymentsTab v-else :payments="payments" :leases="money.leases" :query="queries.payments" :status="filter" />
               </component>
             </component>
           </div>
         </div>
       </div>
-
-    </q-pull-to-refresh>
+</q-pull-to-refresh>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band
          on a tab-shell page — but History is a subpage (no FAB, no bottom
@@ -180,17 +90,14 @@
     <SearchDock
       v-if="!loading && !error && !split"
       v-model="queries[tab]"
-      :filter-count="(tab === 'reviews' ? reviewDateFilter : filter) !== 'all' ? 1 : 0"
-      :placeholder="tab === 'payments' ? 'Search boarder, room or month' : 'Search ratings'"
+      :no-filters="tab === 'boarders'"
+      :filter-count="filterCount(tab)"
+      :placeholder="placeholders[tab]"
       search-label="Search"
       @open-filters="openFilters(tab)"
     />
 
-    <BottomSheet
-      v-model="filtersOpen"
-      title="Filters"
-      @clear="clearFilters"
-    >
+    <BottomSheet v-model="filtersOpen" title="Filters" @clear="clearFilters">
       <!-- One section: the open tab's on a phone, the half's own on desktop. -->
       <div v-if="sheetFor === 'reviews'" class="sheet-block">
         <span class="sheet-label">Date</span>
@@ -223,22 +130,6 @@
         </div>
       </div>
     </BottomSheet>
-
-    <AppModal v-model="reviewDetailOpen" size="sm">
-      <template v-if="reviewDetailTarget" #header>
-        <h3 class="detail-title">
-          Anonymous <span class="review-source">· {{ reviewDetailTarget.source }}</span>
-        </h3>
-      </template>
-      <template v-if="reviewDetailTarget">
-        <StarRating :model-value="reviewDetailTarget.rating" :size="20" />
-        <p v-if="reviewDetailTarget.comment" class="detail-text">{{ reviewDetailTarget.comment }}</p>
-        <p class="detail-sub">{{ formatDate(reviewDetailTarget.createdAt) }}</p>
-      </template>
-      <template #footer>
-        <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="reviewDetailOpen = false" />
-      </template>
-    </AppModal>
   </q-page>
 </template>
 
@@ -249,34 +140,25 @@ import { useLiveData } from '@/utils/useLiveData'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
-import StarRating from '@/components/shared/StarRating.vue'
-import EmptyState from '@/components/shared/EmptyState.vue'
+import { fetchLandlordMoney, type LandlordMoney } from '@/api/landlordMoney'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
-import { formatPeso, formatMonth, formatDate, initialsOf, PAYMENT_STATUS, statusText, statusColor } from '@/utils/format'
-import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
-import AppModal from '@/components/shared/AppModal.vue'
+import BoarderHistoryTab from '@/components/manager/BoarderHistoryTab.vue'
+import ManagerRatingsTab from '@/components/manager/ManagerRatingsTab.vue'
+import ManagerPaymentsTab from '@/components/manager/ManagerPaymentsTab.vue'
+import type { DateFilter, PayRow, Review } from '@/components/manager/managerHistory'
 
-interface Review {
-  id: string
-  rating: number
-  comment: string
-  createdAt: string
-  source: string
-  kind: 'user' | 'property'
-}
-interface PaymentRow {
-  id: string
-  leaseId: string
-  studentName: string
-  avatarColor: string | null
-  avatarUrl: string | null
-  roomLabel: string
-  accommodationName: string
-  month: string
-  amount: number
-  status: string
+type TabKey = 'boarders' | 'reviews' | 'payments'
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'boarders', label: 'Boarder history' },
+  { key: 'reviews', label: 'Ratings' },
+  { key: 'payments', label: 'Payments' },
+]
+const placeholders: Record<TabKey, string> = {
+  boarders: 'Search boarder or room',
+  reviews: 'Search ratings',
+  payments: 'Search boarder, room or month',
 }
 
 const route = useRoute()
@@ -307,90 +189,65 @@ function goBack() {
 
 const loading = ref(true)
 const error = ref('')
-const tab = ref<'reviews' | 'payments'>(route.query.tab === 'payments' ? 'payments' : 'reviews')
+// Boarder history is the front door; ?tab=payments (and reviews) still land
+// where older links pointed.
+const tabFromRoute = (): TabKey => (route.query.tab === 'payments' ? 'payments' : route.query.tab === 'reviews' ? 'reviews' : 'boarders')
+const tab = ref<TabKey>(tabFromRoute())
+// The page is kept alive, so a later visit with a different ?tab= must follow it.
+watch(() => route.query.tab, () => {
+  if (route.path === '/manager/profile/history') tab.value = tabFromRoute()
+})
 // Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
 
 const reviews = ref<Review[]>([])
-const payments = ref<PaymentRow[]>([])
-const reviewDetailOpen = ref(false)
-const reviewDetailTarget = ref<Review | null>(null)
-const avgRating = computed(() => (reviews.value.length ? reviews.value.reduce((n, r) => n + r.rating, 0) / reviews.value.length : 0))
+const payments = ref<PayRow[]>([])
+const money = ref<LandlordMoney>({ leases: [], ledger: [], payments: [], billUtility: {}, billed: new Set(), rooms: [] })
+// The ratings this landlord/landlady wrote about past boarders, by lease.
+const written = ref<Record<string, { rating: number; comment: string }>>({})
 
 // One search per tab — the open tab's on a phone, each half's own on desktop.
-const queries = reactive({ reviews: '', payments: '' })
+const queries = reactive<Record<TabKey, string>>({ boarders: '', reviews: '', payments: '' })
 const filtersOpen = ref(false)
 // Which list the filter sheet is for: the open tab, or the half it was opened from.
-const sheetFor = ref<'reviews' | 'payments'>('reviews')
-function openFilters(t: 'reviews' | 'payments') {
+const sheetFor = ref<TabKey>('reviews')
+function openFilters(t: TabKey) {
   sheetFor.value = t
   filtersOpen.value = true
 }
 
-// Source (About me / Properties) and property-scope are cheap, always-useful
-// toggles — kept inline above each list instead of behind the filter button,
-// which is reserved for the filters that need a sheet to hold real options
-// (a status set, a date range).
-const reviewFilter = ref<'all' | 'user' | 'property'>('all')
-const REVIEW_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'user', label: 'About me' },
-  { key: 'property', label: 'Properties' },
-] as const
-const propertyFilter = ref('all')
-const paymentProperties = computed(() => [...new Set(payments.value.map((p) => p.accommodationName).filter(Boolean))])
-
-// Behind the filter button: reviews get a date range, payments keep their
-// status set — both have more than a couple of real options.
-const reviewDateFilter = ref<'all' | '30d' | '90d' | 'year'>('all')
+// Behind the filter button: ratings get a date range, payments a status set —
+// both have more than a couple of real options. Source (About you / a property)
+// stays inline above the ratings, and the year and property pickers sit in
+// each tab, since those are cheap toggles.
+const reviewDateFilter = ref<DateFilter>('all')
 const REVIEW_DATE_FILTERS = [
   { key: 'all', label: 'All time' },
   { key: '30d', label: 'Last 30 days' },
   { key: '90d', label: 'Last 3 months' },
   { key: 'year', label: 'This year' },
 ] as const
-const filter = ref<'all' | 'paid' | 'pending_verification' | 'rejected' | 'due' | 'overdue'>('all')
+// Only finished payments are listed (paid, forgiven, rejected); the rest is on Monthly rent.
+const filter = ref<'all' | 'paid' | 'waived' | 'rejected'>('all')
 const PAYMENT_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'paid', label: 'Paid' },
-  { key: 'pending_verification', label: 'Pending' },
+  { key: 'waived', label: 'Forgiven' },
   { key: 'rejected', label: 'Rejected' },
-  { key: 'due', label: 'Due' },
-  { key: 'overdue', label: 'Overdue' },
 ] as const
 
-function withinDateFilter(iso: string, key: typeof reviewDateFilter.value): boolean {
-  if (key === 'all') return true
-  const then = new Date(iso).getTime()
-  if (key === '30d') return Date.now() - then <= 30 * 86400000
-  if (key === '90d') return Date.now() - then <= 90 * 86400000
-  return new Date(iso).getFullYear() === new Date().getFullYear()
+function filterCount(t: TabKey) {
+  if (t === 'reviews') return reviewDateFilter.value !== 'all' ? 1 : 0
+  if (t === 'payments') return filter.value !== 'all' ? 1 : 0
+  return 0
 }
 
-const visibleReviews = computed(() => {
-  let list = reviews.value
-  if (reviewFilter.value !== 'all') list = list.filter((r) => r.kind === reviewFilter.value)
-  if (reviewDateFilter.value !== 'all') list = list.filter((r) => withinDateFilter(r.createdAt, reviewDateFilter.value))
-  const q = queries.reviews.trim().toLowerCase()
-  if (q) list = list.filter((r) => `${r.source} ${r.comment}`.toLowerCase().includes(q))
-  return list
-})
-const visiblePayments = computed(() => {
-  let list = payments.value
-  if (propertyFilter.value !== 'all') list = list.filter((p) => p.accommodationName === propertyFilter.value)
-  if (filter.value !== 'all') list = list.filter((p) => p.status === filter.value)
-  const q = queries.payments.trim().toLowerCase()
-  if (q) list = list.filter((p) => `${p.studentName} ${p.roomLabel} ${formatMonth(p.month)}`.toLowerCase().includes(q))
-  return list
-})
-
 watch(tab, () => {
+  queries.boarders = ''
   queries.reviews = ''
   queries.payments = ''
   filter.value = 'all'
-  reviewFilter.value = 'all'
   reviewDateFilter.value = 'all'
-  propertyFilter.value = 'all'
 })
 
 // The sheet's Clear: only the list the sheet is for.
@@ -410,7 +267,8 @@ async function load(silent = false) {
       return
     }
 
-    const [{ data: inboxRows }, { data: paymentRows }] = await Promise.all([
+    const [moneyData, { data: inboxRows }, { data: paymentRows }, { data: writtenRows }] = await Promise.all([
+      fetchLandlordMoney(user.id),
       // Reviews received, about this landlord/landlady and about their accommodations.
       // `review_inbox` scopes to the caller and carries no reviewer identity —
       // reviews are anonymous to the person being reviewed, and the base tables
@@ -422,12 +280,17 @@ async function load(silent = false) {
         .order('created_at', { ascending: false }),
       supabase
         .from('payments')
-        .select(
-          'id, month, amount, status, leases!inner(id, landlord_id, users!leases_student_id_fkey(full_name, avatar_color, avatar_url), rooms(room_number, label, accommodations(name)))',
-        )
+        .select('id, lease_id, month, amount, status, method, description, created_at, paid_at, leases!inner(landlord_id)')
         .eq('leases.landlord_id', user.id)
-        .order('month', { ascending: false }),
+        .in('status', ['paid', 'waived', 'rejected'])
+        .order('created_at', { ascending: false }),
+      supabase.from('review_written_leases').select('lease_id, rating, comment').eq('kind', 'tenant'),
     ])
+
+    money.value = moneyData
+    written.value = Object.fromEntries(
+      (writtenRows ?? []).filter((r) => r.lease_id).map((r) => [r.lease_id as string, { rating: r.rating ?? 0, comment: r.comment || '' }]),
+    )
 
     reviews.value = (inboxRows ?? [])
       .map((r) => ({
@@ -440,29 +303,16 @@ async function load(silent = false) {
       }))
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
-    payments.value = (paymentRows ?? []).map((p) => {
-      const lease = p.leases as unknown as {
-        id: string
-        users: { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
-        rooms: { room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
-      }
-      const room = lease.rooms
-      const accommodationName = room?.accommodations?.name || ''
-      return {
-        id: p.id,
-        leaseId: lease.id,
-        studentName: lease.users?.full_name || 'A student',
-        avatarColor: lease.users?.avatar_color ?? null,
-        avatarUrl: lease.users?.avatar_url ? resolveAsset(lease.users.avatar_url, AVATAR) : null,
-        roomLabel: [room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Room'), accommodationName]
-          .filter(Boolean)
-          .join(' · '),
-        accommodationName,
-        month: p.month,
-        amount: Number(p.amount),
-        status: p.status,
-      }
-    })
+    payments.value = (paymentRows ?? []).map((p) => ({
+      id: p.id,
+      leaseId: p.lease_id,
+      amount: Number(p.amount),
+      status: p.status,
+      method: p.method,
+      description: p.description,
+      month: p.month,
+      at: p.paid_at || p.created_at,
+    }))
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Something went wrong.'
   } finally {
@@ -553,187 +403,8 @@ const { refresh } = useLiveData({ key: 'manager-history', load, ttl: 120_000 })
   flex-direction: column;
   gap: 10px;
 }
-.group {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-bg);
-  overflow: hidden;
-}
-
-.rating-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 2px;
-}
-.rating-count {
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.review-row {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.group > .review-row:first-child {
-  border-top: 0;
-}
-.review-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.review-author {
-  flex: 1;
-  min-width: 0;
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-.row-chevron {
-  flex: 0 0 auto;
-  color: var(--m-muted);
-}
-.review-source {
-  color: var(--m-muted);
-  font-weight: 600;
-}
-.review-comment {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.pay-row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.group > .pay-row:first-child {
-  border-top: 0;
-}
-.pay-avatar {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-size: 12px;
-  font-weight: 800;
-}
-.pay-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.pay-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-}
-.pay-name {
-  color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-sub {
-  color: var(--m-muted);
-  font-size: 11.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pay-side {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-.pay-amount {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-chip {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.pay-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.pay-chip--amber,
-.pay-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.pay-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.pay-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-
 /* Docked search — this page is a subpage (no bottom nav, no FAB), so it
    spans the full width instead of reserving room for a FAB that isn't here. */
 
 /* Filter sheet */
-
-.detail-title {
-  margin: 0;
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 17px;
-  font-weight: 700;
-}
-.detail-text {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.detail-sub {
-  margin: 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-.detail-close {
-  flex: 1;
-  min-height: 46px;
-  font-weight: 700;
-}
 </style>
