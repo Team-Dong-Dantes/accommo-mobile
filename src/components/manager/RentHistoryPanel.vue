@@ -6,12 +6,14 @@
         <PeriodBar :label="windowLabel" :can-prev="canPrev" :can-next="page > 0" @prev="page++" @next="page--">
           <PropertyPicker v-model="propertyId" :options="propertyOptions" />
         </PeriodBar>
+        <!-- The key is drawn with the grid's own cells, so it reads the same as what it explains. -->
         <div class="rh-legend">
-          <span><i class="lg lg--paid" />Paid</span>
-          <span><i class="lg lg--confirm" />To confirm</span>
-          <span><i class="lg lg--unpaid" />Unpaid</span>
-          <span><i class="lg lg--none" />Not staying</span>
+          <span v-for="k in LEGEND" :key="k"><i class="lg" :class="`cell--${k}`"><IconifyIcon v-if="CELL[k].icon" :icon="CELL[k].icon" width="11" /></i>{{ CELL[k].label }}</span>
         </div>
+        <label class="rh-past">
+          <span>Show past boarders</span>
+          <q-toggle v-model="showPast" color="primary" dense />
+        </label>
       </div>
 
       <p v-if="!loading && !groups.length" class="rh-empty">{{ query.trim() ? 'No boarders or rooms match.' : 'No boarders yet. Rent shows up here once someone moves in.' }}</p>
@@ -104,13 +106,16 @@ const openMap = ref<Record<string, boolean>>({})
 const reportOpen = ref(false)
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const CELL: Record<'paid' | 'confirm' | 'unpaid' | 'none', { icon: string; text: string }> = {
-  paid: { icon: 'lucide:check', text: 'paid' },
-  confirm: { icon: 'lucide:clock', text: 'to confirm' },
-  unpaid: { icon: 'lucide:circle-alert', text: 'unpaid' },
-  none: { icon: '', text: 'not staying' },
+const CELL: Record<'paid' | 'confirm' | 'unpaid' | 'none', { icon: string; text: string; label: string }> = {
+  paid: { icon: 'lucide:check', text: 'paid', label: 'Paid' },
+  confirm: { icon: 'lucide:clock', text: 'to confirm', label: 'To confirm' },
+  unpaid: { icon: 'lucide:circle-alert', text: 'unpaid', label: 'Unpaid' },
+  none: { icon: '', text: 'not staying', label: 'Not staying' },
 }
 type CellState = keyof typeof CELL
+const LEGEND: CellState[] = ['paid', 'confirm', 'unpaid', 'none']
+// Past boarders on by default: paging back is how a landlord looks them up.
+const showPast = ref(true)
 
 const today = computed(() => manilaToday())
 const addMonths = (ym: string, n: number) => {
@@ -185,7 +190,7 @@ const groups = computed(() => {
       const rows = here
         .map(personRow)
         // A past boarder only shows in the months they were there.
-        .filter((r) => !r.past || r.cells.some((c) => c.state !== 'none'))
+        .filter((r) => !r.past || (showPast.value && r.cells.some((c) => c.state !== 'none')))
         .filter((r) => !q || r.lease.studentName.toLowerCase().includes(q) || room.label.toLowerCase().includes(q))
         .sort((a, b) => Number(a.past) - Number(b.past) || a.lease.studentName.localeCompare(b.lease.studentName))
       const occupied = here.filter(isCurrent).length
@@ -256,13 +261,10 @@ watch(propertyId, () => { page.value = 0 })
 .rh-error, .rh-empty { margin: 0 12px; color: var(--m-muted); font-size: 13px; }
 .rh-error { color: var(--m-danger); }
 .rh-top { display: flex; flex-direction: column; gap: 10px; margin: 0 12px; }
-.rh-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--m-text); font-size: 12px; }
-.rh-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.lg { width: 10px; height: 10px; box-sizing: border-box; border-radius: 3px; }
-.lg--paid { background: var(--m-success); }
-.lg--confirm { background: var(--m-info); }
-.lg--unpaid { background: var(--m-danger); }
-.lg--none { border: 1px dashed var(--m-muted); }
+.rh-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--m-text); font-size: 12px; font-weight: 600; }
+.rh-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lg { display: grid; width: 20px; height: 20px; box-sizing: border-box; place-items: center; border-radius: 6px; }
+.rh-past { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--m-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
 .rh-grid { display: flex; flex-direction: column; border-top: 1px solid var(--m-border); border-bottom: 1px solid var(--m-border); background: var(--m-surface); }
 .rh-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 46px); align-items: center; padding: 6px 12px; }
 .rh-head { padding: 8px 12px; color: var(--m-muted); font-size: 11.5px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; }
