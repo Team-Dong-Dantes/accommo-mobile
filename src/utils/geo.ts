@@ -94,3 +94,69 @@ export function staticMapUrl(
     `?padding=60&access_token=${MAPBOX_TOKEN}`
   );
 }
+
+/** A place from Mapbox's forward geocoding, with what it suggests for the form. */
+export interface PlaceResult {
+  id: string;
+  name: string;
+  addressGuess: string;
+  barangayGuess: string;
+  cityGuess: string;
+  lat: number;
+  lng: number;
+}
+
+type MapboxContext = Record<string, { name?: string }> | undefined;
+
+function contextName(context: MapboxContext, key: string): string {
+  return context?.[key]?.name ?? '';
+}
+
+/** Places matching a search, nearest campus first. Throws when the search fails. */
+export async function searchPlaces(q: string, token: string): Promise<PlaceResult[]> {
+  const url =
+    `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}` +
+    `&proximity=${CAMPUS.lng},${CAMPUS.lat}&limit=5&access_token=${token}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Search failed.');
+  const payload = await response.json();
+  return ((payload.features ?? []) as unknown[]).flatMap((feature) => {
+    const f = feature as {
+      id: string;
+      geometry?: { coordinates?: number[] };
+      properties?: { name?: string; place_formatted?: string; full_address?: string; context?: MapboxContext };
+    };
+    const [lngVal, latVal] = f.geometry?.coordinates ?? [];
+    if (typeof lngVal !== 'number' || typeof latVal !== 'number') return [];
+    return [{
+      id: f.id,
+      name: f.properties?.name || f.properties?.place_formatted || 'Selected location',
+      addressGuess: f.properties?.place_formatted || f.properties?.full_address || '',
+      barangayGuess: contextName(f.properties?.context, 'locality') || contextName(f.properties?.context, 'neighborhood'),
+      cityGuess: contextName(f.properties?.context, 'place'),
+      lng: lngVal,
+      lat: latVal,
+    }];
+  });
+}
+
+/** What Mapbox calls the place at a pin, or null when it has no answer. */
+export async function reversePlace(
+  lng: number,
+  lat: number,
+  token: string,
+): Promise<{ address: string; barangay: string; city: string } | null> {
+  const url =
+    `https://api.mapbox.com/search/geocode/v6/reverse?longitude=${lng}&latitude=${lat}` +
+    `&access_token=${token}`;
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const payload = await response.json();
+  const feature = (payload.features ?? [])[0] as { properties?: { place_formatted?: string; full_address?: string; context?: MapboxContext } } | undefined;
+  if (!feature) return null;
+  return {
+    address: feature.properties?.place_formatted || feature.properties?.full_address || '',
+    barangay: contextName(feature.properties?.context, 'locality') || contextName(feature.properties?.context, 'neighborhood'),
+    city: contextName(feature.properties?.context, 'place'),
+  };
+}

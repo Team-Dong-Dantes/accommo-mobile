@@ -73,7 +73,7 @@ import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import mapboxgl from '@/utils/mapbox'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { useNotify } from '@/utils/notify'
-import { CAMPUS, geolocationErrorMessage } from '@/utils/geo'
+import { CAMPUS, geolocationErrorMessage, searchPlaces, reversePlace, type PlaceResult } from '@/utils/geo'
 import AppModal from '@/components/shared/AppModal.vue'
 
 const props = defineProps<{
@@ -91,19 +91,10 @@ const notify = useNotify()
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const hasToken = Boolean(MAPBOX_TOKEN)
 
-interface SearchResult {
-  id: string
-  name: string
-  addressGuess: string
-  barangayGuess: string
-  cityGuess: string
-  lat: number
-  lng: number
-}
 
 const mapEl = ref<HTMLElement | null>(null)
 const query = ref('')
-const results = ref<SearchResult[]>([])
+const results = ref<PlaceResult[]>([])
 const searching = ref(false)
 const locating = ref(false)
 const confirming = ref(false)
@@ -196,10 +187,6 @@ watch(
 
 onBeforeUnmount(destroyMap)
 
-function contextName(context: Record<string, { name?: string }> | undefined, key: string): string {
-  return context?.[key]?.name ?? ''
-}
-
 function onQueryInput() {
   if (searchTimer) clearTimeout(searchTimer)
   const q = query.value.trim()
@@ -211,30 +198,7 @@ function onQueryInput() {
 async function runSearch(q: string) {
   searching.value = true
   try {
-    const url =
-      `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}` +
-      `&proximity=${CAMPUS.lng},${CAMPUS.lat}&limit=5&access_token=${MAPBOX_TOKEN}`
-    const response = await fetch(url)
-    if (!response.ok) throw new Error('Search failed.')
-    const payload = await response.json()
-    results.value = ((payload.features ?? []) as unknown[]).flatMap((feature) => {
-      const f = feature as {
-        id: string
-        geometry?: { coordinates?: number[] }
-        properties?: { name?: string; place_formatted?: string; full_address?: string; context?: Record<string, { name?: string }> }
-      }
-      const [lngVal, latVal] = f.geometry?.coordinates ?? []
-      if (typeof lngVal !== 'number' || typeof latVal !== 'number') return []
-      return [{
-        id: f.id,
-        name: f.properties?.name || f.properties?.place_formatted || 'Selected location',
-        addressGuess: f.properties?.place_formatted || f.properties?.full_address || '',
-        barangayGuess: contextName(f.properties?.context, 'locality') || contextName(f.properties?.context, 'neighborhood'),
-        cityGuess: contextName(f.properties?.context, 'place'),
-        lng: lngVal,
-        lat: latVal,
-      }]
-    })
+    results.value = await searchPlaces(q, MAPBOX_TOKEN!)
   } catch {
     results.value = []
     notify.error('Could not search for that location.')
@@ -243,7 +207,7 @@ async function runSearch(q: string) {
   }
 }
 
-function pickResult(r: SearchResult) {
+function pickResult(r: PlaceResult) {
   addressGuess.value = r.addressGuess
   barangayGuess.value = r.barangayGuess
   cityGuess.value = r.cityGuess
@@ -283,20 +247,9 @@ function useCurrentLocation() {
 async function reverseGeocode(pinLng: number, pinLat: number, opts?: { overwrite?: boolean }) {
   if (!hasToken) return
   try {
-    const url =
-      `https://api.mapbox.com/search/geocode/v6/reverse?longitude=${pinLng}&latitude=${pinLat}` +
-      `&access_token=${MAPBOX_TOKEN}`
-    const response = await fetch(url)
-    if (!response.ok) return
-    const payload = await response.json()
-    const feature = (payload.features ?? [])[0] as {
-      properties?: { place_formatted?: string; full_address?: string; context?: Record<string, { name?: string }> }
-    } | undefined
-    if (!feature) return
-    const address = feature.properties?.place_formatted || feature.properties?.full_address || ''
-    const barangay =
-      contextName(feature.properties?.context, 'locality') || contextName(feature.properties?.context, 'neighborhood')
-    const city = contextName(feature.properties?.context, 'place')
+    const place = await reversePlace(pinLng, pinLat, MAPBOX_TOKEN!)
+    if (!place) return
+    const { address, barangay, city } = place
     // A fresh pin replaces what the last one guessed; the fill-only-if-blank
     // form is still used when we're just topping up before confirming.
     if (opts?.overwrite) {
