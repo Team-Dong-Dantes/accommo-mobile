@@ -1,0 +1,126 @@
+/* Design tokens (light and dark) and the few Quasar defaults every screen overrides. */
+:root {
+  --m-primary: #00897b;
+  --m-primary-dark: #00695c;
+  --m-primary-soft: #e6f5f3;
+  --m-ink: #17202a;
+  --m-text: #374151;
+  --m-muted: #6b7280;
+  --m-bg: #f6f7f8;
+  --m-surface: #ffffff;
+  --m-border: #e5e7eb;
+  --m-success: #15803d;
+  --m-success-soft: #ecfdf3;
+  --m-warning: #b45309;
+  --m-warning-soft: #fff7ed;
+  --m-danger: #b42318;
+  --m-danger-soft: #fef3f2;
+  --m-info: #175cd3;
+  --m-info-soft: #eff8ff;
+  --m-space-1: 4px;
+  --m-space-2: 8px;
+  --m-space-3: 12px;
+  --m-space-4: 16px;
+  --m-space-5: 20px;
+  --m-space-6: 24px;
+  --m-space-8: 32px;
+  --m-page-gutter: 12px;
+  --m-radius-sm: 12px;
+  --m-radius: 16px;
+  --m-radius-lg: 24px;
+  --m-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --m-font-body: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --m-font-display: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --m-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+// Dark appearance — toggled by adding/removing `.dark` on <html> (see
+// src/utils/theme.ts). Same custom-property names, dark-safe values, so every
+// component that already consumes var(--m-*) picks this up with no other change.
+:root.dark {
+  --m-primary: #26a69a;
+  --m-primary-dark: #1e857b;
+  --m-primary-soft: #123734;
+  --m-ink: #f3f4f6;
+  --m-text: #cbd5e1;
+  --m-muted: #94a3b8;
+  --m-bg: #101216;
+  --m-surface: #1a1d23;
+  --m-border: #2a2e37;
+  --m-success: #4ade80;
+  --m-success-soft: #12321f;
+  --m-warning: #fbbf24;
+  --m-warning-soft: #3a2a0d;
+  --m-danger: #f87171;
+  --m-danger-soft: #3a1414;
+  --m-info: #60a5fa;
+  --m-info-soft: #132a42;
+  --m-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+// Quasar's static grey text utilities (text-grey-4/7/8) are used as secondary
+// copy on the auth screens. They're compiled to fixed light-mode-friendly
+// greys and don't adapt with Dark.set(), so they read as low-contrast in dark
+// mode — remap them to the theme-aware muted/border tokens there only.
+:root.dark .text-grey-4 {
+  color: var(--m-border) !important;
+}
+:root.dark .text-grey-7,
+:root.dark .text-grey-8 {
+  color: var(--m-muted) !important;
+}
+
+body {
+  font-family: var(--m-font-body);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--m-font-display);
+}
+
+.q-field__prepend svg.iconify,
+.q-field__append svg.iconify {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.q-select.q-field {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.q-select .q-field__inner {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.q-select .q-field__control {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.q-select .q-field__control-container {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.q-select .q-field__native {
+  flex: 1 1 auto !important;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.q-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

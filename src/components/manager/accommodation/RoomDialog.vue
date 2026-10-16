@@ -286,7 +286,8 @@ const {
 } = useAccommodationDetail()
 </script>
 
-<style scoped src="./detail.css"></style>
+<style scoped src="./rows.css"></style>
+<style scoped src="./sheets.css"></style>
 
 <style scoped>
 .rule {

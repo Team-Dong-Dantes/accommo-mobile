@@ -113,7 +113,7 @@ const {
 } = useAccommodationDetail()
 </script>
 
-<style scoped src="./detail.css"></style>
+<style scoped src="./rows.css"></style>
 
 <style scoped>
 .view-row--block { flex-direction: column; align-items: stretch; gap: 4px; }

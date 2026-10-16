@@ -1,0 +1,296 @@
+/* ==========================================================================
+   Native feel — kill "web-in-a-box" gestures (global, minimal downside)
+   ========================================================================== */
+
+/* No grey/blue flash when tapping buttons, list rows, cards, nav. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* No iOS/Android long-press callout (copy / "open link" bubble). Scoped so we
+   can restore the long-press copy menu on real text content (see below). */
+* {
+  -webkit-touch-callout: none;
+}
+
+/* Let the app shell own scroll so the page never rubber-bands past the edges
+   (pull-to-refresh blank space / elastic overscroll). Auth keeps its own
+   contain so the register form scroll is unaffected. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* =========================================================================
+   The shell column — phone mode on any screen that is not tablet landscape.
+
+   It used to be capped at 520px with a backdrop either side, on the theory that
+   a portrait tablet should keep the column the screens were drawn for. On a
+   real 800px tablet that read as two empty gutters, so the phone shell now
+   fills the width, as it does on a phone. No rules hang off .shell-column any
+   more; the layouts still set it so the phone shell is findable. */
+
+/* =========================================================================
+   Tablet mode — the shell in landscape on a 10" screen and up.
+
+   Every rule here hangs off `.shell-tablet`, which MainLayout puts on the
+   q-layout root from the `isTablet` ref. A class rather than a media query
+   repeated in a dozen scoped stylesheets: the breakpoint is stated once, in
+   useTabletMode.ts, and CSS and JS cannot drift into disagreeing about which
+   mode is on screen. It also means these rules do not exist at all on a phone —
+   there is no `.shell-tablet` element to match.
+
+   Global rather than scoped because what changes is the shell: the rail's width
+   has to be known by the header, the page stage and the fixed overlays that sit
+   inside them, and those live in five files. */
+:root {
+  /* The rail's width, and therefore the inset of everything beside it. */
+  --m-rail: 88px;
+}
+/* Tablet landscape uses the admin console's collapsed width (DesktopRail.vue).
+   The rail opens over the page on mouse hover; the inset stays at this width. */
+@media (min-width: 900px) and (orientation: landscape) {
+  :root {
+    --m-rail: 68px;
+  }
+}
+
+/* The page starts where the rail ends: a margin, not padding, and a transform.
+   Screens pin things to the window with `position: fixed; left: 0` — the
+   Discover map, the Room and Landlord/Landlady call-to-action bars, the profile
+   edit bar — and on a phone the window's left edge is the page's. Here it is
+   under the rail. The transform makes this container the box those elements pin
+   to instead, and the margin puts that box's
+   left edge at the rail, so every one of them lands beside it with no per-page
+   rule. The container itself never scrolls (the stage inside it does), so what
+   is pinned stays pinned. */
+.shell-tablet .q-page-container {
+  margin-left: var(--m-rail);
+  transform: translateZ(0);
+}
+
+/* The header keeps its inset card look, just starting after the rail. */
+.shell-tablet .app-header {
+  margin-left: 0;
+  padding-left: calc(var(--m-rail) + 12px);
+}
+/* The announcement banner and the in-app notification become popovers hanging
+   off the bell. On a phone the card is pinned to both edges, which is right
+   there: the window is 400px wide, so the strip IS roughly a card. Stretched
+   across a 1440px header the same rule gave a 1300px ribbon with its dismiss
+   button a full screen away from the notice it closes, and nothing tying it to
+   the bell the notice also lands in.
+
+   `left: auto` releases the phone's left edge; `right` then sets how far in it
+   hangs. This box is positioned against the header's PADDING box, and the
+   header is already inset 12px by its own margin, so `right: 0` is the bell's
+   right edge, not the window's; 12px pulls it a further 12px inboard. */
+.shell-tablet .app-header .fcard {
+  right: 12px;
+  left: auto;
+  width: min(380px, calc(100vw - var(--m-rail) - 36px));
+  margin-top: 10px;
+  transform-origin: top right;
+}
+/* The pointer. A rotated square rather than a border triangle so it takes the
+   card's own fill and edge; its two lit sides face the bell. 17px in is the
+   first flat ground past the 16px corner radius — any nearer and it sits on
+   the curve, reading as a notch bitten out of the corner. */
+.shell-tablet .app-header .fcard::before {
+  position: absolute;
+  z-index: 1;
+  top: -6px;
+  right: 17px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--m-border);
+  border-width: 1px 0 0 1px;
+  background: var(--m-surface);
+  content: '';
+  transform: rotate(45deg);
+}
+/* Room to read: two lines of body instead of the phone's one. */
+.shell-tablet .app-header .fcard-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+/* It arrives from the bell, so it should come from it. */
+.shell-tablet .app-header .fcard-enter-from,
+.shell-tablet .app-header .fcard-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+}
+/* With the wordmark hidden (below) the bell is the row's only child, and
+   space-between parks a lone child at the start. Push it to the far right. */
+.shell-tablet .app-header .header-notif-button {
+  margin-left: auto;
+}
+
+
+/* The rail carries the wordmark in tablet mode, so the header stops repeating
+   it — the two sit about a hand's width apart and read as a mistake. The row
+   itself stays, because the notifications bell lives in it. */
+.shell-tablet .app-header .app-title {
+  display: none;
+}
+
+.shell-tablet .bottom-footer {
+  display: none;
+}
+.shell-tablet .q-page-container > .page-stage {
+  padding-bottom: 0;
+}
+
+/* The panes scroll individually, so the stage has to be exactly as tall as the
+   screen below the header rather than as tall as its content. Quasar already
+   puts the header's height on the container as padding-top, so border-box plus
+   a viewport height lands the stage in precisely the space that is left — no
+   header measurement to keep in step. */
+.shell-tablet .q-page-container {
+  height: 100dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------
+   Pages that split themselves.
+
+   Messages and the two OSAS screens do not route their detail — the thread is a
+   sibling of the list inside one page component, toggled by a query parameter or
+   a local ref. The shell's companion pane cannot help them, so they carry
+   `.page-split` and become the two columns themselves.
+
+   The overlay child stops being an overlay: `.chat` (ChatThread) and `.mail`
+   (TicketThread) are `position: fixed; inset: 0` so they can cover a phone, and
+   here they are just the second column. Written as a child selector so it
+   outranks their own scoped rules without !important.
+
+   `.compose` is deliberately left fixed. TicketCompose is a form being filled
+   in, not a detail being read; it stays a modal over the whole page, and being
+   out of flow it is not a third column either. */
+.shell-tablet .page-split {
+  display: grid;
+  height: 100%;
+  /* Half and half. The list was a 380px column against everything else, which
+     is the phone list with the detail parked beside it; an even split reads as
+     two views of equal standing, which is what these screens are. */
+  grid-template-columns: 1fr 1fr;
+}
+.shell-tablet .page-split > .q-pull-to-refresh {
+  min-width: 0;
+  border-right: 1px solid var(--m-border);
+  overflow-y: auto;
+}
+.shell-tablet .page-split > .chat,
+.shell-tablet .page-split > .mail {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  min-width: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Column widths inside tablet mode.
+
+   Removing the phone's width is not the same as wanting all of it. A dashboard,
+   a settings list or a listing is still one column of cards; given 1200px it
+   should hold a comfortable measure and centre, not stretch a 60-character line
+   to 160. Only the panes themselves are allowed to be as wide as the screen. */
+/* Held to the container's height, or it grows with its content and the
+   container (overflow: hidden) clips it instead of this scrolling. */
+.shell-tablet .page-stage:not(.page-stage--split) {
+  height: 100%;
+  overflow-y: auto;
+}
+/* The measure is set on the box the page lives in, never on the page itself.
+   A page mid-transition is position: absolute with width: 100%, which ignores
+   `margin-inline: auto` — so constraining the page directly left it hard against
+   the left edge for the length of the animation and then centred once the
+   transition classes came off. Narrowing the container instead means there is
+   nothing left to centre and both states line up. */
+.shell-tablet .page-stage:not(.page-stage--split) > div {
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+.shell-tablet .pane--detail {
+  width: min(100%, 860px);
+  margin-inline: auto;
+}
+/* A page laid out in two columns of its own (it marks itself .page-wide) needs
+   two measures, not one. Set on the container for the same reason as above. */
+.shell-tablet .page-stage:not(.page-stage--split) > div:has(> .page-wide) {
+  width: min(100%, 1280px);
+}
+/* Such a page also scrolls its columns separately rather than as a whole, so
+   it is held to exactly the stage's height instead of growing with content. */
+.shell-tablet .page-stage:has(> div > .page-wide),
+.shell-tablet .page-stage > div:has(> .page-wide),
+.shell-tablet .page-wide {
+  height: 100%;
+}
+/* Positioned so a page leaving mid-swap (MainLayout's page-swap) overlays its
+   successor within this same centred box, not the whole stage. */
+.shell-tablet .page-stage > div:has(> .page-wide) {
+  position: relative;
+}
+/* QPage writes its own min-height inline (viewport minus header), which can
+   overshoot the stage by a rounding and bring back the outer scrollbar. */
+.shell-tablet .page-wide {
+  min-height: 0 !important;
+}
+
+/* Desktop — the web build's layout, which every landscape tablet gets too, so
+   a real tablet looks exactly like the web build on one. Same query as
+   useTabletMode.ts. An even split would be a wide list of cards drawn for a
+   400px phone, so the list goes back to a column and the detail takes the rest. */
+@media (min-width: 900px) and (orientation: landscape) {
+  .shell-tablet .page-stage--split,
+  .shell-tablet .page-split {
+    grid-template-columns: minmax(360px, 420px) 1fr;
+  }
+
+  /* No visible scrollbars anywhere in the desktop app, vertical or sideways
+     (photo strips, room rails): every region still scrolls by wheel, trackpad
+     and drag, it just draws no bar. */
+  .shell-tablet,
+  .shell-tablet * {
+    scrollbar-width: none;
+  }
+  .shell-tablet ::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* (Modals float on wide screens in AppModal.vue itself, from 600px — this
+     block used to force every bottom q-dialog into a 640px card here.) */
+
+  /* ---- Shell panes as one card ----
+     A list pane and the detail routed beside it (Discover → a listing,
+     Notifications → an announcement, Properties → an accommodation) are the
+     two halves of one bordered card, the same card the pages below draw. */
+  .shell-tablet .page-stage--split {
+    width: min(100%, 1280px);
+    margin-inline: auto;
+    padding: 8px var(--m-page-gutter) 14px;
+  }
+  .shell-tablet .page-stage--split > .pane {
+    border: 1px solid var(--m-border);
+    background: var(--m-surface);
+  }
+  .shell-tablet .page-stage--split > .pane--list {
+    border-radius: var(--m-radius) 0 0 var(--m-radius);
+  }
+  .shell-tablet .page-stage--split > .pane--detail {
+    width: auto;
+    margin: 0;
+    overflow-x: hidden;
+    border-left: 0;
+    border-radius: 0 var(--m-radius) var(--m-radius) 0;
+  }
+  /* Pages paint the app ground behind themselves; inside the card the card's
+     surface is the ground. */
+  .shell-tablet .page-stage--split > .pane > .q-page {
+    background: transparent;
+  }
+}

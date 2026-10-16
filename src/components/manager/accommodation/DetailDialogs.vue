@@ -261,7 +261,8 @@ const {
 const LocationPicker = defineAsyncComponent(() => import('@/components/manager/LocationPicker.vue'))
 </script>
 
-<style scoped src="./detail.css"></style>
+<style scoped src="./rows.css"></style>
+<style scoped src="./sheets.css"></style>
 
 <style scoped>
 .field-textarea {

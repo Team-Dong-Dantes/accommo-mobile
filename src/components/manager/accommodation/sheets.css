@@ -1,0 +1,184 @@
+/* The form vocabulary the accommodation editor's sheets share (room,
+   facility and the smaller dialogs). Imported scoped by each that uses it. */
+.field {
+  display: flex;
+  flex: 1 1 130px;
+  min-width: 130px;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.field-label {
+  color: var(--m-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.field-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background-color: var(--m-surface);
+  color: var(--m-ink);
+  font: inherit;
+  font-size: 14px;
+}
+.save-btn {
+  min-height: 46px;
+  margin-top: 4px;
+  font-weight: 700;
+}
+.photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.photo-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.file-input-hidden {
+  display: none;
+}
+.thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  overflow: hidden;
+  border-radius: var(--m-radius-sm);
+  background: var(--m-primary-soft);
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.thumb-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.7);
+  color: #fff;
+  cursor: pointer;
+}
+.thumb-x:disabled {
+  opacity: 0.6;
+}
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--m-border);
+}
+.room-sheet-actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.room-del {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--m-danger);
+  border-radius: 999px;
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.room-del:disabled {
+  opacity: 0.6;
+}
+.steps--sheet {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--m-border);
+}
+.step-dot--on {
+  background: var(--m-primary);
+}
+.ghost-btn {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 20px;
+  border: 1px solid var(--m-border);
+  border-radius: 999px;
+  background: var(--m-bg);
+  color: var(--m-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Every footer button — Back included — sits together at the right edge.
+   Both rows fill AppModal's footer. */
+.wizard-nav {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+/* Every multi-step form (room, facility — create and edit alike) is an
+   AppModal with `tall`, one fixed height, so they don't visibly resize between
+   short steps (Photos) and long ones (Basics). The content scrolls here while
+   the footer (Back/Next/Done, or Delete/Save) stays put. */
+.room-sheet-scroll {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+.photo-actions--pinned {
+  flex: 0 0 auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--m-border);
+}

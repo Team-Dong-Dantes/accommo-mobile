@@ -1,0 +1,140 @@
+/* ---- Floating card: the announcement banner and the in-app notification ----
+   (BroadcastBanner.vue, InAppNotice.vue). Global because the two share it, and
+   because the tablet popover rules above restyle both from outside.
+
+   Parked just under whichever header is on screen (`top: 100%` of the fixed
+   header), so it overlays the page instead of pushing it down. */
+.fcard {
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: flex-start;
+  margin-top: 6px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%), 0 1px 3px rgb(0 0 0 / 6%);
+}
+/* The transient one wins when both are up: the banner steps aside rather than
+   peeking out from under a card of a different height. */
+.fcard--notice {
+  z-index: 2;
+}
+.fcard--notice ~ .broadcast {
+  visibility: hidden;
+}
+/* More notices waiting: the edge of the next card peeks out underneath. */
+.fcard--stacked::after {
+  position: absolute;
+  z-index: -1;
+  right: 10px;
+  bottom: -6px;
+  left: 10px;
+  height: 12px;
+  border: 1px solid var(--m-border);
+  border-top: 0;
+  border-radius: 0 0 var(--m-radius) var(--m-radius);
+  background: var(--m-surface);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 8%);
+  content: '';
+}
+.fcard-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.fcard-tile {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--m-bg);
+  color: var(--m-muted);
+}
+.fcard-tile--primary { background: var(--m-primary-soft); color: var(--m-primary); }
+.fcard-tile--info { background: var(--m-info-soft); color: var(--m-info); }
+.fcard-tile--good { background: var(--m-success-soft); color: var(--m-success); }
+.fcard-tile--warn { background: var(--m-warning-soft); color: var(--m-warning); }
+.fcard-tile--danger { background: var(--m-danger-soft); color: var(--m-danger); }
+.fcard-text {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+.fcard-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.fcard-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--m-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fcard-when {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fcard-body {
+  overflow: hidden;
+  color: var(--m-text);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fcard-meta {
+  margin-top: 1px;
+  color: var(--m-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fcard-x {
+  display: grid;
+  flex: 0 0 auto;
+  margin: 8px 8px 0 0;
+  padding: 5px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--m-muted);
+  cursor: pointer;
+}
+.fcard-x:hover {
+  background: color-mix(in srgb, var(--m-ink) 8%, transparent);
+  color: var(--m-ink);
+}
+.fcard-enter-active,
+.fcard-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.fcard-enter-from,
+.fcard-leave-to { opacity: 0; transform: translateY(-8px); }
+@media (prefers-reduced-motion: reduce) {
+  .fcard-enter-active,
+  .fcard-leave-active { transition: none; }
+}

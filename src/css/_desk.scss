@@ -1,0 +1,339 @@
+/* =========================================================================
+   The desktop card.
+
+   Shared by every page that lays itself out in two halves on desktop. Pages
+   add these classes only when `isDesktop` (useTabletMode.ts) is true, so
+   nothing here can reach a phone or tablet. Scoped page rules on the same
+   element would outrank these, so a page swaps its own layout class for the
+   desk one rather than carrying both (e.g. `split ? 'desk-card' : 'panel'`). */
+
+/* The card: two halves, one border, a rule between them. Fills what is left of
+   a .page-wide page's height; the halves scroll, the card does not. */
+.shell-tablet .desk-card {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  background: var(--m-surface);
+}
+/* A wrapper (QTabPanels' stand-in) that should not be a box of its own, so its
+   panels are the card's grid items. */
+.shell-tablet .desk-contents {
+  display: contents;
+}
+
+/* A wrapper that is a half (.desk-col) on desktop and nothing at all
+   elsewhere, so the page lays out exactly as it did without it. */
+.desk-pass {
+  display: contents;
+}
+/* A card that is the whole content of a half is the half: no second border. */
+.shell-tablet .desk-col > :is(.profile-card, .p-hero) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* ...so the hero's cover strip, now inset in the half, rounds itself. */
+.shell-tablet .desk-col > .p-hero .p-hero-cover {
+  border-radius: var(--m-radius);
+  overflow: hidden;
+}
+
+/* Profile (student and manager): a narrow identity + section-menu half beside
+   a wide details half, rather than two equal halves with the left one mostly
+   empty. */
+.shell-tablet .desk-card.desk-card--profile {
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+/* ...and that half shows one block at a time (ProfileSectionNav), so the
+   blocks hidden before it must not hand it their divider. */
+.shell-tablet .desk-col > .profile-card > .p-block {
+  border-top: 0;
+}
+/* The details half is too wide for one label-left, value-right row per field:
+   a block made only of fields lays them out two to a row. Rules go on top of
+   each row past the first instead of under each field, so a short last row
+   does not end on mismatched borders. */
+.shell-tablet .desk-card--profile .p-block-body:not(:has(> :not(.pf))) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+}
+.shell-tablet .desk-card--profile .p-block-body:not(:has(> :not(.pf))) > .pf {
+  border-bottom: 0;
+}
+.shell-tablet .desk-card--profile .p-block-body:not(:has(> :not(.pf))) > .pf:nth-child(n + 3) {
+  border-top: 1px solid var(--m-border);
+}
+/* A jumped-to block lands just under the half's top edge, not flush on it. */
+.shell-tablet .desk-card--profile .p-block {
+  scroll-margin-top: 4px;
+}
+
+/* A half's own title, where a tab label used to name it. */
+.shell-tablet .desk-col-title {
+  margin: 0;
+  color: var(--m-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* A half. Scrolls on its own, with no scrollbar drawn. */
+.shell-tablet .desk-col {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.shell-tablet .desk-col::-webkit-scrollbar {
+  display: none;
+}
+/* A fixed-height flex column squashes its children before it lets itself
+   overflow, and cards that clip (overflow: hidden) then lose their contents
+   instead of giving the column something to scroll. */
+.shell-tablet .desk-col > * {
+  flex-shrink: 0;
+}
+.shell-tablet .desk-col + .desk-col {
+  border-left: 1px solid var(--m-border);
+}
+
+/* Search pinned to the top of a half while its list scrolls, on a solid band
+   so rows never show through round the rounded field. Pulled out over the
+   half's padding to sit flush with the card's edge. The class is doubled to
+   outrank SearchDock's own scoped `.dock--inline { position: static }`, which
+   ties on specificity and loads later, so it used to win and nothing stuck.
+   top is -14px, not 0: Chrome measures sticky offsets from the half's content
+   edge, so top: 0 pushed the field 14px down, below Messages' search. With
+   12px of padding the field sits exactly where Messages' does. */
+.shell-tablet .desk-search.desk-search {
+  position: sticky;
+  top: -14px;
+  z-index: 3;
+  margin: -14px -18px 0;
+  padding: 12px 18px 10px;
+  background: var(--m-surface);
+}
+/* In a shell pane (Discover's list, Properties) there is no column padding to
+   pull out over. */
+.shell-tablet .pane .desk-search {
+  margin: 0;
+  padding: 12px 14px 10px;
+}
+
+/* History (student and manager): the card shows one tab's panel at a time
+   under the page's tabs, not its panels as halves side by side. */
+.shell-tablet .desk-card.desk-card--tabbed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.shell-tablet .desk-card--tabbed .desk-col {
+  border-left: 0;
+}
+/* The tabs above it start in line with the panel's content (the half's 18px
+   padding), not flush with the card's rounded corner. */
+.shell-tablet .tabs:has(+ .desk-card--tabbed) {
+  padding-left: calc(var(--m-page-gutter) + 18px);
+}
+
+/* The way back to a list, just above a card's left half (an accommodation,
+   the new-accommodation form, History). */
+.shell-tablet .desk-back-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 -6px -8px;
+}
+
+/* A half's own header, holding its way back (e.g. a profile opened inside the
+   Messages card). */
+.shell-tablet .desk-panel-bar {
+  display: flex;
+  height: 56px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--m-border);
+}
+.shell-tablet .desk-panel-back {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-ink);
+  cursor: pointer;
+}
+.shell-tablet .desk-panel-back:hover {
+  background: var(--m-bg);
+}
+.shell-tablet .desk-panel-title {
+  color: var(--m-ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ---- Pages that split themselves (.page-split): the card on their columns --
+   Messages, OSAS and Concerns are already a two-column grid on a tablet: the
+   list (inside its pull-to-refresh) and the open item. On desktop those two
+   columns become the card's halves. */
+.shell-tablet .desk-split {
+  padding: 8px var(--m-page-gutter) 14px;
+}
+.shell-tablet .desk-split > .q-pull-to-refresh {
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius) 0 0 var(--m-radius);
+  background: var(--m-surface);
+  scrollbar-width: none;
+}
+.shell-tablet .desk-split > .q-pull-to-refresh::-webkit-scrollbar {
+  display: none;
+}
+/* Lists paint the app ground behind their rows — right when the list is the
+   page, a grey (or, in dark mode, black) band inside the card. */
+.shell-tablet .desk-split > .q-pull-to-refresh .q-pull-to-refresh__content > :not(.desk-search, .desk-foot) {
+  background: transparent;
+}
+/* The list half is at least as tall as the card, so a footer (below) can sit
+   at its bottom even when the list is short. */
+.shell-tablet .desk-split > .q-pull-to-refresh > .q-pull-to-refresh__content {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+/* The list half's footer: its main action (New announcement, New ticket, Report
+   a concern), at the bottom of the half and stuck there while the list scrolls. */
+.shell-tablet .desk-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin-top: auto;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+.shell-tablet .desk-foot-btn {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m-primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.shell-tablet .desk-foot-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* The same footer at the bottom of a card half, pulled out over its padding. */
+.shell-tablet .desk-col > .desk-foot {
+  margin: auto -18px -18px;
+}
+/* A half whose content is one full-height thing — an open ticket thread, a
+   new-ticket form — rather than a scrolling list: no padding, no scroll of its
+   own; the thing inside scrolls itself. */
+.shell-tablet .desk-col--fill {
+  padding: 0;
+  overflow: hidden;
+}
+/* Overlays (TicketThread's .mail, TicketCompose's .compose) cover the screen
+   on a phone; inside a half they are simply its content. */
+.shell-tablet .desk-col > .desk-inpanel {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* A tabbed list in the list half (OSAS): the phone's tab folders become the
+   half's header, stuck to its top, and the bordered box under them goes — the
+   half is already the box. */
+.shell-tablet .desk-split .m-tabbed > .tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 12px 14px 0;
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+.shell-tablet .desk-split .m-tabbed > .panel {
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.shell-tablet .desk-split .q-pull-to-refresh__content > .stack:has(> .m-tabbed) {
+  padding: 0;
+}
+
+/* A form that opens in the open item's half instead of over the whole screen
+   (a new announcement). It is a full-screen overlay on a phone. */
+.shell-tablet .desk-split > .desk-compose {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+}
+.shell-tablet .desk-split > :is(.chat, .mail, .split-pane, .page-split-empty, .desk-pane, .desk-compose) {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--m-border);
+  border-left: 0;
+  border-radius: 0 var(--m-radius) var(--m-radius) 0;
+  background: var(--m-surface);
+}
+.shell-tablet .desk-split .desk-search {
+  margin: 0;
+  padding: 12px 14px 10px;
+}
+/* A second thing shown in the open item's half (a profile from a chat). */
+.shell-tablet .desk-pane {
+  display: flex;
+  flex-direction: column;
+}
+.shell-tablet .desk-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.shell-tablet .desk-pane-body::-webkit-scrollbar {
+  display: none;
+}
+.shell-tablet .desk-pane-body .q-page {
+  min-height: 0 !important;
+}
+
+/* Bottom action bars (a listing's "Message", a room's apply bar, a profile's
+   Save) are pinned to the window on a phone. In a pane or a half that pins them
+   across the whole stage; here they sit at the foot of their own column. */
+.shell-tablet .pane--detail .cta,
+.shell-tablet .desk-col .edit-bar {
+  position: sticky;
+  right: auto;
+  bottom: 0;
+  left: auto;
+}

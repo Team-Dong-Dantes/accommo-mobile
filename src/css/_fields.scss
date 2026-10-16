@@ -1,0 +1,253 @@
+/* ===== Auth form surface =====
+   The sign-in and registration fields are one grouped list, not a stack of
+   separate boxes: `.auth-group` draws the single border and the hairlines
+   between rows, and `.auth-field` (AuthInput) is a transparent row
+   inside it. Six 56px boxes with gaps between them read as six competing
+   rectangles; one container reads as one form.
+
+   Global rather than scoped for the same reason as the rules above — the row
+   being styled is `.q-field__control`, which Quasar renders inside its own tree
+   — and because these three components each used to carry their own copy of the
+   field CSS, which is how they drifted apart. Token-driven, so the dark palette
+   needs no second set. */
+.auth-group {
+  border: 1px solid var(--m-border);
+  border-radius: 14px;
+  background: var(--m-bg);
+  overflow: hidden;
+}
+.auth-group > * + * {
+  border-top: 1px solid var(--m-border);
+}
+
+.auth-field .q-field__control {
+  min-height: 64px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+
+/* Always-stacked label: it stays legible above the value instead of vanishing
+   into it once the field is filled. Font-size is left to Quasar, whose floating
+   label is driven by a transform scale — setting it here fights that. */
+.auth-field .q-field__label {
+  color: var(--m-muted);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* No border to colour, so focus tints the row instead. */
+.auth-field.q-field--focused .q-field__control {
+  background: color-mix(in srgb, var(--m-primary-soft) 60%, transparent);
+}
+.auth-field.q-field--focused .q-field__label {
+  color: var(--m-primary);
+}
+
+/* The tint covers the whole field, message included, so the message reads as
+   part of the row rather than a caption under it. */
+.auth-field.q-field--error {
+  background: color-mix(in srgb, var(--m-danger-soft) 55%, transparent);
+}
+.auth-field.q-field--error .q-field__control {
+  background: transparent;
+}
+.auth-field.q-field--error .q-field__label {
+  color: var(--m-danger);
+}
+.auth-field .q-field__bottom {
+  justify-content: center;
+  margin-top: -8px;
+  padding: 0 16px 10px;
+}
+.auth-field .q-field__messages {
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-field .q-field__control {
+    transition: none;
+  }
+}
+
+/* ===== Picker fields: DateTimeField and AppSelect =====
+   Every date, time, month and dropdown in the app is one of these two: a field
+   that opens a sheet. They replaced the native <select>/<input type="date">
+   controls, AuthSelect and the raw q-selects, which looked different on every
+   screen and every platform.
+
+   The box belongs to the screen, not the component: a screen passes the class
+   its text inputs already use (`field-input`, `mx-input`, `pf-input`, …) so the
+   picker matches the input standing next to it. Hence `:where()` — zero
+   specificity, so any such class wins and this is only the fallback for a
+   picker with no class of its own. */
+:where(.picker-field) {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-sm);
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 13px;
+}
+:where(.picker-field) {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.picker-field:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* Empty reads as a hint even when the screen's class paints its text ink. */
+.picker-field:not(.picker-field--set) .picker-field__text {
+  color: var(--m-muted);
+}
+.picker-field--set {
+  color: var(--m-ink);
+}
+.picker-field--error {
+  border-color: var(--m-danger);
+}
+.picker-field__body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+/* Wraps rather than ellipsising: a long college name with no acronym is better
+   read over two lines than cut in half. */
+.picker-field__text {
+  min-width: 0;
+  line-height: 1.3;
+}
+.picker-field__icon {
+  flex: 0 0 auto;
+  color: var(--m-muted);
+}
+.picker-field__label {
+  color: var(--m-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.picker-field__error {
+  margin-top: 2px;
+  color: var(--m-danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Inside the register flow's grouped list a picker is one more row, drawn like
+   AuthInput's `.auth-field`: no box of its own, a stacked label, and a tinted
+   row rather than a red border when it fails. */
+.picker-field.auth-row {
+  min-height: 64px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 16px;
+}
+/* Put back the group's hairline between rows, which the border reset above removes. */
+.auth-group > * + .picker-field.auth-row {
+  border-top: 1px solid var(--m-border);
+}
+.picker-field.auth-row.picker-field--error {
+  background: color-mix(in srgb, var(--m-danger-soft) 55%, transparent);
+}
+.picker-field.auth-row.picker-field--error .picker-field__label {
+  color: var(--m-danger);
+}
+/* Centred on the whole row: the negative margin reaches under the icon
+   (16px wide + 8px gap) so the icon doesn't pull the message left of centre. */
+.picker-field.auth-row .picker-field__error {
+  margin-right: -24px;
+  text-align: center;
+}
+
+/* The auth sheet, and the question that opens it.
+
+   Shared rather than scoped because the register flow and the role picker are
+   the same surface and kept drifting apart: the picker still carried a copy of
+   the sheet at the old `100vh - 160px` with a 34px body-font heading, months
+   after register had moved to a 112px strip and a display-font question. Two
+   copies of a design is how the app ended up with four identical field classes
+   and two icon families.
+
+   Paired with `.hero-section.register-mode` in AuthLayout: the 112px it leaves
+   is what the wordmark and its line need to stay readable underneath. */
+/* A height the keyboard cannot change.
+
+   Not dvh, which it can. windowSoftInputMode is irrelevant on targetSdk 36 —
+   Android 15 ignores the adjust* values — and @capacitor/android resizes the
+   WebView itself regardless: SystemBars.java pads the WebView's PARENT by the
+   IME height whenever the keyboard is visible. The viewport really does shrink,
+   so every dvh on screen recalculates and anything measured in them walks up
+   the page.
+
+   --auth-vh is AuthLayout's answer to that, already used by the hero for the
+   same reason: window.innerHeight sampled once and re-sampled only when the
+   WIDTH changes, so a rotation updates it and a keyboard never does. The sheet
+   keeps its full height, the keyboard comes up over the foot of it, and the
+   action bar is covered rather than moved. Tap away from the field to get it
+   back.
+
+   Two earlier attempts are worth not repeating, both of which treated the
+   symptom: subtracting the IME height here lifted the bar ~190px on every
+   focus, and hiding the bar removed the movement but made the button vanish
+   mid-form. */
+
+.auth-sheet {
+  height: calc(100vh - 112px);
+  height: calc(var(--auth-vh, 100dvh) - 112px);
+  padding: 18px 24px 0;
+  border-radius: 0 0 28px 28px;
+  background: var(--m-surface);
+  overflow: hidden;
+}
+
+/* The screen's question *is* its title — one thing asked at a time, in the face
+   every other titled surface in the app uses. */
+.auth-question {
+  margin: 0 12px 14px;
+}
+.auth-question h1 {
+  margin: 0;
+  color: var(--m-ink);
+  font-family: var(--m-font-display);
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+}
+.auth-question p {
+  margin: 6px 0 0;
+  color: var(--m-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* Auth text buttons — "Forgot password?", "Sign In", "Go Back", "Skip for now".
+   These carried Quasar's static `color="teal-9"` / `grey-6`, which do not move
+   with the theme: on the dark sheet teal-9 (#00695c) sits nearly as dark as the
+   surface behind it. Token-driven so both palettes stay legible, and one weight
+   so the row of them reads as one family. */
+.auth-link {
+  color: var(--m-primary) !important;
+  font-weight: 700;
+}
+.auth-link--quiet {
+  color: var(--m-muted) !important;
+}

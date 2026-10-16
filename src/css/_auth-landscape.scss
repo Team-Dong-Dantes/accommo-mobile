@@ -1,0 +1,283 @@
+/* =========================================================================
+   Auth in landscape — tablet and desktop.
+
+   One shell for all four screens: splash, sign-in, the role fork and register
+   are the same 60/40 page — photograph left, form panel right — and differ only
+   in what stands in the panel.
+
+   That sameness is the design, not a shortcut. Every earlier version gave the
+   splash a shape of its own (a full-bleed photograph) and the forms another (a
+   half each), so the one navigation everybody makes — splash to sign-in —
+   had to re-cut the window while the arriving form slid in, and the two had to
+   be animated in lockstep or bare ground showed between them. With the halves
+   fixed, there is no edge to chase: the photograph, the wordmark and the seam
+   hold still, the panel's contents cross-fade, and the whole apparatus that
+   existed to synchronise them is gone.
+
+   60/40 rather than half each: the form needs a readable measure and no more
+   (460px, `--auth-measure`), while the photograph is the only thing on the page
+   with somewhere to put the product's name and its one sentence. A 40% panel
+   at 1440 is 576px — comfortably more than the measure — and `--auth-form`
+   floors it at 380px so a small landscape tablet does not crush it.
+
+   Written here rather than in the four page files because the pieces being
+   repositioned live across all of them — the hero and the wrapper in
+   AuthLayout, `.auth-sheet` already global, `.login-container` scoped to
+   LoginPage, `.getstarted-page` to GetStartedPage — and the positions only make
+   sense read together. Every selector carries `.auth-layout-bg`, the container
+   they all live in, so it outranks the scoped rule it replaces rather than
+   merely tying with it and depending on stylesheet injection order. */
+
+.auth-split .auth-layout-bg {
+  /* The two numbers the whole shell is built from. */
+  /* vw, never %. A percentage inside a custom property is resolved by whichever
+     element ends up using it, not where it is declared — so `40%` meant 40% of
+     the window on the splash (whose page element IS the panel content, and
+     whose containing block is the window) and 40% of the *panel* on sign-in and
+     register (whose containers are children of the page). The second is 230px
+     at 1440, below the 380px floor, so those two screens fell back to a 24px
+     gutter while the splash got 58px and the inputs visibly changed inset from
+     screen to screen. Viewport units mean the same thing to every element.
+     Safe here: the auth layout is `overflow: hidden` at both the layout and the
+     wrapper, so there is no scrollbar for 100vw to disagree with. */
+  --auth-form: max(380px, 40vw);
+  --auth-photo: calc(100vw - var(--auth-form));
+  --auth-measure: 460px;
+  /* What is left of the panel either side of the measure, floored so the
+     content never touches the seam or the window edge. */
+  --auth-gutter: max(24px, calc((var(--auth-form) - var(--auth-measure)) / 2));
+}
+
+/* ---- Left: the photograph ---- */
+.auth-split .auth-layout-bg .hero-section,
+.auth-split .auth-layout-bg .hero-section.splash-mode,
+.auth-split .auth-layout-bg .hero-section.login-mode,
+.auth-split .auth-layout-bg .hero-section.register-mode {
+  top: 0;
+  left: 0;
+  width: var(--auth-photo);
+  height: 100%;
+  min-height: 100%;
+  max-height: none;
+  /* Identical on every auth screen, so there is nothing to animate and a
+     transition could only smear the scrim on each navigation. */
+  transition: none;
+}
+/* The phone moves the photograph by transform (AuthLayout); here it simply
+   fills the half and stays put. */
+.auth-split .auth-layout-bg .hero-section .hero-photo,
+.auth-split .auth-layout-bg .hero-section.splash-mode .hero-photo,
+.auth-split .auth-layout-bg .hero-section.register-mode .hero-photo {
+  top: 0;
+  height: 100%;
+  transform: none;
+  transition: none;
+}
+
+/* Weighted to the foot, where the pitch sits, and light across the middle so
+   the campus is actually visible. The version this replaces was a near-opaque
+   teal laid evenly over the whole half — it guaranteed contrast by painting the
+   photograph out, which is the expensive way to have no photograph. */
+.auth-split .auth-layout-bg .hero-section .hero-overlay--splash {
+  display: none;
+}
+.auth-split .auth-layout-bg .hero-section .hero-overlay--band,
+.auth-split .auth-layout-bg .hero-section.splash-mode .hero-overlay--band {
+  opacity: 1;
+  transition: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 40, 34, 0.58) 0%,
+      rgba(0, 40, 34, 0.18) 26%,
+      rgba(0, 34, 29, 0.42) 62%,
+      rgba(0, 26, 22, 0.88) 100%
+    ),
+    linear-gradient(135deg, rgba(0, 150, 136, 0.26), rgba(0, 121, 107, 0.2));
+}
+
+/* Identity in the corner at one size and one inset, on all four screens. It is
+   the only element that survives every navigation, and `top` against
+   `bottom: auto` cannot be interpolated — a wordmark that moves here can only
+   jump, which is what it used to do between the splash and sign-in. */
+.auth-split .auth-layout-bg .hero-section .hero-content,
+.auth-split .auth-layout-bg .hero-section.login-mode .hero-content,
+.auth-split .auth-layout-bg .hero-section.register-mode .hero-content,
+.auth-split .auth-layout-bg .hero-section.splash-mode .hero-content {
+  top: calc(env(safe-area-inset-top) + 28px);
+  bottom: auto;
+  padding-inline: clamp(32px, 4vw, 64px);
+  text-align: left;
+  transform: none;
+  transition: none;
+}
+.auth-split .auth-layout-bg .hero-section .logo-text,
+.auth-split .auth-layout-bg .hero-section.splash-mode .logo-text {
+  font-size: 26px;
+  transform: none;
+}
+/* The pitch below says this, and says it better. */
+.auth-split .auth-layout-bg .hero-section .hero-subtitle {
+  display: none;
+}
+.auth-split .auth-layout-bg .hero-section .hero-pitch {
+  display: block;
+  position: absolute;
+  right: 0;
+  bottom: clamp(40px, 6vh, 64px);
+  left: 0;
+  margin: 0;
+  padding-inline: clamp(32px, 4vw, 64px);
+  color: #fff;
+  font-family: var(--m-font-display);
+  /* Sized against the half it lives in, not the window. No character cap: at
+     748px of column a 15ch measure broke the sentence over four lines, which
+     reads as a list rather than a statement. `text-wrap: balance` splits it
+     evenly over the two the width actually wants. */
+  font-size: clamp(28px, 3vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+/* ---- Right: the form panel ---- */
+/* The panel's surface is painted here, on the wrapper, and NOT on the pages
+   inside it. Both the outgoing and the incoming page live in this wrapper for
+   the length of a transition; if each carried the white itself, the two would
+   cross-fade through each other and the photograph would show through the
+   panel at the halfway point. On the wrapper it is one opaque, motionless
+   surface and only the contents fade. */
+.auth-split .auth-layout-bg .content-wrapper {
+  overflow: hidden;
+  background: linear-gradient(
+    to right,
+    transparent 0 var(--auth-photo),
+    var(--m-surface) var(--auth-photo) 100%
+  );
+}
+
+/* The page is the whole window with its content pushed past the photograph.
+   Padding, not a narrower box: padding belongs to the element itself rather
+   than to its containing block, so a page honours it identically in flow and
+   while the transition has it position: absolute. Every inset on these screens
+   that has ever jumped mid-animation was expressed somewhere the absolute state
+   could not see. */
+.auth-split .auth-layout-bg .q-page {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 100%;
+  padding: 0 0 0 var(--auth-photo);
+}
+
+/* Flush, full-height, no card: the panel is a half of the page, so an inset
+   rectangle with a radius and a drop shadow put a second, smaller edge just
+   inside the real one. Its surface comes from the wrapper above. */
+/* A flex child of the page, so it takes the panel's full height from
+   `align-items: stretch` — `min-height: 100%` cannot, because the page's own
+   height is only a minimum and a percentage against `auto` resolves to auto.
+   That is why these first measured as tall as their content and no more. */
+.auth-split .auth-layout-bg .login-container,
+.auth-split .auth-layout-bg .auth-sheet {
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: var(--auth-gutter);
+}
+
+/* The splash is the one screen whose page element IS the panel content —
+   `<q-page class="getstarted-page">` — so it carries the photograph's offset
+   and the panel's gutter on the same box. Setting `padding-inline` on it, as
+   the other two get, silently overwrote the `padding-left` that clears the
+   photograph and the splash spanned the whole window. */
+.auth-split .auth-layout-bg .getstarted-page {
+  padding-left: calc(var(--auth-photo) + var(--auth-gutter));
+  padding-right: var(--auth-gutter);
+}
+
+/* Sign-in, the role fork and the splash are as tall as their content, so they
+   centre in the panel; top-aligned, each ended a third of the way down with the
+   rest of the panel empty under it. */
+.auth-split .auth-layout-bg .login-page .login-container,
+.auth-split .auth-layout-bg .getstarted-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: 32px;
+}
+.auth-split .auth-layout-bg .auth-sheet--short {
+  height: 100%;
+  padding-block: 28px;
+}
+.auth-split .auth-layout-bg .auth-sheet--short > div.col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Register is the exception and stays a frame: its action bar is pinned to the
+   foot so the primary button holds one position from step to step, and the
+   scroller between needs a definite height to scroll inside. Full panel height,
+   so that bar sits on the foot of the page. */
+.auth-split .auth-layout-bg .register-page .auth-sheet {
+  height: 100%;
+  padding-block: 24px 0;
+}
+/* `.steps` and `.actions` bleed by a hard -24px with matching padding
+   (RegisterPage.vue) to reach the sheet's edge, which was true when 24px was
+   the sheet's whole inline padding. Against a measure centred in a 576px panel
+   it lands nowhere: the action bar's hairline stopped 34px past the fields on
+   each side, too wide to align with them and far short of the panel. Cancel the
+   bleed and the hairline, the fields and the button share one column. */
+.auth-split .auth-layout-bg .auth-sheet .steps,
+.auth-split .auth-layout-bg .auth-sheet .actions {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+/* `.auth-question` holds a 12px inline margin of its own, which set every
+   screen's heading 12px further in than the fields it introduces — 70px against
+   58px, readable as a mistake once the gutter either side of it is even. The
+   phone keeps it; there the sheet's own padding is the only inset and the
+   margin is what separates the question from the edge. */
+.auth-split .auth-layout-bg .auth-question {
+  margin-inline: 0;
+}
+
+/* ---- The splash, which is now a panel screen like the others ---- */
+/* Its pitch moved onto the photograph, where every screen's is; its fork is on
+   a white surface, so GetStartedPage.vue swaps the glass variant for the solid
+   one in landscape. What is left here is the page's own phone styling, which
+   assumed white text on a photograph. */
+.auth-split .auth-layout-bg .getstarted-page .pitch-line {
+  display: none;
+}
+.auth-split .auth-layout-bg .getstarted-page .signin {
+  color: var(--m-muted);
+}
+.auth-split .auth-layout-bg .getstarted-page .signin-link {
+  color: var(--m-primary);
+}
+
+/* Shared by both empty panes — the shell's and the self-splitting pages'. */
+.pane-empty,
+.page-split-empty {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--m-muted);
+  text-align: center;
+}
+.pane-empty p,
+.page-split-empty p {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
