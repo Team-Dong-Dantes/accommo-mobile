@@ -34,7 +34,9 @@
             <span v-if="g.unpaid" class="rh-flag">{{ g.unpaid }} unpaid</span>
             <IconifyIcon icon="lucide:chevron-down" width="18" class="rh-chev" :class="{ 'rh-chev--open': g.open }" />
           </button>
-          <template v-if="g.open">
+          <!-- Slides open/closed; the chevron turns with it (.rh-chev). -->
+          <q-slide-transition>
+          <div v-if="g.open" class="rh-body">
             <template v-for="room in g.rooms" :key="room.id">
               <div class="rh-room">
                 <span class="rh-room-name">{{ room.label }}</span>
@@ -54,11 +56,13 @@
                 </button>
               </div>
             </template>
-            <div class="rh-row rh-foot">
-              <span>Collected</span>
-              <span v-for="(t, i) in g.collected" :key="i" class="c" :class="{ 'c--now': i === 3 }">{{ t }}</span>
-            </div>
-          </template>
+          </div>
+          </q-slide-transition>
+          <!-- Always shown, open or closed: the property's takings at a glance. -->
+          <div class="rh-row rh-foot">
+            <span>Collected</span>
+            <span v-for="(t, i) in g.collected" :key="i" class="c" :class="{ 'c--now': i === 3 }">{{ t }}</span>
+          </div>
         </template>
       </section>
 
@@ -276,7 +280,8 @@ watch(propertyId, () => { page.value = 0 })
 .rh-prop-name { color: var(--m-ink); font-family: var(--m-font-display); font-size: 15px; font-weight: 700; }
 .rh-prop-stats { color: var(--m-muted); font-size: 12px; font-weight: 600; }
 .rh-flag { padding: 2px 8px; border-radius: 999px; background: var(--m-danger-soft); color: var(--m-danger); font-size: 10.5px; font-weight: 800; }
-.rh-chev { color: var(--m-muted); transition: transform 0.15s; }
+.rh-chev { color: var(--m-muted); transition: transform 0.3s; }
+.rh-body { display: flex; flex-direction: column; }
 .rh-chev--open { transform: rotate(180deg); }
 .rh-room { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--m-border); background: var(--m-bg); }
 .rh-room-name { color: var(--m-ink); font-size: 12.5px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; }
