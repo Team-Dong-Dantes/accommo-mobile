@@ -1,7 +1,7 @@
 <template>
   <div
     class="dock"
-    :class="{ 'dock--above-nav': aboveNav, 'dock--inline': inline, 'dock--searching': expanded }"
+    :class="{ 'dock--above-nav': aboveNav, 'dock--inline': inline, 'dock--searching': expanded, 'dock--no-filters': noFilters }"
   >
     <!-- Leading action, e.g. "Report a concern". Give it class="dock-btn" and
          wrap its text in .dock-btn-label; the label folds away while the
@@ -34,8 +34,9 @@
         @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
         @blur="open = !!modelValue"
       />
-      <span class="dock-sep" aria-hidden="true" />
+      <span v-if="!noFilters" class="dock-sep" aria-hidden="true" />
       <button
+        v-if="!noFilters"
         type="button"
         class="dock-seg"
         :class="{ 'dock-seg--on': filterCount > 0 }"
@@ -75,6 +76,8 @@ const props = defineProps<{
   /** In the page's flow instead of floating at the bottom — for desktop, where
    *  a pointer reaches the top of a column as easily as a thumb the bottom. */
   inline?: boolean
+  /** Search only: hides the filter button for tabs with nothing to filter. */
+  noFilters?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -142,6 +145,10 @@ function expand() {
 }
 .dock-pill--open {
   width: 100%;
+}
+.dock--no-filters .dock-pill:not(.dock-pill--open) {
+  width: 54px; /* one 52px segment + border */
+  min-width: 54px;
 }
 .dock-pill:focus-within {
   border-color: var(--m-primary);

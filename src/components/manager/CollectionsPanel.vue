@@ -201,11 +201,11 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
+import { fetchLandlordMoney } from '@/api/landlordMoney'
 import { errorMessage } from '@/utils/errors'
-import { resolveAsset, AVATAR } from '@/utils/cloudinaryUrl'
 import { formatMonth, formatPeso, PAYMENT_METHOD_LABEL } from '@/utils/format'
-import { manilaToday, toLedger } from '@/utils/payments'
-import { isBilledMonthly, UTILITIES, type UtilityKey } from '@/utils/listings'
+import { manilaToday } from '@/utils/payments'
+import { UTILITIES, type UtilityKey } from '@/utils/listings'
 import { buildCollections, type CollectionLease, type CollectionLedgerRow, type CollectionPayment } from '@/utils/collections'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -287,71 +287,12 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: auth } = await authUser()
-    const me = auth?.user?.id
-    if (!me) throw new Error('Not logged in.')
-    const [{ data: leaseRows, error: e1 }, { data: ledgerRows, error: e2 }] = await Promise.all([
-      supabase
-        .from('leases')
-        .select('id,status,student_id,start_date,leave_date,water_billing,electric_billing,wifi_billing,users!leases_student_id_fkey(full_name,avatar_color,avatar_url),rooms(label,room_number,accommodation_id,accommodations(name))')
-        .eq('landlord_id', me)
-        .in('status', ['active', 'leave_requested', 'ended', 'terminated']),
-      supabase.rpc('landlord_ledger'),
-    ])
-    if (e1) throw e1
-    if (e2) throw e2
-    const ids = (leaseRows ?? []).map((l) => l.id)
-    const today = manilaToday()
-    const [{ data: payRows, error: e3 }, { data: billRows, error: e4 }] = await Promise.all([
-      ids.length
-        ? supabase
-            .from('payments')
-            .select('id,batch_id,lease_id,amount,method,status,kind,month,bill_id,description,created_at,promise_date')
-            .in('lease_id', ids)
-            .or(`status.eq.pending_verification,promise_date.gte.${today}`)
-        : Promise.resolve({ data: [], error: null }),
-      ids.length ? supabase.from('utility_bills').select('id,lease_id,utility,month').in('lease_id', ids) : Promise.resolve({ data: [], error: null }),
-    ])
-    if (e3) throw e3
-    if (e4) throw e4
-
-    leases.value = (leaseRows ?? []).map((l) => {
-      const u = l.users as unknown as { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
-      const room = l.rooms as unknown as { label: string | null; room_number: string | null; accommodation_id: string; accommodations: { name: string | null } | null } | null
-      const billing: Record<UtilityKey, string | null> = { water: l.water_billing, electric: l.electric_billing, wifi: l.wifi_billing }
-      return {
-        id: l.id,
-        studentId: l.student_id,
-        studentName: u?.full_name || 'A student',
-        avatarColor: u?.avatar_color ?? null,
-        avatarUrl: u?.avatar_url ? resolveAsset(u.avatar_url, AVATAR) : null,
-        roomLabel: room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Room'),
-        accommodationId: room?.accommodation_id ?? '',
-        accommodationName: room?.accommodations?.name?.trim() || 'Accommodation',
-        status: l.status,
-        startDate: l.start_date,
-        leaveDate: l.leave_date,
-        metered: UTILITIES.filter((x) => isBilledMonthly(billing[x.key])).map((x) => x.key),
-      }
-    })
-    ledger.value = (ledgerRows ?? []).map((r) => ({ ...toLedger([r])[0]!, leaseId: r.lease_id }))
-    payments.value = (payRows ?? []).map((p) => ({
-      id: p.id,
-      batchId: p.batch_id,
-      leaseId: p.lease_id,
-      amount: Number(p.amount),
-      method: p.method,
-      status: p.status,
-      kind: p.kind,
-      month: p.month,
-      billId: p.bill_id,
-      description: p.description,
-      createdAt: p.created_at,
-      promiseDate: p.promise_date,
-    }))
-    billUtility.value = Object.fromEntries((billRows ?? []).map((b) => [b.id, b.utility as UtilityKey]))
-    const thisMonth = `${today.slice(0, 7)}-01`
-    billed.value = new Set((billRows ?? []).filter((b) => b.month === thisMonth).map((b) => `${b.lease_id}:${b.utility}`))
+    const m = await fetchLandlordMoney()
+    leases.value = m.leases
+    ledger.value = m.ledger
+    payments.value = m.payments
+    billUtility.value = m.billUtility
+    billed.value = m.billed
   } catch (e) {
     error.value = errorMessage(e, 'Something went wrong.')
   } finally {
