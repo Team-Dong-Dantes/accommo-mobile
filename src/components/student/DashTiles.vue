@@ -228,8 +228,8 @@ button { font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight
   background: var(--m-danger);
 }
 .txt { display: flex; min-width: 0; flex-direction: column; }
-.t { overflow: hidden; color: var(--m-ink); font-size: 15px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.s { overflow: hidden; color: var(--m-muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.t { color: var(--m-ink); font-size: 15px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.s { color: var(--m-muted); font-size: 12.5px; line-height: 1.3; overflow-wrap: anywhere; }
 
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .card--tile { flex-direction: column; gap: 12px; min-height: 112px; padding: 16px; }

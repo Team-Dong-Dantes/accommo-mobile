@@ -7,6 +7,8 @@
       class="stack-seg"
       :style="{ flex: s.value, background: `var(--m-${s.tone})` }"
     />
+    <!-- Nothing to show yet: keep an empty track so the card doesn't collapse. -->
+    <span v-if="!shown.length" class="stack-seg stack-empty" />
   </div>
 </template>
 
@@ -33,6 +35,10 @@ const shown = computed(() => props.segments.filter((s) => s.value > 0))
 .stack-seg {
   min-width: 4px;
   border-radius: 2px;
+}
+.stack-empty {
+  flex: 1;
+  background: var(--m-border);
 }
 .stack-seg:first-child {
   border-top-left-radius: 6px;
