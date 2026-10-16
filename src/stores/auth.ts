@@ -7,7 +7,7 @@ import { uploadSecureDocument } from '@/utils/upload';
 import { initialsOf, isPhMobile } from '@/utils/format';
 import type { RegisterForm, StudentRegisterForm } from '@/types/forms';
 import type { DocReadings } from '@/utils/docReading';
-import type { Json } from '@/types/database.gen';
+import type { Database, Json } from '@/types/database.gen';
 
 // The database role enum says 'landlord'; this app's routes and folders say
 // 'manager' (`/manager/*`, `pages/manager/`). That split is deliberate and
@@ -31,8 +31,11 @@ function documentText(form: StudentRegisterForm): Json | null {
 const APP_ROLE_TO_DB: Record<string, string> = { manager: 'landlord' };
 const DB_ROLE_TO_APP: Record<string, string> = { landlord: 'manager' };
 
-function toDbRole(role: string): string {
-  return APP_ROLE_TO_DB[role] ?? role;
+type DbRole = Database['public']['Enums']['user_role'];
+
+/** Unknown names pass through unchanged; the enum column rejects them. */
+function toDbRole(role: string): DbRole {
+  return (APP_ROLE_TO_DB[role] ?? role) as DbRole;
 }
 
 function toAppRole(raw: string | null | undefined): string | null {
@@ -129,7 +132,7 @@ export const useAuthStore = defineStore('auth', {
         // Read by handle_auth_user_sync into public.users.date_of_birth; an empty
         // string would fail the cast, so it is normalised away here.
         date_of_birth: form.dateOfBirth || null,
-        role: toDbRole(role) as any,
+        role: toDbRole(role),
         phone: form.phone,
       };
     },
@@ -143,7 +146,8 @@ export const useAuthStore = defineStore('auth', {
       userId: string,
       email: string,
       profileData: {
-        role: 'student' | 'manager';
+        /** App ('manager') or DB ('landlord') name: toDbRole maps either. */
+        role: string;
         full_name: string;
         initials: string;
         phone?: string;
@@ -153,7 +157,7 @@ export const useAuthStore = defineStore('auth', {
     ) {
       const fields = {
         phone: (profileData.phone as string) ?? '+639000000000',
-        role: toDbRole(profileData.role) as any,
+        role: toDbRole(profileData.role),
         full_name: profileData.full_name,
         initials: profileData.initials,
         ...(profileData.date_of_birth ? { date_of_birth: profileData.date_of_birth } : {}),
@@ -544,7 +548,7 @@ export const useAuthStore = defineStore('auth', {
         if (typeof metaRole === 'string' && metaRole) {
           role = toAppRole(metaRole);
           if (role) {
-            await supabase.from('users').update({ role: toDbRole(role) } as any).eq('id', authData.user.id);
+            await supabase.from('users').update({ role: toDbRole(role) }).eq('id', authData.user.id);
           }
         }
       }
@@ -609,7 +613,7 @@ export const useAuthStore = defineStore('auth', {
       if (!userId) return;
       const { error } = await supabase
         .from('users')
-        .update({ role: toDbRole(role) as any })
+        .update({ role: toDbRole(role) })
         .eq('id', userId);
       if (error) throw sanitizeError(error);
       this.cachedRole = role;

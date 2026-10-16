@@ -68,7 +68,6 @@
           </button>
         </div>
       </div>
-
     </q-pull-to-refresh>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band -->

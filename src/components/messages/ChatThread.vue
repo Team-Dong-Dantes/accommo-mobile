@@ -163,7 +163,6 @@
         <IconifyIcon :icon="editing ? 'lucide:check' : 'lucide:send-horizontal'" width="18" />
       </button>
     </form>
-
   </div>
 </template>
 
@@ -682,7 +681,6 @@ async function load() {
     const { data: convo, error: convoError } = await supabase
       .from('conversations')
       // Must stay one literal for postgrest-js to type the result.
-      // eslint-disable-next-line max-len
       .select('user_a_id,user_b_id,a:users!conversations_user_a_id_fkey(full_name,initials,role,sex,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,role,sex,avatar_color,avatar_url)')
       .eq('id', props.conversationId)
       .maybeSingle()

@@ -107,7 +107,6 @@ export const useMessagesStore = defineStore('messages', {
             .from('conversations')
             // One string literal: postgrest-js parses the select at type level,
             // and a concatenated expression widens to `string` and stops typing.
-            // eslint-disable-next-line max-len
             .select('id,user_a_id,user_b_id,last_message,last_sender_id,last_time,unread_a,unread_b,a:users!conversations_user_a_id_fkey(full_name,initials,avatar_color,avatar_url),b:users!conversations_user_b_id_fkey(full_name,initials,avatar_color,avatar_url)')
             .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`),
           // Prefs are a nicety: if they fail the inbox still loads, unpinned.

@@ -305,7 +305,7 @@ begin
 
   -- S4/S5 change real rows, so both run inside one block that is rolled back.
   begin
-    perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated', 'aal', 'aal2')::text, true);
     set local role authenticated;
     perform public.admin_set_account_status(v_student, 'verified', 'test', null, '{apply}');
     v_may := public.student_may_lease(v_student);
@@ -338,7 +338,7 @@ begin
   -- S7/S8 (20260923192143): a role change cannot pull someone out from under a
   -- live lease, and only the main admin can close an account.
   begin
-    perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated', 'aal', 'aal2')::text, true);
     set local role authenticated;
     perform public.admin_change_role((select student_id from public.leases where status = 'active' limit 1), 'landlord', 'test');
     v_msg := 'FAIL - changed the role of a student with an active lease';
@@ -1111,7 +1111,8 @@ declare
   v_super  uuid := '00000000-0000-0000-0000-00000000f001';
   v_msg text; v_n int; v_ip text;
   names text[] := '{}'; results text[] := '{}';
-  claims text := json_build_object('sub', '00000000-0000-0000-0000-00000000b002', 'role', 'authenticated')::text;
+  -- aal2: admins need a passed 2FA code since 20261015030000_admin_mfa_required.
+  claims text := json_build_object('sub', '00000000-0000-0000-0000-00000000b002', 'role', 'authenticated', 'aal', 'aal2')::text;
 begin
   if not exists (select 1 from public.users where id = v_admin) then
     test := 'AA: admin access'; outcome := 'SKIP - load tests/fixture.sql'; return next; return;
@@ -1387,7 +1388,7 @@ begin
     end;
 
     reset role;
-    perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated', 'aal', 'aal2')::text, true);
     set local role authenticated;
     select count(*) into v_n from public.map_areas where name = 'rls area';
     o3 := case when v_n = 1 then 'PASS' else 'FAIL - saw ' || v_n end;

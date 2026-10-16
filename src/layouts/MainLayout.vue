@@ -154,7 +154,6 @@
 
     <!-- One confirmation card for the whole app. Renders nothing until something asks. -->
     <ConfirmGate />
-
   </q-layout>
 </template>
 

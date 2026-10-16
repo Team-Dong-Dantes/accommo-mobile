@@ -159,7 +159,6 @@ if (supabaseUrl && supabaseAnonKey) {
     rpc: () => Promise.resolve({ data: false, error: null }),
     channel: () => demoChannel,
     removeChannel: () => Promise.resolve('ok'),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as unknown as SupabaseClient<Database>;
 }
 

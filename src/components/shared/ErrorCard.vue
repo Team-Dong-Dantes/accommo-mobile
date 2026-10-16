@@ -33,12 +33,13 @@ withDefaults(
   defineProps<{
     title: string
     detail?: string
-    retry?: () => void
+    retry?: (() => void) | undefined
     /** Adds the page gutter as margin, for screens whose list rows are inset. */
     inset?: boolean
   }>(),
   {
     detail: '',
+    retry: undefined,
     inset: false,
   },
 )

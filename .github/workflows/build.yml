@@ -6,16 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+# Runners pinned to ubuntu-24.04: ubuntu-latest moves to Ubuntu 26 from
+# 2026-10-19, and the Android toolchain should change on purpose, not with it.
+# Actions are on the first major of each that runs on Node 24 (Node 20 is
+# deprecated on GitHub's runners).
 env:
   NODE_VERSION: '24'   # @quasar/app-vite requires >= 22.22
 
 jobs:
   # 1. Validate: install + web build (dev/feature checks; guards regressions)
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -44,10 +48,10 @@ jobs:
 
   # 1b. RLS: rebuild the database from migrations alone, then run the guards.
   rls:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v2
         with:
           version: latest
       - name: Start database from migrations
@@ -61,7 +65,7 @@ jobs:
 
   # 2. Build Android APK (main only)
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [validate, rls]
     outputs:
       version_name: ${{ steps.version.outputs.name }}
@@ -69,7 +73,7 @@ jobs:
       bundle_checksum: ${{ steps.bundle.outputs.checksum }}
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0   # full history + tags, for the native-change check below
       # Web-only releases reach installed apps over the air; a release that
@@ -87,7 +91,7 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"; echo "Web-only since $PREV — ships over the air"
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -134,7 +138,7 @@ jobs:
           (cd dist/spa && zip -qr ../../bundle.zip .)
           echo "checksum=$(sha256sum bundle.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Upload OTA bundle artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ota-bundle
           path: bundle.zip
@@ -193,31 +197,31 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: android-release
           path: src-capacitor/android/app/build/outputs/apk/release/*.apk
 
   # 3. Publish a GitHub Release with the APK (main only)
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-android
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     steps:
       - name: Download APK
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: android-release
           path: apk
       - name: Download OTA bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ota-bundle
           path: ota
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             apk/**/*.apk

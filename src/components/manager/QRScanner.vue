@@ -36,13 +36,15 @@
 
   <!-- Hint bar -->
   <div class="scan-hint">
-    <p>{{
-      acceptFor
-        ? `Scan ${acceptFor.studentName}’s student QR to accept them into ${acceptFor.roomLabel}.`
-        : manualMode
-          ? 'Camera is paused while you enter a code by hand.'
-          : 'Point the camera at the student’s QR code to verify identity.'
-    }}</p>
+    <p>
+      {{
+        acceptFor
+          ? `Scan ${acceptFor.studentName}’s student QR to accept them into ${acceptFor.roomLabel}.`
+          : manualMode
+            ? 'Camera is paused while you enter a code by hand.'
+            : 'Point the camera at the student’s QR code to verify identity.'
+      }}
+    </p>
     <!-- Accepting needs the student's own QR: a typed ID is not their consent. -->
     <button v-if="!cameraError && !acceptLeaseId" type="button" class="hint-action" @click="manualMode = !manualMode">
       <IconifyIcon :icon="manualMode ? 'lucide:camera' : 'lucide:keyboard'" width="16" /> {{ manualMode ? 'Back to camera' : 'Enter code manually' }}
@@ -51,7 +53,6 @@
       <IconifyIcon icon="lucide:refresh-cw" width="16" /> Camera off — try again
     </button>
   </div>
-
 </q-page>
 </template>
 

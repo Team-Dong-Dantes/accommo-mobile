@@ -16,11 +16,11 @@ const props = withDefaults(
   defineProps<{
     managerId: string
     mode?: 'profile' | 'message'
-    label?: string
+    label?: string | undefined
     /** This person's own title (landlordTitle(sex)). */
-    title?: string
+    title?: string | undefined
   }>(),
-  { mode: 'profile' },
+  { mode: 'profile', label: undefined, title: undefined },
 )
 
 const router = useRouter()

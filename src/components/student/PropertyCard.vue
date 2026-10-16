@@ -43,11 +43,11 @@ const props = withDefaults(
     monogram: string
     distance: string
     vacancies: number
-    buildingType?: string
-    genderPolicy?: string
+    buildingType?: string | undefined
+    genderPolicy?: string | undefined
     variant?: 'carousel' | 'grid'
   }>(),
-  { variant: 'grid' },
+  { buildingType: undefined, genderPolicy: undefined, variant: 'grid' },
 )
 
 // Both values share the one pill rather than getting a second overlay — the

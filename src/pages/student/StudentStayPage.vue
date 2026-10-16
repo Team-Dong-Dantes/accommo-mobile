@@ -219,7 +219,6 @@
           </div>
         </div>
       </div>
-
     </q-pull-to-refresh>
     <AppModal v-model="leaveDialog" title="Request to leave?" size="sm">
       <p class="leave-body">

@@ -96,7 +96,7 @@ import { useNotify } from '@/utils/notify'
 
 const { humanStorageSize } = format
 
-const model = defineModel<File | null>()
+const model = defineModel<File | null>({ default: null })
 /** The text read off the current scan; null for a picked file or nothing read. */
 const text = defineModel<string | null>('text', { default: null })
 
@@ -111,11 +111,12 @@ const props = withDefaults(
     /** Passed to the QField, so a required document blocks the form. */
     rules?: Array<(val: File | null) => boolean | string>
     /** Checks what a scan says. Without it nothing is read. */
-    check?: (text: string) => DocFinding[]
+    check?: ((text: string) => DocFinding[]) | undefined
   }>(),
   {
     hint: '',
     icon: 'lucide:file-up',
+    check: undefined,
     accept: 'image/*,.pdf',
     rules: () => [],
   },

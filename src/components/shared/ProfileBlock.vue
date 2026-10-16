@@ -20,10 +20,10 @@ withDefaults(
   defineProps<{
     icon: string
     title: string
-    badge?: string
+    badge?: string | undefined
     accent?: string
   }>(),
-  { accent: 'var(--m-primary-dark)' },
+  { badge: undefined, accent: 'var(--m-primary-dark)' },
 )
 </script>
 

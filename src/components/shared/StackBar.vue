@@ -20,9 +20,9 @@ const props = withDefaults(
     segments: { value: number; tone: string }[]
     height?: number
     /** Screen-reader summary; the bar alone says nothing. */
-    label?: string
+    label?: string | undefined
   }>(),
-  { height: 10 },
+  { height: 10, label: undefined },
 )
 const shown = computed(() => props.segments.filter((s) => s.value > 0))
 </script>
