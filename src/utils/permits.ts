@@ -11,7 +11,7 @@ import { manilaToday } from '@/utils/payments'
 
 export const PERMIT_TYPES = [
   { key: 'sanitary_permit', label: 'Sanitary permit' },
-  { key: 'fire_safety', label: 'Fire safety permit' },
+  { key: 'fire_safety', label: 'Fire safety certificate' },
   { key: 'business_permit', label: 'Business permit' },
   { key: 'building_permit', label: 'Building permit' },
 ] as const
