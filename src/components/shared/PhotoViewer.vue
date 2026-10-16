@@ -4,7 +4,11 @@
   <q-dialog :model-value="!!modelValue" maximized @update:model-value="close">
     <div class="viewer" @click="close">
       <span v-if="caption" class="viewer-caption">{{ caption }}</span>
-      <img :src="modelValue" alt="Photo" class="viewer-img" />
+      <!-- The photo gets all the room the caption and compare panel leave, scaled
+           up if it is small. Tap it to see it at twice the width and pan around. -->
+      <div class="viewer-stage" :class="{ 'viewer-stage--zoom': zoomed }">
+        <img :src="modelValue" alt="Photo" class="viewer-img" @click.stop="zoomed = !zoomed" />
+      </div>
       <button type="button" class="viewer-close" aria-label="Close photo" @click.stop="close">
         <IconifyIcon icon="lucide:x" width="20" />
       </button>
@@ -42,7 +46,10 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void }>()
 
+const zoomed = ref(false)
+
 function close() {
+  zoomed.value = false
   emit('update:modelValue', '')
 }
 
@@ -61,17 +68,35 @@ async function copy() {
 <style scoped>
 .viewer {
   position: relative;
-  display: grid;
+  display: flex;
   width: 100%;
   height: 100%;
-  place-items: center;
-  padding: 16px;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(60px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom));
   background: rgba(0, 0, 0, 0.92);
 }
+.viewer-stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
 .viewer-img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  cursor: zoom-in;
+}
+.viewer-stage--zoom { display: block; }
+.viewer-stage--zoom .viewer-img {
+  width: 200%;
+  max-width: none;
+  height: auto;
+  cursor: zoom-out;
 }
 .viewer-caption {
   position: absolute;
@@ -83,11 +108,8 @@ async function copy() {
   font-weight: 700;
 }
 .viewer-compare {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 10px;
   padding: 14px;
