@@ -1,7 +1,8 @@
 <template>
   <!-- Desktop (`split`): the two halves of a card — the person and the default
        slot on the left, the `right` slot on the right. Otherwise both slots go
-       in the one tabbed panel and the caller shows whichever tab is picked.
+       in the one tabbed panel and the caller shows whichever tab is picked; with a
+       single tab the right slot stacks under the default one.
        .col-left is display: contents off the desktop, so nothing moves there. -->
   <div :class="split ? 'desk-card' : 'm-tabbed'">
     <div :class="split ? 'desk-col' : 'col-left'">
@@ -20,12 +21,19 @@
           <template v-else>{{ initials }}</template>
         </span>
         <span class="head-name">{{ name }}</span>
-        <span v-if="chip" class="head-chip" :class="`head-chip--${chipTone}`">{{ chip }}</span>
+        <span v-if="chip || role" class="head-chips">
+          <span v-if="role" class="head-chip head-chip--idle">
+            <IconifyIcon :icon="role.icon" width="12" />{{ role.label }}
+          </span>
+          <span v-if="chip" class="head-chip" :class="`head-chip--${chipTone}`">
+            <IconifyIcon v-if="CHIP_ICON[chipTone ?? 'idle']" :icon="CHIP_ICON[chipTone ?? 'idle']!" width="12" />{{ chip }}
+          </span>
+        </span>
         <span v-if="subtitle" class="head-sub">{{ subtitle }}</span>
       </div>
     </div>
 
-    <div v-if="!split" class="tabs">
+    <div v-if="!split && tabs.length > 1" class="tabs">
       <button
         v-for="t in tabs"
         :key="t.key"
@@ -38,7 +46,7 @@
       </button>
     </div>
 
-    <div class="panel">
+    <div class="panel" :class="{ 'panel--solo': !split && tabs.length < 2 }">
       <q-tab-panels
         v-if="!split"
         :model-value="modelValue"
@@ -48,14 +56,14 @@
         class="m-panels"
         @update:model-value="emit('update:modelValue', String($event))"
       >
-        <q-tab-panel :name="tabs[0]!.key"><slot /></q-tab-panel>
-        <q-tab-panel :name="tabs[1]!.key"><slot name="right" /></q-tab-panel>
+        <q-tab-panel :name="tabs[0]!.key"><slot /><slot v-if="!tabs[1]" name="right" /></q-tab-panel>
+        <q-tab-panel v-if="tabs[1]" :name="tabs[1].key"><slot name="right" /></q-tab-panel>
       </q-tab-panels>
       <slot v-else />
     </div>
     </div>
 
-    <div v-if="split" class="desk-col">
+    <div v-if="split && $slots.right" class="desk-col">
       <slot name="right" />
     </div>
   </div>
@@ -80,6 +88,8 @@ defineProps<{
   chip?: string
   chipTone?: 'good' | 'warn' | 'bad' | 'idle'
   subtitle?: string
+  /** Student or landlord/landlady, as a neutral capsule beside the chip. */
+  role?: { label: string; icon: string }
   /** Show the message button on the cover. */
   messageTo?: boolean
   /** Desktop: lay the two slots out as the halves of a card instead of tabs. */
@@ -87,6 +97,13 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [string]; message: [] }>()
+
+// Verified and not-verified chips carry a shield; a plain role label does not.
+const CHIP_ICON: Record<string, string | undefined> = {
+  good: 'lucide:shield-check',
+  warn: 'lucide:shield-alert',
+  bad: 'lucide:shield-x',
+}
 
 const avatarFailed = ref(false)
 watch(() => avatarFailed.value, () => {})
@@ -181,8 +198,17 @@ watch(() => avatarFailed.value, () => {})
   font-weight: 700;
 }
 /* No background here — the tone class below supplies it. */
-.head-chip {
+.head-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
   margin-top: 4px;
+}
+.head-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
@@ -191,7 +217,7 @@ watch(() => avatarFailed.value, () => {})
 .head-chip--good { background: var(--m-success-soft); color: var(--m-success); }
 .head-chip--warn { background: var(--m-warning-soft); color: var(--m-warning); }
 .head-chip--bad { background: var(--m-danger-soft); color: var(--m-danger); }
-.head-chip--idle { background: var(--m-bg); color: var(--m-muted); }
+.head-chip--idle { background: var(--m-bg); color: var(--m-text); }
 .head-sub {
   margin-top: 4px;
   color: var(--m-muted);
@@ -219,6 +245,8 @@ watch(() => avatarFailed.value, () => {})
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
 }
+/* No tab strip to sit under, so the panel keeps the same distance from the card. */
+.panel--solo { margin-top: 14px; }
 /* ---- Desktop: halves of a card (.desk-card / .desk-col, app.scss) ---- */
 .col-left {
   display: contents;

@@ -97,6 +97,8 @@ if (supabaseUrl && supabaseAnonKey) {
     signInWithOAuth: () =>
       Promise.resolve({ data: null, error: { message: NOT_CONFIGURED } }),
     signOut: () => Promise.resolve({ error: null }),
+    // activity.ts subscribes at import time; without this the whole app dies in demo mode.
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     resetPasswordForEmail: () => Promise.resolve({ error: null }),
   };
 

@@ -2,7 +2,7 @@
   <q-page class="history-page" :class="{ 'page-wide': split }">
     <q-pull-to-refresh @refresh="onPull">
       <!-- Desktop: the loaded shape — the way back live already above a card
-           of two halves, each with its own search. -->
+           showing one tab at a time, with its own search. -->
       <div v-if="loading && split" class="stack">
         <div class="desk-back-row">
           <button type="button" class="desk-panel-back" :aria-label="backLabel" @click="goBack">
@@ -10,10 +10,9 @@
           </button>
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
-        <div class="desk-card">
-          <div v-for="title in ['Boarding history', 'Payments']" :key="title" class="desk-col">
+        <div class="desk-card desk-card--tabbed">
+          <div class="desk-col">
             <q-skeleton type="rect" height="40px" class="sk sk-search" />
-            <h2 class="desk-col-title">{{ title }}</h2>
             <q-skeleton type="rect" height="90px" class="sk" />
             <q-skeleton type="rect" height="90px" class="sk" />
           </div>
@@ -41,292 +40,61 @@
           <span class="desk-panel-title">{{ backLabel }}</span>
         </div>
         <div class="m-tabbed">
-          <div v-if="!split" class="tabs">
-            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'history' }" @click="tab = 'history'">
-              Boarding history
-            </button>
-            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'reviews' }" @click="tab = 'reviews'">
-              Ratings
-            </button>
-            <button type="button" class="m-tab" :class="{ 'm-tab--on': tab === 'payments' }" @click="tab = 'payments'">
-              Payments
+          <div class="tabs" role="tablist" aria-label="History">
+            <button
+              v-for="t in TABS"
+              :key="t.key"
+              type="button"
+              role="tab"
+              :aria-selected="tab === t.key"
+              class="m-tab"
+              :class="{ 'm-tab--on': tab === t.key }"
+              @click="tab = t.key"
+            >
+              {{ t.label }}
             </button>
           </div>
 
-          <div :class="split ? 'desk-card' : 'panel'">
+          <!-- Desktop: still tabs, not halves side by side (ratings used to be
+               moved in below payments). -->
+          <div :class="split ? 'desk-card desk-card--tabbed' : 'panel'">
             <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
-              <component :is="panelIs" name="history" :class="split ? 'desk-col' : 'tab-panel'">
-                <!-- Desktop: each half searches and filters only itself. -->
-                <SearchDock
-                  v-if="split"
-                  v-model="queries.history"
-                  inline
-                  class="desk-search"
-                  :filter-count="historyFilter !== 'all' ? 1 : 0"
-                  placeholder="Search boarding history"
-                  search-label="Search"
-                  @open-filters="openFilters('history')"
-                />
-                <h2 v-if="split" class="desk-col-title">Boarding history</h2>
-                <div v-if="visibleHistory.length" class="group">
-                  <div v-for="row in visibleHistory" :key="row.id" class="history-row">
-                    <button type="button" class="history-info" @click="openHistoryDetail(row)">
-                      <span class="history-text">
-                        <span class="history-name">{{ row.name }}</span>
-                        <span class="history-meta">{{ row.meta }}</span>
-                      </span>
-                      <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                    </button>
-                    <div class="history-side">
-                      <span class="history-when">{{ row.period }}</span>
-                      <span v-if="row.reviewed" class="history-rated">Rated ✓</span>
-                      <button v-else-if="row.leaseId" type="button" class="history-rate" @click="openReview(row)">Rate stay</button>
-                    </div>
-                  </div>
-                </div>
-                <EmptyState v-else-if="history.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
-                <EmptyState v-else variant="compact" icon="lucide:history" title="No stays yet" message="Once a stay ends, it lands here and you can rate it." />
+              <component :is="panelIs" v-show="!split || tab === 'history'" name="history" :class="split ? 'desk-col' : 'tab-panel'">
+                <!-- Desktop: each tab searches only itself. -->
+                <SearchDock v-if="split" v-model="queries.history" inline no-filters class="desk-search" :filter-count="0" placeholder="Search boarding history" search-label="Search" />
+                <BoardingHistoryTab :stays="stays" :query="queries.history" @rate="openReview" @payments="showPayments" />
               </component>
 
-              <!-- Desktop: ratings sit below payments in the right half, moved there by
-                   the Teleport (inside the panel, so QTabPanels still finds it). -->
-              <component :is="panelIs" name="reviews" :class="split ? 'desk-hidden' : 'tab-panel'">
-                <Teleport :to="paymentsCol" :disabled="!split || !paymentsCol">
-                <div class="desk-moved">
-                <h2 v-if="split" class="desk-col-title">Ratings</h2>
-                <template v-if="visibleReviews.length">
-                  <div class="rating-summary">
-                    <StarRating :model-value="avgManagerRating" :size="18" />
-                    <span class="rating-count">{{ avgManagerRating.toFixed(1) }} · {{ reviewsFromManagers.length }} rating{{ reviewsFromManagers.length === 1 ? '' : 's' }}</span>
-                  </div>
-                  <div class="group">
-                    <button v-for="r in visibleReviews" :key="r.id" type="button" class="review-row" @click="openReviewDetail(r)">
-                      <div class="review-top">
-                        <span class="review-author">A past landlord/landlady</span>
-                        <StarRating :model-value="r.rating" :size="13" />
-                        <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                      </div>
-                      <p v-if="r.comment" class="review-comment">{{ r.comment }}</p>
-                    </button>
-                  </div>
-                </template>
-                <EmptyState v-else-if="reviewsFromManagers.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
-                <EmptyState v-else variant="compact" icon="lucide:star" title="No ratings yet" message="Ratings a landlord/landlady leaves after a stay will show up here." />
-              </div>
-                </Teleport>
+              <component :is="panelIs" v-show="!split || tab === 'reviews'" name="reviews" :class="split ? 'desk-col' : 'tab-panel'">
+                <SearchDock v-if="split" v-model="queries.reviews" inline no-filters class="desk-search" :filter-count="0" placeholder="Search ratings" search-label="Search" />
+                <StudentRatingsTab :reviews="reviewsFromManagers" :query="queries.reviews" />
               </component>
 
-              <component :is="panelIs" :ref="setPaymentsCol" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
-                <!-- The right half's search covers the ratings below payments too. -->
-                <SearchDock
-                  v-if="split"
-                  v-model="queries.payments"
-                  inline
-                  class="desk-search"
-                  :filter-count="[reviewDateFilter, filter].filter((f) => f !== 'all').length"
-                  placeholder="Search payments and ratings"
-                  search-label="Search"
-                  @open-filters="openFilters('payments')"
-                />
-                <h2 v-if="split" class="desk-col-title">Payments</h2>
-                <div v-if="visiblePayments.length" class="group">
-                  <button v-for="p in visiblePayments" :key="p.id" type="button" class="pay-row" @click="openPaymentDetail(p)">
-                    <span class="pay-icon"><IconifyIcon icon="lucide:receipt" width="16" /></span>
-                    <span class="pay-body">
-                      <span class="pay-month">{{ paymentTitle(p) }}</span>
-                      <span class="pay-method">{{ PAYMENT_METHOD_LABEL[p.method] || p.method }} · {{ p.roomLabel }}, {{ p.accommodationName }}</span>
-                    </span>
-                    <span class="pay-side">
-                      <span class="pay-amount">{{ formatPeso(p.amount) }}</span>
-                      <span class="pay-chip" :class="`pay-chip--${statusColor(PAYMENT_STATUS, p.status)}`">
-                        {{ statusText(PAYMENT_STATUS, p.status) }}
-                      </span>
-                    </span>
-                    <IconifyIcon icon="lucide:chevron-right" width="15" class="row-chevron" />
-                  </button>
-                </div>
-                <EmptyState v-else-if="payments.length" variant="compact" icon="lucide:search-x" title="Nothing matches" message="Try a different search or filter." />
-                <EmptyState v-else variant="compact" icon="lucide:receipt" title="No payments yet" message="Rent payments you make will be recorded here." />
+              <component :is="panelIs" v-show="!split || tab === 'payments'" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
+                <SearchDock v-if="split" v-model="queries.payments" inline no-filters class="desk-search" :filter-count="0" placeholder="Search month or method" search-label="Search" />
+                <StudentPaymentsTab :payments="payments" :owed="owed" :query="queries.payments" :expand="expandLease" />
               </component>
             </component>
           </div>
         </div>
       </div>
-
     </q-pull-to-refresh>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band
          on a tab-shell page — but History is a subpage (no FAB, no bottom
          nav), so it just spans the full width instead of reserving FAB room.
          Outside the pull-to-refresh wrapper on purpose: it transforms its
-         content while you pull, which would drag this fixed dock along. -->
+         content while you pull, which would drag this fixed dock along.
+         None of the three tabs has a filter button: their filters are pills
+         inside the tab. -->
     <SearchDock
       v-if="!loading && !error && !split"
       v-model="queries[tab]"
-      :filter-count="activeFilter !== 'all' ? 1 : 0"
+      no-filters
+      :filter-count="0"
       :placeholder="tab === 'payments' ? 'Search month or method' : tab === 'reviews' ? 'Search ratings' : 'Search boarding history'"
       search-label="Search"
-      @open-filters="openFilters(tab)"
     />
-
-    <BottomSheet
-      v-model="filtersOpen"
-      title="Filters"
-      @clear="clearFilters"
-    >
-      <!-- The open tab's section on a phone, the half's own on desktop. -->
-      <div v-if="sheetHas('history')" class="sheet-block">
-        <span class="sheet-label">Rated</span>
-        <div class="m-chips">
-          <button
-            v-for="f in HISTORY_FILTERS"
-            :key="f.key"
-            type="button"
-            class="m-chip"
-            :class="{ 'm-chip--on': historyFilter === f.key }"
-            @click="historyFilter = f.key"
-          >
-            {{ f.label }}
-          </button>
-        </div>
-      </div>
-      <div v-if="sheetHas('reviews')" class="sheet-block">
-        <span class="sheet-label">Date</span>
-        <div class="m-chips">
-          <button
-            v-for="f in REVIEW_DATE_FILTERS"
-            :key="f.key"
-            type="button"
-            class="m-chip"
-            :class="{ 'm-chip--on': reviewDateFilter === f.key }"
-            @click="reviewDateFilter = f.key"
-          >
-            {{ f.label }}
-          </button>
-        </div>
-      </div>
-      <div v-if="sheetHas('payments')" class="sheet-block">
-        <span class="sheet-label">Status</span>
-        <div class="m-chips">
-          <button
-            v-for="f in PAYMENT_FILTERS"
-            :key="f.key"
-            type="button"
-            class="m-chip"
-            :class="{ 'm-chip--on': filter === f.key }"
-            @click="filter = f.key"
-          >
-            {{ f.label }}
-          </button>
-        </div>
-      </div>
-    </BottomSheet>
-
-    <!-- Boarding history detail -->
-    <AppModal v-model="historyDetailOpen" :title="historyDetailTarget?.name">
-      <template v-if="historyDetailTarget">
-        <div class="group">
-          <div class="rule">
-            <span class="rule-label">Room type</span>
-            <span class="rule-value">{{ historyDetailTarget.roomType || '—' }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Move-in</span>
-            <span class="rule-value">{{ formatDate(historyDetailTarget.periodStart) }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Move-out</span>
-            <span class="rule-value">{{ formatDate(historyDetailTarget.periodEnd) }}</span>
-          </div>
-          <div v-if="historyDetailTarget.endReason" class="rule">
-            <span class="rule-label">Reason</span>
-            <span class="rule-value">{{ titleCase(historyDetailTarget.endReason) }}</span>
-          </div>
-        </div>
-      </template>
-      <template v-if="historyDetailTarget" #footer>
-        <span v-if="historyDetailTarget.reviewed" class="history-rated">Rated ✓</span>
-        <q-btn flat rounded no-caps color="grey-7" label="Close" @click="historyDetailOpen = false" />
-        <q-btn
-          v-if="!historyDetailTarget.reviewed && historyDetailTarget.leaseId"
-          unelevated
-          rounded
-          no-caps
-          color="primary"
-          class="detail-close"
-          label="Rate this stay"
-          @click="historyDetailOpen = false; openReview(historyDetailTarget)"
-        />
-      </template>
-    </AppModal>
-
-    <!-- Review detail -->
-    <AppModal v-model="reviewDetailOpen" title="A past landlord/landlady" size="sm">
-      <template v-if="reviewDetailTarget">
-        <StarRating :model-value="reviewDetailTarget.rating" :size="20" />
-        <p v-if="reviewDetailTarget.comment" class="detail-text">{{ reviewDetailTarget.comment }}</p>
-        <p class="detail-sub">{{ formatDate(reviewDetailTarget.createdAt) }}</p>
-      </template>
-      <template #footer>
-        <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="reviewDetailOpen = false" />
-      </template>
-    </AppModal>
-
-    <!-- Payment detail -->
-    <AppModal v-model="paymentDetailOpen" :title="paymentDetailTarget ? paymentTitle(paymentDetailTarget) : ''">
-      <template v-if="paymentDetailTarget">
-        <span class="detail-chip" :class="`detail-chip--${statusColor(PAYMENT_STATUS, paymentDetailTarget.status)}`">
-          {{ statusText(PAYMENT_STATUS, paymentDetailTarget.status) }}
-        </span>
-
-        <div class="group">
-          <div class="rule">
-            <span class="rule-label">Amount</span>
-            <span class="rule-value">{{ formatPeso(paymentDetailTarget.amount) }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Method</span>
-            <span class="rule-value">{{ PAYMENT_METHOD_LABEL[paymentDetailTarget.method] || paymentDetailTarget.method }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Boarding house</span>
-            <span class="rule-value">{{ paymentDetailTarget.accommodationName }}</span>
-          </div>
-          <div class="rule">
-            <span class="rule-label">Room</span>
-            <span class="rule-value">{{ paymentDetailTarget.roomLabel }}</span>
-          </div>
-          <div v-if="paymentDetailTarget.txnReference" class="rule">
-            <span class="rule-label">Reference number</span>
-            <span class="rule-value">{{ paymentDetailTarget.txnReference }}</span>
-          </div>
-          <div v-if="paymentDetailTarget.verifiedByName" class="rule">
-            <span class="rule-label">Reviewed by</span>
-            <span class="rule-value">
-              {{ paymentDetailTarget.verifiedByName }}{{ paymentDetailTarget.paidAt ? ` · ${formatDate(paymentDetailTarget.paidAt)}` : '' }}
-            </span>
-          </div>
-        </div>
-
-        <template v-if="paymentDetailTarget.status === 'rejected' && paymentDetailTarget.rejectionReason">
-          <p class="detail-label detail-label--danger">Rejection reason</p>
-          <p class="detail-text">{{ paymentDetailTarget.rejectionReason }}</p>
-        </template>
-
-        <template v-if="paymentDetailTarget.description">
-          <p class="detail-label">Note</p>
-          <p class="detail-text">{{ paymentDetailTarget.description }}</p>
-        </template>
-
-        <template v-if="paymentDetailTarget.proofUrl">
-          <p class="detail-label">Proof of payment</p>
-          <img :src="resolveAsset(paymentDetailTarget.proofUrl)" alt="Proof of payment" class="proof-img" />
-        </template>
-      </template>
-      <template #footer>
-        <q-btn unelevated rounded no-caps color="primary" class="detail-close" label="Close" @click="paymentDetailOpen = false" />
-      </template>
-    </AppModal>
 
     <!-- Rate stay -->
     <AppModal v-model="reviewOpen" :title="reviewTarget ? `Rate your stay at ${reviewTarget.name}` : ''">
@@ -359,52 +127,23 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useNotify } from '@/utils/notify'
 import StarRating from '@/components/shared/StarRating.vue'
-import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import SearchDock from '@/components/shared/SearchDock.vue'
-import BottomSheet from '@/components/shared/BottomSheet.vue'
-import { period } from '@/utils/profile'
-import { formatPeso, formatMonth, formatDate, PAYMENT_STATUS, PAYMENT_METHOD_LABEL, statusText, statusColor } from '@/utils/format'
-import { paymentTitle } from '@/utils/payments'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
-import { signRows } from '@/utils/upload'
 import AppModal from '@/components/shared/AppModal.vue'
+import BoardingHistoryTab from '@/components/student/BoardingHistoryTab.vue'
+import StudentRatingsTab, { type ManagerReview } from '@/components/student/StudentRatingsTab.vue'
+import StudentPaymentsTab, { type PaymentRow } from '@/components/student/StudentPaymentsTab.vue'
+import type { Stay } from '@/components/student/StayDetailSheet.vue'
+import { landlordTitle } from '@/utils/format'
+import { toLedger } from '@/utils/payments'
+import { roomTypeLabel } from '@/utils/listings'
 
-interface HistoryRow {
-  id: string
-  name: string
-  meta: string
-  period: string
-  roomType: string
-  endReason: string
-  periodStart: string
-  periodEnd: string
-  accommodationId: string | null
-  leaseId: string | null
-  managerId: string | null
-  reviewed: boolean
-}
-interface ManagerReview {
-  id: string
-  rating: number
-  comment: string
-  createdAt: string
-}
-interface PaymentRow {
-  id: string
-  month: string
-  amount: number
-  status: string
-  method: string
-  roomLabel: string
-  accommodationName: string
-  description: string
-  txnReference: string
-  proofUrl: string
-  paidAt: string | null
-  verifiedByName: string
-  rejectionReason: string
-}
+type Tab = 'history' | 'reviews' | 'payments'
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'history', label: 'Boarding history' },
+  { key: 'reviews', label: 'Ratings' },
+  { key: 'payments', label: 'Payments' },
+]
 
 const router = useRouter()
 // Back to wherever History was opened from (Settings, or a View-all link);
@@ -435,129 +174,48 @@ const notify = useNotify()
 const loading = ref(true)
 const error = ref('')
 // `?tab=payments` (the Payments tab's "All my payments" link).
-const tab = ref<'history' | 'reviews' | 'payments'>(useRoute().query.tab === 'payments' ? 'payments' : 'history')
-// Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
+const tab = ref<Tab>(useRoute().query.tab === 'payments' ? 'payments' : 'history')
+// Desktop puts the panels in a card, still one tab at a time (useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
-// The right half is the payments panel itself; ratings are moved in below them.
-const paymentsCol = ref<HTMLElement | null>(null)
-function setPaymentsCol(el: unknown) {
-  paymentsCol.value = el instanceof HTMLElement ? el : null
-}
 
-const userId = ref('')
-const studentName = ref('')
-
-const history = ref<HistoryRow[]>([])
+const stays = ref<Stay[]>([])
 const reviewsFromManagers = ref<ManagerReview[]>([])
 const payments = ref<PaymentRow[]>([])
-
-const avgManagerRating = computed(() => {
-  if (!reviewsFromManagers.value.length) return 0
-  return reviewsFromManagers.value.reduce((n, r) => n + r.rating, 0) / reviewsFromManagers.value.length
-})
+// Left to pay per finished lease (lease_ledger), for the Settled chips.
+const owed = ref<Record<string, number>>({})
+// The stay whose payments group the Payments tab should open.
+const expandLease = ref<string | null>(null)
 
 // One search per tab — the open tab's on a phone, each half's own on desktop
-// (where ratings sit in the payments half and go by its search). Each tab has
-// its own filter dimension, keyed off `tab` so the dock/sheet can stay generic.
+// (where ratings sit in the payments half and go by its search).
 const queries = reactive({ history: '', reviews: '', payments: '' })
-const filter = ref<'all' | 'paid' | 'pending_verification' | 'rejected' | 'due' | 'overdue'>('all')
-const filtersOpen = ref(false)
-const PAYMENT_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'paid', label: 'Paid' },
-  { key: 'pending_verification', label: 'Pending' },
-  { key: 'rejected', label: 'Rejected' },
-  { key: 'due', label: 'Due' },
-  { key: 'overdue', label: 'Overdue' },
-] as const
+watch(tab, () => {
+  queries.history = ''
+  queries.reviews = ''
+  queries.payments = ''
+})
 
-const historyFilter = ref<'all' | 'rated' | 'unrated'>('all')
-const HISTORY_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'rated', label: 'Rated' },
-  { key: 'unrated', label: 'Not rated' },
-] as const
-
-const reviewDateFilter = ref<'all' | '30d' | '90d' | 'year'>('all')
-const REVIEW_DATE_FILTERS = [
-  { key: 'all', label: 'All time' },
-  { key: '30d', label: 'Last 30 days' },
-  { key: '90d', label: 'Last 3 months' },
-  { key: 'year', label: 'This year' },
-] as const
-
-function withinDateFilter(iso: string, key: typeof reviewDateFilter.value): boolean {
-  if (key === 'all') return true
-  const then = new Date(iso).getTime()
-  if (key === '30d') return Date.now() - then <= 30 * 86400000
-  if (key === '90d') return Date.now() - then <= 90 * 86400000
-  return new Date(iso).getFullYear() === new Date().getFullYear()
+function showPayments(stay: Stay) {
+  expandLease.value = stay.leaseId
+  tab.value = 'payments'
 }
-
-const activeFilter = computed(() => (tab.value === 'history' ? historyFilter.value : tab.value === 'reviews' ? reviewDateFilter.value : filter.value))
-
-const visibleHistory = computed(() => {
-  let list = history.value
-  if (historyFilter.value !== 'all') list = list.filter((h) => (historyFilter.value === 'rated' ? h.reviewed : !h.reviewed))
-  const q = queries.history.trim().toLowerCase()
-  if (q) list = list.filter((h) => `${h.name} ${h.meta}`.toLowerCase().includes(q))
-  return list
-})
-const visibleReviews = computed(() => {
-  let list = reviewsFromManagers.value
-  if (reviewDateFilter.value !== 'all') list = list.filter((r) => withinDateFilter(r.createdAt, reviewDateFilter.value))
-  const q = (split.value ? queries.payments : queries.reviews).trim().toLowerCase()
-  if (q) list = list.filter((r) => `${r.comment}`.toLowerCase().includes(q))
-  return list
-})
-const visiblePayments = computed(() => {
-  let list = payments.value
-  if (filter.value !== 'all') list = list.filter((p) => p.status === filter.value)
-  const q = queries.payments.trim().toLowerCase()
-  if (q) {
-    list = list.filter((p) =>
-      `${formatMonth(p.month)} ${PAYMENT_METHOD_LABEL[p.method] || p.method} ${p.roomLabel} ${p.accommodationName}`.toLowerCase().includes(q),
-    )
-  }
-  return list
-})
 
 function titleCase(raw: string | null | undefined) {
   if (!raw) return ''
   return raw.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 }
 
-const historyDetailOpen = ref(false)
-const historyDetailTarget = ref<HistoryRow | null>(null)
-function openHistoryDetail(row: HistoryRow) {
-  historyDetailTarget.value = row
-  historyDetailOpen.value = true
-}
-
-const reviewDetailOpen = ref(false)
-const reviewDetailTarget = ref<ManagerReview | null>(null)
-function openReviewDetail(r: ManagerReview) {
-  reviewDetailTarget.value = r
-  reviewDetailOpen.value = true
-}
-
-const paymentDetailOpen = ref(false)
-const paymentDetailTarget = ref<PaymentRow | null>(null)
-function openPaymentDetail(p: PaymentRow) {
-  paymentDetailTarget.value = p
-  paymentDetailOpen.value = true
-}
-
 const reviewOpen = ref(false)
 const submittingReview = ref(false)
-const reviewTarget = ref<HistoryRow | null>(null)
+const reviewTarget = ref<Stay | null>(null)
 const reviewForm = reactive({ accRating: 0, accComment: '', managerRating: 0, managerComment: '' })
 
-function openReview(row: HistoryRow) {
-  reviewTarget.value = row
-  reviewForm.accRating = 0
+// `stars` is what the student already tapped in the stay sheet (0 = nothing yet).
+function openReview(stay: Stay, stars = 0) {
+  reviewTarget.value = stay
+  reviewForm.accRating = stars
   reviewForm.accComment = ''
-  reviewForm.managerRating = 0
+  reviewForm.managerRating = stars
   reviewForm.managerComment = ''
   reviewOpen.value = true
 }
@@ -585,8 +243,11 @@ async function submitReview() {
     })
     if (reviewError) throw reviewError
 
-    const target = history.value.find((h) => h.id === row.id)
-    if (target) target.reviewed = true
+    const target = stays.value.find((s) => s.id === row.id)
+    if (target) {
+      target.rating = Math.round((reviewForm.accRating + reviewForm.managerRating) / 2)
+      target.toRate = false
+    }
     reviewOpen.value = false
     notify.success('Thanks for the feedback!')
   } catch (e) {
@@ -595,6 +256,26 @@ async function submitReview() {
     submittingReview.value = false
   }
 }
+
+interface LeaseRow {
+  id: string
+  status: string
+  start_date: string
+  end_date: string
+  leave_date: string | null
+  monthly_rent: number | null
+  ended_reason: string | null
+  landlord_id: string
+  rooms: {
+    label: string | null
+    room_number: string | null
+    room_type: string | null
+    custom_room_type: string | null
+    accommodation_id: string
+    accommodations: { name: string | null; address: string | null; barangay: string | null; city: string | null } | null
+  } | null
+}
+const STATE: Record<string, Stay['state']> = { active: 'now', leave_requested: 'leaving', ended: 'ended', terminated: 'terminated' }
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -606,30 +287,31 @@ async function load(silent = false) {
       void router.push('/login')
       return
     }
-    userId.value = user.id
 
     const [
-      { data: userRow },
+      { data: leaseRows, error: leaseErr },
       { data: past },
-      { data: endedLeases },
-      { data: myWrittenReviews },
+      { data: written },
       { data: reviewsAboutMe },
       { data: paymentRows },
     ] = await Promise.all([
-      supabase.from('users').select('full_name').eq('id', user.id).maybeSingle(),
+      supabase
+        .from('leases')
+        .select(
+          'id, status, start_date, end_date, leave_date, monthly_rent, ended_reason, landlord_id, rooms(label, room_number, room_type, custom_room_type, accommodation_id, accommodations(name, address, barangay, city))',
+        )
+        .eq('student_id', user.id)
+        .in('status', ['active', 'leave_requested', 'ended', 'terminated'])
+        .order('start_date', { ascending: false }),
+      // Stays from before leases were recorded: kept for the record, nothing to rate.
       supabase
         .from('boarding_history')
         .select('id, accommodation_id, accommodation_name, room_type, period_start, period_end, end_reason')
         .eq('student_id', user.id)
         .order('period_start', { ascending: false }),
-      supabase
-        .from('leases')
-        .select('id, landlord_id, rooms(accommodation_id)')
-        .eq('student_id', user.id)
-        .in('status', ['ended', 'terminated']),
-      // Which stays this student has already rated. One view instead of two
-      // table reads, and it is scoped to the caller by the view itself.
-      supabase.from('review_written_leases').select('lease_id').in('kind', ['accommodation', 'manager']),
+      // Which stays this student has already rated, and how. One view instead of
+      // two table reads, and it is scoped to the caller by the view itself.
+      supabase.from('review_written_leases').select('lease_id, rating').in('kind', ['accommodation', 'manager']),
       // Reviews landlords/landladies left about this student — anonymous, so no name join:
       // the landlord/landlady's identity is not exposed by the view at all.
       supabase
@@ -637,43 +319,91 @@ async function load(silent = false) {
         .select('id, rating, comment, created_at')
         .eq('kind', 'tenant')
         .order('created_at', { ascending: false }),
+      // Finished payments only; anything still pending is on My Stay.
       supabase
         .from('payments')
         .select(
-          'id, month, amount, status, method, description, txn_reference, proof_url, paid_at, rejection_reason, verified_by_user:users!payments_verified_by_fkey(full_name), leases!inner(student_id, rooms(room_number, label, accommodations(name)))',
+          'id, lease_id, month, amount, status, method, kind, description, paid_at, created_at, leases!inner(student_id, status, start_date, end_date, rooms(room_number, label, accommodations(name)))',
         )
         .eq('leases.student_id', user.id)
+        .in('status', ['paid', 'waived', 'rejected'])
         .order('month', { ascending: false }),
     ])
+    if (leaseErr) throw leaseErr
+    const leases = (leaseRows ?? []) as unknown as LeaseRow[]
+    const finished = leases.filter((l) => l.status === 'ended' || l.status === 'terminated')
 
-    studentName.value = userRow?.full_name || ''
+    const [{ data: landlords }, ledgers] = await Promise.all([
+      supabase.from('users').select('id, full_name, sex').in('id', [...new Set(leases.map((l) => l.landlord_id))]),
+      Promise.all(finished.map((l) => supabase.rpc('lease_ledger', { p_lease: l.id }))),
+    ])
+    const landlordById = new Map((Array.isArray(landlords) ? landlords : []).map((u) => [u.id, u]))
+    owed.value = Object.fromEntries(
+      finished.map((l, i) => [l.id, toLedger(Array.isArray(ledgers[i]?.data) ? (ledgers[i]!.data as unknown[]) : []).reduce((n, r) => n + r.balance, 0)]),
+    )
 
-    const leaseByAccommodation = new Map<string, { leaseId: string; managerId: string }>()
-    for (const l of endedLeases ?? []) {
-      const accId = (l.rooms as unknown as { accommodation_id: string } | null)?.accommodation_id
-      if (accId && !leaseByAccommodation.has(accId)) {
-        leaseByAccommodation.set(accId, { leaseId: l.id, managerId: l.landlord_id })
-      }
+    const ratingsByLease = new Map<string, number[]>()
+    for (const w of written ?? []) {
+      if (w.lease_id && w.rating) ratingsByLease.set(w.lease_id, [...(ratingsByLease.get(w.lease_id) ?? []), w.rating])
     }
-    const reviewedLeaseIds = new Set((myWrittenReviews ?? []).map((r) => r.lease_id))
+    const paidByLease = new Map<string, number>()
+    for (const p of paymentRows ?? []) {
+      if (p.status === 'paid') paidByLease.set(p.lease_id, (paidByLease.get(p.lease_id) ?? 0) + Number(p.amount))
+    }
 
-    history.value = (past || []).map((h) => {
-      const match = h.accommodation_id ? leaseByAccommodation.get(h.accommodation_id) : undefined
+    const fromLeases: Stay[] = leases.map((l) => {
+      const room = l.rooms
+      const acc = room?.accommodations
+      const given = ratingsByLease.get(l.id)
+      const rating = given ? Math.round(given.reduce((n, r) => n + r, 0) / given.length) : null
+      const state = STATE[l.status] ?? 'ended'
+      const landlord = landlordById.get(l.landlord_id)
       return {
-        id: h.id,
-        name: h.accommodation_name || 'Accommodation',
-        meta: [h.room_type, titleCase(h.end_reason)].filter(Boolean).join(' · ') || 'Stay',
-        period: period(h.period_start, h.period_end),
-        roomType: h.room_type || '',
-        endReason: h.end_reason || '',
-        periodStart: h.period_start,
-        periodEnd: h.period_end,
-        accommodationId: h.accommodation_id,
-        leaseId: match?.leaseId ?? null,
-        managerId: match?.managerId ?? null,
-        reviewed: match ? reviewedLeaseIds.has(match.leaseId) : false,
+        id: l.id,
+        leaseId: l.id,
+        accommodationId: room?.accommodation_id ?? null,
+        managerId: l.landlord_id,
+        name: acc?.name || 'Accommodation',
+        address: [acc?.address, acc?.barangay, acc?.city].filter(Boolean).join(', '),
+        room: [room?.label || (room?.room_number ? `Room ${room.room_number}` : ''), roomTypeLabel(room?.custom_room_type || room?.room_type)].filter(Boolean).join(' · '),
+        from: l.start_date,
+        to: state === 'ended' || state === 'terminated' ? l.leave_date || l.end_date : l.end_date,
+        state,
+        rent: l.monthly_rent,
+        endedReason: titleCase(l.ended_reason),
+        landlord: landlord?.full_name || '',
+        landlordRole: landlordTitle(landlord?.sex),
+        rating,
+        owed: owed.value[l.id] ?? 0,
+        paid: paidByLease.get(l.id) ?? 0,
+        toRate: finished.some((f) => f.id === l.id) && rating === null,
       }
     })
+    // boarding_history rows with no lease behind them (same place, same move-in).
+    const seen = new Set(leases.map((l) => `${l.rooms?.accommodation_id}:${l.start_date.slice(0, 10)}`))
+    const legacy: Stay[] = (past ?? [])
+      .filter((h) => !seen.has(`${h.accommodation_id}:${h.period_start.slice(0, 10)}`))
+      .map((h) => ({
+        id: h.id,
+        leaseId: null,
+        accommodationId: h.accommodation_id,
+        managerId: null,
+        name: h.accommodation_name || 'Accommodation',
+        address: '',
+        room: roomTypeLabel(h.room_type),
+        from: h.period_start,
+        to: h.period_end,
+        state: 'ended',
+        rent: null,
+        endedReason: titleCase(h.end_reason),
+        landlord: '',
+        landlordRole: '',
+        rating: null,
+        owed: 0,
+        paid: null,
+        toRate: false,
+      }))
+    stays.value = [...fromLeases, ...legacy].sort((a, b) => b.from.localeCompare(a.from))
 
     reviewsFromManagers.value = (reviewsAboutMe ?? []).map((r) => ({
       id: r.id ?? '',
@@ -682,27 +412,30 @@ async function load(silent = false) {
       createdAt: r.created_at ?? '',
     }))
 
-    await signRows('payments', paymentRows, 'proof_url')
     payments.value = (paymentRows ?? []).map((p) => {
-      const payLease = p.leases as unknown as {
+      const lease = p.leases as unknown as {
+        status: string
+        start_date: string
+        end_date: string
         rooms: { room_number: string | null; label: string | null; accommodations: { name: string | null } | null } | null
       }
-      const payRoom = payLease.rooms
-      const verifier = p.verified_by_user as unknown as { full_name: string | null } | null
+      const room = lease.rooms
       return {
         id: p.id,
+        leaseId: p.lease_id,
         month: p.month,
         amount: Number(p.amount),
         status: p.status,
         method: p.method,
-        roomLabel: payRoom?.label || (payRoom?.room_number ? `Room ${payRoom.room_number}` : 'Your room'),
-        accommodationName: payRoom?.accommodations?.name || 'Your accommodation',
+        kind: p.kind,
         description: p.description || '',
-        txnReference: p.txn_reference || '',
-        proofUrl: p.proof_url || '',
         paidAt: p.paid_at,
-        verifiedByName: verifier?.full_name || '',
-        rejectionReason: p.rejection_reason || '',
+        createdAt: p.created_at,
+        name: room?.accommodations?.name || 'Your accommodation',
+        room: room?.label || (room?.room_number ? `Room ${room.room_number}` : 'Your room'),
+        leaseStatus: lease.status,
+        leaseStart: lease.start_date,
+        leaseEnd: lease.end_date,
       }
     })
   } catch (e) {
@@ -710,32 +443,6 @@ async function load(silent = false) {
   } finally {
     loading.value = false
   }
-}
-
-watch(tab, () => {
-  queries.history = ''
-  queries.reviews = ''
-  queries.payments = ''
-  filter.value = 'all'
-  historyFilter.value = 'all'
-  reviewDateFilter.value = 'all'
-})
-
-// Which list the filter sheet is for: the open tab, or the half it was opened
-// from — the payments half holds the ratings too.
-const sheetFor = ref<'history' | 'reviews' | 'payments'>('history')
-function openFilters(t: 'history' | 'reviews' | 'payments') {
-  sheetFor.value = t
-  filtersOpen.value = true
-}
-function sheetHas(t: 'history' | 'reviews' | 'payments') {
-  return sheetFor.value === t || (split.value && t === 'reviews' && sheetFor.value === 'payments')
-}
-// The sheet's Clear: only the filters the sheet shows.
-function clearFilters() {
-  if (sheetHas('history')) historyFilter.value = 'all'
-  if (sheetHas('reviews')) reviewDateFilter.value = 'all'
-  if (sheetHas('payments')) filter.value = 'all'
 }
 
 // Not kept alive and with no realtime watch behind it, so a pull is the only
@@ -749,7 +456,6 @@ function onPull(done: () => void) {
 // watch on purpose: this is a record of things that already happened, and the
 // two-minute TTL plus pull-to-refresh is all the freshness it needs.
 const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
-
 </script>
 
 <style scoped>
@@ -772,12 +478,6 @@ const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
 /* Stands in for a half's own search (.desk-search). */
 .sk-search {
   border-radius: 999px;
-}
-.card {
-  padding: 18px 14px;
-  border-radius: var(--m-radius);
-  background: var(--m-surface);
-  text-align: center;
 }
 
 /* Same rounded-top pill tabs fused into a bordered panel used by
@@ -821,283 +521,6 @@ const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
   flex-direction: column;
   gap: 10px;
 }
-.group {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius);
-  background: var(--m-bg);
-  overflow: hidden;
-}
-.rule {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.group > .rule:first-child {
-  border-top: 0;
-}
-.detail-close {
-  flex: 1;
-  min-height: 46px;
-  font-weight: 700;
-}
-.proof-img {
-  width: 100%;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-sm);
-}
-.detail-label {
-  margin: 4px 0 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.detail-label--danger {
-  color: var(--m-danger);
-}
-.detail-chip {
-  align-self: flex-start;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.detail-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.detail-chip--amber,
-.detail-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.detail-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.detail-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
-.detail-text {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.detail-sub {
-  margin: 0;
-  color: var(--m-muted);
-  font-size: 11.5px;
-}
-
-.history-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--m-border);
-}
-.group > .history-row:first-child {
-  border-top: 0;
-}
-.history-info {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.history-text {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-}
-.row-chevron {
-  flex: 0 0 auto;
-  color: var(--m-muted);
-}
-.history-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--m-ink);
-}
-.history-meta {
-  font-size: 11px;
-  color: var(--m-muted);
-}
-.history-when {
-  font-size: 11px;
-  color: var(--m-muted);
-  white-space: nowrap;
-}
-.history-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-.history-rated {
-  color: var(--m-success);
-  font-size: 11px;
-  font-weight: 700;
-}
-.history-rate {
-  padding: 3px 10px;
-  border: 1px solid var(--m-primary);
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.rating-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 2px;
-}
-.rating-count {
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.review-row {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.group > .review-row:first-child {
-  border-top: 0;
-}
-.review-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.review-author {
-  flex: 1;
-  min-width: 0;
-  color: var(--m-ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-.review-comment {
-  margin: 0;
-  color: var(--m-text);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.pay-row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 0;
-  border-top: 1px solid var(--m-border);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.group > .pay-row:first-child {
-  border-top: 0;
-}
-.pay-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-}
-.pay-body {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-}
-.pay-month {
-  color: var(--m-ink);
-  font-size: 13.5px;
-  font-weight: 700;
-}
-.pay-method {
-  overflow: hidden;
-  color: var(--m-muted);
-  font-size: 11.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pay-side {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-.pay-amount {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 14px;
-  font-weight: 700;
-}
-.pay-chip {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-.pay-chip--green {
-  background: var(--m-success-soft);
-  color: var(--m-success);
-}
-.pay-chip--amber,
-.pay-chip--orange {
-  background: var(--m-warning-soft);
-  color: var(--m-warning);
-}
-.pay-chip--red {
-  background: var(--m-danger-soft);
-  color: var(--m-danger);
-}
-.pay-chip--grey {
-  background: var(--m-bg);
-  color: var(--m-muted);
-}
 
 .review-field {
   display: flex;
@@ -1126,9 +549,4 @@ const { refresh } = useLiveData({ key: 'student-history', load, ttl: 120_000 })
   min-height: 48px;
   font-weight: 700;
 }
-
-/* Docked search — this page is a subpage (no bottom nav, no FAB), so it
-   spans the full width instead of reserving room for a FAB that isn't here. */
-
-/* Filter sheet */
 </style>

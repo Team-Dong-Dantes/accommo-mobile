@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { linkify, reactionChips, snippet } from './chat'
+import { canChange, linkify, reactionChips, snippet } from './chat'
 
 describe('linkify', () => {
   it('leaves plain text alone', () => {
@@ -43,5 +43,14 @@ describe('snippet', () => {
     expect(snippet({ body: '', accommodationId: 'a' })).toBe('Listing')
     expect(snippet({ body: '', file: true, attachmentUrl: 'u' })).toBe('File')
     expect(snippet({ body: '', attachmentUrl: 'u' })).toBe('Photo')
+  })
+})
+
+describe('canChange', () => {
+  const sent = '2026-10-16T02:00:00Z'
+  const at = (min: number) => new Date(sent).getTime() + min * 60_000
+  it('allows edit/unsend inside the window and refuses after', () => {
+    expect(canChange({ sentAt: sent }, at(14))).toBe(true)
+    expect(canChange({ sentAt: sent }, at(15))).toBe(false)
   })
 })

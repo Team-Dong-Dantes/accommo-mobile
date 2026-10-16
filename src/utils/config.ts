@@ -9,6 +9,8 @@ export const EXTERNAL_URLS = {
   // wall — screens with no way past them. accommo-web already
   // ships the same file at the same path.
   ISU_BACKGROUND: '/isu-aerial.jpg',
+  // accommo-web's landing page; the web build of this app is a separate deploy.
+  LANDING_PAGE: 'https://accommo.vercel.app',
 } as const;
 
 /**

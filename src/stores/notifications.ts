@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors';
+import { showNotice } from '@/utils/inAppNotice';
 
 export interface NotifRow {
   id: string;
@@ -84,6 +85,18 @@ export const useNotificationsStore = defineStore('notifications', {
               const row = payload.new as NotifRow;
               if (!this.items.some((n) => n.id === row.id)) {
                 this.items = [row, ...this.items].sort(byNewest);
+                // Announcements already get the banner under the header.
+                if (row.type !== 'announcement') {
+                  showNotice({
+                    key: `notif:${row.id}`,
+                    type: row.type,
+                    title: row.title,
+                    body: row.body,
+                    linkUrl: row.link_url,
+                    refId: row.ref_id,
+                    notifId: row.id,
+                  });
+                }
               }
             } else if (payload.eventType === 'UPDATE') {
               const row = payload.new as NotifRow;

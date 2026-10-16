@@ -4,6 +4,7 @@ import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors';
 import { initialsOf, parseServerTime } from '@/utils/format';
 import { resolveAsset } from '@/utils/cloudinaryUrl';
+import { showNotice } from '@/utils/inAppNotice';
 
 export interface Thread {
   id: string;
@@ -41,6 +42,18 @@ interface Person {
 // Live connections, not reactive state — see stores/notifications.ts.
 let channel: RealtimeChannel | null = null;
 let deliveryChannel: RealtimeChannel | null = null;
+
+/**
+ * The reactions last seen on each of my messages, to tell a new one from an
+ * update that only moved a read tick. Realtime cannot say: with RLS on, an
+ * UPDATE's `old` row carries the primary key and nothing else.
+ *
+ * ponytail: seeded when the message is sent or first updated this session, so a
+ * reaction that is itself the first update seen for an older message is taken
+ * as the baseline and not announced. In practice the read tick lands first.
+ * Exact would need the server to broadcast the reaction (realtime.send).
+ */
+const seenReactions = new Map<string, string[]>();
 
 /**
  * A user id that is safe to paste into a PostgREST filter string.
@@ -158,15 +171,35 @@ export const useMessagesStore = defineStore('messages', {
           unread_a: number;
           unread_b: number;
         };
+        const unread = Number((row.user_a_id === userId ? row.unread_a : row.unread_b) || 0);
+        // Something new from them: the unread count went up on a message I did
+        // not send. A muted thread stays quiet here as it does on the phone.
+        const announce = (t: Thread, before: number) => {
+          if (row.last_sender_id && row.last_sender_id !== userId && unread > before && !t.muted) {
+            showNotice({
+              key: `thread:${t.id}`,
+              type: 'message',
+              title: t.otherName,
+              body: row.last_message || 'Sent an attachment',
+              threadId: t.id,
+            });
+          }
+        };
         const thread = this.threads.find((t) => t.id === row.id);
         if (!thread) {
-          void this.load(userId);
+          // A first message from someone new: the thread has to be loaded for
+          // their name before there is anything to show.
+          void this.load(userId).then(() => {
+            const t = this.threads.find((x) => x.id === row.id);
+            if (t) announce(t, 0);
+          });
           return;
         }
+        announce(thread, thread.unread);
         thread.lastMessage = row.last_message || '';
         thread.lastSenderId = row.last_sender_id ?? null;
         thread.lastTime = row.last_time;
-        thread.unread = Number((row.user_a_id === userId ? row.unread_a : row.unread_b) || 0);
+        thread.unread = unread;
         this.threads.sort(newestFirst);
       };
 
@@ -198,9 +231,35 @@ export const useMessagesStore = defineStore('messages', {
           { event: 'INSERT', schema: 'public', table: 'messages' },
           (payload) => {
             const row = payload.new as { id: string; conversation_id: string; sender_id: string };
-            if (row.sender_id === userId) return;
+            if (row.sender_id === userId) {
+              seenReactions.set(row.id, []);
+              return;
+            }
             if (!this.threads.some((t) => t.id === row.conversation_id)) return;
             void supabase.rpc('mark_messages_delivered').then(() => undefined, () => undefined);
+          },
+        )
+        // A reaction to one of my messages: someone appears in its reactions
+        // who was not there last time (see seenReactions).
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'messages', filter: `sender_id=eq.${userId}` },
+          (payload) => {
+            const row = payload.new as { id: string; conversation_id: string; reactions: Record<string, string> | null };
+            const now = Object.keys(row.reactions ?? {}).filter((uid) => uid !== userId);
+            const before = seenReactions.get(row.id);
+            seenReactions.set(row.id, now);
+            const added = before && now.find((uid) => !before.includes(uid));
+            if (!added) return;
+            const thread = this.threads.find((t) => t.id === row.conversation_id);
+            if (!thread || thread.muted) return;
+            showNotice({
+              key: `react:${row.id}`,
+              type: 'message',
+              title: thread.otherName,
+              body: `Reacted ${row.reactions![added]} to your message`,
+              threadId: thread.id,
+            });
           },
         )
         .subscribe();
@@ -215,6 +274,7 @@ export const useMessagesStore = defineStore('messages', {
         void supabase.removeChannel(deliveryChannel);
         deliveryChannel = null;
       }
+      seenReactions.clear();
       this.userId = '';
       this.ready = false;
     },

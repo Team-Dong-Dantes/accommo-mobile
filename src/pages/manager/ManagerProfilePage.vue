@@ -118,7 +118,7 @@
           </div>
         </div>
       </ProfileHero>
-      <ProfileSectionNav v-if="isDesktop" :sections="sections" />
+      <ProfileSectionNav v-if="isDesktop" v-model="tab" :sections="sections" />
       </div>
 
       <!-- ===== PROFILE ===== -->
@@ -126,7 +126,7 @@
       <ProfileCompleteStrip :gaps="gaps" to="/manager/profile/complete" />
       <ProfileCard :open="isDesktop">
         <template #always>
-          <ProfileBlock id="ps-details" icon="lucide:user" title="Personal details">
+          <ProfileBlock v-show="shows('ps-details')" id="ps-details" icon="lucide:user" title="Personal details">
             <template #actions>
               <EditButton v-if="!editing" @click="startEdit" />
             </template>
@@ -149,6 +149,7 @@
 
         <template #more>
           <ProfileBlock
+            v-show="shows('ps-verification')"
             id="ps-verification"
             icon="lucide:shield-check"
             title="Verification"
@@ -173,7 +174,7 @@
             </button>
           </ProfileBlock>
 
-          <ProfileBlock id="ps-accommodations" icon="lucide:building-2" title="Accommodations">
+          <ProfileBlock v-show="shows('ps-accommodations')" id="ps-accommodations" icon="lucide:building-2" title="Accommodations">
             <template #actions>
               <button
                 class="icon-btn"
@@ -197,7 +198,7 @@
             </button>
           </ProfileBlock>
 
-          <ProfileBlock id="ps-settings" icon="lucide:settings" title="Settings">
+          <ProfileBlock v-show="shows('ps-settings')" id="ps-settings" icon="lucide:settings" title="Settings">
             <button class="link-btn" @click="go('/manager/settings')">
               <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
               <span>Notifications, security, appearance &amp; more</span>
@@ -295,6 +296,9 @@ const documents = ref<DocRow[]>([])
 const status = computed(() => statusPresentation(me.status))
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
+// Desktop shows one section at a time, picked from the left-half menu.
+const tab = ref('ps-details')
+const shows = (id: string) => !isDesktop.value || tab.value === id
 const sections = computed(() => [
   { id: 'ps-details', label: 'Personal details', icon: 'lucide:user' },
   { id: 'ps-verification', label: 'Verification', icon: 'lucide:shield-check', badge: pendingDocs.value ? `${pendingDocs.value} pending` : '' },

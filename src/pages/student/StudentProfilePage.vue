@@ -70,7 +70,7 @@
           <IconifyIcon v-if="stay" icon="lucide:chevron-right" width="16" class="stay-chevron" />
         </component>
       </ProfileHero>
-      <ProfileSectionNav v-if="isDesktop" :sections="sections" />
+      <ProfileSectionNav v-if="isDesktop" v-model="tab" :sections="sections" />
       </div>
 
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
@@ -78,7 +78,7 @@
       <!-- Profile -->
       <ProfileCard :open="isDesktop">
         <template #always>
-          <ProfileBlock id="ps-details" icon="lucide:user" title="Your details">
+          <ProfileBlock v-show="shows('ps-details')" id="ps-details" icon="lucide:user" title="Your details">
             <template #actions>
               <EditButton v-if="!editing" @click="startEdit" />
             </template>
@@ -92,7 +92,10 @@
         </template>
 
         <template #more>
-          <ProfileBlock id="ps-academics" icon="lucide:graduation-cap" title="Academics">
+          <ProfileBlock v-show="shows('ps-academics')" id="ps-academics" icon="lucide:graduation-cap" title="Academics">
+            <template #actions>
+              <EditButton v-if="!editing" @click="startEdit" />
+            </template>
             <!-- Editable only while blank: freshmen register before ISU issues
                  them one. Once set it is fixed here, and the DB locks it for good
                  once OSAS verifies the account. -->
@@ -127,13 +130,16 @@
             />
           </ProfileBlock>
 
-          <ProfileBlock id="ps-emergency" icon="lucide:phone-forwarded" title="Emergency contact">
+          <ProfileBlock v-show="shows('ps-emergency')" id="ps-emergency" icon="lucide:phone-forwarded" title="Emergency contact">
+            <template #actions>
+              <EditButton v-if="!editing" @click="startEdit" />
+            </template>
             <ProfileField v-model="draft.emergencyName" label="Name" :editing="editing" />
             <ProfileField v-model="draft.emergencyRelation" label="Relationship" :editing="editing" placeholder="Parent, guardian…" />
             <ProfileField v-model="draft.emergencyPhone" label="Phone" type="tel" :editing="editing" placeholder="+63…" />
           </ProfileBlock>
 
-          <ProfileBlock id="ps-verification" icon="lucide:shield-check" title="Verification" :badge="pendingDocs > 0 ? `${pendingDocs} pending` : ''">
+          <ProfileBlock v-show="shows('ps-verification')" id="ps-verification" icon="lucide:shield-check" title="Verification" :badge="pendingDocs > 0 ? `${pendingDocs} pending` : ''">
             <div v-if="documents.length">
               <div v-for="doc in documents" :key="doc.id" class="doc-row">
                 <span class="doc-icon" :class="`doc-icon--${doc.tone}`">
@@ -153,7 +159,7 @@
             </button>
           </ProfileBlock>
 
-          <ProfileBlock id="ps-settings" icon="lucide:settings" title="Settings">
+          <ProfileBlock v-show="shows('ps-settings')" id="ps-settings" icon="lucide:settings" title="Settings">
             <button class="row-link" @click="go('/student/settings')">
               <IconifyIcon icon="lucide:sliders-horizontal" width="16" />
               <span>Notifications, security, appearance &amp; more</span>
@@ -297,6 +303,9 @@ const stayStatusNote = computed(() => {
 })
 const memberSinceLabel = computed(() => memberSince(createdAt.value))
 const pendingDocs = computed(() => documents.value.filter(d => d.tone === 'warn').length)
+// Desktop shows one section at a time, picked from the left-half menu.
+const tab = ref('ps-details')
+const shows = (id: string) => !isDesktop.value || tab.value === id
 const sections = computed(() => [
   { id: 'ps-details', label: 'Your details', icon: 'lucide:user' },
   { id: 'ps-academics', label: 'Academics', icon: 'lucide:graduation-cap' },

@@ -19,6 +19,15 @@ export interface ChatMsg {
   accommodationId?: string | null
 }
 
+/** How long after sending a message can still be edited or unsent. Must match
+ *  the interval in tg_message_before_update() (20261016000000_message_edit_window.sql),
+ *  which is what actually enforces it; this only hides the menu items. */
+export const CHANGE_WINDOW_MS = 15 * 60_000
+
+export function canChange(m: Pick<ChatMsg, 'sentAt'>, now = Date.now()) {
+  return now - new Date(m.sentAt).getTime() < CHANGE_WINDOW_MS
+}
+
 /** Must match the list react_to_message() accepts. */
 export const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const
 

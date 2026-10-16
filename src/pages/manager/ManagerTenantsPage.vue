@@ -6,7 +6,6 @@
         <div class="desk-card">
           <div class="desk-col">
             <q-skeleton type="rect" height="40px" class="sk sk-pill" />
-            <h2 class="sec-title">By boarder</h2>
             <div v-for="n in 2" :key="n" class="acc">
               <div class="acc-head">
                 <q-skeleton type="rect" size="36px" />
@@ -18,7 +17,7 @@
             </div>
           </div>
           <div class="desk-col">
-            <h2 class="sec-title">Payments</h2>
+            <h2 class="sec-title">Monthly rent</h2>
             <q-skeleton type="rect" height="70px" class="sk" />
           </div>
         </div>
@@ -26,8 +25,7 @@
 
       <div v-else-if="loading" class="stack">
         <div class="tabs">
-          <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
-          <q-skeleton type="rect" width="88px" height="38px" class="m-sk-tab" />
+          <q-skeleton v-for="n in 3" :key="n" type="rect" width="88px" height="38px" class="m-sk-tab" />
         </div>
         <div v-for="n in 2" :key="n" class="acc">
           <div class="acc-head">
@@ -53,13 +51,16 @@
 
       <div v-else class="stack">
         <div class="m-tabbed">
-        <div v-if="!split" class="tabs">
+        <div v-if="!split" class="tabs" role="tablist" aria-label="My Boarders">
           <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'tenants' }" @click="activeTab = 'tenants'">
-            By boarder
+            Boarders
           </button>
           <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'payments' }" @click="activeTab = 'payments'">
-            Payments
+            Monthly rent
             <span v-if="toConfirm" class="tab-dot">{{ toConfirm }}</span>
+          </button>
+          <button type="button" class="m-tab" :class="{ 'm-tab--on': activeTab === 'history' }" @click="activeTab = 'history'">
+            Rent history
           </button>
         </div>
 
@@ -69,33 +70,24 @@
         <div :class="split ? 'desk-card' : 'panel'">
         <component :is="panelsIs" v-bind="panelsProps" :class="split ? 'desk-contents' : 'm-panels'">
           <component :is="panelIs" name="tenants" :class="split ? 'desk-col' : 'tab-panel'">
-            <template v-if="split">
-              <SearchDock
-                v-model="query"
-                inline
-                class="desk-search"
-                :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
-                placeholder="Search boarders or rooms"
-                search-label="Search boarders"
-                @open-filters="filtersOpen = true"
-              />
-              <h2 class="sec-title">By boarder</h2>
-            </template>
+            <SearchDock
+              v-if="split"
+              v-model="query"
+              inline
+              class="desk-search"
+              :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
+              placeholder="Search boarders or rooms"
+              search-label="Search boarders"
+              @open-filters="filtersOpen = true"
+            />
+            <!-- Walk-in tenants, accepted later by scanning their QR. Logging a
+                 payment lives on Monthly rent and the boarder's own page. -->
             <div class="top-actions">
-              <button type="button" class="top-pay-btn" :class="{ 'top-pay-btn--ghost': pickingPayment }" @click="pickingPayment = !pickingPayment">
-                <IconifyIcon :icon="pickingPayment ? 'lucide:x' : 'lucide:hand-coins'" width="16" />
-                {{ pickingPayment ? 'Cancel' : 'Log a payment' }}
-              </button>
-              <!-- Walk-in tenants, accepted later by scanning their QR. -->
-              <button v-if="!pickingPayment" type="button" class="top-pay-btn top-pay-btn--ghost" @click="addOpen = true">
+              <button type="button" class="top-pay-btn" @click="addOpen = true">
                 <IconifyIcon icon="lucide:user-plus" width="16" />
                 Add a student
               </button>
             </div>
-            <p v-if="pickingPayment" class="picking-hint">
-              <IconifyIcon icon="lucide:pointer" width="14" />
-              Tap a boarder below to log their payment.
-            </p>
 
             <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
               <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
@@ -160,9 +152,7 @@
                         <button
                           type="button"
                           class="lease-main"
-                          :class="{ 'lease-main--pick': pickingPayment && isPayable(l) }"
-                          :disabled="pickingPayment && !isPayable(l)"
-                          @click="pickingPayment ? handlePick(l) : router.push(`/manager/tenant/${l.id}`)"
+                          @click="router.push(`/manager/tenant/${l.id}`)"
                         >
                           <span class="lease-avatar" :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []">
                             <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" class="lease-avatar-img" @error="l.avatarUrl = null" />
@@ -178,7 +168,7 @@
                           </span>
                         </button>
                         <button
-                          v-if="!pickingPayment && l.status !== 'pending'"
+                          v-if="l.status !== 'pending'"
                           type="button"
                           class="lease-msg"
                           aria-label="Message boarder"
@@ -187,7 +177,7 @@
                           <IconifyIcon icon="lucide:message-circle" width="15" />
                         </button>
                         </div>
-                        <div v-if="!pickingPayment && l.status === 'pending'" class="lease-actions">
+                        <div v-if="l.status === 'pending'" class="lease-actions">
                           <button
                             type="button"
                             class="lease-act lease-act--ghost"
@@ -226,16 +216,33 @@
             </section>
           </component>
 
-          <component :is="panelIs" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
-            <h2 v-if="split" class="sec-title">Payments</h2>
-            <CollectionsPanel :version="loadVersion" @changed="load(true)" @count="(n) => (toConfirm = n)" />
+          <!-- On desktop the right column holds both, switched by its own m-tab pair. -->
+          <component :is="panelIs" v-show="!split || activeTab !== 'history'" name="payments" :class="split ? 'desk-col' : 'tab-panel'">
+            <div v-if="split" class="desk-tabs" role="tablist" aria-label="Rent">
+              <button type="button" class="m-tab m-tab--on" role="tab" aria-selected="true">
+                Monthly rent
+                <span v-if="toConfirm" class="tab-dot">{{ toConfirm }}</span>
+              </button>
+              <button type="button" class="m-tab" role="tab" aria-selected="false" @click="activeTab = 'history'">Rent history</button>
+            </div>
+            <CollectionsPanel :version="loadVersion" :query="query" @changed="load(true)" @count="(n: number) => (toConfirm = n)" />
+          </component>
+
+          <component :is="panelIs" v-show="!split || activeTab === 'history'" name="history" :class="split ? 'desk-col' : 'tab-panel'">
+            <div v-if="split" class="desk-tabs" role="tablist" aria-label="Rent">
+              <button type="button" class="m-tab" role="tab" aria-selected="false" @click="activeTab = 'payments'">
+                Monthly rent
+                <span v-if="toConfirm" class="tab-dot">{{ toConfirm }}</span>
+              </button>
+              <button type="button" class="m-tab m-tab--on" role="tab" aria-selected="true">Rent history</button>
+            </div>
+            <RentHistoryPanel :version="loadVersion" :query="query" />
           </component>
         </component>
         </div>
         </div>
       </div>
-
-    </q-pull-to-refresh>
+</q-pull-to-refresh>
 
     <!-- Search sits on the FAB's baseline so the two read as one control band.
          Outside the pull-to-refresh wrapper on purpose: it transforms its
@@ -244,6 +251,7 @@
       v-if="!loading && !error && !split"
       v-model="query"
       :filter-count="filter !== 'all' || selectedAccId !== 'all' ? 1 : 0"
+      :no-filters="activeTab !== 'tenants'"
       placeholder="Search boarders or rooms"
       search-label="Search boarders"
       above-nav
@@ -316,15 +324,7 @@
     </BottomSheet>
 
     <AddStudentSheet v-model="addOpen" @added="refresh" />
-
-    <LogPaymentSheet
-      v-model="paymentOpen"
-      :lease-id="paymentLease?.id ?? ''"
-      :start-date="paymentLease?.startDate"
-      :subtitle="paymentLease ? `From ${paymentLease.studentName}` : ''"
-      @submitted="load(true)"
-    />
-  </q-page>
+</q-page>
 </template>
 
 <script setup lang="ts">
@@ -347,7 +347,7 @@ import SearchDock from '@/components/shared/SearchDock.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import AddStudentSheet from '@/components/manager/AddStudentSheet.vue'
 import CollectionsPanel from '@/components/manager/CollectionsPanel.vue'
-import LogPaymentSheet from '@/components/manager/LogPaymentSheet.vue'
+import RentHistoryPanel from '@/components/manager/RentHistoryPanel.vue'
 
 interface Lease {
   id: string
@@ -389,20 +389,21 @@ const loading = ref(true)
 const error = ref('')
 const myId = ref('')
 const accommodations = ref<Accommodation[]>([])
-const activeTab = ref<'tenants' | 'payments'>('tenants')
-// `?tab=payments` (the dashboard's "Verify payments" item). Watched, not read
-// once: this screen is kept alive, so a later visit reuses the same instance.
+const activeTab = ref<'tenants' | 'payments' | 'history'>('tenants')
+// `?tab=payments` (the dashboard's "Verify payments" item) and `?tab=history`
+// (the history screens' "Rent history" link). Watched, not read once: this
+// screen is kept alive, so a later visit reuses the same instance.
 const route = useRoute()
 watch(
   () => route.query.tab,
   (tab) => {
-    if (tab === 'payments') activeTab.value = 'payments'
+    if (tab === 'payments' || tab === 'history') activeTab.value = tab
   },
   { immediate: true },
 )
 // Desktop has the room for both panels at once (see useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(activeTab)
-// Bumped on every load so the Payments panel reloads with the page.
+// Bumped on every load so the Monthly rent and Rent history panels reload with the page.
 const loadVersion = ref(0)
 const toConfirm = ref(0)
 const query = ref('')
@@ -528,7 +529,7 @@ async function load(silent = false) {
     if (leaseError) throw leaseError
 
     const accIds = (accRows ?? []).map((a) => a.id)
-    // Only current stays go on the room grid (the Payments panel loads its own).
+    // Only current stays go on the room grid (the money panels load their own).
     const currentLeases = (leaseRows ?? []).filter((l) => ['active', 'pending', 'leave_requested'].includes(l.status))
 
     const { data: roomData, error: roomError } = accIds.length
@@ -689,20 +690,6 @@ function isPayable(l: Lease) {
   return l.status === 'active' || l.status === 'leave_requested'
 }
 
-// Log a payment from the top of the By boarder tab: the list itself becomes the
-// picker — payable rows highlight, everything else is disabled until a boarder
-// is tapped or picking is cancelled.
-const pickingPayment = ref(false)
-const paymentOpen = ref(false)
-const paymentLease = ref<Lease | null>(null)
-function handlePick(l: Lease) {
-  if (!isPayable(l)) return
-  pickingPayment.value = false
-  paymentLease.value = l
-  paymentOpen.value = true
-}
-
-
 </script>
 
 <style scoped>
@@ -778,11 +765,6 @@ function handlePick(l: Lease) {
   font: inherit;
   font-size: 14px;
   font-weight: 700;
-}
-.top-pay-btn--ghost {
-  border: 1px solid var(--m-border);
-  background: var(--m-surface);
-  color: var(--m-ink);
 }
 
 /* One connected card — the header and its rooms share this border/radius
@@ -1050,23 +1032,6 @@ function handlePick(l: Lease) {
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* While picking a boarder to log a payment for, payable rows highlight so
-   they're easy to spot against the rest of the (disabled) list. */
-.lease-main--pick {
-  padding: 6px 8px;
-  margin: 0 -8px;
-  background: var(--m-primary-soft);
-}
-.picking-hint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: -4px 2px 0;
-  color: var(--m-muted);
-  font-size: 12px;
-  text-align: center;
-}
 .lease-actions {
   display: flex;
   gap: 8px;
@@ -1235,6 +1200,23 @@ function handlePick(l: Lease) {
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
+}
+/* The half's header, like the search beside it: pulled out to the half's
+   edges and stuck to its top, with a rule under it that the active tab covers,
+   so the folder opens into the panel instead of floating above it. */
+.desk-tabs {
+  position: sticky;
+  top: -14px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  margin: -14px -18px 0;
+  padding: 12px 18px 0;
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-surface);
+}
+.desk-tabs .m-tab {
+  margin-bottom: -1px;
 }
 .tab-panel {
   display: flex;

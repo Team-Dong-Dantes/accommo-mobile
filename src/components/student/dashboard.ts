@@ -1,5 +1,5 @@
 /**
- * Shapes owned by StudentDashboard.vue and DashStayCard.vue. The `Task` row
+ * Shapes owned by StudentDashboard.vue and DashTiles.vue. The `Task` row
  * both dashboards share lives in `components/shared/dashboard.ts`.
  */
 
@@ -27,6 +27,7 @@ export interface Stay {
 export interface NextPayment {
   amount: number
   month: string
+  dueDate: string | null
   overdue: boolean
 }
 
@@ -38,4 +39,14 @@ export interface Manager {
   replyMinutes: number | null
   /** Landlord, Landlady, or Landlord/Landlady when sex is unknown. */
   title?: string
+}
+
+/** One of the two small tiles under the stay row: icon, what, one short line. */
+export interface DashTile {
+  icon: string
+  /** A --m-* colour family with a -soft partner, or 'muted' for the idle grey. */
+  tone: string
+  title: string
+  sub: string
+  route: string
 }

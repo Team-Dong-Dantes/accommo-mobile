@@ -13,29 +13,31 @@
       <ErrorCard title="Couldn't load this landlord/landlady" :detail="error" :retry="load" />
     </div>
 
-    <div v-else class="stack">
-      <div class="head">
-        <span class="head-avatar" :class="manager.avatarColor ? ['bg-' + manager.avatarColor, 'text-white'] : []">
-          <img v-if="manager.avatarUrl" :src="manager.avatarUrl" alt="" class="head-avatar-img" @error="manager.avatarUrl = null" />
-          <template v-else>{{ manager.initials }}</template>
+    <PersonProfile
+      v-else
+      v-model="tab"
+      :tabs="TABS"
+      :name="manager.name"
+      :initials="manager.initials"
+      :avatar-url="manager.avatarUrl"
+      :cover-url="manager.coverUrl"
+      :chip="manager.verified ? 'OSAS verified' : ''"
+      chip-tone="good"
+      :role="{ label: manager.title, icon: 'lucide:house' }"
+      message-to
+      @message="messageManager"
+    >
+    <div class="stack">
+      <div v-if="manager.replyMinutes || manager.responseRate !== null || manager.memberSince" class="head-tags">
+        <span v-if="manager.replyMinutes" class="tag tag--soft">
+          <IconifyIcon icon="lucide:clock" width="11" />Replies in ~{{ manager.replyMinutes }} min
         </span>
-        <span class="head-name">{{ manager.name }}</span>
-        <span class="head-sub">{{ manager.title }}</span>
-        <span v-if="manager.verified" class="badge">
-          <IconifyIcon icon="lucide:shield-check" width="11" />ID Verified
+        <span v-if="manager.responseRate !== null" class="tag tag--soft">
+          <IconifyIcon icon="lucide:check-check" width="11" />{{ manager.responseRate }}% response rate
         </span>
-        <p v-if="stats" class="head-stats">{{ stats }}</p>
-        <div v-if="manager.replyMinutes || manager.responseRate !== null || manager.memberSince" class="head-tags">
-          <span v-if="manager.replyMinutes" class="tag tag--soft">
-            <IconifyIcon icon="lucide:clock" width="11" />Replies in ~{{ manager.replyMinutes }} min
-          </span>
-          <span v-if="manager.responseRate !== null" class="tag tag--soft">
-            <IconifyIcon icon="lucide:check-check" width="11" />{{ manager.responseRate }}% response rate
-          </span>
-          <span v-if="manager.memberSince" class="tag">
-            <IconifyIcon icon="lucide:calendar" width="11" />Member since {{ manager.memberSince }}
-          </span>
-        </div>
+        <span v-if="manager.memberSince" class="tag">
+          <IconifyIcon icon="lucide:calendar" width="11" />Member since {{ manager.memberSince }}
+        </span>
       </div>
 
       <section class="sec">
@@ -68,9 +70,10 @@
 
       <div class="tail" />
     </div>
+    </PersonProfile>
 
-    <div v-if="!loading && !error" class="cta">
-      <button type="button" class="cta-btn" @click="router.push(`/student/messages?to=${id}`)">
+    <div v-if="!loading && !error && !embed.managerId" class="cta">
+      <button type="button" class="cta-btn" @click="messageManager">
         <IconifyIcon icon="lucide:message-circle" width="17" />
         Message {{ manager.title.toLowerCase() }}
       </button>
@@ -87,9 +90,10 @@ import { supabase } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { initialsOf, parseServerTime, landlordTitle } from '@/utils/format'
-import { resolveAsset } from '@/utils/cloudinaryUrl'
+import { resolveAsset, COVER } from '@/utils/cloudinaryUrl'
 import { campusDistanceLabel } from '@/utils/geo'
 import { listingMonogram } from '@/utils/listings'
+import PersonProfile from '@/components/shared/PersonProfile.vue'
 import PropertyCard from '@/components/student/PropertyCard.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
@@ -105,6 +109,14 @@ interface Property {
   roomCount: number
 }
 
+// One tab: PersonProfile is the shared profile shell (the scanner and chat
+// profiles use it too); the tab strip hides itself when there is only one.
+const TABS = [{ key: 'properties', label: 'Properties' }] as const
+const tab = ref<string>('properties')
+
+// Set when PersonPage shows this inside a conversation's profile: no fixed
+// Message bar (the profile card has one) and no header title.
+const embed = defineProps<{ managerId?: string }>()
 const route = useRoute()
 const router = useRouter()
 
@@ -113,8 +125,8 @@ const error = ref('')
 // Kept alive (MainLayout's KEEP_ALIVE_PAGES), so leaving deactivates rather than
 // unmounts: the header title must follow activation, or it sticks on the next screen.
 let active = false
-onActivated(() => { active = true; if (manager.name) pageTitleOverride.value = manager.title })
-onDeactivated(() => { active = false; pageTitleOverride.value = null })
+onActivated(() => { active = !embed.managerId; if (active && manager.name) pageTitleOverride.value = manager.title })
+onDeactivated(() => { if (active) pageTitleOverride.value = null; active = false })
 const manager = reactive({
   name: '',
   title: landlordTitle(null),
@@ -124,18 +136,13 @@ const manager = reactive({
   memberSince: '',
   avatarColor: null as string | null,
   avatarUrl: null as string | null,
+  coverUrl: null as string | null,
   verified: false,
 })
 const properties = ref<Property[]>([])
 
-const id = computed(() => String(route.params.id || ''))
-const stats = computed(() => {
-  if (!properties.value.length) return ''
-  const roomCount = properties.value.reduce((n, p) => n + p.roomCount, 0)
-  const available = properties.value.reduce((n, p) => n + p.vacancies, 0)
-  if (!roomCount) return ''
-  return `${roomCount} room${roomCount === 1 ? '' : 's'} · ${available} available`
-})
+const id = computed(() => embed.managerId || String(route.params.id || ''))
+function messageManager() { void router.push(`/student/messages?to=${id.value}`) }
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -144,7 +151,7 @@ async function load(silent = false) {
     const [{ data: person }, { data: profile }, { data: props, error: propsError }] = await Promise.all([
       supabase
         .from('users')
-        .select('id,full_name,initials,avatar_color,avatar_url,created_at,status,sex')
+        .select('id,full_name,initials,avatar_color,avatar_url,cover_url,created_at,status,sex')
         .eq('id', id.value)
         .eq('role', 'landlord')
         .maybeSingle(),
@@ -172,6 +179,7 @@ async function load(silent = false) {
     manager.initials = person.initials || initialsOf(manager.name)
     manager.avatarColor = person.avatar_color
     manager.avatarUrl = person.avatar_url ? resolveAsset(person.avatar_url) : null
+    manager.coverUrl = person.cover_url ? resolveAsset(person.cover_url, COVER) : null
     manager.memberSince = person.created_at ? String(parseServerTime(person.created_at).getFullYear()) : ''
     manager.replyMinutes = profile?.avg_response_minutes ?? null
     manager.responseRate = profile?.response_rate ?? null
@@ -241,61 +249,6 @@ useLiveData({
   text-align: center;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 0 4px;
-  text-align: center;
-}
-.head-avatar {
-  display: grid;
-  width: 64px;
-  height: 64px;
-  place-items: center;
-  overflow: hidden;
-  margin-bottom: 4px;
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  font-family: var(--m-font-display);
-  font-size: 22px;
-  font-weight: 800;
-}
-.head-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.head-name {
-  color: var(--m-ink);
-  font-family: var(--m-font-display);
-  font-size: 19px;
-  font-weight: 700;
-}
-.head-sub {
-  color: var(--m-muted);
-  font-size: 12.5px;
-}
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 6px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--m-success-soft);
-  color: var(--m-success);
-  font-size: 11px;
-  font-weight: 700;
-}
-.head-stats {
-  margin: 6px 0 0;
-  color: var(--m-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
 .head-tags {
   display: flex;
   flex-wrap: wrap;
@@ -330,6 +283,7 @@ useLiveData({
   color: var(--m-ink);
   font-size: 12.5px;
   font-weight: 700;
+  line-height: 1.3;
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }

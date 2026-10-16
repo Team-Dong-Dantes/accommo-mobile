@@ -6,6 +6,17 @@
     :class="isTablet ? { 'page-split': true, 'page-wide desk-split': isDesktop } : 'ann-page--phone'"
   >
     <q-pull-to-refresh @refresh="onPull">
+      <!-- Desktop: search pinned at the top of the list, not floating over it. -->
+      <SearchDock
+        v-if="isDesktop && !loading && mine.length"
+        v-model="query"
+        inline
+        class="desk-search"
+        :filter-count="filterCount"
+        placeholder="Search announcements"
+        search-label="Search announcements"
+        @open-filters="filtersOpen = true"
+      />
       <div v-if="loading" class="stack">
         <q-skeleton type="rect" height="120px" class="sk" />
         <q-skeleton type="rect" height="70px" class="sk" />
@@ -27,7 +38,14 @@
             title="Nothing sent yet"
             message="Notices you send your boarders are listed here."
           />
-          <div v-for="a in mine" :key="a.id" class="item" :class="{ 'item--on': a.id === selectedId }">
+          <EmptyState
+            v-else-if="!visible.length"
+            variant="compact"
+            icon="lucide:search-x"
+            title="Nothing matches"
+            message="Try a different search or filter."
+          />
+          <div v-for="a in visible" :key="a.id" class="item" :class="{ 'item--on': a.id === selectedId }">
             <!-- Opens beside the list on a tablet or computer; a phone keeps
                  the plain list it always had. -->
             <component
@@ -100,16 +118,65 @@
     </SplitDetail>
 
     <!-- Outside the pull container: a fixed action must not travel with the
-         gesture. Hidden while composing, since the overlay covers it anyway. -->
-    <button
+         gesture. Hidden while composing, since the overlay covers it anyway.
+         Search rides the same band, with New announcement as its leading
+         action (as Report a concern does on the student's Concerns). -->
+    <SearchDock
       v-if="!isTablet && !loading && accommodations.length && !composeOpen"
-      type="button"
-      class="fab"
-      @click="composeOpen = true"
+      v-model="query"
+      :filter-count="filterCount"
+      :no-filters="!mine.length"
+      placeholder="Search announcements"
+      search-label="Search announcements"
+      @open-filters="filtersOpen = true"
     >
-      <IconifyIcon icon="lucide:megaphone" width="17" />
-      New announcement
-    </button>
+      <template #action>
+        <button type="button" class="dock-btn" aria-label="New announcement" @click="composeOpen = true">
+          <IconifyIcon icon="lucide:megaphone" width="17" />
+          <span class="dock-btn-label">New announcement</span>
+        </button>
+      </template>
+    </SearchDock>
+
+    <BottomSheet
+      v-model="filtersOpen"
+      title="Filters"
+      @clear="status = 'all'; houseId = 'all'"
+    >
+      <div v-if="accommodations.length > 1" class="sheet-block">
+        <span class="sheet-label">Property</span>
+        <div class="m-chips">
+          <button type="button" class="m-chip" :class="{ 'm-chip--on': houseId === 'all' }" @click="houseId = 'all'">
+            All
+          </button>
+          <button
+            v-for="h in accommodations"
+            :key="h.id"
+            type="button"
+            class="m-chip"
+            :class="{ 'm-chip--on': houseId === h.id }"
+            @click="houseId = h.id"
+          >
+            {{ h.name }}
+          </button>
+        </div>
+      </div>
+      <div class="sheet-block">
+        <span class="sheet-label">Status</span>
+        <div class="m-chips">
+          <button
+            v-for="f in STATUS_FILTERS"
+            :key="f.key"
+            type="button"
+            class="m-chip"
+            :class="{ 'm-chip--on': status === f.key }"
+            @click="status = f.key"
+          >
+            {{ f.label }}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
 
     <AnnouncementCompose
       v-if="composeOpen && !isDesktop"
@@ -130,6 +197,8 @@ import { errorMessage } from '@/utils/errors'
 import { formatDate } from '@/utils/format'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import EmptyState from '@/components/shared/EmptyState.vue'
+import SearchDock from '@/components/shared/SearchDock.vue'
+import BottomSheet from '@/components/shared/BottomSheet.vue'
 import SplitDetail from '@/components/shared/SplitDetail.vue'
 import AnnouncementCompose, { type AnnouncementDraft } from '@/components/manager/AnnouncementCompose.vue'
 
@@ -180,13 +249,44 @@ function houseName(id: string | null) {
   return accommodations.value.find((a) => a.id === id)?.name ?? 'Your accommodation'
 }
 
-function statusOf(a: Mine) {
-  if (!a.published_at) return 'Draft'
-  const published = new Date(a.published_at)
-  if (published.getTime() > Date.now()) return `Scheduled ${formatDate(a.published_at)}`
-  if (a.expires_at && new Date(a.expires_at).getTime() < Date.now()) return 'Ended'
-  return `Sent ${formatDate(a.published_at)}`
+const STATUS_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'sent', label: 'Sent' },
+  { key: 'scheduled', label: 'Scheduled' },
+  { key: 'ended', label: 'Ended' },
+  { key: 'draft', label: 'Draft' },
+] as const
+type StatusKey = Exclude<(typeof STATUS_FILTERS)[number]['key'], 'all'>
+
+function statusKey(a: Mine): StatusKey {
+  if (!a.published_at) return 'draft'
+  if (new Date(a.published_at).getTime() > Date.now()) return 'scheduled'
+  if (a.expires_at && new Date(a.expires_at).getTime() < Date.now()) return 'ended'
+  return 'sent'
 }
+
+function statusOf(a: Mine) {
+  const key = statusKey(a)
+  if (key === 'draft') return 'Draft'
+  if (key === 'ended') return 'Ended'
+  return `${key === 'scheduled' ? 'Scheduled' : 'Sent'} ${formatDate(a.published_at)}`
+}
+
+const query = ref('')
+const status = ref<(typeof STATUS_FILTERS)[number]['key']>('all')
+const houseId = ref('all')
+const filtersOpen = ref(false)
+const filterCount = computed(() => Number(status.value !== 'all') + Number(houseId.value !== 'all'))
+
+const visible = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  return mine.value.filter((a) => {
+    if (status.value !== 'all' && statusKey(a) !== status.value) return false
+    if (houseId.value !== 'all' && a.accommodation_id !== houseId.value) return false
+    if (!q) return true
+    return [a.title, a.summary, a.body, a.location, houseName(a.accommodation_id)].some((t) => t?.toLowerCase().includes(q))
+  })
+})
 
 /** `silent` skips the skeleton, so a pull-to-refresh spinner is the only chrome. */
 async function load(silent = false) {
