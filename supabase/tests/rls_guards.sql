@@ -783,7 +783,7 @@ begin
     o5 := case when v_seen = 0 then 'PASS' else 'FAIL - sees ' || v_seen || ' rounds of other listings' end;
     reset role;
 
-    -- Sent back with the fire safety permit flagged a minute ago.
+    -- Sent back with the fire safety certificate flagged a minute ago.
     perform set_config('request.jwt.claims', '', true);
     update public.accommodations set status = 'needs_revision' where id = v_acc;
     insert into public.accreditation_rounds (accommodation_id, round, kind, submitted_at, decided_at, decision, flagged_docs)
@@ -795,7 +795,7 @@ begin
       o6 := 'FAIL - resubmitted without replacing the flagged permit';
     exception when others then
       get stacked diagnostics v_msg = message_text;
-      o6 := case when v_msg like 'Replace the fire safety permit%' then 'PASS - ' || v_msg else 'FAIL - wrong refusal: ' || v_msg end;
+      o6 := case when v_msg like 'Replace the fire safety certificate%' then 'PASS - ' || v_msg else 'FAIL - wrong refusal: ' || v_msg end;
     end;
     reset role;
 
