@@ -64,7 +64,7 @@
       <q-form
         ref="registerFormRef"
         class="col column no-wrap"
-        @submit.prevent="() => isLastStep && handleRegister(false)"
+        @submit.prevent="() => (isLastStep ? handleRegister(false) : nextStep())"
       >
         <div ref="stepsEl" class="steps col">
           <!-- One question per screen, and the question is the screen's title.

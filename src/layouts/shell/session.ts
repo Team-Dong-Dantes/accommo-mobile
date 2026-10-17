@@ -10,7 +10,7 @@ import { startPush } from '@/utils/push'
 import type { createShellNav } from './nav'
 
 export function createShellSession(ctx: ReturnType<typeof createShellNav>) {
-  const { router, notifications, messagesStore, role, userInitials, profileImageUrl, tenantsNeedCheck, profileNeedsCheck, concernsNeedCheck, discoverNeedCheck, onScroll } = ctx
+  const { router, notifications, messagesStore, role, userInitials, profileImageUrl, tenantsNeedCheck, profileNeedsCheck, concernsNeedCheck, onScroll } = ctx
   onMounted(async () => {
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('accommo:avatar-change', onAvatarChange)
@@ -87,18 +87,19 @@ export function createShellSession(ctx: ReturnType<typeof createShellNav>) {
   //
   // The landlord/landlady's signals are exact-state checks (a lease sitting at 'pending', a
   // concern sitting at 'open') that self-clear the instant someone acts on the
-  // row. Concerns has no per-student "seen this response" column, and
-  // accommodations has no per-student "seen this listing" column either — so
-  // the student side uses a rolling time window instead (a concern resolved
-  // in the last few days, a listing accredited in the last week): still
-  // self-clearing (it ages out on its own), just on a timer instead of a
-  // status flip.
+  // row. Concerns has no per-student "seen this response" column, so the
+  // student side uses a rolling time window instead (a concern resolved in the
+  // last few days): still self-clearing (it ages out on its own), just on a
+  // timer instead of a status flip.
+  //
+  // Discover had one too — "a listing accredited in the last week" — and it was
+  // removed: with no seen state it stayed lit for the whole week after the
+  // student had already looked, so it read as noise rather than news.
   const CONCERN_WINDOW_DAYS = 3
-  const LISTING_WINDOW_DAYS = 7
 
   async function loadNeedsCheckDots(userId: string) {
     const isManager = role.value === 'manager'
-    const [tenants, docs, concerns, listings, gaps] = await Promise.all([
+    const [tenants, docs, concerns, gaps] = await Promise.all([
       isManager
         ? countLeasesAwaitingManager(userId).then((count) => ({ count }))
         : Promise.resolve({ count: 0 }),
@@ -119,20 +120,12 @@ export function createShellSession(ctx: ReturnType<typeof createShellNav>) {
             .in('status', ['resolved', 'rejected'])
             .gte('updated_at', new Date(Date.now() - CONCERN_WINDOW_DAYS * 86400000).toISOString())
             .eq('leases.student_id', userId),
-      isManager
-        ? Promise.resolve({ count: 0 })
-        : supabase
-            .from('accommodations')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'accredited')
-            .gte('accredited_at', new Date(Date.now() - LISTING_WINDOW_DAYS * 86400000).toISOString()),
       loadProfileGaps(userId, !isManager),
     ])
     tenantsNeedCheck.value = Boolean(tenants.count)
     // A rejected document, or something on the profile still blank (see CompleteProfilePage).
     profileNeedsCheck.value = Boolean(docs.count) || gaps.some((g) => g.needed)
     concernsNeedCheck.value = Boolean(concerns.count)
-    discoverNeedCheck.value = Boolean(listings.count)
   }
 
   // CompleteProfilePage fires this after each saved step, so the dot clears without a relaunch.
@@ -148,7 +141,6 @@ export function createShellSession(ctx: ReturnType<typeof createShellNav>) {
 
   return {
     CONCERN_WINDOW_DAYS,
-    LISTING_WINDOW_DAYS,
     loadNeedsCheckDots,
     shellUserId,
     onProfileChange,

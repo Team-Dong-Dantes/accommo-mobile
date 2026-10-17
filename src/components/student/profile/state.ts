@@ -199,7 +199,7 @@ export function createStudentProfile() {
         },
         { onConflict: 'user_id' },
       )
-      // student_profiles_student_id_key: someone else already registered it.
+      // guard_verified_student_id: a verified account already has it.
       if (profileError?.code === '23505') throw new Error('That student ID is already registered to another account.')
       if (profileError) throw profileError
 

@@ -213,7 +213,11 @@ const {
   margin: 0 calc(var(--m-page-gutter) * -1);
   /* Extra bottom room so the last row isn't hidden under the fixed dock —
      this page has no bottom nav/FAB to clear, just the dock itself. */
-  padding: 14px 14px 84px;
+  /* No side padding here: each tab carries its own (.m-panels .tab-panel).
+     QTabPanels clips its overflow for the swipe, so with the 14px on this box
+     the tabs' full-width sections (margin: 0 -14px — Ratings, Payments, the
+     past-boarders list) were cut off at both edges. */
+  padding: 14px 0 84px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius) var(--m-radius) 0 0;
   background: var(--m-surface);
@@ -222,6 +226,10 @@ const {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+/* Beats _controls.scss's `.m-panels .q-tab-panel { padding: 0 }`. */
+.m-panels .tab-panel {
+  padding: 0 14px;
 }
 
 .review-field {

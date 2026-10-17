@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, buildStatement, dueNowRows, flatFees, isBillSettled, manilaToday, minPayment, nextLedgerRent, nextRentMonth, paymentTitle, referenceProblem, tenantMonthlyRent, toLedger, type RentPayment } from './payments'
+import { ADVANCE_TAG, BILL_TAG, DEPOSIT_TAG, buildStatement, dueNowRows, flatFees, formatReference, isBillSettled, manilaToday, minPayment, nextLedgerRent, nextRentMonth, paymentTitle, referenceProblem, tenantMonthlyRent, toLedger, type RentPayment } from './payments'
 
 const rent = (month: string, status: string): RentPayment => ({ month, status, description: '' })
 
@@ -113,6 +113,15 @@ describe('ledger helpers', () => {
     expect(minPayment(row(800), true, 50)).toBe(800)
     expect(minPayment(row(733.33, 733.33), true, 50)).toBe(367)
   })
+  it('formatReference: cuts into groups and stops at the maximum', () => {
+    expect(formatReference('gcash', '1234567890123')).toBe('1234 567 890123')
+    expect(formatReference('gcash', '1234 5678a90-12399999')).toBe('1234 567 890123')
+    expect(formatReference('gcash', '12345')).toBe('1234 5')
+    expect(formatReference('gcash', '')).toBe('')
+    expect(formatReference('bank', 'ab-12 34cd')).toBe('AB12 34CD')
+    expect(formatReference('maya', 'x'.repeat(40))).toBe(('XXXX '.repeat(7) + 'XX'))
+  })
+
   it('referenceProblem: GCash is 13 digits, others 6-30 alphanumerics', () => {
     expect(referenceProblem('gcash', '1234 567 890 123')).toBeNull()
     expect(referenceProblem('gcash', '12345')).toMatch(/13 digits/)

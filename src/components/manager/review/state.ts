@@ -1,7 +1,7 @@
 // Reviewing one transfer: loading it with the items it paid, then confirming
 // it (typed CONFIRM) or sending it back with a reason.
 import { AVATAR, resolveAsset } from '@/utils/cloudinaryUrl'
-import { BILL_TAG, type LedgerRow, toLedger } from '@/utils/payments'
+import { BILL_TAG, formatReference, type LedgerRow, toLedger } from '@/utils/payments'
 import { PAYMENT_METHOD_LABEL, formatDate, formatMonth, formatPesoExact } from '@/utils/format'
 import { REASONS, type Row } from './model'
 import { type Seed } from './model'
@@ -40,11 +40,11 @@ export function createPaymentReview(ctx: Seed) {
   const firstName = computed(() => who.value.name.split(' ')[0] || 'The student')
   const reviewer = computed(() => (pending.value ? '' : first.value?.verified_by_user?.full_name ?? ''))
   const headline = computed(() => {
-    if (pending.value) return cash.value ? 'Cash to confirm' : 'To confirm'
+    if (pending.value) return props.student ? 'Waiting to be confirmed' : cash.value ? 'Cash to confirm' : 'To confirm'
     return status.value === 'paid' ? 'Confirmed' : status.value === 'rejected' ? 'Sent back' : status.value === 'withdrawn' ? 'Taken back' : status.value === 'waived' ? 'Forgiven' : status.value
   })
 
-  const proofCaption = computed(() => `${who.value.name} · ${capitalize(whatList.value)}`)
+  const proofCaption = computed(() => `${props.student ? 'What you sent' : who.value.name} · ${capitalize(whatList.value)}`)
   const proofCompare = computed(() =>
     pending.value
       ? { reference: first.value?.txn_reference ?? '', amount: formatPesoExact(total.value), method: methodLabel.value, sent: formatDate(sentAt.value) }
@@ -93,7 +93,7 @@ export function createPaymentReview(ctx: Seed) {
           one.batch_id ? supabase.from('payments').select(cols).eq('batch_id', one.batch_id) : supabase.from('payments').select(cols).eq('id', id),
           supabase
             .from('leases')
-            .select('users!leases_student_id_fkey(full_name,avatar_color,avatar_url),rooms(label,room_number,accommodations(name))')
+            .select('users!leases_student_id_fkey(full_name,avatar_color,avatar_url),landlord:users!leases_landlord_id_fkey(full_name,avatar_color,avatar_url),rooms(label,room_number,accommodations(name))')
             .eq('id', one.lease_id)
             .single(),
           supabase.rpc('lease_ledger', { p_lease: one.lease_id }),
@@ -105,13 +105,15 @@ export function createPaymentReview(ctx: Seed) {
         rows.value = list.sort((a, b) => a.kind.localeCompare(b.kind) || a.month.localeCompare(b.month))
         ledger.value = toLedger(led)
         billUtility.value = Object.fromEntries((bills ?? []).map((b) => [b.id, b.utility as UtilityKey]))
-        const student = lease?.users as unknown as { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
+        // The other side of the payment: the student for the landlord/landlady, and the reverse.
+        type Person = { full_name: string | null; avatar_color: string | null; avatar_url: string | null } | null
+        const person = (props.student ? lease?.landlord : lease?.users) as unknown as Person
         const room = lease?.rooms as unknown as { label: string | null; room_number: string | null; accommodations: { name: string | null } | null } | null
         who.value = {
-          name: student?.full_name || 'A student',
+          name: person?.full_name || (props.student ? 'Your landlord/landlady' : 'A student'),
           place: [room?.label || (room?.room_number ? `Room ${room.room_number}` : ''), room?.accommodations?.name].filter(Boolean).join(' · '),
-          avatar: student?.avatar_url ? resolveAsset(student.avatar_url, AVATAR) : '',
-          color: student?.avatar_color ?? null,
+          avatar: person?.avatar_url ? resolveAsset(person.avatar_url, AVATAR) : '',
+          color: person?.avatar_color ?? null,
         }
       } catch (e) {
         notify.error(errorMessage(e, 'Could not load this payment.'))
@@ -152,7 +154,7 @@ export function createPaymentReview(ctx: Seed) {
   async function confirm() {
     const checks = cash.value
       ? [`I have ${formatPesoExact(total.value)} in cash from ${firstName.value}`]
-      : [`I see ${formatPesoExact(total.value)} in my ${methodLabel.value}`, ...(first.value.txn_reference ? [`The reference matches ${first.value.txn_reference}`] : [])]
+      : [`I see ${formatPesoExact(total.value)} in my ${methodLabel.value}`, ...(first.value.txn_reference ? [`The reference matches ${formatReference(first.value.method, first.value.txn_reference)}`] : [])]
     const ok = await confirmMoney(
       `Did ${formatPesoExact(total.value)} really reach you?`,
       `Confirming marks ${whatList.value} as paid for ${firstName.value}. This can't be undone.`,

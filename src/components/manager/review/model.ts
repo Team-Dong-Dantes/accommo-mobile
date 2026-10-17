@@ -31,6 +31,6 @@ export interface Row {
 
 /** What the component hands its state: its props and emit. */
 export interface Seed {
-  props: { modelValue: boolean; paymentId: string | null }
+  props: { modelValue: boolean; paymentId: string | null; student?: boolean }
   emit: { (e: 'update:modelValue', open: boolean): void; (e: 'changed'): void }
 }

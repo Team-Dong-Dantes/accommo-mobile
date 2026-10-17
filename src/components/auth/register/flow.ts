@@ -8,6 +8,8 @@ import { isSignupDatabaseError, readOAuthError, supabase } from '@/utils/supabas
 import type { createRegisterForm } from './form'
 import type { createRegisterGoogle } from './google'
 
+const STUDENT_ID_TAKEN = 'This Student ID belongs to a verified account. Please double check it, or log in if it is yours.'
+
 export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & ReturnType<typeof createRegisterGoogle>) {
   const { router, route, notify, authStore, isManager, registerPath, stepIndex, agreedToTerms, CONSENT_MARKER, registerFormRef, stepsEl, isGoogleMode, googleUserId, emailCreated, emailVerified, creatingAccount, loading, isResubmit, decisionReason, steps, current, isLastStep, form, clearDraft, draft, syncFullName, fillFromGoogleSession, GOOGLE_REJECTED, adoptGoogleSession, saveGooglePassword } = ctx
   let createdUserId: string | null = null
@@ -122,6 +124,8 @@ export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & 
 
   async function nextStep() {
     if (!registerFormRef.value) return
+    // The button is disabled here, but Enter on the code field submits the form too.
+    if (current.value === 'verify' && !emailVerified.value) return
     const success = await registerFormRef.value.validate()
     if (!success) {
       revealFirstError()
@@ -135,6 +139,15 @@ export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & 
       const ok = isGoogleMode.value ? await saveGooglePassword() : await createAccountNow()
       if (ok) goToStep(stepIndex.value + 1)
       return
+    }
+
+    // Leaving Student ID: say so now, not three screens later at submit.
+    if (current.value === 'studentId') {
+      form.studentId = composeStudentId(form.studentIdYear, form.studentIdNumber)
+      if (await studentIdTaken()) {
+        notify.error(STUDENT_ID_TAKEN)
+        return
+      }
     }
 
     if (!isLastStep.value) goToStep(stepIndex.value + 1)
@@ -212,14 +225,18 @@ export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & 
     void handleRegister(true)
   }
 
-  /** The student ID is unique across accounts; catching it here saves a round trip into a failed submit. */
+  /**
+   * Whether a verified account already has this student ID. Only a verified
+   * holder blocks: an unverified claim cannot lock the real student out
+   * (migration 20261017010000). The database refuses the clash on its own too.
+   */
   async function studentIdTaken(): Promise<boolean> {
     if (!form.studentId) return false
     try {
       const { data } = await supabase.rpc('check_student_id_exists', { p_student_id: form.studentId })
       return data === true
     } catch {
-      // Re-validated server side on submit.
+      // Re-validated server side on submit (also where a rate-limited check lands).
       return false
     }
   }
@@ -282,7 +299,7 @@ export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & 
       }
 
       if (await studentIdTaken()) {
-        notify.error('This Student ID is already registered. Please double check or log in.')
+        notify.error(STUDENT_ID_TAKEN)
         return
       }
 

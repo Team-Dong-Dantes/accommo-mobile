@@ -57,7 +57,7 @@ import { errorMessage } from '@/utils/errors'
 import { signRows } from '@/utils/upload'
 import { printHtml, shareHtml } from '@/utils/print'
 import { formatMonth, formatPesoExact, parseServerTime, PAYMENT_METHOD_LABEL, PAYMENT_STATUS } from '@/utils/format'
-import { paymentTitle } from '@/utils/payments'
+import { formatReference, paymentTitle } from '@/utils/payments'
 
 // One finished payment as a receipt. Shared by both roles (the student's History
 // and the landlord's): RLS lets each read only their own side, the screen is the
@@ -141,7 +141,7 @@ const rows = computed(() => {
     { k: 'Paid to', v: place || 'Your accommodation' },
     { k: 'Method', v: method.value },
   ]
-  if (p.txn_reference) list.push({ k: 'Reference no.', v: p.txn_reference, mono: true })
+  if (p.txn_reference) list.push({ k: 'Reference no.', v: formatReference(p.method, p.txn_reference), mono: true })
   list.push({ k: 'Sent', v: when(p.created_at) })
   if (p.paid_at || by) list.push({ k: label, v: `${p.paid_at ? when(p.paid_at) : ''}${by ? `${p.paid_at ? ' by ' : 'By '}${by}` : ''}` })
   if (p.receipt_no) list.push({ k: 'Receipt no.', v: p.receipt_no, mono: true })

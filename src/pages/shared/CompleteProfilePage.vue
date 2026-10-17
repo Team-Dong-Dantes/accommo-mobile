@@ -176,7 +176,7 @@ async function save(key: ProfileGapKey): Promise<string> {
     const id = form.studentId.trim()
     if (!isStudentId(id)) return 'Enter your student ID as YY-NNNN, e.g. 25-01234.'
     const { error } = await supabase.from('student_profiles').upsert({ user_id: userId.value, student_id: id }, { onConflict: 'user_id' })
-    // student_profiles_student_id_key: someone else already registered it.
+    // guard_verified_student_id: a verified account already has it.
     if (error?.code === '23505') return 'That student ID is already registered to another account.'
     return error ? error.message : ''
   }

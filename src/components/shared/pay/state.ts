@@ -4,7 +4,7 @@ import { METHODS, type Method } from './model'
 import { type Seed } from './model'
 import { computed, ref, watch } from 'vue'
 import { errorMessage } from '@/utils/errors'
-import { fileFingerprint, minPayment, normalizeReference, referenceProblem } from '@/utils/payments'
+import { fileFingerprint, formatReference, minPayment, normalizeReference, referenceProblem } from '@/utils/payments'
 import { formatPesoExact, landlordTitle } from '@/utils/format'
 import { supabase } from '@/utils/supabase'
 import { uploadSecureDocument } from '@/utils/upload'
@@ -57,6 +57,8 @@ export function createPaySheet(ctx: Seed) {
       .filter((q) => q.value + 0.009 >= minAmount.value),
   )
   const refProblem = computed(() => referenceProblem(method.value, reference.value))
+  // A reference typed before switching method is re-cut (and re-capped) for the new one.
+  watch(method, (m) => { reference.value = formatReference(m, reference.value) })
   const resubmitTitle = computed(() => (props.resubmit?.reason.includes('\n') ? props.resubmit.reason.split('\n')[0] : 'see why below'))
   const resubmitText = computed(() => {
     const r = props.resubmit?.reason ?? ''

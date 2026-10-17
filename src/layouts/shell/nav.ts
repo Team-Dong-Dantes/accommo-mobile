@@ -52,7 +52,6 @@ export function createShellNav() {
     config.value.tabs.map((tab) => {
       if (tab.name === 'messages') return { ...tab, badge: messagesStore.totalUnread }
       if (tab.name === 'tenants') return { ...tab, dot: tenantsNeedCheck.value }
-      if (tab.name === 'discover') return { ...tab, dot: discoverNeedCheck.value }
       if (tab.name === 'menu') return { ...tab, dot: profileNeedsCheck.value }
       return tab
     }),
@@ -95,12 +94,11 @@ export function createShellNav() {
   const profileImageUrl = ref<string | null>(null)
   // Needs-checking dots: each is a plain existence check against a status that
   // clears itself the moment the underlying row is acted on, so there's no
-  // separate "seen/unseen" state to maintain — except discover/concerns below,
-  // which use a rolling time window instead (see loadNeedsCheckDots).
+  // separate "seen/unseen" state to maintain — except concerns below,
+  // which uses a rolling time window instead (see loadNeedsCheckDots).
   const tenantsNeedCheck = ref(false)
   const profileNeedsCheck = ref(false)
   const concernsNeedCheck = ref(false)
-  const discoverNeedCheck = ref(false)
   const menuOpen = ref(false)
   const scrolled = ref(false)
   const activeBottomTab = ref('home')
@@ -267,7 +265,6 @@ export function createShellNav() {
     tenantsNeedCheck,
     profileNeedsCheck,
     concernsNeedCheck,
-    discoverNeedCheck,
     menuOpen,
     scrolled,
     activeBottomTab,

@@ -15,7 +15,48 @@ import { Keyboard } from '@capacitor/keyboard'
 // the layout no longer reacts to the keyboard at all. This stays because it is
 // the hook any bottom bar would need if one ever does — the chat composer is the
 // likely candidate — and it costs two listeners. Delete it if that never comes.
+// The keyboard's Next/Enter key walks the form: next visible field, and from
+// the last one it submits the form (Register's submit is "next step"). Without
+// this Enter did nothing on most screens — implicit submission needs a submit
+// button or a lone field, and most of the app's forms are inputs in a sheet,
+// not a <form> at all. Off a <form>, the last field is left to its own
+// @keyup.enter (Find, Verify, Change email), so those are untouched.
+const TYPING = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button]):not([type=submit]):not([type=range]), textarea'
+
+function fieldsAround(el: HTMLElement): { next: HTMLElement | undefined; form: HTMLFormElement | null } {
+  const form = el.closest('form')
+  const scope = form ?? el.closest('.q-dialog, .q-page') ?? document.body
+  const fields = [...scope.querySelectorAll<HTMLInputElement>(TYPING)]
+    .filter((f) => f === el || (!f.disabled && !f.readOnly && f.getClientRects().length))
+  return { next: fields[fields.indexOf(el as HTMLInputElement) + 1], form }
+}
+
+function onEnter(e: KeyboardEvent) {
+  const el = e.target as HTMLElement
+  // A textarea's Enter is a newline; QSelect's picks an option and prevents it.
+  if (e.key !== 'Enter' || e.isComposing || e.defaultPrevented || !(el instanceof HTMLInputElement) || !el.matches(TYPING)) return
+  const { next, form } = fieldsAround(el)
+  if (next) {
+    e.preventDefault()
+    next.focus()
+  } else if (form) {
+    e.preventDefault()
+    form.requestSubmit()
+  }
+}
+
+// The key's label, set as the field gains focus so the keyboard opens with it.
+function onFocus(e: FocusEvent) {
+  const el = e.target as HTMLElement
+  if (el instanceof HTMLInputElement && el.matches(TYPING) && !el.hasAttribute('enterkeyhint') && fieldsAround(el).next) {
+    el.enterKeyHint = 'next'
+  }
+}
+
 export default defineBoot(() => {
+  document.addEventListener('keydown', onEnter)
+  document.addEventListener('focusin', onFocus)
+
   if (!Capacitor.isNativePlatform()) return
 
   // Two facts, one source. The height is what the scrollers pad themselves by;

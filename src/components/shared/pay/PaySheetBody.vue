@@ -89,13 +89,14 @@
     <label class="mx-field">
       <span class="mx-label">{{ PAYMENT_METHOD_LABEL[method] }} reference number</span>
       <input
-        v-model="reference"
+        :value="reference"
         type="text"
         class="mx-input mx-input--mono"
         :class="{ 'mx-input--bad': refProblem || serverRefProblem }"
         :inputmode="method === 'gcash' ? 'numeric' : 'text'"
         :placeholder="method === 'gcash' ? '13-digit GCash reference' : 'Reference number'"
-        @input="serverRefProblem = ''"
+        autocomplete="off"
+        @input="onReference"
       />
       <span v-if="refProblem || serverRefProblem" class="mx-hint mx-hint--bad">{{ serverRefProblem || refProblem }}</span>
       <span v-else-if="props.resubmit && reference && normalizeReference(reference) !== props.resubmit.reference" class="mx-hint ps-ok">
@@ -130,7 +131,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { METHODS } from './model'
 import { PAYMENT_METHOD_LABEL, formatPesoExact } from '@/utils/format'
 import PayItemList from '@/components/shared/PayItemList.vue'
-import { manilaToday, normalizeReference } from '@/utils/payments'
+import { formatReference, manilaToday, normalizeReference } from '@/utils/payments'
 import { usePaySheet } from './paySheet'
 
 const {
@@ -163,6 +164,14 @@ const {
   copyText,
   onProof,
 } = usePaySheet()
+
+// Written back to the field as well: a 14th GCash digit formats to the same
+// value, so Vue would see no change and leave the extra digit on screen.
+function onReference(e: Event) {
+  const el = e.target as HTMLInputElement
+  el.value = reference.value = formatReference(method.value, el.value)
+  serverRefProblem.value = ''
+}
 </script>
 
 <style scoped>

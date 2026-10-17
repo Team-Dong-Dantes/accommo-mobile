@@ -27,8 +27,13 @@
 
     <PaymentReviewBody />
 
-    <template v-if="!loading && rows.length && (pending || mode === 'reject')" #footer>
-      <div v-if="mode === 'reject'" class="mx-foot">
+    <template v-if="!loading && rows.length && (student ? pending || (status === 'rejected' && resend) : pending || mode === 'reject')" #footer>
+      <!-- The student's side: take back what is still waiting, or fix what came back. -->
+      <div v-if="student" class="mx-foot">
+        <button v-if="pending" type="button" class="mx-btn mx-btn--reject" :disabled="busy" @click="emit('withdraw')">Take it back</button>
+        <button v-else type="button" class="mx-btn" @click="emit('resubmit')">Fix and send again</button>
+      </div>
+      <div v-else-if="mode === 'reject'" class="mx-foot">
         <button type="button" class="mx-btn mx-btn--danger" :disabled="busy || !reasonText" @click="reject">
           {{ busy ? 'Rejecting…' : 'Reject and ask to resend' }}
         </button>
@@ -65,8 +70,12 @@ import { providePaymentReview } from './review/paymentReview'
 // so a payment that covered rent and a bill is confirmed or sent back as one.
 // Confirming can't be undone, so it ends with the typed CONFIRM step; rejecting
 // needs a reason the student reads before they send it again.
-const props = defineProps<{ modelValue: boolean; paymentId: string | null }>()
-const emit = defineEmits<{ 'update:modelValue': [boolean]; changed: [] }>()
+//
+// `student` turns it round for the student who sent it (My Stay): the header
+// names the landlord/landlady, and the footer takes it back or resends it.
+// `resend` is whether this lease can still take a corrected payment.
+const props = defineProps<{ modelValue: boolean; paymentId: string | null; student?: boolean; resend?: boolean }>()
+const emit = defineEmits<{ 'update:modelValue': [boolean]; changed: []; withdraw: []; resubmit: [] }>()
 
 const {
   loading,
@@ -76,6 +85,7 @@ const {
   busy,
   viewer,
   pending,
+  status,
   methodLabel,
   total,
   sentAt,

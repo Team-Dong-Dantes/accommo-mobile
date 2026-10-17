@@ -32,7 +32,7 @@
       <div class="rv-amount">
         <span class="rv-kicker" :class="pending ? 'rv-status--blue' : `rv-status--${statusColor(PAYMENT_STATUS, status)}`">{{ headline }}</span>
         <span class="rv-big">{{ formatPesoExact(total) }}</span>
-        <span class="rv-by">{{ cash ? 'no receipt for cash, so only you can tell' : `by ${methodLabel}` }}</span>
+        <span class="rv-by">{{ cash ? (props.student ? 'handed over in cash' : 'no receipt for cash, so only you can tell') : `by ${methodLabel}` }}</span>
       </div>
       <button v-if="proof" type="button" class="rv-proof" aria-label="Open receipt screenshot" @click="viewer = proof">
         <img :src="proof" alt="" />
@@ -67,9 +67,9 @@
     </div>
 
     <div v-if="!partial && (first.txn_reference || first.note || first.receipt_no)" class="mx-field">
-      <h3 class="rv-h">{{ pending && !cash ? `Check against your ${methodLabel}` : 'Details' }}</h3>
+      <h3 class="rv-h">{{ pending && !cash && !props.student ? `Check against your ${methodLabel}` : 'Details' }}</h3>
       <div class="mx-list">
-        <div v-if="first.txn_reference" class="mx-kv"><span class="mx-kv-key">Reference no.</span><span class="mx-kv-val rv-mono">{{ first.txn_reference }}</span></div>
+        <div v-if="first.txn_reference" class="mx-kv"><span class="mx-kv-key">Reference no.</span><span class="mx-kv-val rv-mono">{{ formatReference(first.method, first.txn_reference) }}</span></div>
         <div v-if="first.receipt_no" class="mx-kv"><span class="mx-kv-key">Receipt no.</span><span class="mx-kv-val">{{ first.receipt_no }}</span></div>
         <div v-if="first.note" class="mx-kv"><span class="mx-kv-key">{{ status === 'waived' ? 'Why forgiven' : 'Note' }}</span><span class="mx-kv-val rv-light">{{ first.note }}</span></div>
       </div>
@@ -89,9 +89,11 @@
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { PAYMENT_STATUS, formatDate, formatPesoExact, statusColor } from '@/utils/format'
 import { REASONS } from './model'
+import { formatReference } from '@/utils/payments'
 import { usePaymentReview } from './paymentReview'
 
 const {
+  props,
   loading,
   rows,
   mode,

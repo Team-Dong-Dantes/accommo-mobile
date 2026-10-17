@@ -170,6 +170,22 @@ export function normalizeReference(ref: string): string {
   return ref.replace(/[\s-]/g, '').toUpperCase()
 }
 
+/**
+ * The reference as it should read: cut into groups, and stopped at the most a
+ * valid one can hold (13 digits for GCash, 30 characters otherwise), so the
+ * field refuses the extra keystroke instead of the submit refusing the whole.
+ * GCash is 4-3-6, the way its receipt prints it; the rest go in fours.
+ * normalizeReference strips the spaces again before anything is saved.
+ */
+export function formatReference(method: string, ref: string): string {
+  const r = normalizeReference(ref)
+  if (method === 'gcash') {
+    const d = r.replace(/\D/g, '').slice(0, 13)
+    return [d.slice(0, 4), d.slice(4, 7), d.slice(7)].filter(Boolean).join(' ')
+  }
+  return r.replace(/[^A-Z0-9]/g, '').slice(0, 30).replace(/(.{4})(?=.)/g, '$1 ')
+}
+
 /** Why a reference would be refused, or null. GCash has 13 digits. */
 export function referenceProblem(method: string, ref: string): string | null {
   const r = normalizeReference(ref)

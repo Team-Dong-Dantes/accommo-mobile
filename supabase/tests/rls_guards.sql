@@ -28,6 +28,7 @@
 --   PY1-PY18  PASS
 --   MA1-MA3  PASS
 --   AN1  PASS
+--   SI1-SI6  PASS
 
 -- The guards date things in Manila; current_date here must too. In UTC (CI)
 -- it is yesterday from 16:00 UTC on, so every move-in was "in the past".
@@ -1414,6 +1415,69 @@ language sql as $$
    where has_table_privilege('anon', 'public.' || t, 'select, insert, update, delete')
 $$;
 
+-- Student IDs (20261017010000): only a verified holder owns the number.
+-- Student one is OSAS-verified in the fixture, student two is not.
+create or replace function pg_temp.student_id_check() returns table(test text, outcome text)
+language plpgsql as $$
+declare
+  v_verified uuid := '00000000-0000-0000-0000-00000000b001';
+  v_claimant uuid := '00000000-0000-0000-0000-00000000b002';
+  v_msg text; v_state text; v_bool boolean;
+  o1 text; o2 text; o3 text; o4 text; o5 text;
+begin
+  if not exists (select 1 from public.users where id = v_claimant) then
+    test := 'SI: student IDs'; outcome := 'SKIP - load tests/fixture.sql'; return next; return;
+  end if;
+  perform set_config('request.jwt.claims', '', true);
+  begin
+    update public.student_profiles set student_id = '99-000001' where user_id = v_verified;
+
+    perform set_config('request.jwt.claims', json_build_object('sub', v_claimant, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    o1 := case when public.check_student_id_exists('99-000001') then 'PASS' else 'FAIL - verified holder not reported' end;
+    o2 := case when public.check_student_id_exists('99-000002') then 'FAIL - unclaimed number reported taken' else 'PASS' end;
+    begin
+      update public.student_profiles set student_id = '99-000001' where user_id = v_claimant;
+      o3 := 'FAIL - claimed a verified account''s number';
+    exception when others then
+      get stacked diagnostics v_state = returned_sqlstate;
+      o3 := case when v_state = '23505' then 'PASS' else 'FAIL - ' || v_state end;
+    end;
+    -- An unverified claim must not lock the verified student out of the number.
+    update public.student_profiles set student_id = '99-000003' where user_id = v_claimant;
+    reset role;
+    perform set_config('request.jwt.claims', '', true);
+    begin
+      update public.student_profiles set student_id = '99-000003' where user_id = v_verified;
+      o4 := 'PASS';
+    exception when others then
+      get stacked diagnostics v_msg = message_text;
+      o4 := 'FAIL - ' || v_msg;
+    end;
+    -- ...and OSAS cannot verify the second claimant onto it.
+    begin
+      update public.student_profiles set osas_verified_at = now() where user_id = v_claimant;
+      o5 := 'FAIL - two verified holders of one number';
+    exception when others then
+      get stacked diagnostics v_state = returned_sqlstate;
+      o5 := case when v_state = '23505' then 'PASS' else 'FAIL - ' || v_state end;
+    end;
+    raise exception 'rollback';
+  exception when others then
+    get stacked diagnostics v_msg = message_text;
+    if v_msg <> 'rollback' then o1 := coalesce(o1, 'FAIL - ' || v_msg); end if;
+  end;
+  reset role;
+  test := 'SI1: a verified holder''s number reads as taken'; outcome := coalesce(o1, 'FAIL - not reached'); return next;
+  test := 'SI2: an unclaimed number reads as free'; outcome := coalesce(o2, 'FAIL - not reached'); return next;
+  test := 'SI3: a verified holder''s number cannot be claimed'; outcome := coalesce(o3, 'FAIL - not reached'); return next;
+  test := 'SI4: an unverified claim does not block the real student'; outcome := coalesce(o4, 'FAIL - not reached'); return next;
+  test := 'SI5: OSAS cannot verify a second holder'; outcome := coalesce(o5, 'FAIL - not reached'); return next;
+  test := 'SI6: anon cannot run the student ID check';
+  outcome := case when has_function_privilege('anon', 'public.check_student_id_exists(text)', 'execute') then 'FAIL - anon can' else 'PASS' end;
+  return next;
+end $$;
+
 select * from pg_temp.rls_check()
 union all
 select * from pg_temp.added_check()
@@ -1446,4 +1510,6 @@ select * from pg_temp.payment_check()
 union all
 select * from pg_temp.map_area_check()
 union all
-select * from pg_temp.anon_grant_check();
+select * from pg_temp.anon_grant_check()
+union all
+select * from pg_temp.student_id_check();
