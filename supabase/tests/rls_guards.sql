@@ -1431,6 +1431,10 @@ begin
   perform set_config('request.jwt.claims', '', true);
   begin
     update public.student_profiles set student_id = '99-000001' where user_id = v_verified;
+    -- The fixture marks both students' accounts verified; a real claimant is still
+    -- pending, and lock_verified_identity would otherwise refuse the edit (42501)
+    -- before the student ID guard runs.
+    update public.users set status = 'pending' where id = v_claimant;
 
     perform set_config('request.jwt.claims', json_build_object('sub', v_claimant, 'role', 'authenticated')::text, true);
     set local role authenticated;
