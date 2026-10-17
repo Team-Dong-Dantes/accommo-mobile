@@ -21,7 +21,8 @@ import { useAuthStore } from '@/stores/auth'
 // what to do about it. Unverified accounts sign in straight after registering;
 // only adding accommodations, rooms and facilities waits for OSAS (the database
 // refuses those inserts until then). Shown on the screens where that matters:
-// the dashboard, Properties and the profile.
+// Properties. Fixing a sent-back application happens on the OSAS page
+// (AccountReviewStatus), not by going back through registration.
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -35,7 +36,7 @@ const state = computed(() => {
       title: 'OSAS is verifying your account',
       text: 'You can add accommodations and rooms once it is approved.',
       action: 'View requirements',
-      to: '/manager/osas',
+      to: '/manager/osas?tab=mine',
     }
   }
   if (status === 'rejected' || status === 'needs_resubmission' || status === 'reviewing') {
@@ -45,7 +46,7 @@ const state = computed(() => {
       title: 'OSAS needs changes to your application',
       text: 'Update it to be verified. You can add accommodations and rooms once it is approved.',
       action: 'Update application',
-      to: '/register/manager?resubmit=true',
+      to: '/manager/osas?tab=mine',
     }
   }
   return null

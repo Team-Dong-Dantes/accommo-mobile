@@ -109,17 +109,13 @@ const hero = computed(() => {
   const left = 3 - done - (inReview ? 1 : 0)
   return {
     label: 'OSAS verification',
-    right: verified.value ? 'Verified' : inReview ? `Sent ${sent}` : `Step ${Math.min(done + 1, 3)} of 3`,
+    right: verified.value ? 'Verified' : inReview ? `Sent ${sent}` : '',
     big: String(done),
     of: '/ 3 steps done',
     segments: [
       ...Array.from({ length: done }, () => ({ value: 1, tone: 'primary' })),
       ...(inReview ? [{ value: 1, tone: 'info' }] : []),
       ...Array.from({ length: left }, () => ({ value: 1, tone: 'border' })),
-    ],
-    legend: [
-      { label: 'Done', value: String(done), tone: 'primary' },
-      inReview ? { label: 'In review', value: '1', tone: 'info' } : { label: 'Left', value: String(left), tone: 'muted' },
     ],
     to: '/student/support',
   }

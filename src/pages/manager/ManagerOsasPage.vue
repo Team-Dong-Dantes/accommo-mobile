@@ -87,14 +87,35 @@
                        switches when there is more than one. -->
                   <AccommodationSwitch v-model="selectedId" :accommodations="accommodations" />
 
-                  <RequirementCards :items="docs" noun="permits" done-word="valid" :busy="uploadingDoc" @upload="openUploadDialog($event)" />
+                  <!-- View only: permits are uploaded, and accreditation is
+                       submitted, renewed or appealed, from the listing's Settings. -->
+                  <RequirementCards :items="docs" noun="permits" done-word="valid" readonly />
+                  <q-btn
+                    outline
+                    rounded
+                    no-caps
+                    color="primary"
+                    :label="selected?.status === 'draft' ? 'Finish and submit in Settings' : 'Manage permits in Settings'"
+                    @click="router.push({ path: `/manager/properties/${selectedId}`, query: { tab: 'settings' } })"
+                  >
+                    <IconifyIcon icon="lucide:arrow-right" width="16" class="q-ml-sm" />
+                  </q-btn>
+                  <ReviewHistory :items="history" />
                 </template>
               </component>
 
               <!-- MY REQUIREMENTS (landlord/landlady identity, reviewed by OSAS at registration) -->
               <component :is="panelIs" v-show="!isDesktop || leftTab === 'mine'" name="mine" :class="isDesktop ? 'desk-col osas-left' : 'tab-panel'">
-                <RejectBanner :status="myStatus" :reason="rejectionReason" />
-                <RequirementCards :items="myDocs" noun="requirements" done-word="approved" replace-label="Resubmit" :busy="uploadingMyDoc" @upload="openUploadDialog($event, 'account')" />
+                <RequirementCards :items="myDocs" noun="requirements" done-word="approved" replace-label="Resubmit" :busy="uploadingMyDoc" @upload="openUploadDialog" />
+                <AccountReviewStatus
+                  :status="myStatus"
+                  :decision="myDecisions[0] ?? null"
+                  :sent-at="MY_DOC_TYPES.map((t) => myDocRows.find((d) => d.doc_type === t)?.uploaded_at ?? null)"
+                  unlocks="You can add accommodations and rooms once it is approved."
+                  :busy="resubmitting || uploadingMyDoc"
+                  @resubmit="resubmitMine"
+                />
+                <ReviewHistory :items="myHistory" />
               </component>
 
               <!-- TICKETS -->
@@ -137,9 +158,9 @@
       </div>
     </q-pull-to-refresh>
 
-    <!-- PERMIT UPLOAD FORM — a document already on file is never edited in
-         place; replacing it always goes through this fresh form. -->
-    <DocUploadModal v-model="uploadDialogOpen" :title="DOC_TYPE_LABEL[uploadDocType]" :loading="uploadingDoc || uploadingMyDoc" @submit="submitDocUpload" />
+    <!-- ACCOUNT DOCUMENT UPLOAD FORM — a document already on file is never
+         edited in place; replacing it always goes through this fresh form. -->
+    <DocUploadModal v-model="uploadDialogOpen" :title="DOC_LABEL[uploadDocType] ?? uploadDocType" :loading="uploadingMyDoc" @submit="submitDocUpload" />
 
     <!-- Phone and tablet: the thread covers the list (phone) or sits beside it
          (tablet). Desktop shows it inside the tickets half above. -->
@@ -161,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onActivated, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Icon as IconifyIcon } from '@iconify/vue'
@@ -169,17 +190,20 @@ import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
 import { useOsasTickets, toTickets, TICKET_SELECT } from '@/utils/useOsasTickets'
-import { useOsasPermits, DOC_TYPE_LABEL } from '@/utils/useOsasPermits'
-import { useOsasUploads } from '@/utils/useOsasUploads'
+import { useOsasPermits } from '@/utils/useOsasPermits'
+import { DOC_LABEL, accountHistory, loadAccountDecisions, resubmitVerification, type AccountDecision } from '@/utils/profile'
+import { MY_DOC_TYPES, useOsasUploads } from '@/utils/useOsasUploads'
+import { useNotify } from '@/utils/notify'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { useDeskPanels } from '@/utils/useDeskPanels'
 import EmptyState from '@/components/shared/EmptyState.vue'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose from '@/components/shared/TicketCompose.vue'
 import TicketList from '@/components/shared/TicketList.vue'
-import RejectBanner from '@/components/shared/RejectBanner.vue'
+import AccountReviewStatus from '@/components/shared/AccountReviewStatus.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import RequirementCards from '@/components/shared/RequirementCards.vue'
+import ReviewHistory from '@/components/shared/ReviewHistory.vue'
 import AccommodationSwitch from '@/components/manager/AccommodationSwitch.vue'
 import DocUploadModal from '@/components/manager/DocUploadModal.vue'
 
@@ -213,6 +237,16 @@ const LEFT_TABS = [
   { key: 'mine', label: 'My requirements' },
 ] as const
 const leftTab = ref<(typeof LEFT_TABS)[number]['key']>('property')
+// ?tab=mine opens on the account's own requirements — where the "OSAS needs
+// changes" banner and verification notifications lead. The page is kept alive,
+// so it is applied on every visit, not only the first.
+function applyTabQuery() {
+  if (route.query.tab !== 'mine') return
+  tab.value = 'mine'
+  leftTab.value = 'mine'
+}
+watch(() => route.query.tab, applyTabQuery, { immediate: true })
+onActivated(applyTabQuery)
 
 const myId = ref('')
 // OSAS approves/rejects identity documents by flipping the account's own
@@ -220,14 +254,32 @@ const myId = ref('')
 // never writes doc_status past its initial 'pending') — so "verified" has to
 // be read from here, not from the per-document status.
 const myStatus = ref('')
-// There's no rejection-reason column anywhere (users, verification_documents) —
-// the admin's decision only ever survives as the notification it sends, so
-// that's the one place a reason can be read back from.
-const rejectionReason = ref('')
-const { accommodations, selectedId, docs, loadPermits, signPermits } = useOsasPermits()
-const { uploadingDoc, uploadDialogOpen, uploadDocType, uploadingMyDoc, myDocs, loadMyDocs, openUploadDialog, submitDocUpload } = useOsasUploads({
-  myId, myStatus, selectedId, loadPermits, signPermits,
+const { accommodations, selectedId, selected, docs, history, loadPermits, signPermits } = useOsasPermits()
+const { uploadDialogOpen, uploadDocType, uploadingMyDoc, myDocRows, myDocs, loadMyDocs, openUploadDialog, submitDocUpload } = useOsasUploads({
+  myId,
+  myStatus,
+  decidedAt: computed(() => myDecisions.value[0]?.reviewed_at ?? null),
 })
+// OSAS's decisions on the account, newest first (verification_requests): the
+// reason it sent the account back, and the review history.
+const myDecisions = ref<AccountDecision[]>([])
+const myHistory = computed(() => accountHistory(myDecisions.value, myDocRows.value))
+
+const notify = useNotify()
+const resubmitting = ref(false)
+async function resubmitMine() {
+  resubmitting.value = true
+  try {
+    await resubmitVerification()
+    myStatus.value = 'pending'
+    auth.accountStatus = 'pending'
+    notify.success('Resubmitted — OSAS will review it again.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'That did not go through.'))
+  } finally {
+    resubmitting.value = false
+  }
+}
 
 const { tickets, openTicket, showTicket, closeTicket, newTicketOpen, submittingTicket, openNewTicket, submitTicket } = useOsasTickets(
   (_draft, userId) => ({ landlord_id: userId, accommodation_id: selectedId.value || null }),
@@ -259,11 +311,6 @@ async function load() {
     const ticketList = await toTickets(ticketData)
     if (userError) throw userError
     myStatus.value = userData?.status || ''
-    if (myStatus.value === 'rejected' || myStatus.value === 'needs_resubmission' || myStatus.value === 'reviewing') {
-      // verification_requests is the decision trail. This used to string-match a
-      // notification *title*, so renaming that copy silently lost every reason.
-      rejectionReason.value = await auth.fetchDecisionReason(user.id)
-    }
 
     accommodations.value = (accData ?? []).map((a) => ({
       id: a.id,
@@ -271,12 +318,13 @@ async function load() {
       place: [a.barangay, a.city].filter(Boolean).join(', '),
       status: a.status,
     }))
-    // ?accommodation= comes from a draft's "Attach permits" in the editor.
+    // ?accommodation= picks which listing's permits open first.
     const asked = accommodations.value.find((a) => a.id === route.query.accommodation)
     selectedId.value = asked?.id || accommodations.value[0]?.id || ''
     await loadPermits()
     if (selectedId.value) void signPermits(selectedId.value)
     await loadMyDocs(user.id)
+    myDecisions.value = await loadAccountDecisions(user.id)
 
     tickets.value = ticketList
   } catch (e) {

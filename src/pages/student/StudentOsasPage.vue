@@ -48,9 +48,16 @@
               <!-- DOCUMENTS (the left half on desktop) -->
               <component :is="panelIs" name="docs" :class="isDesktop ? 'desk-col' : 'tab-panel'">
                 <h2 v-if="isDesktop" class="desk-col-title">Requirements</h2>
-                <RejectBanner :status="myStatus" :reason="rejectionReason" />
                 <RequirementCards :items="docs" noun="requirements" done-word="approved" replace-label="Resubmit" :busy="uploadingDoc" @upload="pickFile" />
+                <AccountReviewStatus
+                  :status="myStatus"
+                  :decision="decisions[0] ?? null"
+                  :sent-at="REQUIRED_DOCS.map((t) => docRows.find((d) => d.doc_type === t)?.uploaded_at ?? null)"
+                  :busy="resubmitting || uploadingDoc"
+                  @resubmit="resubmitMine"
+                />
                 <input ref="fileInput" type="file" accept="image/*,application/pdf" hidden @change="onDocSelected" />
+                <ReviewHistory :items="history" />
               </component>
 
               <!-- TICKETS. On desktop this is the right half: the list, or —
@@ -122,7 +129,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase, authUser } from '@/utils/supabase'
 import { useLiveData } from '@/utils/useLiveData'
 import { errorMessage } from '@/utils/errors'
-import { accountDocItem, latestSignedDocs, type AccountDocRow } from '@/utils/profile'
+import { accountDocItem, accountHistory, isSentBack, latestSignedDocs, loadAccountDecisions, resubmitVerification, type AccountDecision, type AccountDocRow } from '@/utils/profile'
 import { isTablet, isDesktop } from '@/utils/useTabletMode'
 import { useDeskPanels } from '@/utils/useDeskPanels'
 import { useNotify } from '@/utils/notify'
@@ -134,9 +141,10 @@ import type { Json } from '@/types/database.gen'
 import TicketThread from '@/components/shared/TicketThread.vue'
 import TicketCompose from '@/components/shared/TicketCompose.vue'
 import TicketList from '@/components/shared/TicketList.vue'
-import RejectBanner from '@/components/shared/RejectBanner.vue'
+import AccountReviewStatus from '@/components/shared/AccountReviewStatus.vue'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 import RequirementCards, { type RequirementItem } from '@/components/shared/RequirementCards.vue'
+import ReviewHistory from '@/components/shared/ReviewHistory.vue'
 
 const TICKET_CATEGORIES = [
   { value: 'verification', label: 'Verification' },
@@ -168,18 +176,18 @@ const myId = ref('')
 // never writes doc_status past its initial 'pending') — so "verified" has to
 // be read from here, not from the per-document status.
 const myStatus = ref('')
-// There's no rejection-reason column anywhere (users, verification_documents) —
-// the admin's decision only ever survives as the notification it sends, so
-// that's the one place a reason can be read back from.
-const rejectionReason = ref('')
 const docRows = ref<AccountDocRow[]>([])
+// OSAS's decisions on the account, newest first (verification_requests): the
+// reason it sent the account back, and the review history.
+const decisions = ref<AccountDecision[]>([])
+const history = computed(() => accountHistory(decisions.value, docRows.value))
 const uploadingDoc = ref(false)
 const { tickets, openTicket, showTicket, closeTicket, newTicketOpen, submittingTicket, openNewTicket, submitTicket } = useOsasTickets(
   (draft, userId) => ({ student_id: userId, photo_urls: draft.photoUrl ? [draft.photoUrl] : [] }),
 )
 
 const docs = computed<RequirementItem[]>(() =>
-  REQUIRED_DOCS.map((type) => accountDocItem(type, docRows.value.find((d) => d.doc_type === type), myStatus.value)),
+  REQUIRED_DOCS.map((type) => accountDocItem(type, docRows.value.find((d) => d.doc_type === type), myStatus.value, decisions.value[0]?.reviewed_at ?? null)),
 )
 
 // One hidden file input serves every card; the card's type rides along here.
@@ -219,16 +227,12 @@ async function load() {
         .order('reported_at', { ascending: false }),
       supabase.from('users').select('status').eq('id', user.id).maybeSingle(),
     ])
+    decisions.value = await loadAccountDecisions(user.id)
     if (docError) throw docError
     if (ticketError) throw ticketError
     const ticketList = await toTickets(ticketData)
     if (userError) throw userError
     myStatus.value = userData?.status || ''
-    if (myStatus.value === 'rejected' || myStatus.value === 'needs_resubmission' || myStatus.value === 'reviewing') {
-      // verification_requests is the decision trail. This used to string-match a
-      // notification *title*, so renaming that copy silently lost every reason.
-      rejectionReason.value = await auth.fetchDecisionReason(user.id)
-    }
 
     // Keep only the most recent row per doc type.
     docRows.value = await latestSignedDocs(
@@ -295,18 +299,35 @@ async function onDocSelected(event: Event) {
       ]
     }
     await forgetReading(docType)
-    // A rejected account has to be put back in the queue, or the re-upload is
-    // never looked at. No-ops for any other status.
-    const { error: resubmitError } = await supabase.rpc('resubmit_verification')
-    if (resubmitError) throw resubmitError
-    myStatus.value = myStatus.value === 'rejected' || myStatus.value === 'needs_resubmission' ? 'pending' : myStatus.value
-
-    notify.success('Uploaded — awaiting review.')
+    // A sent-back account goes back to OSAS only when its owner says so (the
+    // Resubmit button, AccountReviewStatus), like a sent-back listing. Any
+    // other status: puts a first upload in the queue, or no-ops.
+    if (isSentBack(myStatus.value)) {
+      notify.success('Uploaded. Resubmit when everything OSAS asked for is in.')
+    } else {
+      await resubmitVerification()
+      notify.success('Uploaded — awaiting review.')
+    }
   } catch (e) {
     notify.error(errorMessage(e, 'Could not upload this document.'))
   } finally {
     uploadingDoc.value = false
     input.value = ''
+  }
+}
+
+const resubmitting = ref(false)
+async function resubmitMine() {
+  resubmitting.value = true
+  try {
+    await resubmitVerification()
+    myStatus.value = 'pending'
+    auth.accountStatus = 'pending'
+    notify.success('Resubmitted — OSAS will review it again.')
+  } catch (e) {
+    notify.error(errorMessage(e, 'That did not go through.'))
+  } finally {
+    resubmitting.value = false
   }
 }
 

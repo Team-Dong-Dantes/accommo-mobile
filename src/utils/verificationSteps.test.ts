@@ -24,7 +24,7 @@ describe('verificationSteps', () => {
   it('is 3 of 3 when verified, with nothing next', () => {
     expect(verificationSteps({ ...base, status: 'verified', docsSentAt: 'x' })).toMatchObject({ done: 3, next: null })
   })
-  it('routes landlords to /manager/osas', () => {
-    expect(verificationSteps({ ...base, role: 'manager' }).next?.route).toBe('/manager/osas')
+  it('routes landlords to their own requirements on /manager/osas', () => {
+    expect(verificationSteps({ ...base, role: 'manager' }).next?.route).toBe('/manager/osas?tab=mine')
   })
 })

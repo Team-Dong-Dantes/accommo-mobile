@@ -5,27 +5,7 @@
     <AccreditationStatus />
 
     <!-- Every past decision, newest first: what was asked, what OSAS said. -->
-    <div v-if="history.length" class="hist">
-      <button type="button" class="hist-toggle" :aria-expanded="showHistory" @click="showHistory = !showHistory">
-        <IconifyIcon icon="lucide:history" width="16" />
-        Review history ({{ history.length }})
-        <IconifyIcon :icon="showHistory ? 'lucide:chevron-up' : 'lucide:chevron-down'" width="15" />
-      </button>
-      <ol v-if="showHistory" class="hist-list">
-        <li v-for="r in history" :key="r.id" class="hist-item">
-          <span class="hist-dot" :class="`hist-dot--${r.decision}`" />
-          <span class="hist-body">
-            <span class="hist-head">
-              {{ KIND_LABEL[r.kind] }} · <b>{{ DECISION_LABEL[r.decision ?? ''] }}</b>
-            </span>
-            <span class="hist-when">{{ r.decided_at ? longDate(r.decided_at) : '' }}</span>
-            <span v-if="r.flagged_docs?.length" class="hist-line">Flagged: {{ r.flagged_docs.map(permitLabel).join(', ') }}</span>
-            <span v-if="r.note" class="hist-line">“{{ r.note }}”</span>
-            <span v-if="r.message" class="hist-line">You wrote: “{{ r.message }}”</span>
-          </span>
-        </li>
-      </ol>
-    </div>
+    <ReviewHistory :items="roundHistory(rounds)" />
 
     <PermitUploadSheet
       v-model="replaceOpen"
@@ -57,10 +37,9 @@
 <script setup lang="ts">
 import AccreditationStatus from './accreditation/AccreditationStatus.vue'
 import AppModal from '@/components/shared/AppModal.vue'
-import { DECISION_LABEL, KIND_LABEL } from '@/components/manager/accreditation/model'
-import { Icon as IconifyIcon } from '@iconify/vue'
+import { roundHistory } from '@/components/manager/accreditation/model'
+import ReviewHistory from '@/components/shared/ReviewHistory.vue'
 import PermitUploadSheet from '@/components/manager/PermitUploadSheet.vue'
-import { permitLabel } from '@/utils/permits'
 import { provideAccreditation } from './accreditation/accreditation'
 
 // Its state lives in ./accreditation/; this is the card: the status box, the
@@ -84,13 +63,11 @@ const emit = defineEmits<{
 const {
   message,
   busy,
-  showHistory,
   replaceOpen,
   replaceType,
-  history,
+  rounds,
   lastReturned,
   flagged,
-  longDate,
   load,
   onPermitSaved,
   resubmitPromptOpen,
@@ -156,49 +133,4 @@ defineExpose({ reload: load, flagged, permitReplaced })
 .flag-row .pill-btn { align-self: center; }
 .pill-btn:disabled { opacity: 0.6; }
 .rsp-later { align-self: center; min-height: 46px; }
-.hist { display: flex; flex-direction: column; gap: 6px; }
-/* A centred pill like .pill-btn, tinted so it reads as an action rather than
-   fine print under the status box. */
-.hist-toggle {
-  display: inline-flex;
-  align-self: center;
-  align-items: center;
-  gap: 6px;
-  min-height: 38px;
-  padding: 0 16px;
-  border: 1px solid var(--m-primary);
-  border-radius: 999px;
-  background: var(--m-primary-soft);
-  color: var(--m-primary-dark);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  -webkit-tap-highlight-color: transparent;
-}
-.hist-list { display: flex; flex-direction: column; margin: 0; padding: 0 0 0 6px; list-style: none; }
-.hist-item {
-  position: relative;
-  display: flex;
-  gap: 10px;
-  padding: 0 0 12px 12px;
-  border-left: 2px solid var(--m-border);
-}
-.hist-item:last-child { border-left-color: transparent; }
-.hist-dot {
-  position: absolute;
-  top: 3px;
-  left: -6px;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--m-border);
-}
-.hist-dot--approved { background: var(--m-success); }
-.hist-dot--returned { background: var(--m-warning); }
-.hist-dot--rejected { background: var(--m-danger); }
-.hist-body { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
-.hist-head { color: var(--m-ink); }
-.hist-when { color: var(--m-muted); font-size: 11px; }
-.hist-line { color: var(--m-muted); line-height: 1.4; }
 </style>

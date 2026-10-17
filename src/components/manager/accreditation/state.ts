@@ -18,7 +18,6 @@ export function createAccreditation(ctx: Seed) {
   const waitDays = ref<number | null>(null)
   const message = ref('')
   const busy = ref(false)
-  const showHistory = ref(false)
   const replaceOpen = ref(false)
   const replaceType = ref('')
 
@@ -170,7 +169,6 @@ export function createAccreditation(ctx: Seed) {
     waitDays,
     message,
     busy,
-    showHistory,
     replaceOpen,
     replaceType,
     expiresAt,

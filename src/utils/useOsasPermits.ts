@@ -1,6 +1,7 @@
 // The OSAS page's property half: a landlord/landlady's accommodations, the
-// newest version of each permit, what OSAS flagged when it last sent one back,
-// and the short-lived links that open the files.
+// newest version of each permit, every accreditation round (what OSAS flagged
+// when it last sent one back, and the review history), and the short-lived
+// links that open the files.
 
 import { computed, ref, watch } from 'vue'
 import { supabase } from '@/utils/supabase'
@@ -8,6 +9,7 @@ import { parseServerTime } from '@/utils/format'
 import { since } from '@/utils/notifications'
 import { secureDocUrl } from '@/utils/upload'
 import { permitDate, permitReplaceOpen } from '@/utils/permits'
+import { roundHistory, type Round } from '@/components/manager/accreditation/model'
 import type { RequirementItem } from '@/components/shared/RequirementCards.vue'
 
 export const DOC_TYPES = ['sanitary_permit', 'fire_safety', 'business_permit', 'building_permit'] as const
@@ -32,8 +34,10 @@ export function useOsasPermits() {
   const permitRows = ref<{ id: string; accommodation_id: string; doc_type: string; file_url: string; expires_at: string | null; uploaded_at: string; version: number }[]>([])
   /** Per sent-back accommodation: the permits OSAS flagged, and when it decided. */
   const sentBack = ref<Record<string, { docs: string[]; decidedAt: number }>>({})
+  const rounds = ref<(Round & { accommodation_id: string })[]>([])
 
   const selected = computed(() => accommodations.value.find((a) => a.id === selectedId.value))
+  const history = computed(() => roundHistory(rounds.value.filter((r) => r.accommodation_id === selectedId.value)))
 
   // Property permits have no per-file approval: a tone is expiry-derived unless
   // OSAS flagged the permit when sending the listing back. Replacement locks once
@@ -78,11 +82,7 @@ export function useOsasPermits() {
       permitRows.value = []
       return
     }
-    // Sent back for revision, or a permit update sent back on a live listing.
-    const returnedIds = accommodations.value
-      .filter((a) => ['needs_revision', 'accredited', 'delisted'].includes(a.status))
-      .map((a) => a.id)
-    const [{ data, error: docError }, { data: rounds, error: roundError }] = await Promise.all([
+    const [{ data, error: docError }, { data: roundData, error: roundError }] = await Promise.all([
       supabase
         .from('accommodation_documents')
         .select('id, accommodation_id, doc_type, file_url, expires_at, uploaded_at, version')
@@ -90,17 +90,20 @@ export function useOsasPermits() {
         .order('version', { ascending: false }),
       supabase
         .from('accreditation_rounds')
-        .select('accommodation_id, flagged_docs, decided_at')
-        .in('accommodation_id', returnedIds)
-        .eq('decision', 'returned')
+        .select('id, accommodation_id, round, kind, submitted_at, message, proposed_changes, decided_at, decision, flagged_docs, tags, note')
+        .in('accommodation_id', ids)
         .order('round', { ascending: false }),
     ])
     if (docError) throw docError
     if (roundError) throw roundError
+    rounds.value = (roundData ?? []) as typeof rounds.value
 
+    // Sent back for revision, or a permit update sent back on a live listing.
+    const flagStatus = new Map(accommodations.value.map((a) => [a.id, ['needs_revision', 'accredited', 'delisted'].includes(a.status)]))
     // Newest send-back per accommodation only; rounds come newest first.
     const flags: typeof sentBack.value = {}
-    for (const r of rounds ?? []) {
+    for (const r of rounds.value) {
+      if (r.decision !== 'returned' || !flagStatus.get(r.accommodation_id)) continue
       if (flags[r.accommodation_id] || !r.decided_at) continue
       flags[r.accommodation_id] = { docs: r.flagged_docs ?? [], decidedAt: parseServerTime(r.decided_at).getTime() }
     }
@@ -138,5 +141,5 @@ export function useOsasPermits() {
     if (id) void signPermits(id)
   })
 
-  return { accommodations, selectedId, docs, loadPermits, signPermits }
+  return { accommodations, selectedId, selected, docs, history, loadPermits, signPermits }
 }

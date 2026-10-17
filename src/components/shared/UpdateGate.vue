@@ -19,38 +19,75 @@
 
       <h1 class="wall-title">A new version is ready</h1>
       <p class="wall-sub">
-        accommo has been updated. Download
+        Update to
         <strong v-if="release?.latest_version_name">version {{ release.latest_version_name }}</strong>
         <strong v-else>the latest version</strong>
-        to carry on — this build can no longer be used.
+        to carry on.
+        {{ mode === 'bundle'
+          ? 'It’s a small download, and accommo restarts on its own when it’s done.'
+          : 'This one replaces the app itself; Android will ask you to confirm the install.' }}
       </p>
 
       <p v-if="release?.release_notes" class="wall-notes">{{ release.release_notes }}</p>
 
-      <q-btn
-        unelevated
-        rounded
-        no-caps
-        color="primary"
-        label="Download now"
-        class="wall-btn"
-        @click="openDownload"
-      />
+      <!-- Downloading: how far along, in place of the button. -->
+      <div v-if="phase === 'downloading'" class="wall-progress" role="progressbar" :aria-valuenow="percent" aria-valuemin="0" aria-valuemax="100">
+        <div class="wall-bar"><span :style="{ width: `${percent}%` }" /></div>
+        <p class="wall-foot">Downloading… {{ percent }}%</p>
+      </div>
 
-      <p class="wall-foot">
-        The download opens in your browser. Install it, then reopen accommo.
-      </p>
+      <template v-else>
+        <p v-if="phase === 'error'" class="wall-error">{{ errorText }}</p>
+        <p v-else-if="phase === 'permission'" class="wall-step">
+          Switch on <strong>Allow from this source</strong> for accommo, then come back and tap Install.
+        </p>
+        <p v-else-if="phase === 'installer'" class="wall-step">
+          Finish in Android’s installer, then open accommo again. Closed it by mistake? Tap Install.
+        </p>
+
+        <q-btn
+          unelevated
+          rounded
+          no-caps
+          color="primary"
+          :label="buttonLabel"
+          class="wall-btn"
+          @click="primary"
+        />
+        <q-btn
+          v-if="mode === 'bundle' && phase === 'error' && release && hasApk(release)"
+          flat
+          rounded
+          no-caps
+          color="primary"
+          label="Download the full app instead"
+          class="wall-alt"
+          @click="switchToApk"
+        />
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
-import { updateAction, runningVersion, stageBundle, type Release } from '@/utils/liveUpdate'
+import {
+  BrokenBundleError,
+  canInstallInApp,
+  downloadApk,
+  hasApk,
+  installApk,
+  installBundle,
+  removeDownloadedApk,
+  runningVersion,
+  updateAction,
+  type Release,
+} from '@/utils/liveUpdate'
 import { supabase } from '@/utils/supabase'
+import { errorMessage } from '@/utils/errors'
 import { openExternal } from '@/utils/openExternal'
 import { EXTERNAL_URLS } from '@/utils/config'
 
@@ -59,14 +96,14 @@ import { EXTERNAL_URLS } from '@/utils/config'
 // keep the app alive for weeks) this asks the single `app_release` row what the
 // current build is and compares it against our own Android versionCode.
 //
-// Two outcomes. Web-only releases arrive over the air: the new bundle is
-// downloaded quietly and applied the next time the app reopens (see
-// src/utils/liveUpdate.ts). Only a release that changed native code — CI raises
-// `min_supported_version_code` for those — walls an older APK off, because no
-// OTA bundle can bring native plugins with it. That wall still has teeth: below
-// the minimum the app is unusable until the new APK is installed.
+// Every release is required: an install that is behind gets this screen and
+// nothing else until it updates, inside the app (src/utils/liveUpdate.ts). A
+// web-only release downloads its small bundle and restarts into it; a native
+// one downloads the APK and hands it to Android's installer. Every failure is
+// shown with a way to try again — the quiet background update this replaced
+// failed silently, so nobody could tell why updates never arrived.
 //
-// Everything here still fails open. A network error, a missing row, an
+// The check itself still fails open. A network error, a missing row, an
 // unreadable version, a release with no APK to point at: render nothing. A
 // broken check must never be able to lock the app, and with no Later button
 // left there is nothing a locked-out user could do about it.
@@ -85,6 +122,22 @@ const isDevBuild = import.meta.env.DEV
 
 const open = ref(false)
 const release = ref<Release | null>(null)
+const mode = ref<'bundle' | 'apk'>('bundle')
+/**
+ * ready: nothing started. downloading: progress shown. permission: sent to the
+ * "Install unknown apps" switch. installer: handed to Android's installer.
+ */
+const phase = ref<'ready' | 'downloading' | 'permission' | 'installer' | 'error'>('ready')
+const percent = ref(0)
+const errorText = ref('')
+/** The APK is on the device; Install hands it over again without re-downloading. */
+const apkReady = ref(false)
+
+const buttonLabel = computed(() => {
+  if (phase.value === 'error') return 'Try again'
+  if (mode.value === 'apk' && apkReady.value) return 'Install'
+  return 'Update now'
+})
 
 async function check() {
   if (!Capacitor.isNativePlatform() || isDemoMode || isDevBuild) return
@@ -109,18 +162,70 @@ async function check() {
     // every install until someone fixed a database row.
     const action = updateAction(data, current, runningVersion(current, bundle))
     release.value = data
-    if (action === 'wall') open.value = true
-    else if (action === 'stage') await stageBundle(data)
+    if (action === 'none') {
+      // Up to date — an APK update that just installed leaves its file behind.
+      void removeDownloadedApk()
+      return
+    }
+    mode.value = action
+    open.value = true
   } catch {
     // Fail open, deliberately silent.
   }
 }
 
-function openDownload() {
-  // openExternal navigates rather than calling window.open, which Capacitor's
-  // WebView silently drops — see src/utils/openExternal.ts. The system browser
-  // downloads the APK and Android's installer takes it from there.
-  openExternal(release.value?.apk_url ?? '')
+async function primary() {
+  if (!release.value) return
+  errorText.value = ''
+  if (mode.value === 'bundle') await updateBundle(release.value)
+  else await updateApk(release.value)
+}
+
+async function updateBundle(r: Release) {
+  phase.value = 'downloading'
+  percent.value = 0
+  try {
+    // Reloads the app into the new version on success.
+    await installBundle(r, (p) => (percent.value = p))
+  } catch (e) {
+    if (e instanceof BrokenBundleError && hasApk(r)) {
+      // It was tried and rolled back: the same files would fail the same way.
+      mode.value = 'apk'
+      phase.value = 'error'
+      errorText.value = 'The quick update didn’t start on your phone, so get the full app instead.'
+      return
+    }
+    phase.value = 'error'
+    errorText.value = errorMessage(e, 'The update didn’t download. Check your connection and try again.')
+  }
+}
+
+async function updateApk(r: Release) {
+  // An APK from before the in-app installer can only use the browser. Its own
+  // bundle never has this code, so this is only a guard.
+  if (!canInstallInApp()) {
+    openExternal(r.apk_url)
+    return
+  }
+  try {
+    if (!apkReady.value) {
+      phase.value = 'downloading'
+      percent.value = 0
+      await downloadApk(r, (p) => (percent.value = p))
+      apkReady.value = true
+    }
+    phase.value = (await installApk()) === 'settings' ? 'permission' : 'installer'
+  } catch (e) {
+    phase.value = 'error'
+    errorText.value = errorMessage(e, 'The update didn’t download. Check your connection and try again.')
+  }
+}
+
+function switchToApk() {
+  mode.value = 'apk'
+  phase.value = 'ready'
+  errorText.value = ''
+  void primary()
 }
 
 onMounted(() => {
@@ -252,12 +357,50 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 700;
 }
+.wall-alt {
+  width: 100%;
+  margin-top: 6px;
+  font-weight: 700;
+}
 .wall-foot {
   margin: 12px 0 0;
   color: var(--m-muted);
   font-size: 12px;
   line-height: 1.5;
   text-align: center;
+}
+/* Where the button was, so the eye stays in one place while it downloads. */
+.wall-progress {
+  margin-top: 22px;
+}
+.wall-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--m-primary-soft);
+}
+.wall-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--m-primary);
+  transition: width 0.2s ease;
+}
+.wall-step,
+.wall-error {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--m-radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.wall-step {
+  background: var(--m-primary-soft);
+  color: var(--m-text);
+}
+.wall-error {
+  background: var(--m-danger-soft);
+  color: var(--m-danger);
 }
 
 /* Tablet landscape: the sheet holds a readable measure instead of running the

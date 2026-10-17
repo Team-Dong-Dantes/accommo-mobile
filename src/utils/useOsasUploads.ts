@@ -1,50 +1,34 @@
-// The OSAS page's upload sheet, which serves both document sets: a property
-// permit (accommodation_documents, versioned) and the landlord/landlady's own
-// account documents (verification_documents, one row per type).
+// The OSAS page's upload sheet for the landlord/landlady's own account
+// documents (verification_documents, one row per type). Property permits are
+// only viewed on the OSAS page; they are uploaded from the listing's Settings.
 import { computed, ref, type Ref } from 'vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
 import { uploadSecureDocument } from '@/utils/upload'
-import { expiryProblem, savePermitVersion, uploadPermitFile } from '@/utils/permits'
-import { accountDocItem, latestSignedDocs, type AccountDocRow } from '@/utils/profile'
+import { accountDocItem, isSentBack, latestSignedDocs, resubmitVerification, type AccountDocRow } from '@/utils/profile'
 import type { RequirementItem } from '@/components/shared/RequirementCards.vue'
 import type { DocUpload } from '@/components/manager/DocUploadModal.vue'
 
 // Fixed set uploaded once at landlord/landlady registration (stores/auth.ts,
 // submitManagerVerificationDocuments) — OSAS reviews these per-document via
 // doc_status, independent of any accommodation.
-const MY_DOC_TYPES = ['government_id', 'business_permit'] as const
+export const MY_DOC_TYPES = ['government_id', 'business_permit'] as const
 
-export function useOsasUploads(ctx: {
-  myId: Ref<string>
-  myStatus: Ref<string>
-  selectedId: Ref<string>
-  loadPermits: () => Promise<void>
-  signPermits: (accommodationId: string) => Promise<void>
-}) {
-  const { myId, myStatus, selectedId, loadPermits, signPermits } = ctx
+export function useOsasUploads(ctx: { myId: Ref<string>; myStatus: Ref<string>; decidedAt: Ref<string | null> }) {
+  const { myId, myStatus, decidedAt } = ctx
   const notify = useNotify()
-  const uploadingDoc = ref(false)
 
-  // A permit already on file is view-only — replacing it goes through this
+  // A document already on file is view-only — replacing it goes through this
   // dialog's own blank form, never an inline field on the (read-only) row.
   const uploadDialogOpen = ref(false)
   const uploadDocType = ref('')
-  /**
-   * The upload sheet serves both document sets. A property permit goes to
-   * `accommodation_documents` against the selected accommodation; an account
-   * document goes to `verification_documents` against this landlord/landlady. They differ
-   * in where the row lands, not in what is collected, so they share one form.
-   */
-  type UploadTarget = 'property' | 'account'
-  const uploadTarget = ref<UploadTarget>('property')
 
   const myDocRows = ref<AccountDocRow[]>([])
   const uploadingMyDoc = ref(false)
 
   const myDocs = computed<RequirementItem[]>(() =>
-    MY_DOC_TYPES.map((type) => accountDocItem(type, myDocRows.value.find((d) => d.doc_type === type), myStatus.value)),
+    MY_DOC_TYPES.map((type) => accountDocItem(type, myDocRows.value.find((d) => d.doc_type === type), myStatus.value, decidedAt.value)),
   )
 
   async function loadMyDocs(userId: string) {
@@ -57,14 +41,20 @@ export function useOsasUploads(ctx: {
     myDocRows.value = (await latestSignedDocs(data)) as AccountDocRow[]
   }
 
-  function openUploadDialog(type: string, target: UploadTarget = 'property') {
+  function openUploadDialog(type: string) {
     uploadDocType.value = type
-    uploadTarget.value = target
     uploadDialogOpen.value = true
   }
 
+  /**
+   * An account document — government ID or business permit — goes through the
+   * same sheet a property permit does, so it carries an expiry date. It used to be
+   * a bare file input that wrote the row immediately, which meant OSAS could see
+   * a landlord/landlady's permit had been approved but not that it had since lapsed.
+   */
   async function submitDocUpload(uploadForm: DocUpload) {
-    if (!uploadForm.file) {
+    const file = uploadForm.file
+    if (!file) {
       notify.error('Choose a file.')
       return
     }
@@ -72,44 +62,7 @@ export function useOsasUploads(ctx: {
       notify.error('Pick an expiration date.')
       return
     }
-    if (uploadTarget.value === 'account') {
-      await submitMyDocUpload(uploadForm)
-      return
-    }
-    if (!selectedId.value) return
-    const expiryError = expiryProblem(uploadForm.expiresAt)
-    if (expiryError) {
-      notify.error(expiryError)
-      return
-    }
-
-    uploadingDoc.value = true
-    try {
-      // The same path as the wizard and the listing's Replace button: checked
-      // for legibility, shrunk, hashed, saved as the next version (utils/permits).
-      const uploaded = await uploadPermitFile(uploadForm.file)
-      await savePermitVersion(selectedId.value, uploadDocType.value, uploaded, uploadForm.expiresAt)
-
-      await loadPermits()
-      await signPermits(selectedId.value)
-      uploadDialogOpen.value = false
-      notify.success('Uploaded.')
-    } catch (e) {
-      notify.error(errorMessage(e, 'Could not upload this document.'))
-    } finally {
-      uploadingDoc.value = false
-    }
-  }
-
-  /**
-   * An account document — government ID or business permit — now goes through the
-   * same sheet as a property permit, so it carries an expiry date. It used to be
-   * a bare file input that wrote the row immediately, which meant OSAS could see
-   * a landlord/landlady's permit had been approved but not that it had since lapsed.
-   */
-  async function submitMyDocUpload(uploadForm: DocUpload) {
-    const file = uploadForm.file
-    if (!file || !myId.value) return
+    if (!myId.value) return
     uploadingMyDoc.value = true
     try {
       const docType = uploadDocType.value
@@ -135,11 +88,10 @@ export function useOsasUploads(ctx: {
       )
       if (writeError) throw writeError
 
-      // A rejected account has to be put back in the queue, or the re-upload is
-      // never looked at. No-ops for any other status.
-      const { error: resubmitError } = await supabase.rpc('resubmit_verification')
-      if (resubmitError) throw resubmitError
-      if (myStatus.value === 'rejected' || myStatus.value === 'needs_resubmission') myStatus.value = 'pending'
+      // A sent-back account goes back to OSAS only when its owner says so (the
+      // Resubmit button, AccountReviewStatus), like a sent-back listing. Any
+      // other status: puts a first upload in the queue, or no-ops.
+      if (!isSentBack(myStatus.value)) await resubmitVerification()
 
       await loadMyDocs(myId.value)
       uploadDialogOpen.value = false
@@ -152,7 +104,6 @@ export function useOsasUploads(ctx: {
   }
 
   return {
-    uploadingDoc, uploadDialogOpen, uploadDocType, uploadTarget, uploadingMyDoc, myDocs, loadMyDocs,
-    openUploadDialog, submitDocUpload,
+    uploadDialogOpen, uploadDocType, uploadingMyDoc, myDocRows, myDocs, loadMyDocs, openUploadDialog, submitDocUpload,
   }
 }

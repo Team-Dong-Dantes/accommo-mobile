@@ -24,7 +24,7 @@ export function verificationSteps({ role, status, docsSentAt, profileComplete }:
   // Sent back or refused: what was sent no longer counts.
   const sentBack = status === 'needs_resubmission' || status === 'rejected'
   const sent = !!docsSentAt && !sentBack
-  const osas = role === 'manager' ? '/manager/osas' : '/student/support'
+  const osas = role === 'manager' ? '/manager/osas?tab=mine' : '/student/support'
   const support = role === 'manager' ? '/manager/support' : '/student/support'
   const done = sent ? 2 : 1
   if (status === 'suspended') return { done, total: 3, inReview: false, next: { label: 'Contact OSAS', route: support } }

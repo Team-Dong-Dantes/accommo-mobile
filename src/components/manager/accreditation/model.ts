@@ -1,4 +1,7 @@
 // Accreditation rounds and the words used for them.
+import type { HistoryItem } from '@/components/shared/ReviewHistory.vue'
+import { parseServerTime } from '@/utils/format'
+import { permitLabel } from '@/utils/permits'
 
 export interface Round {
   id: string
@@ -45,4 +48,22 @@ export const CHANGE_LABEL: Record<string, string> = {
 export interface Seed {
   props: { accommodationId: string; status: string; appealUsed: boolean; accreditationExpiresAt: string | null; docs: { doc_type: string; uploaded_at: string }[] }
   emit: { (e: 'changed'): void; (e: 'docs-changed'): void; (e: 'delete'): void }
+}
+
+/** Decided rounds as review-history entries: what was asked, what OSAS said. */
+export function roundHistory(rounds: Round[]): HistoryItem[] {
+  return rounds
+    .filter((r) => r.decided_at)
+    .map((r) => ({
+      id: r.id,
+      title: KIND_LABEL[r.kind],
+      verdict: DECISION_LABEL[r.decision ?? ''] ?? '',
+      tone: r.decision ?? '',
+      when: parseServerTime(r.decided_at!).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' }),
+      lines: [
+        r.flagged_docs?.length ? `Flagged: ${r.flagged_docs.map(permitLabel).join(', ')}` : '',
+        r.note ? `“${r.note}”` : '',
+        r.message ? `You wrote: “${r.message}”` : '',
+      ].filter(Boolean),
+    }))
 }

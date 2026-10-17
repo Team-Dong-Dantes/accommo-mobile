@@ -6,6 +6,7 @@ import { supabase } from '@/utils/supabase'
 import { since } from '@/utils/notifications'
 import { secureDocUrl } from '@/utils/upload'
 import type { RequirementItem } from '@/components/shared/RequirementCards.vue'
+import type { HistoryItem } from '@/components/shared/ReviewHistory.vue'
 
 /** Friendly names for the doc_type strings written during registration. */
 export const DOC_LABEL: Record<string, string> = {
@@ -42,9 +43,15 @@ export interface AccountDocRow {
 }
 
 /** An account document's requirement card, read against the account's own status. */
-export function accountDocItem(type: string, row: AccountDocRow | undefined, accountStatus: string): RequirementItem {
+export function accountDocItem(type: string, row: AccountDocRow | undefined, accountStatus: string, decidedAt: string | null = null): RequirementItem {
   const label = DOC_LABEL[type] ?? type
   if (!row) return { type, label, statusLabel: 'Not submitted', tone: 'idle', when: '', fileUrl: '', verified: false }
+  // Sent back: a file from before OSAS decided is what it turned down; one from
+  // after is the fix, waiting on the Resubmit button. Not "In review" either way.
+  if (isSentBack(accountStatus) && row.status !== 'approved') {
+    const fixed = Boolean(decidedAt && parseServerTime(row.uploaded_at).getTime() > parseServerTime(decidedAt).getTime())
+    return { type, label, statusLabel: fixed ? 'Ready to resubmit' : 'Sent back', tone: 'warn', when: `Sent ${since(row.uploaded_at)}`, fileUrl: row.file_url, verified: false }
+  }
   // Once the account is verified that overrides an old row stuck at 'pending'.
   // Otherwise the row speaks for itself: OSAS marks only the documents it
   // wants again, so a sent-back account can still have an approved one.
@@ -67,6 +74,73 @@ export async function latestSignedDocs<R extends { id: string; doc_type: string 
     return true
   })
   return Promise.all(latest.map(async (d) => ({ ...d, file_url: await secureDocUrl('verification_documents', d.id) })))
+}
+
+const DECISION: Record<string, { verdict: string; tone: string }> = {
+  approved: { verdict: 'approved', tone: 'approved' },
+  resubmission_requested: { verdict: 'sent back for changes', tone: 'returned' },
+  rejected: { verdict: 'refused', tone: 'rejected' },
+}
+
+export interface AccountDecision {
+  id: string
+  status: string
+  reviewed_at: string
+  decision_notes: string | null
+  rejection_reasons: string[] | null
+}
+
+/** Every decision OSAS recorded on this account (verification_requests). */
+export async function loadAccountDecisions(userId: string): Promise<AccountDecision[]> {
+  const { data, error } = await supabase
+    .from('verification_requests')
+    .select('id, status, reviewed_at, decision_notes, rejection_reasons')
+    .eq('entity_type', 'user')
+    .eq('entity_id', userId)
+    .order('reviewed_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+/** A status OSAS sent back: new files wait for an explicit resubmit. */
+export function isSentBack(status: string): boolean {
+  return status === 'rejected' || status === 'needs_resubmission'
+}
+
+/** Puts a sent-back account back in OSAS's queue (users.status → pending). */
+export async function resubmitVerification(): Promise<void> {
+  const { error } = await supabase.rpc('resubmit_verification')
+  if (error) throw error
+}
+
+/**
+ * The account's review history, newest first: each document's latest upload
+ * and every decision OSAS recorded. Only the latest upload per document
+ * survives — the row is replaced on resubmission.
+ */
+export function accountHistory(decisions: AccountDecision[], docs: AccountDocRow[]): HistoryItem[] {
+  const day = (iso: string) => parseServerTime(iso).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+  const entries = [
+    ...decisions.map((r) => ({
+      at: parseServerTime(r.reviewed_at).getTime(),
+      item: {
+        id: r.id,
+        title: 'Verification',
+        verdict: DECISION[r.status]?.verdict ?? r.status,
+        tone: DECISION[r.status]?.tone ?? '',
+        when: day(r.reviewed_at),
+        lines: [
+          r.rejection_reasons?.length ? r.rejection_reasons.join(' · ') : '',
+          r.decision_notes ? `“${r.decision_notes}”` : '',
+        ].filter(Boolean),
+      },
+    })),
+    ...docs.map((d) => ({
+      at: parseServerTime(d.uploaded_at).getTime(),
+      item: { id: d.id, title: DOC_LABEL[d.doc_type] ?? d.doc_type, verdict: 'sent', tone: 'sent', when: day(d.uploaded_at), lines: [] },
+    })),
+  ]
+  return entries.sort((a, b) => b.at - a.at).map((e) => e.item)
 }
 
 /** user_status: unverified | pending | reviewing | verified | needs_resubmission | rejected | suspended */

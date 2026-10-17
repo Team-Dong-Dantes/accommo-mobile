@@ -130,7 +130,10 @@ import FacilityDialog from './accommodation/FacilityDialog.vue'
 // all reading the one state this page provides.
 const { router, loading, error, acc, coverUrl, coverSheetOpen, load } = provideAccommodationDetail()
 
-const tab = ref<(typeof TABS)[number]['key']>('overview')
+type TabKey = (typeof TABS)[number]['key']
+// ?tab= opens on a given tab — the OSAS page links straight to Settings.
+const askedTab = TABS.find((t) => t.key === router.currentRoute.value.query.tab)?.key
+const tab = ref<TabKey>(askedTab ?? 'overview')
 // Desktop lays the tabs out as the halves of a card instead (useDeskPanels).
 const { split, panelsIs, panelIs, panelsProps } = useDeskPanels(tab)
 const rightCol = ref<HTMLElement | null>(null)

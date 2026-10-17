@@ -5,9 +5,10 @@ import type { BundleInfo } from '@capgo/capacitor-updater'
 // bundle to an APK whose native plugins can't run it, or reloads into an old or
 // broken bundle.
 vi.mock('@capgo/capacitor-updater', () => ({ CapacitorUpdater: {} }))
-vi.mock('@capacitor/app', () => ({ App: {} }))
+vi.mock('@capacitor/filesystem', () => ({ Filesystem: {}, Directory: {} }))
+vi.mock('@capacitor/core', () => ({ Capacitor: {}, registerPlugin: () => ({}) }))
 
-import { pickBundle, runningVersion, updateAction, type Release } from './liveUpdate'
+import { bundleStep, runningVersion, updateAction, type Release } from './liveUpdate'
 
 const row = (over: Partial<Release> = {}): Release => ({
   latest_version_code: 50,
@@ -32,16 +33,16 @@ describe('runningVersion', () => {
 })
 
 describe('updateAction', () => {
-  it('walls an APK older than the native minimum', () => {
-    expect(updateAction(row(), 39, 39)).toBe('wall')
+  it('sends an APK older than the native minimum to a new APK', () => {
+    expect(updateAction(row(), 39, 39)).toBe('apk')
   })
 
   it('fails open when the wall would have nothing to download', () => {
     expect(updateAction(row({ apk_url: ' ' }), 39, 39)).toBe('none')
   })
 
-  it('stages a newer bundle on a compatible APK', () => {
-    expect(updateAction(row(), 45, 45)).toBe('stage')
+  it('updates a compatible APK with the newer bundle', () => {
+    expect(updateAction(row(), 45, 45)).toBe('bundle')
   })
 
   it('does nothing once the latest web code is running', () => {
@@ -66,16 +67,17 @@ describe('updateAction', () => {
   })
 })
 
-describe('pickBundle', () => {
-  it('picks the newest usable bundle newer than what is running', () => {
-    expect(pickBundle([b('48', 'pending'), b('50', 'success'), b('49', 'pending')], 45)?.version).toBe('50')
+describe('bundleStep', () => {
+  it('switches to a bundle already downloaded', () => {
+    expect(bundleStep([b('48', 'success'), b('50', 'pending')], '50')).toEqual({ step: 'set', id: 'id50' })
   })
 
-  it('skips bundles that rolled back or are still downloading', () => {
-    expect(pickBundle([b('50', 'error'), b('49', 'downloading'), b('48', 'pending')], 45)?.version).toBe('48')
+  it('downloads when the bundle is missing or was cut off mid-download', () => {
+    expect(bundleStep([b('48', 'success')], '50')).toEqual({ step: 'download' })
+    expect(bundleStep([b('50', 'downloading')], '50')).toEqual({ step: 'download' })
   })
 
-  it('never goes back to an older bundle', () => {
-    expect(pickBundle([b('44', 'success')], 45)).toBeUndefined()
+  it('gives up on a bundle that rolled back, rather than reload into it again', () => {
+    expect(bundleStep([b('50', 'error')], '50')).toEqual({ step: 'broken' })
   })
 })

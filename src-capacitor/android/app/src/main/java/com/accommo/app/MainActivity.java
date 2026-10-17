@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Local plugins are registered before super.onCreate builds the bridge.
         registerPlugin(PrintPlugin.class);
+        registerPlugin(ApkInstallerPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The resume lock covers the app's *reads* — private messages, tenant

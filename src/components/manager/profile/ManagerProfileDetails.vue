@@ -45,7 +45,7 @@
           </div>
         </div>
         <EmptyState v-else variant="compact" icon="lucide:file-text" title="No requirements yet" message="Requirements you submit to OSAS show up here." />
-        <button class="link-btn" @click="go('/manager/osas')">
+        <button class="link-btn" @click="go('/manager/osas?tab=mine')">
           <IconifyIcon icon="lucide:arrow-right" width="16" />
           <span>Open OSAS</span>
         </button>

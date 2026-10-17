@@ -9,7 +9,7 @@
       <span v-if="of" class="hero-of">{{ of }}</span>
     </span>
     <StackBar :segments="segments" :height="12" aria-hidden="true" />
-    <span class="hero-legend">
+    <span v-if="legend?.length" class="hero-legend">
       <span v-for="l in legend" :key="l.label" class="hero-key">
         <i :style="{ background: `var(--m-${l.tone})` }" />{{ l.label }} <b>{{ l.value }}</b>
       </span>
@@ -29,7 +29,8 @@ defineProps<{
   /** Small text after the big number, e.g. "/ ₱2,800 sent". */
   of?: string
   segments: { value: number; tone: string }[]
-  legend: { label: string; value: string; tone: string }[]
+  /** The key under the bar; the verification steps card has none. */
+  legend?: { label: string; value: string; tone: string }[]
   to?: string
 }>()
 </script>

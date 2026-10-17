@@ -68,8 +68,6 @@
          .desk-pass wrappers are display: contents. -->
     <div v-else :class="isDesktop ? 'desk-card desk-card--profile' : 'content-stack'">
       <div :class="isDesktop ? 'desk-col' : 'desk-pass'">
-      <!-- Only while OSAS has not verified the account yet. -->
-      <VerificationBanner />
       <!-- ===== HEADER ===== -->
       <ProfileHero
         v-model:avatar-url="avatarUrl"
@@ -132,7 +130,6 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import ManagerProfileDetails from '@/components/manager/profile/ManagerProfileDetails.vue'
 import ProfileHero from '@/components/shared/ProfileHero.vue'
 import ProfileSectionNav from '@/components/shared/ProfileSectionNav.vue'
-import VerificationBanner from '@/components/manager/VerificationBanner.vue'
 import { isDesktop } from '@/utils/useTabletMode'
 import { landlordTitle } from '@/utils/format'
 import { provideManagerProfile } from '@/components/manager/profile/managerProfile'

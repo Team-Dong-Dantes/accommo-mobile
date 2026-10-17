@@ -77,6 +77,11 @@
          lookup comes back as PERMISSION_DENIED. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Updates install from inside the app (ApkInstallerPlugin): the APK is
+         downloaded into the cache and handed to Android's installer, which
+         needs this to offer the "Install unknown apps" switch for accommo. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>

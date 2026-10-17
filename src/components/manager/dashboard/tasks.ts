@@ -36,7 +36,7 @@ export function permitTasks(
           hint: `${where} — accreditation is at risk until this is renewed`,
           when: ago(d.expires_at),
           action: 'Upload renewal',
-          route: '/manager/osas',
+          route: `/manager/properties/${d.accommodation_id}?tab=settings`,
           tone: 'danger',
           rank: 1,
         })
@@ -50,7 +50,7 @@ export function permitTasks(
           hint: `${where} — renew it before it lapses`,
           when: '',
           action: 'Renew now',
-          route: '/manager/osas',
+          route: `/manager/properties/${d.accommodation_id}?tab=settings`,
           tone: 'warn',
           rank: 3,
         })

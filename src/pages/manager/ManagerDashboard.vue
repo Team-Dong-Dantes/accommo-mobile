@@ -20,11 +20,10 @@
         <DashHero
           v-if="unverified"
           label="OSAS verification"
-          :right="verification.inReview ? `Sent ${sentLabel}` : `Step ${Math.min(verification.done + 1, 3)} of 3`"
+          :right="verification.inReview ? `Sent ${sentLabel}` : ''"
           :big="String(verification.done)"
           of="/ 3 steps done"
           :segments="verifySegments"
-          :legend="verifyLegend"
           to="/manager/osas"
         />
         <DashHero
@@ -178,15 +177,6 @@ const verifySegments = computed(() => {
     { value: v.done, tone: 'primary' },
     { value: v.inReview ? 1 : 0, tone: 'info' },
     { value: v.total - v.done - (v.inReview ? 1 : 0), tone: 'border' },
-  ]
-})
-const verifyLegend = computed(() => {
-  const v = verification.value
-  return [
-    { label: 'Done', value: String(v.done), tone: 'primary' },
-    v.inReview
-      ? { label: 'In review', value: '1', tone: 'info' }
-      : { label: 'Left', value: String(v.total - v.done), tone: 'muted' },
   ]
 })
 
