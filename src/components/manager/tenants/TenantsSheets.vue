@@ -64,12 +64,22 @@
     </div>
   </BottomSheet>
 
-  <AddStudentSheet v-model="addOpen" @added="refresh" />
+  <AddStudentSheet v-model="addOpen" :room="addRoom" @added="refresh" />
+
+  <LogPaymentSheet
+    v-model="paymentOpen"
+    :lease-id="paymentLease?.id ?? ''"
+    :start-date="paymentLease?.startDate"
+    :subtitle="paymentLease ? `From ${paymentLease.studentName}` : ''"
+    @submitted="refresh"
+  />
 </template>
 
 <script setup lang="ts">
-// The list's sheets: filters, declining an application, adding a walk-in.
+// The list's sheets: filters, declining an application, adding a walk-in,
+// logging a payment for the boarder picked from the list.
 import AddStudentSheet from '@/components/manager/AddStudentSheet.vue'
+import LogPaymentSheet from '@/components/manager/LogPaymentSheet.vue'
 import BottomSheet from '@/components/shared/BottomSheet.vue'
 import { FILTERS } from './model'
 import { useTenants } from './tenants'
@@ -82,6 +92,9 @@ const {
   refresh,
   decidingId,
   addOpen,
+  addRoom,
+  paymentOpen,
+  paymentLease,
   declineOpen,
   declineReason,
   confirmDecline,

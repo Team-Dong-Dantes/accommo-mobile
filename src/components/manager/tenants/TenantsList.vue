@@ -9,14 +9,33 @@
     search-label="Search boarders"
     @open-filters="filtersOpen = true"
   />
-  <!-- Walk-in tenants, accepted later by scanning their QR. Logging a
-       payment lives on Monthly rent and the boarder's own page. -->
+  <!-- Both start by picking from the list below: a boarder to log a payment
+       for, a room with an open bed to add a walk-in student to. -->
   <div class="top-actions">
-    <button type="button" class="top-pay-btn" @click="addOpen = true">
-      <IconifyIcon icon="lucide:user-plus" width="16" />
-      Add a student
+    <button
+      v-if="picking !== 'room'"
+      type="button"
+      class="top-pay-btn"
+      :class="{ 'top-pay-btn--ghost': picking === 'payment' }"
+      @click="togglePicking('payment')"
+    >
+      <IconifyIcon :icon="picking === 'payment' ? 'lucide:x' : 'lucide:hand-coins'" width="16" />
+      {{ picking === 'payment' ? 'Cancel' : 'Log a payment' }}
+    </button>
+    <button
+      v-if="picking !== 'payment'"
+      type="button"
+      class="top-pay-btn top-pay-btn--ghost"
+      @click="togglePicking('room')"
+    >
+      <IconifyIcon :icon="picking === 'room' ? 'lucide:x' : 'lucide:user-plus'" width="16" />
+      {{ picking === 'room' ? 'Cancel' : 'Add a student' }}
     </button>
   </div>
+  <p v-if="picking" class="picking-hint">
+    <IconifyIcon icon="lucide:pointer" width="14" />
+    {{ picking === 'payment' ? 'Tap a boarder below to log their payment.' : 'Tap a room with an open bed to add a student to it.' }}
+  </p>
 
   <section v-for="acc in visibleAccommodations" :key="acc.id" class="acc">
     <button type="button" class="acc-head" @click="toggleAcc(acc.id)">
@@ -85,7 +104,8 @@ const {
   visibleAccommodations,
   accStatsLine,
   occupancyTone,
-  addOpen,
+  picking,
+  togglePicking,
 } = useTenants()
 </script>
 
@@ -109,6 +129,21 @@ const {
   font: inherit;
   font-size: 14px;
   font-weight: 700;
+}
+.top-pay-btn--ghost {
+  border: 1px solid var(--m-border);
+  background: var(--m-surface);
+  color: var(--m-ink);
+}
+.picking-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: -4px 2px 0;
+  color: var(--m-muted);
+  font-size: 12px;
+  text-align: center;
 }
 /* One connected card — the header and its rooms share this border/radius
    instead of floating as separate boxes with a gap between them. */

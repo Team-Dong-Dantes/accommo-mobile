@@ -63,13 +63,15 @@ export async function addStudentToRoom(
   roomId: string,
   studentNo: string,
   startDate: string,
-): Promise<void> {
-  const { error } = await supabase.rpc('add_student_to_room', {
+): Promise<string> {
+  const { data, error } = await supabase.rpc('add_student_to_room', {
     p_room: roomId,
     p_student_no: studentNo,
     p_start: startDate,
   })
   if (error) throw new Error(error.message)
+  // The new lease, pending until the student's QR is scanned.
+  return data as string
 }
 
 /** Accepts an added student with the QR code just scanned from their screen. */

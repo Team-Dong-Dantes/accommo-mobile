@@ -40,13 +40,15 @@
       {{
         acceptFor
           ? `Scan ${acceptFor.studentName}’s student QR to accept them into ${acceptFor.roomLabel}.`
-          : manualMode
+          : addRoomId
+            ? `Scan the student’s QR to add them to ${addRoomLabel || 'the room'}.`
+            : manualMode
             ? 'Camera is paused while you enter a code by hand.'
             : 'Point the camera at the student’s QR code to verify identity.'
       }}
     </p>
     <!-- Accepting needs the student's own QR: a typed ID is not their consent. -->
-    <button v-if="!cameraError && !acceptLeaseId" type="button" class="hint-action" @click="manualMode = !manualMode">
+    <button v-if="!cameraError && !acceptLeaseId && !addRoomId" type="button" class="hint-action" @click="manualMode = !manualMode">
       <IconifyIcon :icon="manualMode ? 'lucide:camera' : 'lucide:keyboard'" width="16" /> {{ manualMode ? 'Back to camera' : 'Enter code manually' }}
     </button>
     <button v-else-if="cameraError" type="button" class="hint-action" @click="retryCamera">
@@ -60,7 +62,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/utils/supabase'
-import { acceptAddedStudent } from '@/utils/applications'
+import { acceptAddedStudent, addStudentToRoom } from '@/utils/applications'
 import { useQuasar } from 'quasar'
 import { useQrStore } from '@/stores/qr'
 import { Html5Qrcode } from 'html5-qrcode'
@@ -103,6 +105,40 @@ async function accept(code: string) {
 }
 const qrStore = useQrStore()
 
+/**
+ * Set when opened from Add a student: a scan finds the student, adds them to
+ * this room and accepts them with the same code, so one scan does what used to
+ * take a typed ID now and a Scan to accept later. The code rotates every few
+ * seconds, which is why nothing waits on a tap in between.
+ */
+const addRoomId = computed(() => (typeof route.query.add === 'string' ? route.query.add : ''))
+const addStart = computed(() => (typeof route.query.start === 'string' ? route.query.start : ''))
+const addRoomLabel = computed(() => (typeof route.query.room === 'string' ? route.query.room : ''))
+
+async function addByScan(code: string) {
+  let leaseId = ''
+  try {
+    const student = await qrStore.scanStudent(code)
+    if (!student.osasVerified || !student.studentId) {
+      throw new Error(`${student.name} is not verified by OSAS yet, so they can’t be added.`)
+    }
+    leaseId = await addStudentToRoom(addRoomId.value, student.studentId, addStart.value)
+    await acceptAddedStudent(leaseId, code.trim())
+    $q.notify({ message: `${student.name} added to ${addRoomLabel.value || 'the room'}.`, color: 'positive', position: 'top', icon: 'check_circle' })
+    void router.replace(`/manager/tenant/${leaseId}`)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Could not add this student.'
+    $q.notify({ message, color: 'negative', position: 'top', icon: 'error_outline' })
+    // Added, but the code ran out before the accept: they are on the list as
+    // pending, so carry on as Scan to accept for that stay.
+    if (leaseId) {
+      await router.replace(`/manager/profile/qr-scanner?accept=${leaseId}`)
+      void loadAcceptLease()
+    }
+    void startScanner()
+  }
+}
+
 const cameraError = ref('')
 const manualMode = ref(false)
 const manualCode = ref('')
@@ -113,6 +149,7 @@ let disposed = false
 function onScanSuccess(decodedText: string) {
   stopScanner()
   if (acceptLeaseId.value) void accept(decodedText)
+  else if (addRoomId.value) void addByScan(decodedText)
   else void lookup(decodedText)
 }
 
@@ -172,8 +209,10 @@ async function startScanner() {
     const message = error instanceof Error ? error.message : 'Camera unavailable.'
     cameraError.value = acceptLeaseId.value
       ? 'Camera unavailable (' + message + '). Accepting needs the camera to scan the student’s QR.'
-      : 'Camera unavailable (' + message + '). You can enter the student code manually below.'
-    manualMode.value = !acceptLeaseId.value
+      : addRoomId.value
+        ? 'Camera unavailable (' + message + '). Go back and type their student ID instead.'
+        : 'Camera unavailable (' + message + '). You can enter the student code manually below.'
+    manualMode.value = !acceptLeaseId.value && !addRoomId.value
   }
 }
 

@@ -1,7 +1,15 @@
 <template>
   <div>
-  <div v-for="room in acc.rooms" :key="room.id" class="room">
-    <div class="room-head">
+  <div v-for="room in acc.rooms" :key="room.id" class="room" :class="{ 'room--off': picking === 'room' && !hasOpenBed(room) }">
+    <!-- While adding a student, the room's header is what gets tapped. -->
+    <component
+      :is="picking === 'room' ? 'button' : 'div'"
+      :type="picking === 'room' ? 'button' : undefined"
+      class="room-head"
+      :class="{ 'room-head--pick': picking === 'room' && hasOpenBed(room) }"
+      :disabled="picking === 'room' && !hasOpenBed(room)"
+      @click="picking === 'room' && pickRoom(acc, room)"
+    >
       <span class="room-name">{{ room.label }}</span>
       <!-- One dot per bed: filled, applied for, or open. -->
       <span v-if="room.capacity" class="room-beds" aria-hidden="true">
@@ -11,7 +19,8 @@
       <span class="room-occ" :class="{ 'room-occ--full': roomOccupancy(room).full }">
         {{ roomOccupancy(room).label }}
       </span>
-    </div>
+      <IconifyIcon v-if="picking === 'room' && hasOpenBed(room)" icon="lucide:user-plus" width="16" class="room-pick-icon" />
+    </component>
     <div v-if="room.leases.length" class="room-list">
       <div
         v-for="l in room.leases"
@@ -23,7 +32,9 @@
         <button
           type="button"
           class="lease-main"
-          @click="router.push(`/manager/tenant/${l.id}`)"
+          :class="{ 'lease-main--pick': picking === 'payment' && isPayable(l) }"
+          :disabled="picking === 'room' || (picking === 'payment' && !isPayable(l))"
+          @click="picking === 'payment' ? pickLease(l) : router.push(`/manager/tenant/${l.id}`)"
         >
           <span class="lease-avatar" :class="l.avatarColor ? [`bg-${l.avatarColor}`, 'text-white'] : []">
             <img v-if="l.avatarUrl" :src="l.avatarUrl" alt="" class="lease-avatar-img" @error="l.avatarUrl = null" />
@@ -39,7 +50,7 @@
           </span>
         </button>
         <button
-          v-if="l.status !== 'pending'"
+          v-if="!picking && l.status !== 'pending'"
           type="button"
           class="lease-msg"
           aria-label="Message boarder"
@@ -48,7 +59,7 @@
           <IconifyIcon icon="lucide:message-circle" width="15" />
         </button>
         </div>
-        <div v-if="l.status === 'pending'" class="lease-actions">
+        <div v-if="!picking && l.status === 'pending'" class="lease-actions">
           <button
             type="button"
             class="lease-act lease-act--ghost"
@@ -102,6 +113,11 @@ const {
   decidingId,
   openDecline,
   decideApplication,
+  isPayable,
+  picking,
+  pickLease,
+  hasOpenBed,
+  pickRoom,
 } = useTenants()
 </script>
 
@@ -228,6 +244,34 @@ const {
 }
 .lease-main:disabled {
   opacity: 0.4;
+  cursor: not-allowed;
+}
+/* While picking, what can be picked highlights against the disabled rest. */
+.lease-main--pick {
+  padding: 6px 8px;
+  margin: 0 -8px;
+  background: var(--m-primary-soft);
+}
+button.room-head {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.room-head--pick {
+  background: var(--m-primary-soft);
+  box-shadow: inset 3px 0 var(--m-primary);
+}
+.room-pick-icon {
+  flex: 0 0 auto;
+  color: var(--m-primary);
+}
+.room--off {
+  opacity: 0.4;
+}
+button.room-head:disabled {
   cursor: not-allowed;
 }
 .lease-actions {

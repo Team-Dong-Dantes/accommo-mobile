@@ -1,7 +1,7 @@
 // Every accommodation with its rooms and leases, the search and filters over
 // them, and deciding applications from the list.
 import { AVATAR, CARD, resolveAsset } from '@/utils/cloudinaryUrl'
-import { type Accommodation, FILTERS, type Lease } from './model'
+import { type Accommodation, FILTERS, type Lease, type Room } from './model'
 import { authUser, supabase } from '@/utils/supabase'
 import { computed, ref, watch } from 'vue'
 import { confirmAction } from '@/utils/confirmAction'
@@ -164,7 +164,7 @@ export function createTenantsState() {
       const currentLeases = (leaseRows ?? []).filter((l) => ['active', 'pending', 'leave_requested'].includes(l.status))
 
       const { data: roomData, error: roomError } = accIds.length
-        ? await supabase.from('rooms').select('id,label,room_number,capacity,accommodation_id').in('accommodation_id', accIds)
+        ? await supabase.from('rooms').select('id,label,room_number,capacity,status,accommodation_id').in('accommodation_id', accIds)
         : { data: [], error: null }
       if (roomError) throw roomError
       const roomRows = roomData ?? []
@@ -202,6 +202,7 @@ export function createTenantsState() {
               id: r.id,
               label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
               capacity: r.capacity,
+              status: r.status,
               leases: leasesByRoom.get(r.id) ?? [],
             })),
         }
@@ -321,6 +322,37 @@ export function createTenantsState() {
     return l.status === 'active' || l.status === 'leave_requested'
   }
 
+  // Log a payment and Add a student both start from the list: it becomes the
+  // picker — a boarder for a payment, a room with an open bed for a student —
+  // and everything else is disabled until one is tapped or picking is cancelled.
+  // Every property opens, since a collapsed one hides what there is to pick.
+  const picking = ref<'payment' | 'room' | null>(null)
+  function togglePicking(mode: 'payment' | 'room') {
+    picking.value = picking.value === mode ? null : mode
+    if (picking.value) collapsedAccIds.value = new Set()
+  }
+
+  const paymentOpen = ref(false)
+  const paymentLease = ref<Lease | null>(null)
+  function pickLease(l: Lease) {
+    if (!isPayable(l)) return
+    picking.value = null
+    paymentLease.value = l
+    paymentOpen.value = true
+  }
+
+  // add_student_to_room takes only an 'available' room, and a full one has no bed.
+  function hasOpenBed(room: Room) {
+    return room.status === 'available' && (!room.capacity || room.leases.length < room.capacity)
+  }
+  const addRoom = ref<{ id: string; label: string; accommodation: string } | null>(null)
+  function pickRoom(acc: Accommodation, room: Room) {
+    if (!hasOpenBed(room)) return
+    picking.value = null
+    addRoom.value = { id: room.id, label: room.label, accommodation: acc.name }
+    addOpen.value = true
+  }
+
   return {
     router,
     notify,
@@ -363,5 +395,13 @@ export function createTenantsState() {
     confirmDecline,
     decideApplication,
     isPayable,
+    picking,
+    togglePicking,
+    paymentOpen,
+    paymentLease,
+    pickLease,
+    hasOpenBed,
+    addRoom,
+    pickRoom,
   }
 }

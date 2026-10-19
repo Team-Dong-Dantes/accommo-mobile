@@ -15,6 +15,8 @@ export interface Room {
   id: string
   label: string
   capacity: number | null
+  /** rooms.status: only an 'available' room takes a new boarder. */
+  status: string
   leases: Lease[]
 }
 export interface Accommodation {

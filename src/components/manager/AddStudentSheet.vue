@@ -1,7 +1,8 @@
 <template>
-  <!-- A walk-in tenant: find the student by ID, pick the room, add. The stay
-       stays pending until the student's QR is scanned (Tenants → Scan to accept),
-       which only the app can do — adding itself works on the web too. -->
+  <!-- A walk-in tenant, into the room picked on the Boarders list. Scanning
+       their student QR adds and accepts them in one go (the scanner does both).
+       Typing their student ID adds them pending, accepted later by Scan to
+       accept — a typed ID proves nobody is standing there. -->
   <BottomSheet
     :model-value="modelValue"
     title="Add a student"
@@ -9,8 +10,25 @@
     done-label=""
     @update:model-value="emit('update:modelValue', $event)"
   >
+    <div v-if="room" class="room-line">
+      <IconifyIcon icon="lucide:door-open" width="18" />
+      <span><strong>{{ room.label }}</strong> · {{ room.accommodation }}</span>
+    </div>
+
     <div class="sheet-block">
-      <span class="sheet-label">Student ID</span>
+      <span class="sheet-label">Move-in date</span>
+      <DateTimeField v-model="startDate" mode="date" :min="today" placeholder="Pick a move-in date" />
+    </div>
+
+    <button type="button" class="add-btn scan-btn" :disabled="!room || !startDate" @click="scan">
+      <IconifyIcon icon="lucide:scan-line" width="18" />
+      Scan student QR
+    </button>
+    <p class="add-note">Adds and accepts them at once. Have them open their QR screen.</p>
+
+    <div class="or-rule"><span>or type their student ID</span></div>
+
+    <div class="sheet-block">
       <div class="find-row">
         <input
           v-model="studentNo"
@@ -35,32 +53,10 @@
     </div>
 
     <template v-if="student?.osasVerified">
-      <div class="sheet-block">
-        <span class="sheet-label">Room</span>
-        <p v-if="!rooms.length" class="add-none">You have no available rooms.</p>
-        <div v-else class="m-chips">
-          <button
-            v-for="r in rooms"
-            :key="r.id"
-            type="button"
-            class="m-chip"
-            :class="{ 'm-chip--on': roomId === r.id }"
-            @click="roomId = r.id"
-          >
-            {{ r.label }} · {{ r.accommodation }}
-          </button>
-        </div>
-      </div>
-
-      <div class="sheet-block">
-        <span class="sheet-label">Move-in date</span>
-        <DateTimeField v-model="startDate" mode="date" :min="today" placeholder="Pick a move-in date" />
-      </div>
-
       <p class="add-note">
         They join this room once you scan their student QR in person.
       </p>
-      <button type="button" class="add-btn" :disabled="!roomId || !startDate || adding" @click="add">
+      <button type="button" class="add-btn" :disabled="!room || !startDate || adding" @click="add">
         {{ adding ? 'Adding…' : 'Add student' }}
       </button>
     </template>
@@ -69,8 +65,8 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { supabase, authUser } from '@/utils/supabase'
 import { useQrStore, type ScannedStudent } from '@/stores/qr'
 import { addStudentToRoom } from '@/utils/applications'
 import { errorMessage } from '@/utils/errors'
@@ -79,9 +75,14 @@ import BottomSheet from '@/components/shared/BottomSheet.vue'
 import DateTimeField from '@/components/shared/DateTimeField.vue'
 import { manilaToday } from '@/utils/payments'
 
-const props = defineProps<{ modelValue: boolean }>()
+const props = defineProps<{
+  modelValue: boolean
+  /** The room picked on the Boarders list. */
+  room: { id: string; label: string; accommodation: string } | null
+}>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; added: [] }>()
 
+const router = useRouter()
 const qrStore = useQrStore()
 const notify = useNotify()
 
@@ -89,8 +90,6 @@ const today = manilaToday()
 const studentNo = ref('')
 const student = ref<ScannedStudent | null>(null)
 const finding = ref(false)
-const rooms = ref<{ id: string; label: string; accommodation: string }[]>([])
-const roomId = ref('')
 const startDate = ref(today)
 const adding = ref(false)
 
@@ -102,26 +101,17 @@ watch(
     if (!open) return
     studentNo.value = ''
     student.value = null
-    roomId.value = ''
     startDate.value = today
-    void loadRooms()
   },
 )
 
-async function loadRooms() {
-  const { data: authData } = await authUser()
-  const uid = authData.user?.id
-  if (!uid) return
-  const { data } = await supabase
-    .from('rooms')
-    .select('id,label,room_number,accommodations!inner(name,landlord_id)')
-    .eq('accommodations.landlord_id', uid)
-    .eq('status', 'available')
-  rooms.value = (data ?? []).map((r) => ({
-    id: r.id,
-    label: r.label || (r.room_number ? `Room ${r.room_number}` : 'Room'),
-    accommodation: (r.accommodations as unknown as { name: string | null } | null)?.name || 'Accommodation',
-  }))
+// The scanner adds and accepts in one go: the code rotates every few seconds,
+// so it is used the moment it is read rather than after a confirm here.
+function scan() {
+  if (!props.room || !startDate.value) return
+  const query = new URLSearchParams({ add: props.room.id, start: startDate.value, room: props.room.label })
+  emit('update:modelValue', false)
+  void router.push(`/manager/profile/qr-scanner?${query}`)
 }
 
 // The same lookup the scanner's typed-code path uses, so the landlord/landlady
@@ -141,7 +131,7 @@ async function find() {
 
 async function add() {
   const s = student.value
-  const room = rooms.value.find((r) => r.id === roomId.value)
+  const room = props.room
   if (!s || !room || adding.value) return
   adding.value = true
   try {
@@ -158,6 +148,39 @@ async function add() {
 </script>
 
 <style scoped>
+.room-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--m-radius);
+  background: var(--m-bg);
+  color: var(--m-muted);
+  font-size: 13px;
+}
+.room-line strong {
+  color: var(--m-ink);
+}
+.scan-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.or-rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--m-muted);
+  font-size: 12px;
+}
+.or-rule::before,
+.or-rule::after {
+  height: 1px;
+  flex: 1;
+  background: var(--m-border);
+  content: '';
+}
 .find-row {
   display: flex;
   gap: 8px;
@@ -197,7 +220,6 @@ async function add() {
   color: var(--m-ink);
   font-size: 14px;
 }
-.add-none,
 .add-note {
   margin: 0;
   color: var(--m-muted);
