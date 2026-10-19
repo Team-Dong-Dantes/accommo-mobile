@@ -9,7 +9,7 @@
 //
 // Invisible unless Cloudflare wants a click, in which case its checkbox shows in
 // `host` (the login pages put it under the Log in button) or else in the middle
-// of the screen. Fails soft: if Cloudflare can't be reached the
+// of the page column in use. Fails soft: if Cloudflare can't be reached the
 // request goes out without a token, which only matters while Supabase enforces
 // CAPTCHA, and then Supabase refuses it with a clear error.
 //
@@ -55,9 +55,18 @@ async function captchaToken(host?: HTMLElement, timeoutMs = 15000): Promise<stri
   }
 
   const box = document.createElement('div')
-  box.style.cssText = host
-    ? 'display:flex;justify-content:center'
-    : 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10000';
+  if (host) {
+    box.style.cssText = 'display:flex;justify-content:center'
+  } else {
+    // No host: centre on the page column the person is using (the button they
+    // just pressed sits in it), not the window. On a wide sign-in screen the
+    // window's centre is the campus photo, far from the form.
+    const column = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.q-page > *')
+    const r = column?.getBoundingClientRect()
+    const x = r ? `${r.left + r.width / 2}px` : '50%'
+    const y = r ? `${r.top + r.height / 2}px` : '50%'
+    box.style.cssText = `position:fixed;left:${x};top:${y};transform:translate(-50%,-50%);z-index:10000`
+  }
   (host ?? document.body).appendChild(box)
 
   return new Promise((resolve) => {
