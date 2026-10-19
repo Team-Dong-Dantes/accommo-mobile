@@ -88,7 +88,14 @@ export async function shareHtml(html: string, { name, title }: { name: string; t
   const file = `${name}.png`
   const png = await htmlToPng(html)
   if (Capacitor.isNativePlatform()) {
-    const { uri } = await Filesystem.writeFile({ path: file, data: png.split(',')[1]!, directory: Directory.Cache })
+    // Inside the cache folder the FileProvider exposes (res/xml/file_paths.xml):
+    // written to the cache root, the share sheet could not be handed the file.
+    const { uri } = await Filesystem.writeFile({
+      path: `Accommo/cache/${file}`,
+      data: png.split(',')[1]!,
+      directory: Directory.Cache,
+      recursive: true,
+    })
     await Share.share({ title, files: [uri] }).catch(ignoreCancel)
     return
   }
