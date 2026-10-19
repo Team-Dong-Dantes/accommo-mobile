@@ -18,7 +18,7 @@
             <h3 class="qr-title">My student QR</h3>
           </div>
           <p class="qr-sub">
-            Show this code at check-in so your manager can confirm you're an active, verified student.
+            Show this code at check-in so your landlord/landlady can confirm you're an active, verified student.
           </p>
           <div class="qr-image-wrapper">
             <img :src="qrDataUrl" alt="Your student QR code" class="qr-image" width="220" height="220" />

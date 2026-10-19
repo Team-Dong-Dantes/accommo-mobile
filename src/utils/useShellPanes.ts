@@ -1,4 +1,4 @@
-import { computed, type Component } from 'vue'
+import { computed, defineAsyncComponent, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { ShellConfig } from '@/types/app-types'
 import { isDesktop } from '@/utils/useTabletMode'
@@ -56,6 +56,7 @@ export function useShellPanes(
 ) {
   const route = useRoute()
   const router = useRouter()
+  const lazyLists = new Map<string, Component>()
 
   /**
    * The list route's page component, pulled straight out of the router so there
@@ -72,7 +73,19 @@ export function useShellPanes(
     const matched = router.resolve(path).matched
     const last = matched[matched.length - 1]
     const c = last?.components?.default
-    return (c as Component | undefined) ?? null
+    if (!c) return null
+    // A list route not visited yet still holds its lazy `() => import(...)`
+    // loader, which <component :is> would call and print as "[object Promise]".
+    // Wrap it once per path so the pane is not remounted on every recompute.
+    if (typeof c === 'function') {
+      let wrapped = lazyLists.get(path)
+      if (!wrapped) {
+        wrapped = defineAsyncComponent(c as () => Promise<Component>)
+        lazyLists.set(path, wrapped)
+      }
+      return wrapped
+    }
+    return c as Component
   }
 
   return computed<ShellPanes>(() => {
