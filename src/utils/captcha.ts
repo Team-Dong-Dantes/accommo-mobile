@@ -9,9 +9,10 @@
 //
 // Invisible unless Cloudflare wants a click, in which case its checkbox shows in
 // `host` (the login pages put it under the Log in button) or else in the middle
-// of the page column in use. Fails soft: if Cloudflare can't be reached the
-// request goes out without a token, which only matters while Supabase enforces
-// CAPTCHA, and then Supabase refuses it with a clear error.
+// of the page column in use. Fails closed: Supabase enforces CAPTCHA, so a
+// request without a token would only come back as "no captcha_token found".
+// Instead the person is told to try again, and the console says why (the
+// Turnstile error code, a blocked script, or a check that never answered).
 //
 // Kept identical to accommo-web/src/utils/captcha.ts.
 
@@ -50,7 +51,8 @@ async function captchaToken(host?: HTMLElement, timeoutMs = 15000): Promise<stri
   let turnstile: Turnstile
   try {
     turnstile = await load()
-  } catch {
+  } catch (e) {
+    console.warn('[captcha]', e instanceof Error ? e.message : e)
     return undefined
   }
 
@@ -72,37 +74,39 @@ async function captchaToken(host?: HTMLElement, timeoutMs = 15000): Promise<stri
   return new Promise((resolve) => {
     let widgetId = ''
     let settled = false
-    const done = (token?: string) => {
+    const done = (token?: string, why?: string) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (why) console.warn('[captcha]', why)
       if (widgetId) turnstile.remove(widgetId)
       box.remove()
       resolve(token)
     }
     // Only for a silent check that never answers; once Cloudflare asks for a
     // click, the person gets as long as they need.
-    const timer = setTimeout(() => done(undefined), timeoutMs)
+    const timer = setTimeout(() => done(undefined, `Turnstile did not answer within ${timeoutMs / 1000}s`), timeoutMs)
     try {
       widgetId = turnstile.render(box, {
         sitekey: SITE_KEY,
         appearance: 'interaction-only',
         callback: (token: string) => done(token),
-        'error-callback': () => done(undefined),
+        'error-callback': (code: string) => done(undefined, `Turnstile error ${code}`),
         'before-interactive-callback': () => {
           clearTimeout(timer)
           // Spaced only once the checkbox shows, so a silent check doesn't nudge the form.
           if (host) box.style.marginTop = '16px'
         },
       })
-    } catch {
-      done(undefined)
+    } catch (e) {
+      done(undefined, `Turnstile render failed: ${e instanceof Error ? e.message : String(e)}`)
     }
   })
 }
 
-/** Options to spread into an auth call: `{ captchaToken }`, or nothing when no token could be had. */
-export async function captcha(host?: HTMLElement | null): Promise<{ captchaToken?: string }> {
+/** Options to spread into an auth call: `{ captchaToken }`. Throws when no token could be had. */
+export async function captcha(host?: HTMLElement | null): Promise<{ captchaToken: string }> {
   const token = await captchaToken(host ?? undefined)
-  return token ? { captchaToken: token } : {}
+  if (!token) throw new Error("Couldn't complete the security check. Please try again.")
+  return { captchaToken: token }
 }
