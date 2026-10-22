@@ -2,8 +2,9 @@
   <div class="avatar-upload" :style="{ '--au-size': `${size}px`, '--au-bg': background }" @click="pick">
     <img v-if="displayUrl && !failed" :src="displayUrl" alt="" class="avatar-upload-img" @error="failed = true" />
     <span v-else class="avatar-upload-initials">{{ initials || '?' }}</span>
-    <span class="avatar-upload-overlay">
-      <IconifyIcon icon="lucide:camera" :width="Math.round(size * 0.22)" />
+    <span class="avatar-upload-overlay" :class="{ 'avatar-upload-overlay--busy': preview }">
+      <q-spinner v-if="preview" :size="`${Math.round(size * 0.3)}px`" />
+      <IconifyIcon v-else icon="lucide:camera" :width="Math.round(size * 0.22)" />
     </span>
   </div>
   <input ref="inputEl" type="file" accept="image/*" class="avatar-upload-hidden" @change="onSelected" />
@@ -12,7 +13,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
-import { uploadAvatar } from '@/utils/upload'
+import { uploadAvatar, whenLoaded } from '@/utils/upload'
 import { AVATAR, resolveAsset } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 
@@ -37,7 +38,9 @@ const inputEl = ref<HTMLInputElement | null>(null)
 // hero showed an uncropped picture squeezed into a circle while every other
 // surface showed the square-cropped version. Display only; what is emitted and
 // saved stays the original URL.
-const displayUrl = computed(() => resolveAsset(props.modelValue, AVATAR))
+// While a new photo uploads, the picked file itself is shown.
+const preview = ref('')
+const displayUrl = computed(() => preview.value || resolveAsset(props.modelValue, AVATAR))
 
 // Fall back to the initials when the photo won't load, the way every other
 // avatar in the app already does. Without this the broken <img> rendered its
@@ -53,7 +56,7 @@ watch(
 )
 
 function pick() {
-  inputEl.value?.click()
+  if (!preview.value) inputEl.value?.click()
 }
 
 async function onSelected(event: Event) {
@@ -61,13 +64,20 @@ async function onSelected(event: Event) {
   const file = input.files?.[0]
   if (!file) return
 
+  const local = URL.createObjectURL(file)
+  preview.value = local
+  failed.value = false
   try {
     const url = await uploadAvatar(file, props.userId)
-    emit('update:modelValue', url)
     notify.success('Avatar updated.')
+    // Swap only once the uploaded copy is loaded, so the circle never goes blank.
+    await whenLoaded(resolveAsset(url, AVATAR))
+    emit('update:modelValue', url)
   } catch (e) {
     notify.error(e instanceof Error ? e.message : 'Could not upload avatar.')
   }
+  preview.value = ''
+  URL.revokeObjectURL(local)
   input.value = ''
 }
 </script>
@@ -112,7 +122,8 @@ async function onSelected(event: Event) {
   opacity: 0;
   transition: opacity 0.2s;
 }
-.avatar-upload:hover .avatar-upload-overlay {
+.avatar-upload:hover .avatar-upload-overlay,
+.avatar-upload-overlay--busy {
   opacity: 1;
 }
 .avatar-upload-hidden {

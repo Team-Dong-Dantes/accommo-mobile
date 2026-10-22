@@ -5,9 +5,10 @@
 
 
     <div v-if="photos.length" class="thumbs">
-      <div v-for="(p, i) in photos" :key="p.url" class="thumb">
+      <div v-for="(p, i) in photos" :key="p.id" class="thumb">
         <img :src="p.url" alt="" />
-        <button type="button" class="thumb-x" @click="photos.splice(i, 1)">
+        <q-spinner v-if="p.pending" class="thumb-wait" size="20px" />
+        <button v-else type="button" class="thumb-x" @click="photos.splice(i, 1)">
           <IconifyIcon icon="lucide:x" width="12" />
         </button>
       </div>
@@ -127,6 +128,13 @@ const {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.thumb-wait {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
 }
 .thumb-x {
   position: absolute;

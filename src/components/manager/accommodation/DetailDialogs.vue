@@ -7,7 +7,8 @@
       <div v-if="images.length" class="thumbs">
         <div v-for="img in images" :key="img.id" class="thumb">
           <img :src="img.url" alt="" />
-          <button type="button" class="thumb-x" :disabled="deletingImage === img.id" @click="deleteImage(img.id)">
+          <q-spinner v-if="img.pending" class="thumb-wait" size="20px" />
+          <button v-else type="button" class="thumb-x" :disabled="deletingImage === img.id" @click="deleteImage(img.id)">
             <IconifyIcon icon="lucide:x" width="12" />
           </button>
         </div>

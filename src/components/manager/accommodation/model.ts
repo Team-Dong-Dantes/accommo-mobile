@@ -55,6 +55,8 @@ export interface Room {
 export interface Img {
   id: string
   url: string
+  /** Still uploading; `url` is the device's local copy. */
+  pending?: boolean
 }
 export type FacilityStatus = 'available' | 'under_repair'
 

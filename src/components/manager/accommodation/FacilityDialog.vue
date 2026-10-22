@@ -71,8 +71,9 @@
           <div v-if="activeFacilityImages.length" class="thumbs">
             <div v-for="img in activeFacilityImages" :key="img.id" class="thumb">
               <img :src="img.url" alt="" />
+              <q-spinner v-if="img.pending" class="thumb-wait" size="20px" />
               <button
-                v-if="facilityDialogMode === 'create' || facilityViewMode === 'edit'"
+                v-else-if="facilityDialogMode === 'create' || facilityViewMode === 'edit'"
                 type="button"
                 class="thumb-x"
                 :disabled="deletingFacilityImageId === img.id"

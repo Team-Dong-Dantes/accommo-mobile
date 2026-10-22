@@ -79,6 +79,13 @@
   height: 100%;
   object-fit: cover;
 }
+.thumb-wait {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
+}
 .thumb-x {
   position: absolute;
   top: 3px;

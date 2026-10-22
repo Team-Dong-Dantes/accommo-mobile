@@ -8,7 +8,7 @@ import { computed, reactive, ref } from 'vue'
 import { errorMessage } from '@/utils/errors'
 import { manilaToday } from '@/utils/payments'
 import { to12Hour } from '@/utils/format'
-import { uploadDocument } from '@/utils/upload'
+import { addPhotosLive, type LivePhoto } from '@/utils/upload'
 import { useNotify } from '@/utils/notify'
 import { useRouter } from 'vue-router'
 
@@ -21,7 +21,7 @@ export function createWizard() {
   const STEP_LABELS = ['Details', 'Amenities', 'House rules', 'Exterior photos', 'Permits', 'Review'] as const
   const submitting = ref(false)
   const uploadingPhotos = ref(false)
-  const photos = ref<{ url: string }[]>([])
+  const photos = ref<LivePhoto[]>([])
   const permits = reactive<Record<string, UploadedPermit>>({})
   const permitExpiry = reactive<Record<string, string>>({})
   const today = manilaToday()
@@ -52,6 +52,7 @@ export function createWizard() {
       if (!form.visitorPolicy.trim()) return 'Describe your visitor policy.'
     }
     if (step.value === 4 && !photos.value.length) return 'Add at least one exterior photo.'
+    if (step.value === 4 && uploadingPhotos.value) return 'Wait for your photos to finish uploading.'
     if (step.value === 5 && !permitsComplete.value) {
       return `Attach all ${DOC_TYPES.length} permits (${attachedPermits.value} so far).`
     }
@@ -118,10 +119,8 @@ export function createWizard() {
     if (!files.length) return
     uploadingPhotos.value = true
     try {
-      for (const file of files) {
-        const url = await uploadDocument(file, '', 'accommodation_photo')
-        photos.value.push({ url })
-      }
+      // Nothing is saved until the wizard submits, so the URL is the row.
+      await addPhotosLive(photos.value, files, async (url) => ({ id: url, url }))
     } catch (e) {
       notify.error(errorMessage(e, 'Could not upload one of your photos.'))
     } finally {

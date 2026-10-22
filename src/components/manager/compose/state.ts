@@ -7,7 +7,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { errorMessage } from '@/utils/errors'
 import { manilaToday } from '@/utils/payments'
 import { supabase } from '@/utils/supabase'
-import { uploadDocument } from '@/utils/upload'
+import { uploadDocument, whenLoaded } from '@/utils/upload'
+import { CARD, resolveAsset } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 
 export function createAnnouncementCompose(ctx: Seed) {
@@ -33,6 +34,8 @@ export function createAnnouncementCompose(ctx: Seed) {
 
   const detailsOpen = ref(false)
   const uploading = ref(false)
+  /** The picked photo, shown from the device while it uploads. */
+  const imagePreview = ref('')
   const confirmDiscard = ref(false)
   const fileInput = ref<HTMLInputElement | null>(null)
   const tenantCount = ref<number | null>(null)
@@ -178,12 +181,19 @@ export function createAnnouncementCompose(ctx: Seed) {
 
   async function upload(file: File) {
     uploading.value = true
+    const local = URL.createObjectURL(file)
+    imagePreview.value = local
     try {
-      form.imageUrl = await uploadDocument(file, '', 'announcement')
+      const url = await uploadDocument(file, '', 'announcement')
+      // Swap only once the uploaded copy is loaded, so the photo never goes blank.
+      await whenLoaded(resolveAsset(url, CARD))
+      form.imageUrl = url
     } catch (e) {
       notify.error(errorMessage(e, 'Could not upload that photo.'))
     } finally {
       uploading.value = false
+      imagePreview.value = ''
+      URL.revokeObjectURL(local)
     }
   }
 
@@ -198,6 +208,7 @@ export function createAnnouncementCompose(ctx: Seed) {
     today,
     detailsOpen,
     uploading,
+    imagePreview,
     confirmDiscard,
     fileInput,
     tenantCount,

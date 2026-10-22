@@ -85,8 +85,9 @@
           <div v-if="roomImages.length" class="thumbs">
             <div v-for="img in roomImages" :key="img.id" class="thumb">
               <img :src="img.url" alt="" />
+              <q-spinner v-if="img.pending" class="thumb-wait" size="20px" />
               <button
-                v-if="roomDialogMode === 'create' || roomViewMode === 'edit'"
+                v-else-if="roomDialogMode === 'create' || roomViewMode === 'edit'"
                 type="button"
                 class="thumb-x"
                 :disabled="deletingRoomImage === img.id"

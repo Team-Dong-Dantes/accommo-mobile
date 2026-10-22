@@ -5,7 +5,7 @@ import { ref } from 'vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
-import { uploadDocument } from '@/utils/upload'
+import { addPhotosLive } from '@/utils/upload'
 import type { Database } from '@/types/database.gen'
 import { FIELD_META, isLeaseRestrictError, type AmenityKey, type FieldKey } from './model'
 import type { Detail } from './detail'
@@ -281,16 +281,16 @@ export function createListing(core: Detail) {
     if (!files.length) return
     uploadingCover.value = true
     try {
-      for (const file of files) {
-        const url = await uploadDocument(file, '', 'accommodation_photo')
+      const list = images.value
+      await addPhotosLive(list, files, async (url) => {
         const { data: created, error: insertError } = await supabase
           .from('accommodation_images')
-          .insert({ accommodation_id: id, url, sort_order: images.value.length })
+          .insert({ accommodation_id: id, url, sort_order: list.filter((i) => !i.pending).length })
           .select('id,url')
           .single()
         if (insertError) throw insertError
-        images.value.push({ id: created.id, url: created.url })
-      }
+        return { id: created.id, url: created.url }
+      })
     } catch (e) {
       notify.error(errorMessage(e, 'Could not upload one of your photos.'))
     } finally {

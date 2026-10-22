@@ -4,7 +4,7 @@ import { computed, reactive, ref } from 'vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { formatPeso } from '@/utils/format'
-import { uploadDocument } from '@/utils/upload'
+import { addPhotosLive } from '@/utils/upload'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import { emptyUtilities, utilitiesFromRow, utilityColumns, utilitiesProblem, type UtilityColumns, ROOM_TYPE_DEFAULT_CAPACITY } from '@/utils/listings'
 import { capturePhoto } from '@/utils/camera'
@@ -216,27 +216,28 @@ export function createRooms(core: Detail, floors: ReturnType<typeof createFloors
 
   async function addRoomPhotos(files: File[]) {
     if (!files.length || !editingRoomId.value) return
+    const roomId = editingRoomId.value
+    const list = roomImages.value
     uploadingRoomPhoto.value = true
     try {
-      for (const file of files) {
-        const url = await uploadDocument(file, '', 'room_photo')
+      await addPhotosLive(list, files, async (url) => {
         const { data: created, error: insertError } = await supabase
           .from('room_images')
-          .insert({ room_id: editingRoomId.value, url, sort_order: roomImages.value.length })
+          .insert({ room_id: roomId, url, sort_order: list.filter((i) => !i.pending).length })
           .select('id,url')
           .single()
         if (insertError) throw insertError
-        roomImages.value.push({ id: created.id, url: created.url })
-      }
-      const row = rooms.value.find((r) => r.id === editingRoomId.value)
-      if (row) {
-        row.images = [...roomImages.value]
-        row.photoUrl = roomImages.value[0]?.url ? resolveAsset(roomImages.value[0].url, CARD) : ''
-      }
+        return { id: created.id, url: created.url }
+      })
     } catch (e) {
       notify.error(errorMessage(e, "Could not upload one of this room's photos."))
     } finally {
       uploadingRoomPhoto.value = false
+      const row = rooms.value.find((r) => r.id === roomId)
+      if (row) {
+        row.images = list.filter((i) => !i.pending)
+        row.photoUrl = row.images[0]?.url ? resolveAsset(row.images[0].url, CARD) : ''
+      }
     }
   }
 

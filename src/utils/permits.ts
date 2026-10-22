@@ -24,20 +24,10 @@ export function permitLabel(type: string): string {
 
 /** Below this on the short side, the small print on a permit is unreadable. */
 export const MIN_SHORT_SIDE = 1000
-/** Above this on the long side, the extra pixels only cost upload time. */
-export const MAX_LONG_SIDE = 2000
 
 /** A photo too small for OSAS to read. */
 export function isTooSmall(width: number, height: number): boolean {
   return Math.min(width, height) < MIN_SHORT_SIDE
-}
-
-/** The size to shrink a photo to, or null when it is already small enough. */
-export function shrinkTarget(width: number, height: number): { width: number; height: number } | null {
-  const long = Math.max(width, height)
-  if (long <= MAX_LONG_SIDE) return null
-  const scale = MAX_LONG_SIDE / long
-  return { width: Math.round(width * scale), height: Math.round(height * scale) }
 }
 
 /**
@@ -78,21 +68,6 @@ export async function sha256Hex(blob: Blob): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-async function imageSize(file: File): Promise<{ width: number; height: number; bitmap: ImageBitmap }> {
-  const bitmap = await createImageBitmap(file)
-  return { width: bitmap.width, height: bitmap.height, bitmap }
-}
-
-async function shrink(bitmap: ImageBitmap, target: { width: number; height: number }, name: string): Promise<File> {
-  const canvas = document.createElement('canvas')
-  canvas.width = target.width
-  canvas.height = target.height
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, target.width, target.height)
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85))
-  if (!blob) throw new Error('Could not prepare that photo. Try another one.')
-  return new File([blob], name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
-}
-
 export interface UploadedPermit {
   /** The private file reference to store in accommodation_documents.file_url. */
   ref: string
@@ -101,30 +76,25 @@ export interface UploadedPermit {
 }
 
 /**
- * Checks, shrinks and uploads one permit file. PDFs pass straight through;
- * photos must be legible and are shrunk to at most MAX_LONG_SIDE. Throws an
- * Error whose message is fit to show.
+ * Checks and uploads one permit file. PDFs pass straight through; photos must
+ * be legible (uploadSecureDocument shrinks them). Throws an Error whose message
+ * is fit to show.
  */
 export async function uploadPermitFile(file: File): Promise<UploadedPermit> {
   // Hashed as picked, before any shrinking: the same photo submitted twice is
   // the same bytes, whatever this device's canvas makes of it.
   const sha256 = await sha256Hex(file)
-  let toSend = file
   if (file.type.startsWith('image/')) {
-    const { width, height, bitmap } = await imageSize(file)
-    try {
-      if (isTooSmall(width, height)) {
-        throw new Error(
-          `That photo is ${width}×${height}, too small for OSAS to read. Take it closer, or upload the PDF.`,
-        )
-      }
-      const target = shrinkTarget(width, height)
-      if (target) toSend = await shrink(bitmap, target, file.name || 'permit.jpg')
-    } finally {
-      bitmap.close()
+    const bitmap = await createImageBitmap(file)
+    const { width, height } = bitmap
+    bitmap.close()
+    if (isTooSmall(width, height)) {
+      throw new Error(
+        `That photo is ${width}×${height}, too small for OSAS to read. Take it closer, or upload the PDF.`,
+      )
     }
   }
-  const ref = await uploadSecureDocument(toSend)
+  const ref = await uploadSecureDocument(file)
   return { ref, sha256 }
 }
 

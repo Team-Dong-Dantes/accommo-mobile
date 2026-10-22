@@ -39,7 +39,7 @@
 import { computed, ref, watch } from 'vue'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import AvatarUpload from '@/components/shared/AvatarUpload.vue'
-import { uploadCover } from '@/utils/upload'
+import { uploadCover, whenLoaded } from '@/utils/upload'
 import { COVER, resolveAsset } from '@/utils/cloudinaryUrl'
 import { useNotify } from '@/utils/notify'
 
@@ -79,8 +79,10 @@ const emit = defineEmits<{ action: [] }>()
 const notify = useNotify()
 const coverInput = ref<HTMLInputElement | null>(null)
 const coverBusy = ref(false)
-// Stored value is the original upload; display a hero-sized copy.
-const coverSrc = computed(() => resolveAsset(coverUrl.value, COVER))
+// Stored value is the original upload; display a hero-sized copy. While a new
+// cover uploads, the picked file itself is shown.
+const coverPreview = ref('')
+const coverSrc = computed(() => coverPreview.value || resolveAsset(coverUrl.value, COVER))
 const coverFailed = ref(false)
 watch(coverUrl, () => {
   coverFailed.value = false
@@ -91,13 +93,21 @@ async function onCover(event: Event) {
   const file = input.files?.[0]
   if (!file) return
   coverBusy.value = true
+  const local = URL.createObjectURL(file)
+  coverPreview.value = local
+  coverFailed.value = false
   try {
-    coverUrl.value = await uploadCover(file, props.userId)
+    const url = await uploadCover(file, props.userId)
     notify.success('Cover photo updated.')
+    // Swap only once the uploaded copy is loaded, so the hero never goes blank.
+    await whenLoaded(resolveAsset(url, COVER))
+    coverUrl.value = url
   } catch (e) {
     notify.error(e instanceof Error ? e.message : 'Could not upload cover photo.')
   } finally {
     coverBusy.value = false
+    coverPreview.value = ''
+    URL.revokeObjectURL(local)
     input.value = ''
   }
 }

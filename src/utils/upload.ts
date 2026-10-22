@@ -32,14 +32,125 @@ function optimizeUrl(rawUrl: string): string {
   )
 }
 
-function validateFile(file: File): string | null {
-  if (file.size > MAX_FILE_SIZE) {
-    return 'File size must be less than 5MB.'
+/** Long side of a listing, room, avatar or announcement photo: twice the widest it is ever drawn. */
+const PHOTO_LONG_SIDE = 1600
+/** Long side of a private document: IDs, receipts and permits keep their small print legible. */
+const DOC_LONG_SIDE = 2000
+
+/** The size to shrink a photo to, or null when it is already small enough. */
+export function shrinkTarget(width: number, height: number, maxSide: number): { width: number; height: number } | null {
+  const long = Math.max(width, height)
+  if (long <= maxSide) return null
+  const scale = maxSide / long
+  return { width: Math.round(width * scale), height: Math.round(height * scale) }
+}
+
+/**
+ * Re-encodes a photo as a JPEG no longer than `maxSide` on its long side.
+ *
+ * A 12-megapixel phone shot is 3–6 MB; sent whole it took seconds over mobile
+ * data, and anything past 5 MB was refused outright. Shrunk it is a few hundred
+ * KB. PDFs, and anything the browser can't decode, are returned untouched, and
+ * so is a photo the re-encode would only make bigger.
+ */
+async function compressImage(file: File, maxSide: number): Promise<File> {
+  if (!ALLOWED_IMAGE.includes(file.type)) return file
+  const bitmap = await createImageBitmap(file).catch(() => null)
+  if (!bitmap) return file
+  try {
+    const { width, height } = shrinkTarget(bitmap.width, bitmap.height, maxSide) ?? bitmap
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')!
+    // JPEG has no transparency: without a backdrop a PNG's clear areas turn black.
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, width, height)
+    ctx.drawImage(bitmap, 0, 0, width, height)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+    if (!blob || blob.size >= file.size) return file
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+  } finally {
+    bitmap.close()
   }
+}
+
+function validateFile(file: File): string | null {
   if (!ALLOWED_ALL.includes(file.type)) {
     return 'Only JPEG, PNG, WebP images and PDF files are allowed.'
   }
   return null
+}
+
+/**
+ * Checks a picked file and shrinks it for upload. The 5 MB cap applies to what
+ * is actually sent, so a large phone photo passes once compressed.
+ */
+async function prepareFile(file: File, maxSide: number): Promise<File> {
+  const validationError = validateFile(file)
+  if (validationError) throw new Error(validationError)
+  const sniffError = await sniffMismatch(file)
+  if (sniffError) throw new Error(sniffError)
+  const ready = await compressImage(file, maxSide)
+  if (ready.size > MAX_FILE_SIZE) throw new Error('File size must be less than 5MB.')
+  return ready
+}
+
+/** Resolves once `src` is in the browser's cache, so swapping it in shows no blank frame. */
+export function whenLoaded(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = img.onerror = () => resolve()
+    img.src = src
+  })
+}
+
+/** A photo in an on-screen list; `pending` while it is still the device's local copy. */
+export interface LivePhoto {
+  id: string
+  url: string
+  pending?: boolean
+}
+
+/**
+ * Puts each picked photo into `list` straight away, from the device, then
+ * uploads them all at once and swaps each for its saved row as it lands.
+ *
+ * `save` turns an uploaded URL into the row to keep; it runs one photo at a
+ * time, in the order picked, so a sort_order read from the list stays in
+ * sequence. A photo that fails is dropped from the list and the first error is
+ * rethrown once the rest have finished.
+ */
+export async function addPhotosLive<T extends LivePhoto>(
+  list: T[],
+  files: File[],
+  save: (url: string) => Promise<T>,
+): Promise<void> {
+  const locals = files.map((file, i) => ({
+    id: `pending-${Date.now()}-${i}`,
+    url: URL.createObjectURL(file),
+    pending: true,
+  }) as T)
+  list.push(...locals)
+  const uploads = files.map((file) => uploadDocument(file, '', 'photo'))
+  // Awaited in order below; this keeps a later one's early failure from being reported as unhandled.
+  uploads.forEach((p) => p.catch(() => undefined))
+
+  let firstError: unknown = null
+  for (const [i, local] of locals.entries()) {
+    const at = () => list.findIndex((p) => p.id === local.id)
+    try {
+      const saved = await save(await uploads[i]!)
+      await whenLoaded(saved.url)
+      if (at() !== -1) list.splice(at(), 1, saved)
+    } catch (e) {
+      if (at() !== -1) list.splice(at(), 1)
+      firstError ??= e
+    } finally {
+      URL.revokeObjectURL(local.url)
+    }
+  }
+  if (firstError) throw firstError
 }
 
 /**
@@ -96,17 +207,15 @@ function uniqueUploadName(file: File): string {
   return `${stem}-${nonce}${ext}`
 }
 
-async function performUpload(file: File): Promise<CloudinaryUploadResult> {
-  const validationError = validateFile(file)
-  if (validationError) throw new Error(validationError)
-  const sniffError = await sniffMismatch(file)
-  if (sniffError) throw new Error(sniffError)
+async function performUpload(picked: File): Promise<CloudinaryUploadResult> {
   // Every public upload is a photo; PDFs only ever go up as private documents.
-  if (!ALLOWED_IMAGE.includes(file.type)) throw new Error('Only JPEG, PNG and WebP images can be used here.')
+  if (picked.type === 'application/pdf') throw new Error('Only JPEG, PNG and WebP images can be used here.')
 
-  const { data: params, error } = await supabase.functions.invoke('doc-access', {
-    body: { action: 'public-upload-params' },
-  })
+  // The signature round trip runs while the photo is being shrunk.
+  const [file, { data: params, error }] = await Promise.all([
+    prepareFile(picked, PHOTO_LONG_SIDE),
+    supabase.functions.invoke('doc-access', { body: { action: 'public-upload-params' } }),
+  ])
   if (error) throw error
 
   const form = new FormData()
@@ -248,16 +357,14 @@ export type DocumentTable = 'verification_documents' | 'accommodation_documents'
 export type PrivateFileTable = DocumentTable | 'payments' | 'messages' | 'concerns' | 'tickets' | 'ticket_messages';
 
 /** Uploads a document to Cloudinary with authenticated delivery; returns the ref to store. */
-export async function uploadSecureDocument(file: File): Promise<DocumentRef> {
-  const validationError = validateFile(file)
-  if (validationError) throw new Error(validationError)
-  const sniffError = await sniffMismatch(file)
-  if (sniffError) throw new Error(sniffError)
-
-  const isPdf = file.type === 'application/pdf'
-  const { data: params, error } = await supabase.functions.invoke('doc-access', {
-    body: { action: 'upload-params', resourceType: isPdf ? 'raw' : 'image' },
-  })
+export async function uploadSecureDocument(picked: File): Promise<DocumentRef> {
+  const isPdf = picked.type === 'application/pdf'
+  const [file, { data: params, error }] = await Promise.all([
+    prepareFile(picked, DOC_LONG_SIDE),
+    supabase.functions.invoke('doc-access', {
+      body: { action: 'upload-params', resourceType: isPdf ? 'raw' : 'image' },
+    }),
+  ])
   if (error) throw error
 
   const form = new FormData()

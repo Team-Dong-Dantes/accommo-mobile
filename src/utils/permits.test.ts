@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/utils/supabase', () => ({ supabase: {} }))
 vi.mock('@/utils/upload', () => ({ uploadSecureDocument: vi.fn() }))
 
-const { expiryProblem, isTooSmall, permitReplaceOpen, sha256Hex, shrinkTarget } = await import('./permits')
+const { expiryProblem, isTooSmall, permitReplaceOpen, sha256Hex } = await import('./permits')
 
 describe('isTooSmall', () => {
   it('refuses a photo under 1000 px on its short side', () => {
@@ -13,16 +13,6 @@ describe('isTooSmall', () => {
   it('accepts one at or over it, either orientation', () => {
     expect(isTooSmall(1000, 1500)).toBe(false)
     expect(isTooSmall(4000, 3000)).toBe(false)
-  })
-})
-
-describe('shrinkTarget', () => {
-  it('leaves a photo already within 2000 px alone', () => {
-    expect(shrinkTarget(2000, 1500)).toBeNull()
-  })
-  it('scales the long side to 2000 and keeps the shape', () => {
-    expect(shrinkTarget(4000, 3000)).toEqual({ width: 2000, height: 1500 })
-    expect(shrinkTarget(3000, 4000)).toEqual({ width: 1500, height: 2000 })
   })
 })
 

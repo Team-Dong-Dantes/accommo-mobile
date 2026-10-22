@@ -4,7 +4,7 @@
 import { computed, reactive, ref } from 'vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
-import { uploadDocument } from '@/utils/upload'
+import { addPhotosLive } from '@/utils/upload'
 import { FACILITY_META, PRIVATE_ONLY_FACILITY_TYPES, RETIRED_FACILITY_TYPES } from '@/utils/listings'
 import { capturePhoto } from '@/utils/camera'
 import type { Facility, FacilityStatus } from './model'
@@ -213,16 +213,16 @@ export function createFacilities(core: Detail, roomEditor: ReturnType<typeof cre
     uploadingFacilityId.value = facilityId
     try {
       const row = facilities.value.find((f) => f.id === facilityId)
-      for (const file of files) {
-        const url = await uploadDocument(file, '', 'facility_photo')
+      if (!row) return
+      await addPhotosLive(row.images, files, async (url) => {
         const { data: created, error: insertError } = await supabase
           .from('accommodation_facility_images')
-          .insert({ facility_id: facilityId, url, sort_order: row?.images.length ?? 0 })
+          .insert({ facility_id: facilityId, url, sort_order: row.images.filter((i) => !i.pending).length })
           .select('id,url')
           .single()
         if (insertError) throw insertError
-        row?.images.push({ id: created.id, url: created.url })
-      }
+        return { id: created.id, url: created.url }
+      })
     } catch (e) {
       notify.error(errorMessage(e, "Could not upload this facility's photo."))
     } finally {

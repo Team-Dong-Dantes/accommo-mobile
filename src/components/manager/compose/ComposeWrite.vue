@@ -38,9 +38,10 @@
 
     <!-- A photo of the posted advisory or schedule says more than the body
          usually can, and the reader already renders it as a poster. -->
-    <div v-if="form.imageUrl" class="photo">
-      <img :src="resolveAsset(form.imageUrl, CARD)" alt="" class="photo-img" />
-      <button type="button" class="photo-drop" aria-label="Remove photo" @click="form.imageUrl = ''">
+    <div v-if="imagePreview || form.imageUrl" class="photo">
+      <img :src="imagePreview || resolveAsset(form.imageUrl, CARD)" alt="" class="photo-img" />
+      <q-spinner v-if="imagePreview" class="photo-wait" size="28px" />
+      <button v-else type="button" class="photo-drop" aria-label="Remove photo" @click="form.imageUrl = ''">
         <IconifyIcon icon="lucide:trash-2" width="15" />
       </button>
     </div>
@@ -68,6 +69,7 @@ const {
   props,
   form,
   uploading,
+  imagePreview,
   fileInput,
   toggleHouse,
   reachText,
@@ -158,6 +160,13 @@ const {
   max-height: 180px;
   border-radius: var(--m-radius-sm);
   object-fit: cover;
+}
+.photo-wait {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
 }
 .photo-drop {
   position: absolute;

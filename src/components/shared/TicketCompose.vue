@@ -48,13 +48,13 @@
         <input v-model="form.subject" type="text" class="row-input" placeholder="Short summary" maxlength="120" />
       </div>
 
-      <div v-if="form.photoUrl" class="row">
+      <div v-if="form.photoUrl || uploading" class="row">
         <span class="row-label">Attached</span>
         <span class="row-fixed">
           <IconifyIcon icon="lucide:image" width="14" />
           {{ fileName || 'Screenshot' }}
         </span>
-        <button type="button" class="row-clear" aria-label="Remove attachment" @click="clearFile">
+        <button v-if="!uploading" type="button" class="row-clear" aria-label="Remove attachment" @click="clearFile">
           <IconifyIcon icon="lucide:x" width="15" />
         </button>
       </div>
@@ -116,11 +116,13 @@ async function onFileSelected(event: Event) {
   const file = input.files?.[0]
   if (!file) return
   uploading.value = true
+  // Named straight away; the paperclip spins until it has landed.
+  fileName.value = file.name
   try {
     // Private: a cld: ref, shown to OSAS through a signed link.
     form.photoUrl = await uploadSecureDocument(file)
-    fileName.value = file.name
   } catch (e) {
+    fileName.value = ''
     notify.error(errorMessage(e, 'Could not upload that screenshot.'))
   } finally {
     uploading.value = false
