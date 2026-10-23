@@ -50,14 +50,6 @@ export function confirmAction(options: Partial<ConfirmPrompt> = {}): Promise<boo
   })
 }
 
-/**
- * The last step before money changes hands for good (confirming, logging cash,
- * forgiving, using the deposit): there is no undo, so the person types CONFIRM.
- */
-export function confirmMoney(title: string, message: string, checks: string[] = [], confirmLabel = 'Confirm'): Promise<boolean> {
-  return confirmAction({ title, message, checks, typeToConfirm: 'CONFIRM', confirmLabel })
-}
-
 /** Called by ConfirmGate when the user confirms or backs out. */
 export function settleConfirm(ok: boolean) {
   prompt.value = null

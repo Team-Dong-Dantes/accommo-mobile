@@ -54,7 +54,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
-import { confirmAction } from '@/utils/confirmAction'
+import { requirePin } from '@/utils/requirePin'
 import { formatPesoExact } from '@/utils/format'
 import AppModal from '@/components/shared/AppModal.vue'
 
@@ -106,7 +106,7 @@ async function save() {
 async function remove() {
   const b = props.bill
   if (!b || busy.value) return
-  if (!(await confirmAction({ title: 'Remove this bill?', message: `${firstName.value} will no longer see it as due.` }))) return
+  if (!(await requirePin({ confirm: true, title: 'Remove this bill?', message: `${firstName.value} will no longer see it as due.` }))) return
   busy.value = true
   try {
     const { error } = await supabase.from('utility_bills').delete().eq('id', b.id)

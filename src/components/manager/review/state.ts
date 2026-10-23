@@ -7,7 +7,7 @@ import { REASONS, type Row } from './model'
 import { type Seed } from './model'
 import { type UtilityKey } from '@/utils/listings'
 import { computed, ref, watch } from 'vue'
-import { confirmMoney } from '@/utils/confirmAction'
+import { confirmMoney, requirePin } from '@/utils/requirePin'
 import { errorMessage } from '@/utils/errors'
 import { signRows } from '@/utils/upload'
 import { supabase } from '@/utils/supabase'
@@ -166,6 +166,7 @@ export function createPaymentReview(ctx: Seed) {
 
   async function reject() {
     if (!reasonText.value) return notify.error('Say why, so they can fix it.')
+    if (!(await requirePin({ title: 'Reject this payment?' }))) return
     await run('reject')
   }
 

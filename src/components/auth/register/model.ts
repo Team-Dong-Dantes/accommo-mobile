@@ -10,6 +10,7 @@ export type StepKey =
   | 'studentId'
   | 'schoolId'
   | 'assessment'
+  | 'pin'
   | 'governmentId'
   | 'businessPermit';
 
@@ -24,6 +25,7 @@ export const STEP_TITLE: Record<StepKey, string> = {
   studentId: 'Student ID',
   schoolId: 'School ID',
   assessment: 'Assessment',
+  pin: 'App PIN',
   governmentId: 'Government ID',
   businessPermit: 'Permit',
 }
@@ -55,6 +57,12 @@ export const STEP_QUESTION: Record<StepKey, { title: string; note?: string }> = 
   assessment: {
     title: 'Verify your enrolment',
     note: 'Now your Assessment of Fees. Optional — you can browse Accommo while OSAS checks.',
+  },
+  // Last, because it is the only screen about what happens *after* registration
+  // rather than part of it.
+  pin: {
+    title: 'Protect your account with a PIN',
+    note: 'Optional — six digits, asked whenever you reopen Accommo. You can set one later from Settings.',
   },
   governmentId: {
     title: 'Verify your property',

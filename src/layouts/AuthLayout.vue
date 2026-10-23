@@ -99,6 +99,18 @@ function onResize() {
 onMounted(() => {
   measure()
   window.addEventListener('resize', onResize)
+  // Tells MainLayout that whoever ends up inside the app authenticated during
+  // this process rather than arriving on a session restored from disk, so it
+  // does not meet the resume lock the moment it finishes signing in. See the
+  // launch lock in MainLayout for the other half; sessionStorage is the signal
+  // because the WebView clears it when the process dies and keeps it across
+  // navigations and reloads, which is exactly the distinction being drawn.
+  try {
+    sessionStorage.setItem('accommo.authed.here', '1')
+  } catch {
+    // Storage unavailable: the launch lock simply asks for the PIN, which is
+    // the safe side to fail on.
+  }
 })
 onUnmounted(() => window.removeEventListener('resize', onResize))
 
@@ -204,7 +216,7 @@ watch(
 
 /* The photograph keeps the login band's own geometry — 400px tall, hung 80px
    above the top edge — in every state, so `background-size: cover` crops it
-   exactly as it always has there (UpdateGate's wall copies that crop) and
+   exactly as it always has there (PinGate's lock screen and UpdateGate's wall copy that crop) and
    never re-scales mid-move. The other screens are reached by transforming it:
 
    - splash: scaled up to the full screen height. Scaled from 46% across, the
@@ -259,7 +271,7 @@ watch(
    wordmark sits) keeps the text well past AA while letting the campus show
    through.
 
-   UpdateGate.vue's wall hand-copies this gradient so it can stand in for
+   PinGate.vue's lock screen and UpdateGate.vue's wall hand-copy this gradient so they can stand in for
    the login screen. Change one and the other must follow. */
 .hero-overlay--band {
   background:

@@ -3,7 +3,7 @@
 import { type Payment } from './model'
 import { type Resubmit } from '@/components/shared/pay/model'
 import { authUser, supabase } from '@/utils/supabase'
-import { confirmAction } from '@/utils/confirmAction'
+import { requirePin } from '@/utils/requirePin'
 import { errorMessage } from '@/utils/errors'
 import { manilaToday } from '@/utils/payments'
 import { ref } from 'vue'
@@ -47,7 +47,7 @@ export function createStayActions(ctx: ReturnType<typeof createStayState>) {
   }
 
   async function requestLeave() {
-    if (!(await confirmAction({ title: 'Request to leave?', message: `Your ${myLandlord.value} will be asked to approve it.` }))) return
+    if (!(await requirePin({ confirm: true, title: 'Request to leave?', message: `Your ${myLandlord.value} will be asked to approve it.` }))) return
     if (leaving.value || !lease.value) return
     leaving.value = true
     try {
@@ -75,7 +75,7 @@ export function createStayActions(ctx: ReturnType<typeof createStayState>) {
   const withdrawing = ref(false)
   async function withdrawPayment(p: Payment) {
     if (withdrawing.value) return
-    if (!(await confirmAction({ title: 'Withdraw this payment?', message: `It is taken back before your ${myLandlord.value} reviews it. You can submit a new one.` }))) return
+    if (!(await requirePin({ confirm: true, title: 'Withdraw this payment?', message: `It is taken back before your ${myLandlord.value} reviews it. You can submit a new one.` }))) return
     withdrawing.value = true
     try {
       const { error: rpcError } = await supabase.rpc('review_payment', { p_payment: p.id, p_action: 'withdraw' })

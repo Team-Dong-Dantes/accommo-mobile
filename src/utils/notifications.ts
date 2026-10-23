@@ -31,6 +31,7 @@ const LOOK: Record<string, NotifLook> = {
   concern: { icon: 'lucide:wrench', tone: 'warn' },
   review: { icon: 'lucide:star', tone: 'good' },
   announcement: { icon: 'lucide:megaphone', tone: 'info' },
+  policy: { icon: 'lucide:scroll-text', tone: 'warn' },
   // OSAS restrictions (applications paused, listings hidden) and PIN lockouts.
   system: { icon: 'lucide:shield-alert', tone: 'warn' },
   security: { icon: 'lucide:lock', tone: 'danger' },
@@ -54,14 +55,14 @@ const ROUTES = new Set([
   // there. Missing from this set, a link silently degrades to the BY_TYPE
   // fallback below and drops the reader somewhere unrelated.
   '/manager/profile/history',
-  '/manager/settings/terms',
+  '/manager/settings/policies',
   '/student/home',
   '/student/discover',
   '/student/messages',
   '/student/profile',
   '/student/profile/history',
   '/student/profile/qr',
-  '/student/settings/terms',
+  '/student/settings/policies',
   '/student/notifications',
   '/student/support',
   '/student/concerns',
@@ -91,6 +92,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/manager/osas',
     concern: '/manager/support',
     review: '/manager/profile',
+    policy: '/manager/settings/policies',
     // Written with a bare '/profile' link, which neither app role has; without
     // these the row had nowhere to go and rendered as a dead, untappable div.
     system: '/manager/profile',
@@ -107,6 +109,7 @@ const BY_TYPE: Record<Role, Record<string, string>> = {
     ticket: '/student/support',
     concern: '/student/concerns',
     review: '/student/profile',
+    policy: '/student/settings/policies',
     system: '/student/profile',
     security: '/student/profile',
   },

@@ -7,6 +7,7 @@ import { type ForgiveTarget } from '@/components/manager/ForgiveSheet.vue'
 import { authUser, supabase } from '@/utils/supabase'
 import { computed, reactive, ref } from 'vue'
 import { confirmAction } from '@/utils/confirmAction'
+import { requirePin } from '@/utils/requirePin'
 import { errorMessage } from '@/utils/errors'
 import { formatDate, formatMonth } from '@/utils/format'
 import { respondToApplication } from '@/utils/applications'
@@ -105,7 +106,8 @@ export function createTenantActions(ctx: ReturnType<typeof createTenantState>) {
   async function approveLeave() {
     const today = manilaToday()
     const later = !!lease.leaveDate && lease.leaveDate > today
-    if (!(await confirmAction({
+    if (!(await requirePin({
+      confirm: true,
       title: 'Approve this leave request?',
       message: later
         ? `The stay runs until ${formatDate(lease.leaveDate)}, then ends and the room is freed.`
@@ -163,6 +165,7 @@ export function createTenantActions(ctx: ReturnType<typeof createTenantState>) {
   async function declineLeave() {
     const reason = decisionReason.value.trim()
     if (deciding.value || !reason) return
+    if (!(await requirePin({ title: 'Refuse this leave request?' }))) return
     deciding.value = true
     try {
       const { error: updateError } = await supabase
@@ -209,7 +212,8 @@ export function createTenantActions(ctx: ReturnType<typeof createTenantState>) {
       const managerId = authData?.user?.id
       if (!managerId) throw new Error('Not logged in.')
 
-      const { error: insertError } = await supabase.from('tenant_reviews').insert({
+      const { error: insertError } = await supabase.from('reviews').insert({
+        kind: 'tenant',
         lease_id: leaseId.value,
         student_id: lease.studentId,
         landlord_id: managerId,

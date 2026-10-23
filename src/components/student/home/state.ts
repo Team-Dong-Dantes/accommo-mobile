@@ -147,7 +147,7 @@ export function useStudentHome() {
         const managerId = room?.accommodations?.landlord_id
 
         // No rating on the landlord/landlady card. It used to average
-        // `landlord_reviews` filtered to this landlord/landlady, but RLS only
+        // landlord ratings (`reviews`) filtered to this landlord/landlady, but RLS only
         // ever returned the reviews *this student* had written — so the number
         // shown was the student's own score played back at them. Students don't
         // see ratings while browsing either, so there is nothing to replace it

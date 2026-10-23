@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
+import { requirePin } from '@/utils/requirePin'
 import { MAX_FLOORS, isLeaseRestrictError } from './model'
 import type { Detail } from './detail'
 
@@ -99,6 +100,7 @@ export function createFloors(core: Detail) {
   }
 
   async function confirmDeleteFloor() {
+    if (!(await requirePin({ title: 'Delete this floor?' }))) return
     const floor = floorPendingDelete.value
     if (floor === null || deletingFloor.value !== null) return
     const roomIds = rooms.value.filter((r) => r.floor === floor).map((r) => r.id)

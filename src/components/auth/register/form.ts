@@ -102,7 +102,7 @@ export function createRegisterForm() {
       :['name', 'phone', 'email', 'password', 'verify']
     return isManager.value
       ? [...head, 'governmentId', 'businessPermit']
-      : [...head, 'studies', 'studentId', 'schoolId', 'assessment']
+      : [...head, 'studies', 'studentId', 'schoolId', 'assessment', 'pin']
   })
 
   const current = computed<StepKey>(() => steps.value[stepIndex.value] ?? 'name')
@@ -161,6 +161,8 @@ export function createRegisterForm() {
     studentIdYear: '',
     studentIdNumber: '',
     studentId: '',
+    pin: '',
+    pinConfirm: '',
     schoolIdFile: null as File | null,
     assessmentFile: null as File | null,
     schoolIdText: null as string | null,
@@ -176,14 +178,14 @@ export function createRegisterForm() {
    * killed, or a dropped connection does not throw it away. One per role, so the
    * student and landlord/landlady forms never fill each other in.
    *
-   * Not everything is kept: the password is never written to disk, and the
+   * Not everything is kept: the password and PIN are never written to disk, and the
    * document files cannot be serialised — nor should uploaded IDs sit on the
    * device (see persistCache.ts) — so those two are re-entered. A week-old draft
    * is dropped rather than greeting the next person on a shared phone.
    */
   const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
   const UNSAVED_FIELDS = [
-    'password', 'confirmPassword',
+    'password', 'confirmPassword', 'pin', 'pinConfirm',
     'schoolIdFile', 'schoolIdText', 'assessmentFile', 'assessmentText',
     'governmentIdFile', 'businessPermitFile',
   ]

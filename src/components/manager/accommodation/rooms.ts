@@ -8,6 +8,7 @@ import { addPhotosLive } from '@/utils/upload'
 import { resolveAsset, CARD } from '@/utils/cloudinaryUrl'
 import { emptyUtilities, utilitiesFromRow, utilityColumns, utilitiesProblem, type UtilityColumns, ROOM_TYPE_DEFAULT_CAPACITY } from '@/utils/listings'
 import { capturePhoto } from '@/utils/camera'
+import { requirePin } from '@/utils/requirePin'
 import {
   CAPACITY_MAX, MONTHS_MAX, RENT_MAX,
   clampNum, clampOptional, partitionFacilities,
@@ -142,6 +143,7 @@ export function createRooms(core: Detail, floors: ReturnType<typeof createFloors
   // restores 104. A hand-typed name ("A", "Annex 1") is left alone.
   let numberBeforeEdit = ''
   let floorBeforeEdit: number | null = null
+  let rentBeforeEdit = 0
   function onRoomFloorChange() {
     if (roomDialogMode.value === 'edit' && roomForm.floor === floorBeforeEdit) {
       roomForm.roomNumber = numberBeforeEdit
@@ -189,6 +191,7 @@ export function createRooms(core: Detail, floors: ReturnType<typeof createFloors
       roomForm.floor = room.floor
       roomForm.capacity = room.capacity ?? 1
       roomForm.monthlyRent = room.monthlyRent
+      rentBeforeEdit = room.monthlyRent
       roomForm.advanceMonths = room.advanceMonths
       roomForm.depositMonths = room.depositMonths
       roomForm.rentBasis = room.rentBasis
@@ -279,6 +282,12 @@ export function createRooms(core: Detail, floors: ReturnType<typeof createFloors
     if (problem) {
       notify.error(problem)
       return
+    }
+    // Only an actual re-price of an existing room asks: adding rooms during
+    // setup is frequent and harmless, while quietly changing what a room costs
+    // flows into every future application quote and nobody is notified.
+    if (editingRoomId.value && roomForm.monthlyRent !== rentBeforeEdit) {
+      if (!(await requirePin({ title: 'Change this room’s rent?' }))) return
     }
     savingRoom.value = true
     try {

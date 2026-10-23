@@ -2,6 +2,7 @@
 // take it out of (or back into) service, delete it.
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
+import { requirePin } from '@/utils/requirePin'
 import { utilityColumns } from '@/utils/listings'
 import { isLeaseRestrictError, type Img } from './model'
 import { roomFromPayload, type RoomPayload, type createRooms } from './rooms'
@@ -110,6 +111,7 @@ export function createRoomActions(core: Detail, roomEditor: ReturnType<typeof cr
 
   async function deleteRoom() {
     if (savingRoom.value || !editingRoomId.value) return
+    if (!(await requirePin({ title: 'Delete this room?' }))) return
     savingRoom.value = true
     try {
       const { count, error: countError } = await supabase

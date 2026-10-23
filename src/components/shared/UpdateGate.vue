@@ -1,9 +1,9 @@
 <template>
   <!-- A screen, not a dialog. There is no backdrop to tap, no Escape, no Later
        and no close button, because there is no longer any such thing as running
-       this app on an old build. The shape is the login page's — hero photo
-       above, sheet below — because it is a stop, and it should look like the
-       app's other stop. -->
+       this app on an old build. The shape is PinGate's resume lock — hero photo
+       above, sheet below — for the same reason that screen uses it: it is a
+       stop, and it should look like the app's other stop. -->
   <div v-if="open" class="wall">
     <div class="wall-hero" :style="{ '--hero-bg': `url(${EXTERNAL_URLS.ISU_BACKGROUND})` }">
       <div class="wall-hero-overlay">
@@ -238,7 +238,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Above ConfirmGate (8000): there is no point confirming an action in an app
+/* Above PinGate (8000): there is no point asking for a PIN to get into an app
    that cannot be used. Still below Notify (9500), so a failed-to-open-browser
    toast lands on top of this rather than behind it. */
 .wall {
@@ -253,8 +253,8 @@ onMounted(() => {
   background: var(--m-bg);
 }
 
-/* Copied from AuthLayout's hero in its login state. The two are meant to be
-   the same picture. */
+/* Copied from PinGate's `.lock-hero`, which copies AuthLayout's in its login
+   state. The three are meant to be the same picture. */
 .wall-hero {
   position: fixed;
   top: -80px;

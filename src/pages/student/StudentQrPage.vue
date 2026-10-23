@@ -64,6 +64,7 @@ import { useRouter } from 'vue-router'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import QRCode from 'qrcode'
 import { supabase, authUser } from '@/utils/supabase'
+import { requirePin } from '@/utils/requirePin'
 import ErrorCard from '@/components/shared/ErrorCard.vue'
 
 const router = useRouter()
@@ -174,8 +175,15 @@ async function load() {
   }
 }
 
-onMounted(() => {
-  void load()
+// The QR code is this student's identity at a door — the one student-side screen
+// worth the PIN. Gated on entry rather than on an action, because showing it IS
+// the action. Backing out returns to the profile rather than sitting on a blank.
+onMounted(async () => {
+  if (!(await requirePin({ title: 'Show your QR code?' }))) {
+    void router.back()
+    return
+  }
+  await load()
 })
 </script>
 

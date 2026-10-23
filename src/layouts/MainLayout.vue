@@ -154,6 +154,8 @@
 
     <!-- One confirmation card for the whole app. Renders nothing until something asks. -->
     <ConfirmGate />
+    <!-- One PIN pad for the whole app, and the resume lock. Renders nothing until something asks. -->
+    <PinGate @forgot="goToSecuritySettings" />
   </q-layout>
 </template>
 
@@ -163,12 +165,14 @@ import BroadcastBanner from '@/components/shared/BroadcastBanner.vue'
 import ConfirmGate from '@/components/shared/ConfirmGate.vue'
 import DesktopRail from '@/components/layout/DesktopRail.vue'
 import InAppNotice from '@/components/shared/InAppNotice.vue'
+import PinGate from '@/components/shared/PinGate.vue'
 import QuickActions from '@/components/layout/QuickActions.vue'
 import SideRail from '@/components/layout/SideRail.vue'
 import TermsGate from '@/components/shared/TermsGate.vue'
 import { isDesktop, isTablet } from '@/utils/useTabletMode'
 import { pageTitleOverride } from '@/utils/pageTitle'
 import { useShell } from './shell/useShell'
+import { usePinLock } from './shell/pinLock'
 
 // The shell's state lives in ./shell/; this is its markup.
 const {
@@ -200,6 +204,7 @@ const {
   goBack,
   navigateMenuAction,
 } = useShell()
+const { goToSecuritySettings } = usePinLock(role)
 
 // Bottom-nav tabs + the other singleton screens (no route param — one
 // instance ever exists) kept alive across navigation instead of remounting

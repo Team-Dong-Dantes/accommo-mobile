@@ -39,8 +39,8 @@ const managerRoutes: RouteRecordRaw[] = [
     component: () => import('@/pages/shared/CompleteProfilePage.vue'),
   },
   {
-    path: '/manager/settings/terms',
-    component: () => import('@/pages/manager/ManagerTermsPage.vue'),
+    path: '/manager/settings/policies',
+    component: () => import('@/pages/manager/ManagerPoliciesPage.vue'),
   },
   {
     path: '/manager/announcements',

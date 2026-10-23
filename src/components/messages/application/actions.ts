@@ -1,7 +1,7 @@
 // The handshake's moves: ask for the form, send it, review an application,
 // apply, accept or decline.
 import { type Seed } from './model'
-import { confirmAction } from '@/utils/confirmAction'
+import { requirePin } from '@/utils/requirePin'
 import { errorMessage } from '@/utils/errors'
 import { formatDate } from '@/utils/format'
 import { issueApplicationForm, requestApplicationForm, respondToApplication } from '@/utils/applications'
@@ -124,7 +124,7 @@ export function createApplicationActions(ctx: Seed & ReturnType<typeof createApp
   }
 
   async function decideApplication(next: 'active' | 'rejected') {
-    if (next === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the boarder of this room.' }))) return
+    if (!(await requirePin({ confirm: next === 'active', title: next === 'active' ? 'Accept this application?' : 'Decline this application?', ...(next === 'active' ? { message: 'They become the boarder of this room.' } : {}) }))) return
     if (deciding.value || !application.value) return
     deciding.value = true
     try {

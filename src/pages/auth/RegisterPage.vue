@@ -100,11 +100,23 @@
             <IconifyIcon :icon="isManager ? 'lucide:check' : 'lucide:user-plus'" width="18" class="q-ml-sm" />
           </AuthButton>
 
+          <!-- The PIN screen is the student's last, and finishing without one is
+               a real choice. It can be set any time from Settings. -->
+          <q-btn
+            v-if="current === 'pin'"
+            flat
+            no-caps
+            class="actions-secondary"
+            label="Set one up later"
+            :disable="loading"
+            @click="finishWithoutPin"
+          />
+
           <!-- Two skips that carry on rather than end the flow: the ID nobody
                has to hand, and the documents OSAS can wait for. Both leave their
                fields empty and advance; neither submits. -->
           <q-btn
-            v-if="current === 'studentId'"
+            v-else-if="current === 'studentId'"
             flat
             no-caps
             class="actions-secondary"
@@ -163,6 +175,7 @@ const {
   prevStep,
   skipStudentId,
   skipDocument,
+  finishWithoutPin,
   handleRegister,
 } = provideRegister()
 </script>

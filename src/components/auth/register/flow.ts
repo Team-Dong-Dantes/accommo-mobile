@@ -5,6 +5,7 @@ import { type Session } from '@supabase/supabase-js'
 import { composeStudentId, normalizePhPhone } from '@/utils/format'
 import { computed, nextTick, onMounted } from 'vue'
 import { isSignupDatabaseError, readOAuthError, supabase } from '@/utils/supabase'
+import { usePinStore } from '@/stores/pin'
 import type { createRegisterForm } from './form'
 import type { createRegisterGoogle } from './google'
 
@@ -13,6 +14,7 @@ const STUDENT_ID_TAKEN = 'This Student ID belongs to a verified account. Please 
 export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & ReturnType<typeof createRegisterGoogle>) {
   const { router, route, notify, authStore, isManager, registerPath, stepIndex, agreedToTerms, CONSENT_MARKER, registerFormRef, stepsEl, isGoogleMode, googleUserId, emailCreated, emailVerified, creatingAccount, loading, isResubmit, decisionReason, steps, current, isLastStep, form, clearDraft, draft, syncFullName, fillFromGoogleSession, GOOGLE_REJECTED, adoptGoogleSession, saveGooglePassword } = ctx
   let createdUserId: string | null = null
+  const pinStore = usePinStore()
 
   /**
    * Returns to the screen the draft was on. The account is created on leaving the
@@ -212,16 +214,27 @@ export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & 
     college: form.college,
   }))
 
-  /** Leave this enrolment document out; the assessment is the student's last screen, so skipping it finishes. */
+  /** Leave this enrolment document out and carry on; the PIN screen follows. */
   function skipDocument() {
     if (current.value === 'schoolId') {
       form.schoolIdFile = null
       form.schoolIdText = null
-      goToStep(stepIndex.value + 1)
-      return
+    } else {
+      form.assessmentFile = null
+      form.assessmentText = null
     }
-    form.assessmentFile = null
-    form.assessmentText = null
+    goToStep(stepIndex.value + 1)
+  }
+
+  /**
+   * Finish with no PIN set. Clears the fields so a half-typed one is not used.
+   * Finishing without one is a real choice: forcing a secret chosen in a hurry
+   * at the end of a long form is how people end up locked out of a brand-new
+   * account. It can be set any time from Settings.
+   */
+  function finishWithoutPin() {
+    form.pin = ''
+    form.pinConfirm = ''
     void handleRegister(true)
   }
 
@@ -315,6 +328,23 @@ export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & 
         notify.success('Account created successfully!')
       }
 
+      // The PIN is the last screen's answer, so it is set here rather than by a
+      // dialog thrown over the finished form. Set before navigating, so the app
+      // is already protected the first time it is backgrounded.
+      if (form.pin) {
+        const { error: pinError } = await supabase.rpc('set_pin', { p_pin: form.pin })
+        if (pinError) {
+          // The account is made and registered by this point; only the PIN failed.
+          // Say so rather than implying the whole registration did, and let them
+          // set one from Settings.
+          notify.warning('Your account is ready, but the PIN could not be set. You can add one from Settings.')
+        } else {
+          // Through the store, not a direct assignment: setHasPin also writes the
+          // per-account cache the lock screen falls back on when it is offline.
+          await pinStore.setHasPin(true)
+        }
+      }
+
       clearDraft()
       void router.push('/student/home')
     } catch (error: unknown) {
@@ -347,6 +377,7 @@ export function createRegisterFlow(ctx: ReturnType<typeof createRegisterForm> & 
     skipStudentId,
     documentExpected,
     skipDocument,
+    finishWithoutPin,
     studentIdTaken,
     handleRegister,
     onEmailVerified,

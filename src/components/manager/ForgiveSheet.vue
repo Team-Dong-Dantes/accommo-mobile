@@ -53,7 +53,7 @@ import { Icon as IconifyIcon } from '@iconify/vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
 import { useNotify } from '@/utils/notify'
-import { confirmMoney } from '@/utils/confirmAction'
+import { confirmMoney } from '@/utils/requirePin'
 import { formatPesoExact } from '@/utils/format'
 import AppModal from '@/components/shared/AppModal.vue'
 

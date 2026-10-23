@@ -4,7 +4,7 @@ import { AVATAR, CARD, resolveAsset } from '@/utils/cloudinaryUrl'
 import { type Accommodation, FILTERS, type Lease, type Room } from './model'
 import { authUser, supabase } from '@/utils/supabase'
 import { computed, ref, watch } from 'vue'
-import { confirmAction } from '@/utils/confirmAction'
+import { requirePin } from '@/utils/requirePin'
 import { errorMessage } from '@/utils/errors'
 import { formatDate, formatPeso } from '@/utils/format'
 import { respondToApplication } from '@/utils/applications'
@@ -298,7 +298,7 @@ export function createTenantsState() {
   }
 
   async function decideApplication(l: Lease, decision: 'active' | 'rejected', reason?: string) {
-    if (decision === 'active' && !(await confirmAction({ title: 'Accept this application?', message: 'They become the boarder of this room.' }))) return
+    if (!(await requirePin({ confirm: decision === 'active', title: decision === 'active' ? 'Accept this application?' : 'Decline this application?', ...(decision === 'active' ? { message: 'They become the boarder of this room.' } : {}) }))) return
     if (decidingId.value) return
     decidingId.value = l.id
     try {

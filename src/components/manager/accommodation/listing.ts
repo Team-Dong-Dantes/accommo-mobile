@@ -4,6 +4,7 @@
 import { ref } from 'vue'
 import { supabase } from '@/utils/supabase'
 import { errorMessage } from '@/utils/errors'
+import { requirePin } from '@/utils/requirePin'
 import { to12Hour, to24Hour, splitTimeRange } from '@/utils/format'
 import { addPhotosLive } from '@/utils/upload'
 import type { Database } from '@/types/database.gen'
@@ -235,6 +236,7 @@ export function createListing(core: Detail) {
 
   async function deleteAccommodation() {
     if (deletingAccommodation.value) return
+    if (!(await requirePin({ title: 'Delete this accommodation?' }))) return
     deletingAccommodation.value = true
     try {
       const roomIds = rooms.value.map((r) => r.id)
